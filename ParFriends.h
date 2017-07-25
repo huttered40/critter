@@ -37,6 +37,7 @@
 #include "MPIType.h"
 #include "Friends.h"
 #include "OptBuf.h"
+#include "pmpi.h"
 
 
 using namespace std;
