@@ -38,6 +38,18 @@ class PMPI_Timer {
      * \param[in] name symbol name of MPI routine
      */
     PMPI_Timer(char const * name);
+ 
+    /**
+     * \brief timer copy constructor, copies name
+     * \param[in] t other timer
+     */
+    PMPI_Timer(PMPI_Timer const & t);
+    
+   
+    /**
+     * \brief timer destructor, frees name
+     */ 
+    ~PMPI_Timer();
 
     /**
      * \brief starts timer for MPI call with nbytes bytes over communicator cm
@@ -57,6 +69,12 @@ class PMPI_Timer {
      * \param[in] cm communicator over which we want to get the maximum cost
      */
     void compute_max_crit(MPI_Comm cm=MPI_COMM_WORLD);
+
+  private:
+    /**
+     * \brief common initialization of variables for construtors
+     */
+    void init_vars();
 };
 
 PMPI_Timer bcast_timer, reduce_timer, allred_timer, sendrecv_timer;
