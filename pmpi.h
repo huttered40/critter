@@ -29,9 +29,11 @@ class PMPI_Timer {
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
     double last_start_time;
     /* \brief cm with which start() was last called */
-    double last_cm;
+    MPI_comm last_cm;
     /* \brief nbr_pe with which start() was last called */
-    double last_nbr_pe;
+    int last_nbr_pe;
+    /* \brief nbr_pe2 with which start() was last called */
+    int nbr_pe2;
 
     /**
      * \brief timer constructor, initializes vars
@@ -52,20 +54,20 @@ class PMPI_Timer {
     ~PMPI_Timer();
 
     /**
-     * \brief starts timer for MPI call with nbytes bytes over communicator cm
+     * \brief starts timer for MPI call with nbytes bytes over communicator cm, performs barrier over cm
      * \param[in] name symbol name of MPI routine
      * \param[in] cm MPI_Communicator on which MPI routine is called
      * \param[in] nbe_pe neighbor processor (only used for p2p routines)
      */
-    void start(int64_t nbytes=1, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1);
+    void start(int64_t nbytes=1, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
 
     /**
-     * \brief stop timer, record time (use last_*, ensure last_start_time != -1., set last_start_time to -1
+     * \brief stop timer, record time (use last_*, ensure last_start_time != -1., set last_start_time to -1), performs barrier over last cm
      */
     void stop();
 
     /**
-     * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution 
+     * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution
      * \param[in] cm communicator over which we want to get the maximum cost
      */
     void compute_max_crit(MPI_Comm cm=MPI_COMM_WORLD);
