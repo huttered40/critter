@@ -209,7 +209,7 @@ Critter * critter_list[NUM_CRITTERS] = {
 #define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)                                            \
   { int64_t tot_recv=0; \
     int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \\
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \
     MPI_Reduce_scatter_critter.start(tot_recv, t, cm);                                        \
     PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);                                      \
     MPI_Reduce_scatter_critter.stop(); }
@@ -223,7 +223,7 @@ Critter * critter_list[NUM_CRITTERS] = {
   { assert(rt==st); \
     int64_t tot_send=0, tot_recv=0; \
     int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; } \\
+    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; } \
     MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);                                        \
     PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);                                      \
     MPI_Alltoallv_critter.stop(); }
