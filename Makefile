@@ -14,4 +14,4 @@ bin/test_bcast: lib/libcritter.a test/test_bcast.cxx
 	$(CXX) test/test_bcast.cxx -o bin/test_bcast $(CXXFLAGS) -L./lib -lcritter $(LDFLAGS)
 
 clean:
-	rm obj/critter.o lib/libcritter.a
+	rm -f obj/critter.o lib/libcritter.a bin/test_bcast
