@@ -119,28 +119,67 @@ Critter MPI_Bcast_critter("MPI_Bcast",
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
                           }), 
+        MPI_Gather_critter("MPI_Gather",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+
+                          }), 
+        MPI_Allgather_critter("MPI_Allgather",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Scatter_critter("MPI_Scatter",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+
+        MPI_Reduce_scatter_critter("MPI_Reduce_scatter",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Alltoall_critter("MPI_Alltoall",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
+                          }), 
+        MPI_Alltoallv_critter("MPI_Alltoallv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
+                          }), 
         MPI_Sendrecv_critter("MPI_Sendrecv",
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }); 
 
-#define NUM_CRITTERS 4
+#define NUM_CRITTERS 10
 
 static
 Critter * critter_list[NUM_CRITTERS] = {
         &MPI_Bcast_critter,
         &MPI_Reduce_critter,
         &MPI_Allreduce_critter,
+        &MPI_Scatter_critter,
+        &MPI_Gather_critter,
+        &MPI_Allgather_critter,
+        &MPI_Reduce_scatter_critter,
+        &MPI_Alltoall_critter,
+        &MPI_Alltoallv_critter,
         &MPI_Sendrecv_critter };
 
 #define MPI_Finalize() \
-   do { int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank); if (myrank == 0) { for (int i=0; i<NUM_CRITTERS; i++){ critter_list[i]->print_crit(); critter_list[i]->print_local();} } PMPI_Finalize(); } while (0)
+   do { \
+    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank); \
+    for (int i=0; i<NUM_CRITTERS; i++){ \
+      critter_list[i]->compute_max_crit(MPI_COMM_WORLD); \
+      if (myrank == 0) { \
+        critter_list[i]->print_crit(); \
+        critter_list[i]->print_local(); \
+      } \
+    } PMPI_Finalize(); } while (0)
 
 #define MPI_Bcast(buf, nelem, t, root, cm)                                            \
   { MPI_Bcast_critter.start(nelem, t, cm);                                        \
     PMPI_Bcast(buf, nelem, t, root, cm);                                      \
     MPI_Bcast_critter.stop(); }
-
 
 #define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)                                            \
   { MPI_Allreduce_critter.start(nelem, t, cm);                                        \
@@ -151,6 +190,44 @@ Critter * critter_list[NUM_CRITTERS] = {
   { MPI_Reduce_critter.start(nelem, t, cm);                                        \
     PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);                                      \
     MPI_Reduce_critter.stop(); }
+
+#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                            \
+  { assert(rt==st); MPI_Scatter_critter.start(std::max(scount,rcount), st, cm);                                        \
+    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
+    MPI_Scatter_critter.stop(); }
+
+#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                            \
+  { assert(rt==st); MPI_Gather_critter.start(std::max(scount,rcount), st, cm);                                        \
+    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
+    MPI_Gather_critter.stop(); }
+
+#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                                            \
+  { assert(rt==st); MPI_Allgather_critter.start(std::max(scount,rcount), st, cm);                                        \
+    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                                      \
+    MPI_Allgather_critter.stop(); }
+
+#define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)                                            \
+  { int64_t tot_recv=0; \
+    int p; MPI_Comm_size(cm, &p); \
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \\
+    MPI_Reduce_scatter_critter.start(tot_recv, t, cm);                                        \
+    PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);                                      \
+    MPI_Reduce_scatter_critter.stop(); }
+
+#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)                                            \
+  { assert(rt==st); MPI_Alltoall_critter.start(std::max(scount,rcount), st, cm);                                        \
+    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                                      \
+    MPI_Alltoall_critter.stop(); }
+
+#define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)                                            \
+  { assert(rt==st); \
+    int64_t tot_send=0, tot_recv=0; \
+    int p; MPI_Comm_size(cm, &p); \
+    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; } \\
+    MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);                                        \
+    PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);                                      \
+    MPI_Alltoallv_critter.stop(); }
+
 
 //#define MPI_Reduce(...)                                           \
 //  { Critter __t("MPI_Reduce");                                  \

@@ -6,4 +6,4 @@ Configure compiler and flags in config.mk, MPI installation and C++11 are requir
 
 Include critter.h in all files that use MPI in your application and link to ./lib/libcritter.a, when you run, timers and costs will be displayed when MPI_Finalize() is called.
 
-The current list of MPI functions being tracked: MPI_Bcast
+The current list of MPI functions being tracked: MPI_Bcast, MPI_Reduce, MPI_Allreduce, MPI_Gather, MPI_Allgather, MPI_Scatter, MPI_Reduce_Scatter, MPI_Alltoall, MPI_Alltoallv

@@ -91,12 +91,14 @@ void Critter::compute_max_crit(MPI_Comm cm){
 
 void Critter::print_crit(){
   assert(this->last_start_time == -1.); //assert timer was unstopped
-  printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+  if (this->crit_bytes > 0. || this->crit_comm_time > 0.)
+    printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
 }
 
 void Critter::print_local(){
   assert(this->last_start_time == -1.); //assert timer was unstopped
-  printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
+  if (this->my_bytes > 0. || this->my_comm_time > 0.)
+    printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
 }
 
 std::pair<double,double> Critter::get_crit_cost(){
