@@ -141,6 +141,17 @@ Critter * critter_list[NUM_CRITTERS] = {
     PMPI_Bcast(buf, nelem, t, root, cm);                                      \
     MPI_Bcast_critter.stop(); }
 
+
+#define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)                                            \
+  { MPI_Allreduce_critter.start(nelem, t, cm);                                        \
+    PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);                                      \
+    MPI_Allreduce_critter.stop(); }
+
+#define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm)                                            \
+  { MPI_Reduce_critter.start(nelem, t, cm);                                        \
+    PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);                                      \
+    MPI_Reduce_critter.stop(); }
+
 //#define MPI_Reduce(...)                                           \
 //  { Critter __t("MPI_Reduce");                                  \
 //              __t.start();                                        \
