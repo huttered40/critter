@@ -3,10 +3,6 @@
 #define __CRITTER_H__
 
 #include "mpi.h"
-#include <ctf.hpp>
-namespace CTF {
-  void set_context(MPI_Comm);
-}
 
 class Critter {
   public: 
@@ -86,67 +82,67 @@ Critter bcast_timer, reduce_timer, allred_timer, sendrecv_timer;
 #define MPI_Bcast(...)                                            \
   { Critter __t("MPI_Bcast");                                   \
               __t.start();                                        \
-    CRITTER_Bcast(__VA_ARGS__);                                      \
+    PMPI_Bcast(__VA_ARGS__);                                      \
               __t.stop(); }
 #define MPI_Reduce(...)                                           \
   { Critter __t("MPI_Reduce");                                  \
               __t.start();                                        \
-    CRITTER_Reduce(__VA_ARGS__);                                     \
+    PMPI_Reduce(__VA_ARGS__);                                     \
               __t.stop(); }
 #define MPI_Wait(...)                                             \
   { Critter __t("MPI_Wait");                                    \
               __t.start();                                        \
-    CRITTER_Wait(__VA_ARGS__);                                       \
+    PMPI_Wait(__VA_ARGS__);                                       \
               __t.stop(); }
 #define MPI_Send(...)                                             \
   { Critter __t("MPI_Send");                                    \
               __t.start();                                        \
-    CRITTER_Send(__VA_ARGS__);                                       \
+    PMPI_Send(__VA_ARGS__);                                       \
               __t.stop(); }
 #define MPI_Allreduce(...)                                        \
   { Critter __t("MPI_Allreduce");                               \
               __t.start();                                        \
-    CRITTER_Allreduce(__VA_ARGS__);                                  \
+    PMPI_Allreduce(__VA_ARGS__);                                  \
               __t.stop(); }
 #define MPI_Allgather(...)                                        \
   { Critter __t("MPI_Allgather");                               \
               __t.start();                                        \
-    CRITTER_Allgather(__VA_ARGS__);                                  \
+    PMPI_Allgather(__VA_ARGS__);                                  \
               __t.stop(); }
 #define MPI_Scatter(...)                                          \
   { Critter __t("MPI_Scatter");                                 \
               __t.start();                                        \
-    CRITTER_Scatter(__VA_ARGS__);                                    \
+    PMPI_Scatter(__VA_ARGS__);                                    \
               __t.stop(); }
 #define MPI_Alltoall(...)                                         \
   { Critter __t("MPI_Alltoall");                                \
               __t.start();                                        \
-    CRITTER_Alltoall(__VA_ARGS__);                                   \
+    PMPI_Alltoall(__VA_ARGS__);                                   \
               __t.stop(); }
 #define MPI_Alltoallv(...)                                        \
   { Critter __t("MPI_Alltoallv");                               \
               __t.start();                                        \
-    CRITTER_Alltoallv(__VA_ARGS__);                                  \
+    PMPI_Alltoallv(__VA_ARGS__);                                  \
               __t.stop(); }
 #define MPI_Gatherv(...)                                          \
   { Critter __t("MPI_Gatherv");                                 \
               __t.start();                                        \
-    CRITTER_Gatherv(__VA_ARGS__);                                    \
+    PMPI_Gatherv(__VA_ARGS__);                                    \
               __t.stop(); }
 #define MPI_Scatterv(...)                                         \
   { Critter __t("MPI_Scatterv");                                \
               __t.start();                                        \
-   CRITTER_Scatterv(__VA_ARGS__);                                    \
+   PMPI_Scatterv(__VA_ARGS__);                                    \
               __t.stop(); }
 #define MPI_Waitall(...)                                          \
   { Critter __t("MPI_Waitall");                                 \
               __t.start();                                        \
-    CRITTER_Waitall(__VA_ARGS__);                                    \
+    PMPI_Waitall(__VA_ARGS__);                                    \
               __t.stop(); }
 #define MPI_Barrier(...)                                          \
   { Critter __t("MPI_Barrier");                                 \
               __t.start();                                        \
-    CRITTER_Barrier(__VA_ARGS__);                                    \
+    PMPI_Barrier(__VA_ARGS__);                                    \
               __t.stop(); }
 #endif
 
