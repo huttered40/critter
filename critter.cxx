@@ -37,7 +37,7 @@ Critter::~Critter(){
 }
 
 void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
+  //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
   int el_size;
@@ -65,11 +65,10 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
 }
 
 void Critter::stop(){
-  assert(this->last_start_time != -1.); //assert timer was started 
   double dt = MPI_Wtime() - this->last_start_time;
   this->my_comm_time += dt;
   this->crit_comm_time += dt;
-  this->last_start_time = -1.;
+  this->last_start_time = MPI_Wtime();
 }
 
 void Critter::compute_max_crit(MPI_Comm cm){
@@ -90,13 +89,11 @@ void Critter::compute_max_crit(MPI_Comm cm){
 }
 
 void Critter::print_crit(){
-  assert(this->last_start_time == -1.); //assert timer was unstopped
   if (this->crit_bytes > 0. || this->crit_comm_time > 0.)
     printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
 }
 
 void Critter::print_local(){
-  assert(this->last_start_time == -1.); //assert timer was unstopped
   if (this->my_bytes > 0. || this->my_comm_time > 0.)
     printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
 }
