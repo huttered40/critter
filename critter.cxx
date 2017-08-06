@@ -36,10 +36,11 @@ Critter::~Critter(){
   free(this->name);
 }
 
-void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
+  this->last_nbr_pe2 = nbr_pe2;
   int el_size;
   MPI_Type_size(t, &el_size);
   int64_t nbytes = el_size * nelem;
@@ -52,12 +53,14 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
   this->crit_wrd += dcost.second;
 
   double init_time = MPI_Wtime();
-  if (nbr_pe != -1)
-    PMPI_Barrier(cm);
-  else {
-    double sbuf, rbuf;
-    sbuf = 0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
+  if (!is_async){
+    if (nbr_pe != -1)
+      PMPI_Barrier(cm);
+    else {
+      double sbuf, rbuf;
+      sbuf = 0.;
+      PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
+    }
   }
   this->last_start_time = MPI_Wtime();
   this->my_bar_time += this->last_start_time - init_time;
@@ -69,9 +72,10 @@ void Critter::stop(){
   this->my_comm_time += dt;
   this->crit_comm_time += dt;
   this->last_start_time = MPI_Wtime();
+  this->compute_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
 }
 
-void Critter::compute_max_crit(MPI_Comm cm){
+void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   double old_cs[5];
   double new_cs[5];
   old_cs[0] = this->crit_bytes;
@@ -80,7 +84,20 @@ void Critter::compute_max_crit(MPI_Comm cm){
   old_cs[3] = this->crit_msg;
   old_cs[4] = this->crit_wrd;
 
-  PMPI_Allreduce(old_cs, new_cs, 5, MPI_DOUBLE, MPI_MAX, cm);
+  if (nbr_pe == -1)
+    PMPI_Allreduce(old_cs, new_cs, 5, MPI_DOUBLE, MPI_MAX, cm);
+  else {
+    PMPI_Sendrecv(&old_cs, 5, MPI_DOUBLE, nbr_pe, 123213, &new_cs, 5, MPI_DOUBLE, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    for (int i=0; i<5; i++){
+      new_cs[i] = std::max(old_cs[i], new_cs[i]);
+    }
+    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+      PMPI_Sendrecv(&new_cs, 5, MPI_DOUBLE, nbr_pe2, 123214, &old_cs, 5, MPI_DOUBLE, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<5; i++){
+        new_cs[i] = std::max(old_cs[i], new_cs[i]);
+      }
+    }
+  }
   this->crit_bytes     = new_cs[0];
   this->crit_comm_time = new_cs[1];
   this->crit_bar_time  = new_cs[2];

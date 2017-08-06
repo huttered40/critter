@@ -41,7 +41,7 @@ class Critter {
     /* \brief nbr_pe with which start() was last called */
     int last_nbr_pe;
     /* \brief nbr_pe2 with which start() was last called */
-    int nbr_pe2;
+    int last_nbr_pe2;
 
     /**
      * \brief timer constructor, initializes vars
@@ -71,8 +71,10 @@ class Critter {
      * \param[in] name symbol name of MPI routine
      * \param[in] cm MPI_Communicator on which MPI routine is called
      * \param[in] nbe_pe neighbor processor (only used for p2p routines)
+     * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
+     * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start(int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start(int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1, bool is_async=false);
 
     /**
      * \brief stop timer, record time (use last_*, ensure last_start_time != -1., set last_start_time to -1), performs barrier over last cm
@@ -82,8 +84,10 @@ class Critter {
     /**
      * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution
      * \param[in] cm communicator over which we want to get the maximum cost
+     * \param[in] nbe_pe neighbor processor (only used for p2p routines)
+     * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      */
-    void compute_max_crit(MPI_Comm cm=MPI_COMM_WORLD);
+    void compute_max_crit(MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
     
     /**
      * \brief prints timer data for critical path measurements
@@ -304,12 +308,12 @@ std::map<MPI_Request, Critter*> critter_req;
     MPI_Alltoallv_critter.stop(); \
   } while (0)
 
-#define MPI_Send(buf, nelem, t, dest, tag, cm)                                            \
-  do { MPI_Send_critter.start(nelem, t, cm, dest);                                        \
-    PMPI_Send(buf, nelem, t, dest, tag, cm);                                      \
-    MPI_Send_critter.stop(); \
-  } while (0)
-
+//#define MPI_Send(buf, nelem, t, dest, tag, cm)                                            \
+//  do { MPI_Send_critter.start(nelem, t, cm, dest);                                        \
+//    PMPI_Send(buf, nelem, t, dest, tag, cm);                                      \
+//    MPI_Send_critter.stop(); \
+//  } while (0)
+//
 #define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)                                            \
   do { assert(st == rt); \
     MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);                                        \
@@ -318,39 +322,39 @@ std::map<MPI_Request, Critter*> critter_req;
   } while (0)
 
 
-#define MPI_Recv(buf, nelem, t, src, tag, cm, status)                                            \
-  do { MPI_Recv_critter.start(nelem, t, cm, src);                                        \
-    PMPI_Recv(buf, nelem, t, src, tag, cm, status);                                      \
-    MPI_Recv_critter.stop(); \
-  } while (0)
-
-#define MPI_Irecv(buf, nelem, t, src, tag, cm, req)                                            \
-  do { MPI_Irecv_critter.start(nelem, t, cm, src);                                        \
-    PMPI_Irecv(buf, nelem, t, src, tag, cm, req);                                      \
-    critter_req[*req] = &MPI_Irecv_critter; \
-  } while (0)
-
-#define MPI_Isend(buf, nelem, t, dest, tag, cm, req)                                            \
-  do { MPI_Isend_critter.start(nelem, t, cm, dest);                                        \
-    PMPI_Isend(buf, nelem, t, dest, tag, cm, req);                                      \
-    critter_req[*req] = &MPI_Isend_critter; \
-  } while (0)
-
-#define MPI_Wait(req, stat) \
-  do { std::map<MPI_Request, Critter*>::iterator it = critter_req.find(*req); \
-    if (it == critter_req.end()) *(int*)NULL = 1; \
-    assert(it != critter_req.end()); \
-    PMPI_Wait(req, stat); \
-    it->second->stop(); critter_req.erase(it);  \
-  } while (0)
-
-#define MPI_Waitany(cnt, reqs, indx, stat) \
-  do { PMPI_Waitany(cnt, reqs, indx, stat); \
-    std::map<MPI_Request, Critter*>::iterator it = critter_req.find((reqs)[*(indx)]); \
-    if (it != critter_req.end()) { it->second->stop(); critter_req.erase(it); } \
-  } while (0)
-
-#define MPI_Waitall(cnt, reqs, stats) \
-  do { int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat; } \
-  } while (0)
+//#define MPI_Recv(buf, nelem, t, src, tag, cm, status)                                            \
+//  do { MPI_Recv_critter.start(nelem, t, cm, src);                                        \
+//    PMPI_Recv(buf, nelem, t, src, tag, cm, status);                                      \
+//    MPI_Recv_critter.stop(); \
+//  } while (0)
+//
+//#define MPI_Irecv(buf, nelem, t, src, tag, cm, req)                                            \
+//  do { MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);                                        \
+//    PMPI_Irecv(buf, nelem, t, src, tag, cm, req);                                      \
+//    critter_req[*req] = &MPI_Irecv_critter; \
+//  } while (0)
+//
+//#define MPI_Isend(buf, nelem, t, dest, tag, cm, req)                                            \
+//  do { MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);                                        \
+//    PMPI_Isend(buf, nelem, t, dest, tag, cm, req);                                      \
+//    critter_req[*req] = &MPI_Isend_critter; \
+//  } while (0)
+//
+//#define MPI_Wait(req, stat) \
+//  do { std::map<MPI_Request, Critter*>::iterator it = critter_req.find(*req); \
+//    if (it == critter_req.end()) *(int*)NULL = 1; \
+//    assert(it != critter_req.end()); \
+//    PMPI_Wait(req, stat); \
+//    it->second->stop(); critter_req.erase(it);  \
+//  } while (0)
+//
+//#define MPI_Waitany(cnt, reqs, indx, stat) \
+//  do { PMPI_Waitany(cnt, reqs, indx, stat); \
+//    std::map<MPI_Request, Critter*>::iterator it = critter_req.find((reqs)[*(indx)]); \
+//    if (it != critter_req.end()) { it->second->stop(); critter_req.erase(it); } \
+//  } while (0)
+//
+//#define MPI_Waitall(cnt, reqs, stats) \
+//  do { int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat; } \
+//  } while (0)
 #endif
