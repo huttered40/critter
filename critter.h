@@ -218,7 +218,7 @@ Critter MPI_Barrier_critter,
     int p; MPI_Comm_size(cm, &p);                                             \
     for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }                        \
     MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm); \
-    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm); \
+    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);       \
     MPI_Allgatherv_critter.stop();                                            \
   } while (0)
 
