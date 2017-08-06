@@ -111,7 +111,7 @@ class Critter {
      */
     void init();
 };
-#define NUM_CRITTERS 15
+#define NUM_CRITTERS 16
 
 extern
 Critter * critter_list[NUM_CRITTERS];
@@ -128,6 +128,7 @@ Critter MPI_Barrier_critter,
         MPI_Gather_critter, 
         MPI_Gatherv_critter, 
         MPI_Allgather_critter, 
+        MPI_Allgatherv_critter, 
         MPI_Scatter_critter, 
         MPI_Scatterv_critter, 
         MPI_Reduce_scatter_critter, 
@@ -210,6 +211,17 @@ Critter MPI_Barrier_critter,
     PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                                      \
     MPI_Alltoall_critter.stop(); \
   } while (0)
+
+#define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)                                            \
+  do { assert(rt==st); \
+    int64_t tot_recv=0; \
+    int p; MPI_Comm_size(cm, &p); \
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \
+    MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);                                        \
+    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);                                      \
+    MPI_Allgatherv_critter.stop(); \
+  } while (0)
+
 
 #define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)                                            \
   do { assert(rt==st); \
