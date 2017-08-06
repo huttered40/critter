@@ -5,6 +5,96 @@
 #include <assert.h>
 #include <stdio.h>
 
+Critter MPI_Barrier_critter("MPI_Barrier", 
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),0.); 
+                          }), 
+        MPI_Bcast_critter("MPI_Bcast", 
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(2.*log2((double)p),2.*n); 
+                          }), 
+
+        MPI_Reduce_critter("MPI_Reduce", 
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(2.*log2((double)p),2.*n); 
+                          }), 
+        MPI_Allreduce_critter("MPI_Allreduce",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(2.*log2((double)p),2.*n); 
+                          }), 
+        MPI_Gather_critter("MPI_Gather",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Gatherv_critter("MPI_Gatherv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Allgather_critter("MPI_Allgather",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Scatter_critter("MPI_Scatter",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Scatterv_critter("MPI_Scatterv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Reduce_scatter_critter("MPI_Reduce_scatter",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
+        MPI_Alltoall_critter("MPI_Alltoall",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
+                          }), 
+        MPI_Alltoallv_critter("MPI_Alltoallv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
+                          }), 
+        MPI_Send_critter("MPI_Send",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
+                          }), 
+        MPI_Recv_critter("MPI_Recv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
+                          }), 
+        MPI_Isend_critter("MPI_Isend",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
+                          }), 
+        MPI_Irecv_critter("MPI_Irecv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
+                          }), 
+        MPI_Sendrecv_critter("MPI_Sendrecv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
+                          }); 
+
+
+Critter * critter_list[NUM_CRITTERS] = {
+        &MPI_Barrier_critter,
+        &MPI_Bcast_critter,
+        &MPI_Reduce_critter,
+        &MPI_Allreduce_critter,
+        &MPI_Scatter_critter,
+        &MPI_Gather_critter,
+        &MPI_Allgather_critter,
+        &MPI_Reduce_scatter_critter,
+        &MPI_Alltoall_critter,
+        &MPI_Alltoallv_critter,
+        &MPI_Send_critter,
+        &MPI_Recv_critter,
+        &MPI_Irecv_critter,
+        &MPI_Isend_critter,
+        &MPI_Sendrecv_critter };
+std::map<MPI_Request, Critter*> critter_req;
+
+
 void Critter::init(){
   this->last_start_time = -1.;
   this->my_bytes        = 0.;
@@ -106,12 +196,12 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 }
 
 void Critter::print_crit(){
-  if (this->crit_bytes > 0. || this->crit_comm_time > 0.)
+  if (this->last_start_time != -1.)
     printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
 }
 
 void Critter::print_local(){
-  if (this->my_bytes > 0. || this->my_comm_time > 0.)
+  if (this->last_start_time != -1.)
     printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
 }
 
