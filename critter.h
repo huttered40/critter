@@ -141,124 +141,124 @@ Critter MPI_Barrier_critter,
         MPI_Sendrecv_critter; 
 
 
-#define MPI_Finalize() \
-   do { \
-    assert(critter_req.size() == 0); \
-    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank); \
-    for (int i=0; i<NUM_CRITTERS; i++){ \
+#define MPI_Finalize()                                   \
+   do {                                                  \
+    assert(critter_req.size() == 0);                     \
+    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
+    for (int i=0; i<NUM_CRITTERS; i++){                  \
       critter_list[i]->compute_max_crit(MPI_COMM_WORLD); \
-      if (myrank == 0) { \
-        critter_list[i]->print_crit(); \
-        critter_list[i]->print_local(); \
-      } \
-    } PMPI_Finalize(); \
+      if (myrank == 0) {                                 \
+        critter_list[i]->print_crit();                   \
+        critter_list[i]->print_local();                  \
+      }                                                  \
+    } PMPI_Finalize();                                   \
   } while (0)
 
-#define MPI_Barrier(cm)                                            \
-  do { MPI_Barrier_critter.start(0, MPI_CHAR, cm);                                        \
-    PMPI_Barrier(cm);                                      \
-    MPI_Barrier_critter.stop(); \
-  } while (0)
-
-
-#define MPI_Bcast(buf, nelem, t, root, cm)                                            \
-  do { MPI_Bcast_critter.start(nelem, t, cm);                                        \
-    PMPI_Bcast(buf, nelem, t, root, cm);                                      \
-    MPI_Bcast_critter.stop(); \
-  } while (0)
-
-#define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)                                            \
-  do { MPI_Allreduce_critter.start(nelem, t, cm);                                        \
-    PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);                                      \
-    MPI_Allreduce_critter.stop(); \
-  } while (0)
-
-#define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm)                                            \
-  do { MPI_Reduce_critter.start(nelem, t, cm);                                        \
-    PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);                                      \
-    MPI_Reduce_critter.stop(); \
-  } while (0)
-
-#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                            \
-  do { assert(rt==st); MPI_Scatter_critter.start(std::max(scount,rcount), st, cm);                                        \
-    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
-    MPI_Scatter_critter.stop(); \
-  } while (0)
-
-#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                            \
-  do { assert(rt==st); MPI_Gather_critter.start(std::max(scount,rcount), st, cm);                                        \
-    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
-    MPI_Gather_critter.stop();  \
-  } while (0)
-
-#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                                            \
-  do { assert(rt==st); MPI_Allgather_critter.start(std::max(scount,rcount), st, cm);                                        \
-    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                                      \
-    MPI_Allgather_critter.stop(); \
-  } while (0)
-
-#define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)                                            \
-  do { int64_t tot_recv=0; \
-    int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \
-    MPI_Reduce_scatter_critter.start(tot_recv, t, cm);                                        \
-    PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);                                      \
-    MPI_Reduce_scatter_critter.stop(); \
-  } while (0)
-
-#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)                                            \
-  do { printf("HERE\n"); assert(rt==st); MPI_Alltoall_critter.start(std::max(scount,rcount), st, cm);                                        \
-    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                                      \
-    MPI_Alltoall_critter.stop(); \
-  } while (0)
-
-#define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)                                            \
-  do { assert(rt==st); \
-    int64_t tot_recv=0; \
-    int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \
-    MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);                                        \
-    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);                                      \
-    MPI_Allgatherv_critter.stop(); \
+#define MPI_Barrier(cm)                            \
+  do { MPI_Barrier_critter.start(0, MPI_CHAR, cm); \
+    PMPI_Barrier(cm);                              \
+    MPI_Barrier_critter.stop();                    \
   } while (0)
 
 
-#define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)                                            \
-  do { assert(rt==st); \
-    int64_t tot_recv=0; \
-    int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; } \
-    MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);                                        \
-    PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);                                      \
-    MPI_Gatherv_critter.stop(); \
+#define MPI_Bcast(buf, nelem, t, root, cm)    \
+  do { MPI_Bcast_critter.start(nelem, t, cm); \
+    PMPI_Bcast(buf, nelem, t, root, cm);      \
+    MPI_Bcast_critter.stop();                 \
   } while (0)
 
-#define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, root, cm)                                            \
-  do { assert(rt==st); \
-    int64_t tot_send=0, tot_recv=0; \
-    int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; } \
-    MPI_Scatterv_critter.start(std::max(tot_send,tot_recv), st, cm);                                        \
-    PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, root, cm);                                      \
-    MPI_Scatterv_critter.stop(); \
+#define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm) \
+  do { MPI_Allreduce_critter.start(nelem, t, cm);   \
+    PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);   \
+    MPI_Allreduce_critter.stop();                   \
   } while (0)
 
-#define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)                                            \
-  do { assert(rt==st); \
-    int64_t tot_send=0, tot_recv=0; \
-    int p; MPI_Comm_size(cm, &p); \
-    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; } \
-    MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);                                        \
-    PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);                                      \
-    MPI_Alltoallv_critter.stop(); \
+#define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm) \
+  do { MPI_Reduce_critter.start(nelem, t, cm);         \
+    PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);   \
+    MPI_Reduce_critter.stop();                         \
+  } while (0)
+
+#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)                  \
+  do { assert(rt==st); MPI_Scatter_critter.start(std::max(scount,rcount), st, cm); \
+    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);                    \
+    MPI_Scatter_critter.stop();                                                    \
+  } while (0)
+
+#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                  \
+  do { assert(rt==st); MPI_Gather_critter.start(std::max(scount,rcount), st, cm); \
+    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                    \
+    MPI_Gather_critter.stop();                                                    \
+  } while (0)
+
+#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                        \
+  do { assert(rt==st); MPI_Allgather_critter.start(std::max(scount,rcount), st, cm); \
+    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                          \
+    MPI_Allgather_critter.stop();                                                    \
+  } while (0)
+
+#define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm) \
+  do { int64_t tot_recv=0;                                 \
+    int p; MPI_Comm_size(cm, &p);                          \
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }     \
+    MPI_Reduce_scatter_critter.start(tot_recv, t, cm);     \
+    PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);   \
+    MPI_Reduce_scatter_critter.stop();                     \
+  } while (0)
+
+#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)                        \
+  do { assert(rt==st); MPI_Alltoall_critter.start(std::max(scount,rcount), st, cm); \
+    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                          \
+    MPI_Alltoall_critter.stop();                                                    \
+  } while (0)
+
+#define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)     \
+  do { assert(rt==st);                                                        \
+    int64_t tot_recv=0;                                                       \
+    int p; MPI_Comm_size(cm, &p);                                             \
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }                        \
+    MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm); \
+    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm); \
+    MPI_Allgatherv_critter.stop();                                            \
   } while (0)
 
 
-#define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)                                            \
-  do { assert(st == rt); \
-    MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);                                        \
-    PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);                                      \
-    MPI_Sendrecv_critter.stop(); \
+#define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm) \
+  do { assert(rt==st);                                                       \
+    int64_t tot_recv=0;                                                      \
+    int p; MPI_Comm_size(cm, &p);                                            \
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }                       \
+    MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);   \
+    PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);   \
+    MPI_Gatherv_critter.stop();                                              \
+  } while (0)
+
+#define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, root, cm) \
+  do { assert(rt==st);                                                                  \
+    int64_t tot_send=0, tot_recv=0;                                                     \
+    int p; MPI_Comm_size(cm, &p);                                                       \
+    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }          \
+    MPI_Scatterv_critter.start(std::max(tot_send,tot_recv), st, cm);                    \
+    PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, root, cm);   \
+    MPI_Scatterv_critter.stop();                                                        \
+  } while (0)
+
+#define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm) \
+  do { assert(rt==st);                                                             \
+    int64_t tot_send=0, tot_recv=0;                                                \
+    int p; MPI_Comm_size(cm, &p);                                                  \
+    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }     \
+    MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);              \
+    PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);   \
+    MPI_Alltoallv_critter.stop();                                                  \
+  } while (0)
+
+
+#define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status) \
+  do { assert(st == rt);                                                                \
+    MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);                 \
+    PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);   \
+    MPI_Sendrecv_critter.stop();                                                        \
   } while (0)
 
 #if 0
