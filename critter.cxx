@@ -147,9 +147,9 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
   this->crit_msg += dcost.first;
   this->crit_wrd += dcost.second;
 
-  double init_time = MPI_Wtime();
+  volatile double init_time = MPI_Wtime();
   if (!is_async){
-    if (nbr_pe != -1)
+    if (nbr_pe == -1)
       PMPI_Barrier(cm);
     else {
       double sbuf, rbuf;
@@ -202,12 +202,14 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 
 void Critter::print_crit(){
   if (this->last_start_time != -1.)
-    printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+    printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+    //printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
 }
 
 void Critter::print_local(){
   if (this->last_start_time != -1.)
-    printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
+    printf("loc%s\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
+    //printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
 }
 
 std::pair<double,double> Critter::get_crit_cost(){
