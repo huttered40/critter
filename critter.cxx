@@ -34,6 +34,10 @@ Critter MPI_Barrier_critter("MPI_Barrier",
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
+        MPI_Allgatherv_critter("MPI_Allgatherv",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }), 
         MPI_Scatter_critter("MPI_Scatter",
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
@@ -84,6 +88,7 @@ Critter * critter_list[NUM_CRITTERS] = {
         &MPI_Scatter_critter,
         &MPI_Gather_critter,
         &MPI_Allgather_critter,
+        &MPI_Allgatherv_critter,
         &MPI_Reduce_scatter_critter,
         &MPI_Alltoall_critter,
         &MPI_Alltoallv_critter,
