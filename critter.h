@@ -182,22 +182,22 @@ Critter MPI_Barrier_critter,
     MPI_Reduce_critter.stop();                         \
   } while (0)
 
-#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)                  \
-  do { assert(rt==st); MPI_Scatter_critter.start(std::max(scount,rcount), st, cm); \
-    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);                    \
-    MPI_Scatter_critter.stop();                                                    \
+#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                    \
+  do { assert(rt==st); MPI_Scatter_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
+    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
+    MPI_Scatter_critter.stop();                                                                      \
   } while (0)
 
-#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                  \
-  do { assert(rt==st); MPI_Gather_critter.start(std::max(scount,rcount), st, cm); \
-    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                    \
-    MPI_Gather_critter.stop();                                                    \
+#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                    \
+  do { assert(rt==st); MPI_Gather_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
+    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
+    MPI_Gather_critter.stop();                                                                      \
   } while (0)
 
-#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                        \
-  do { assert(rt==st); MPI_Allgather_critter.start(std::max(scount,rcount), st, cm); \
-    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                          \
-    MPI_Allgather_critter.stop();                                                    \
+#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                                          \
+  do { assert(rt==st); MPI_Allgather_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
+    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                                            \
+    MPI_Allgather_critter.stop();                                                                      \
   } while (0)
 
 #define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm) \
@@ -209,10 +209,10 @@ Critter MPI_Barrier_critter,
     MPI_Reduce_scatter_critter.stop();                     \
   } while (0)
 
-#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)                        \
-  do { assert(rt==st); MPI_Alltoall_critter.start(std::max(scount,rcount), st, cm); \
-    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                          \
-    MPI_Alltoall_critter.stop();                                                    \
+#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)                                          \
+  do { assert(rt==st); MPI_Alltoall_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
+    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                                            \
+    MPI_Alltoall_critter.stop();                                                                      \
   } while (0)
 
 #define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)     \
