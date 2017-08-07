@@ -230,7 +230,7 @@ Critter MPI_Barrier_critter,
   do { assert(rt==st);                                                       \
     int64_t tot_recv=0;                                                      \
     int p; MPI_Comm_size(cm, &p);                                            \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }                       \
+    for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; }                       \
     MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);   \
     PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);   \
     MPI_Gatherv_critter.stop();                                              \
@@ -240,8 +240,8 @@ Critter MPI_Barrier_critter,
   do { assert(rt==st);                                                       \
     int64_t tot_send=0;                                                      \
     int p; MPI_Comm_size(cm, &p);                                            \
-    for (int i=0; i<p; i++){ tot_send += scounts[i]; }                       \
-    MPI_Scatterv_critter.start(std::max(tot_send,rcount), st, cm);           \
+    for (int i=0; i<p; i++){ tot_send += ((int*)scounts)[i]; }                       \
+    MPI_Scatterv_critter.start(std::max(tot_send,(int64_t)rcount), st, cm);           \
     PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm);   \
     MPI_Scatterv_critter.stop();                                             \
   } while (0)
