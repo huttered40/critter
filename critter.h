@@ -233,14 +233,14 @@ Critter MPI_Barrier_critter,
     MPI_Gatherv_critter.stop();                                              \
   } while (0)
 
-#define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, root, cm) \
-  do { assert(rt==st);                                                                  \
-    int64_t tot_send=0, tot_recv=0;                                                     \
-    int p; MPI_Comm_size(cm, &p);                                                       \
-    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }          \
-    MPI_Scatterv_critter.start(std::max(tot_send,tot_recv), st, cm);                    \
-    PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, root, cm);   \
-    MPI_Scatterv_critter.stop();                                                        \
+#define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm) \
+  do { assert(rt==st);                                                       \
+    int64_t tot_send=0;                                                      \
+    int p; MPI_Comm_size(cm, &p);                                            \
+    for (int i=0; i<p; i++){ tot_send += scounts[i]; }                       \
+    MPI_Scatterv_critter.start(std::max(tot_send,rcount), st, cm);           \
+    PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm);   \
+    MPI_Scatterv_critter.stop();                                             \
   } while (0)
 
 #define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm) \
