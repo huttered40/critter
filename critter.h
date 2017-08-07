@@ -145,11 +145,14 @@ Critter MPI_Barrier_critter,
    do {                                                  \
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
+    if (myrank == 0) {                                   \
+      printf("\t\t comm_bytes\t comm_time\t bar_time "); \
+      printf("\t msg_cost \t wrd_cost\n");               \
+    }                                                    \
     for (int i=0; i<NUM_CRITTERS; i++){                  \
       critter_list[i]->compute_max_crit(MPI_COMM_WORLD); \
       if (myrank == 0) {                                 \
         critter_list[i]->print_crit();                   \
-        critter_list[i]->print_local();                  \
       }                                                  \
     } PMPI_Finalize();                                   \
   } while (0)
@@ -218,7 +221,7 @@ Critter MPI_Barrier_critter,
     int p; MPI_Comm_size(cm, &p);                                             \
     for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }                        \
     MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm); \
-    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm); \
+    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);       \
     MPI_Allgatherv_critter.stop();                                            \
   } while (0)
 
