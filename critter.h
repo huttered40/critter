@@ -140,17 +140,18 @@ Critter MPI_Barrier_critter,
         MPI_Irecv_critter, 
         MPI_Sendrecv_critter; 
 
+void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 
 #define MPI_Finalize()                                   \
    do {                                                  \
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
+    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);          \
     if (myrank == 0) {                                   \
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
     }                                                    \
     for (int i=0; i<NUM_CRITTERS; i++){                  \
-      critter_list[i]->compute_max_crit(MPI_COMM_WORLD); \
       if (myrank == 0) {                                 \
         critter_list[i]->print_crit();                   \
       }                                                  \

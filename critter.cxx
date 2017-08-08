@@ -167,7 +167,7 @@ void Critter::stop(){
   this->my_comm_time += dt;
   this->crit_comm_time += dt;
   this->last_start_time = MPI_Wtime();
-  this->compute_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
 }
 
 void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
@@ -214,4 +214,10 @@ void Critter::print_local(){
 
 std::pair<double,double> Critter::get_crit_cost(){
   return std::pair<double,double>(crit_msg, crit_wrd); 
+}
+
+void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
+  for (int i=0; i<NUM_CRITTERS; i++){
+    critter_list[i]->compute_max_crit(cm, nbr_pe, nbr_pe2);
+  }
 }
