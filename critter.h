@@ -105,11 +105,14 @@ class Critter {
      */
     std::pair<double,double> get_crit_cost();
 
-  private:
     /**
      * \brief common initialization of variables for construtors
      */
     void init();
+/*
+  private:
+    void init();
+*/
 };
 #define NUM_CRITTERS 16
 
@@ -142,6 +145,33 @@ Critter MPI_Barrier_critter,
 
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 
+#define Critter_Clear()                                   \
+   do {                                                  \
+    assert(critter_req.size() == 0);                     \
+    for (int i=0; i<NUM_CRITTERS; i++){                  \
+      critter_list[i]->init();                   \
+    }                                   \
+  } while (0)
+
+#define Critter_Print(ARG)                                   \
+   do {                                                  \
+    assert(critter_req.size() == 0);                     \
+    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
+    if (myrank == 0)					 \
+    { printf("\nCRITTER\n");}				 \
+    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);          \
+    if (myrank == 0) {                                   \
+      printf("\t\t comm_bytes\t comm_time\t bar_time "); \
+      printf("\t msg_cost \t wrd_cost\n");               \
+    }                                                    \
+    for (int i=0; i<NUM_CRITTERS; i++){                  \
+      if (myrank == 0) {                                 \
+        critter_list[i]->print_crit();                   \
+      }                                                  \
+    }                                   \
+  } while (0)
+
+/*
 #define MPI_Finalize()                                   \
    do {                                                  \
     assert(critter_req.size() == 0);                     \
@@ -157,13 +187,13 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
       }                                                  \
     } PMPI_Finalize();                                   \
   } while (0)
+*/
 
 #define MPI_Barrier(cm)                            \
   do { MPI_Barrier_critter.start(0, MPI_CHAR, cm); \
     PMPI_Barrier(cm);                              \
     MPI_Barrier_critter.stop();                    \
   } while (0)
-
 
 #define MPI_Bcast(buf, nelem, t, root, cm)    \
   do { MPI_Bcast_critter.start(nelem, t, cm); \
