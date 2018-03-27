@@ -92,7 +92,7 @@ class Critter {
     /**
      * \brief prints timer data for critical path measurements
      */
-    void print_crit();
+    void print_crit(FILE* ptr);
 
     /**
      * \brief prints timer data for local measurements
@@ -153,7 +153,7 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
     }                                   \
   } while (0)
 
-#define Critter_Print(ARG)                                   \
+#define Critter_Print(ARG1, ARG2)                        \
    do {                                                  \
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
@@ -164,11 +164,13 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
     }                                                    \
+    if (myrank == 0) fprintf(ARG1, "%d ", ARG2);			 \
     for (int i=0; i<NUM_CRITTERS; i++){                  \
       if (myrank == 0) {                                 \
-        critter_list[i]->print_crit();                   \
+        critter_list[i]->print_crit(ARG1);      \
       }                                                  \
-    }                                   \
+    }							 \
+    if (myrank == 0) fprintf(ARG1, "\n");			 \
   } while (0)
 
 /*

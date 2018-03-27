@@ -200,10 +200,15 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   this->crit_wrd       = new_cs[4];
 }
 
-void Critter::print_crit(){
+void Critter::print_crit(FILE* fptr){
   if (this->last_start_time != -1.)
+  {
+    // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
+    // Only needed when writing to the file that gnuplot will then read.
     printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+    fprintf(fptr, "\t%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
     //printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+  }
 }
 
 void Critter::print_local(){
