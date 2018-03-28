@@ -112,12 +112,24 @@ void Critter::init(){
   this->crit_wrd        = 0.;
 }
 
+void Critter::initSums(){
+  this->my_bytesSum        = 0.;
+  this->my_comm_timeSum    = 0.;
+  this->my_bar_timeSum     = 0.;
+  this->crit_bytesSum      = 0.;
+  this->crit_comm_timeSum  = 0.;
+  this->crit_bar_timeSum   = 0.;
+  this->crit_msgSum        = 0.;
+  this->crit_wrdSum        = 0.;
+}
+
 Critter::Critter(char const * name_, std::function< std::pair<double,double>(int64_t,int) > 
               cost_func_){
   this->cost_func = cost_func_;
   this->name = (char*)malloc(strlen(name_)+1);
   strcpy(this->name, name_);
   this->init();
+  this->initSums();
 }
 
 Critter::Critter(Critter const & t){
@@ -200,6 +212,15 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   this->crit_wrd       = new_cs[4];
 }
 
+void Critter::compute_avg_crit_update(){
+  // Contribute to running totals
+  this->crit_bytesSum += this->crit_bytes;
+  this->crit_comm_timeSum += this->crit_comm_time;
+  this->crit_bar_timeSum += this->crit_bar_time;
+  this->crit_msgSum += this->crit_msg;
+  this->crit_wrdSum += this->crit_wrd;
+}
+
 void Critter::print_crit(FILE* fptr){
   if (this->last_start_time != -1.)
   {
@@ -207,7 +228,13 @@ void Critter::print_crit(FILE* fptr){
     // Only needed when writing to the file that gnuplot will then read.
     printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
     fprintf(fptr, "\t%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
-    //printf("Critter %s: crit_bytes %1.3E crit_comm_time %lf crit_bar_time %lf crit_msg_cost %1.3E crit_wrd_cost %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+  }
+}
+
+void Critter::print_crit_avg(FILE* fptr, int numIter){
+  if (this->last_start_time != -1.)
+  {
+    fprintf(fptr, "%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t", this->name, this->crit_bytesSum/numIter, this->crit_comm_timeSum/numIter, this->crit_bar_timeSum/numIter, this->crit_msgSum/numIter, this->crit_wrdSum/numIter);
   }
 }
 
@@ -224,5 +251,11 @@ std::pair<double,double> Critter::get_crit_cost(){
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   for (int i=0; i<NUM_CRITTERS; i++){
     critter_list[i]->compute_max_crit(cm, nbr_pe, nbr_pe2);
+  }
+}
+
+void compute_all_avg_crit_updates(){
+  for (int i=0; i<NUM_CRITTERS; i++){
+    critter_list[i]->compute_avg_crit_update();
   }
 }

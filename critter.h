@@ -30,7 +30,10 @@ class Critter {
     double crit_wrd;
     /* \brief name of collective */
     char * name;
-    
+
+    /* Running sums in order to calculate averages */
+    double my_bytesSum, my_comm_timeSum, my_bar_timeSum, crit_bytesSum, crit_comm_timeSum, crit_bar_timeSum, crit_msgSum, crit_wrdSum;
+
     /* \brief function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func;
 
@@ -88,11 +91,18 @@ class Critter {
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      */
     void compute_max_crit(MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+
+    void compute_avg_crit_update();
     
     /**
      * \brief prints timer data for critical path measurements
      */
     void print_crit(FILE* ptr);
+
+    /**
+     * \brief prints averaged timer data over all 'numIter' iterations for critical path measurements
+     */
+    void print_crit_avg(FILE* fptr, int numIter);
 
     /**
      * \brief prints timer data for local measurements
@@ -109,6 +119,11 @@ class Critter {
      * \brief common initialization of variables for construtors
      */
     void init();
+
+    /**
+     * \brief common initialization of variables ultimately used to find the average of each critter routine
+     */
+    void initSums();
 /*
   private:
     void init();
@@ -144,6 +159,7 @@ Critter MPI_Barrier_critter,
         MPI_Sendrecv_critter; 
 
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
+void compute_all_avg_crit_updates();
 
 #define Critter_Clear()                                   \
    do {                                                  \
@@ -153,13 +169,14 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
     }                                   \
   } while (0)
 
-#define Critter_Print(ARG1, ARG2)                        \
+#define Critter_Print(ARG1, ARG2, ARG3, ARG4)            \
    do {                                                  \
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
     if (myrank == 0)					 \
     { printf("\nCRITTER\n");}				 \
     compute_all_max_crit(MPI_COMM_WORLD,-1,-1);          \
+    compute_all_avg_crit_updates();			 \
     if (myrank == 0) {                                   \
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
@@ -170,7 +187,16 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
         critter_list[i]->print_crit(ARG1);      \
       }                                                  \
     }							 \
-    if (myrank == 0) fprintf(ARG1, "\n");			 \
+    if (myrank == 0) fprintf(ARG1, "\n");		 \
+    if (ARG2 == (ARG4-1))				 \
+    {							 \
+      for (int i=0; i<NUM_CRITTERS; i++){                \
+        if (myrank == 0) {                               \
+            critter_list[i]->print_crit_avg(ARG3,ARG4);  \
+        }                                                \
+      }							 \
+      if (myrank == 0) fprintf(ARG3, "\n");		 \
+    }							 \
   } while (0)
 
 /*
