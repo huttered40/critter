@@ -221,20 +221,20 @@ void Critter::compute_avg_crit_update(){
   this->crit_wrdSum += this->crit_wrd;
 }
 
-void Critter::print_crit(FILE* fptr){
+void Critter::print_crit(std::ofstream& fptr){
   if (this->last_start_time != -1.)
   {
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
     printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
-    fprintf(fptr, "\t%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+    fptr << this->name << "\t" << this->crit_bytes << "\t" << this->crit_comm_time << "\t" << this->crit_bar_time << "\t" << this->crit_msg << "\t" << this->crit_wrd << std::endl;
   }
 }
 
-void Critter::print_crit_avg(FILE* fptr, int numIter){
+void Critter::print_crit_avg(std::ofstream& fptr, int numIter){
   if (this->last_start_time != -1.)
   {
-    fprintf(fptr, "%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t", this->name, this->crit_bytesSum/numIter, this->crit_comm_timeSum/numIter, this->crit_bar_timeSum/numIter, this->crit_msgSum/numIter, this->crit_wrdSum/numIter);
+    fptr << this->name << "\t" << this->crit_bytesSum/numIter << "\t" << this->crit_comm_timeSum/numIter << "\t" << this->crit_bar_timeSum/numIter << "\t" << this->crit_msgSum/numIter << "\t" << this->crit_wrdSum/numIter << std::endl;
   }
 }
 

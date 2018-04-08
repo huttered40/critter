@@ -3,6 +3,7 @@
 #define __CRITTER_H__
 
 #include "mpi.h"
+#include <fstream>
 #include <stdint.h>
 #include <functional>
 #include <map>
@@ -97,12 +98,12 @@ class Critter {
     /**
      * \brief prints timer data for critical path measurements
      */
-    void print_crit(FILE* ptr);
+    void print_crit(std::ofstream& ptr);
 
     /**
      * \brief prints averaged timer data over all 'numIter' iterations for critical path measurements
      */
-    void print_crit_avg(FILE* fptr, int numIter);
+    void print_crit_avg(std::ofstream& fptr, int numIter);
 
     /**
      * \brief prints timer data for local measurements
@@ -181,13 +182,13 @@ void compute_all_avg_crit_updates();
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
     }                                                    \
-    if (myrank == 0) fprintf(ARG1, "%d ", ARG2);			 \
+    if (myrank == 0) ARG1 << ARG2;			 \
     for (int i=0; i<NUM_CRITTERS; i++){                  \
       if (myrank == 0) {                                 \
         critter_list[i]->print_crit(ARG1);      \
       }                                                  \
     }							 \
-    if (myrank == 0) fprintf(ARG1, "\n");		 \
+    if (myrank == 0) ARG1 << "\n";		 \
     if (ARG2 == (ARG4-1))				 \
     {							 \
       for (int i=0; i<NUM_CRITTERS; i++){                \
@@ -195,7 +196,7 @@ void compute_all_avg_crit_updates();
             critter_list[i]->print_crit_avg(ARG3,ARG4);  \
         }                                                \
       }							 \
-      if (myrank == 0) fprintf(ARG3, "\n");		 \
+      if (myrank == 0) ARG3 << "\n";		 \
     }							 \
   } while (0)
 
