@@ -162,6 +162,9 @@ Critter MPI_Barrier_critter,
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
 
+// Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
+extern std::map<std::string,std::tuple<double,double,double,double,double> > saveCritterInfo;
+
 #define Critter_Clear()                                   \
    do {                                                  \
     assert(critter_req.size() == 0);                     \
@@ -170,7 +173,7 @@ void compute_all_avg_crit_updates();
     }                                   \
   } while (0)
 
-#define Critter_Print(ARG1, ARG2, ARG3, ARG4)            \
+#define Critter_Print(ARG1, ARG2)            \
    do {                                                  \
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
@@ -182,22 +185,52 @@ void compute_all_avg_crit_updates();
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
     }                                                    \
-    if (myrank == 0) ARG1 << ARG2;			 \
     for (int i=0; i<NUM_CRITTERS; i++){                  \
       if (myrank == 0) {                                 \
         critter_list[i]->print_crit(ARG1);      \
       }                                                  \
     }							 \
-    if (myrank == 0) ARG1 << "\n";		 \
-    if (ARG2 == (ARG4-1))				 \
-    {							 \
-      for (int i=0; i<NUM_CRITTERS; i++){                \
-        if (myrank == 0) {                               \
-            critter_list[i]->print_crit_avg(ARG3,ARG4);  \
-        }                                                \
-      }							 \
-      if (myrank == 0) ARG3 << "\n";		 \
-    }							 \
+    							\
+    if (ARG2 == 0)					\
+    {							\
+      ARG1 << "Input";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << it.first;	\
+      }							\
+      ARG1 << "\n";					\
+    }							\
+    ARG1 << ARG2;				\
+    for (auto& it : saveCritterInfo)			 \
+    {							\
+      ARG1 << "\t" << std::get<0>(it.second);	\
+    }							\
+    ARG1 << "\n";							\
+    ARG1 << ARG2;				\
+    for (auto& it : saveCritterInfo)			 \
+    {							\
+      ARG1 << "\t" << std::get<1>(it.second);	\
+    }							\
+    ARG1 << "\n";							\
+    ARG1 << ARG2;				\
+    for (auto& it : saveCritterInfo)			 \
+    {							\
+      ARG1 << "\t" << std::get<2>(it.second);	\
+    }							\
+    ARG1 << "\n";							\
+    ARG1 << ARG2;				\
+    for (auto& it : saveCritterInfo)			 \
+    {							\
+      ARG1 << "\t" << std::get<3>(it.second);	\
+    }							\
+    ARG1 << "\n";							\
+    ARG1 << ARG2;				\
+    for (auto& it : saveCritterInfo)			 \
+    {							\
+      ARG1 << "\t" << std::get<4>(it.second);	\
+    }							\
+    ARG1 << "\n";							\
+    saveCritterInfo.clear();				\
   } while (0)
 
 /*

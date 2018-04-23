@@ -99,6 +99,7 @@ Critter * critter_list[NUM_CRITTERS] = {
         &MPI_Sendrecv_critter };
 std::map<MPI_Request, Critter*> critter_req;
 
+std::map<std::string,std::tuple<double,double,double,double,double> > saveCritterInfo;
 
 void Critter::init(){
   this->last_start_time = -1.;
@@ -227,7 +228,10 @@ void Critter::print_crit(std::ofstream& fptr){
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
     printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
-    fptr << this->name << "\t" << this->crit_bytes << "\t" << this->crit_comm_time << "\t" << this->crit_bar_time << "\t" << this->crit_msg << "\t" << this->crit_wrd << std::endl;
+    
+    // Instead of printing, as I did before (see below), I will save to a map and print out at the end of the iteration.
+    //fptr << this->name << "\t" << this->crit_bytes << "\t" << this->crit_comm_time << "\t" << this->crit_bar_time << "\t" << this->crit_msg << "\t" << this->crit_wrd << std::endl;
+    saveCritterInfo[this->name] = std::make_tuple(this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
   }
 }
 
