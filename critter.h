@@ -200,36 +200,31 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
       }							\
       ARG1 << "\n";					\
     }							\
-    ARG1 << ARG2;				\
+    ARG1 << "\n" << ARG2;				\
     for (auto& it : saveCritterInfo)			 \
     {							\
       ARG1 << "\t" << std::get<0>(it.second);	\
     }							\
-    ARG1 << "\n";							\
-    ARG1 << ARG2;				\
+    ARG1 <<  "\n" << ARG2;				\
     for (auto& it : saveCritterInfo)			 \
     {							\
       ARG1 << "\t" << std::get<1>(it.second);	\
     }							\
-    ARG1 << "\n";							\
-    ARG1 << ARG2;				\
+    ARG1 << "\n" << ARG2;				\
     for (auto& it : saveCritterInfo)			 \
     {							\
       ARG1 << "\t" << std::get<2>(it.second);	\
     }							\
-    ARG1 << "\n";							\
-    ARG1 << ARG2;				\
+    ARG1 << "\n" << ARG2;				\
     for (auto& it : saveCritterInfo)			 \
     {							\
       ARG1 << "\t" << std::get<3>(it.second);	\
     }							\
-    ARG1 << "\n";							\
-    ARG1 << ARG2;				\
+    ARG1 << "\n" << ARG2;				\
     for (auto& it : saveCritterInfo)			 \
     {							\
       ARG1 << "\t" << std::get<4>(it.second);	\
     }							\
-    ARG1 << "\n";							\
     saveCritterInfo.clear();				\
   } while (0)
 
