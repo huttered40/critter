@@ -77,6 +77,10 @@ Critter MPI_Barrier_critter("MPI_Barrier",
         MPI_Sendrecv_critter("MPI_Sendrecv",
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
+                          }), 
+        MPI_Sendrecv_replace_critter("MPI_Sendrecv_replace",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
                           }); 
 
 
@@ -96,10 +100,16 @@ Critter * critter_list[NUM_CRITTERS] = {
         &MPI_Recv_critter,
         &MPI_Irecv_critter,
         &MPI_Isend_critter,
-        &MPI_Sendrecv_critter };
+        &MPI_Sendrecv_critter,
+        &MPI_Sendrecv_replace_critter };
 std::map<MPI_Request, Critter*> critter_req;
 
 std::map<std::string,std::tuple<double,double,double,double,double> > saveCritterInfo;
+
+double totalCritComputationTime;
+double curComputationTimer;
+double totalCommunicationTime;
+double totalIdleTime;
 
 void Critter::init(){
   this->last_start_time = -1.;
@@ -146,6 +156,33 @@ Critter::~Critter(){
 
 void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
+  
+  // Deal with computational cost at the beginning
+  volatile double curTime = MPI_Wtime();
+  double computationalTimeDiff = curTime - curComputationTimer;
+  if (!is_async){
+    if (nbr_pe == -1){
+      double curMaxTime;
+      PMPI_Allreduce(&computationalTimeDiff, &curMaxTime, 1, MPI_DOUBLE, MPI_MAX, cm);
+      totalCritComputationTime += curMaxTime;
+    }
+    else {
+      double partnerCompTime;
+      PMPI_Sendrecv(&computationalTimeDiff, 1, MPI_DOUBLE, nbr_pe, 1232137, &partnerCompTime, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
+      totalCritComputationTime += std::max(computationalTimeDiff,partnerCompTime);
+    }
+  }
+
+  // debugging check
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0)
+  {
+    // Note: this is just a sanity check. This might not be along the critical path if we have a p2p routine such as MPI_Sendrecv_replace.
+    //   In such a case, each pair of processes saves the max of themselves, and then this requires a final MPI_Allreduce over total
+    //     computation time at the very end in Critter_Print function.
+    printf("Updated total computational time before routine: %s : %g\n", this->name, totalCritComputationTime);
+  }
+
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
   this->last_nbr_pe2 = nbr_pe2;
@@ -171,8 +208,23 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
     }
   }
   this->last_start_time = MPI_Wtime();
-  this->my_bar_time += this->last_start_time - init_time;
-  this->crit_bar_time += this->last_start_time - init_time;
+  
+  double localBarrierTime = this->last_start_time - init_time;
+  double idleTime;
+  if (!is_async){
+    if (nbr_pe == -1){
+      PMPI_Allreduce(&localBarrierTime, &idleTime, 1, MPI_DOUBLE, MPI_MIN, cm);
+    }
+    else {
+      double partnerIdleTime;
+      PMPI_Sendrecv(&localBarrierTime, 1, MPI_DOUBLE, nbr_pe, 1232137, &partnerIdleTime, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
+      idleTime = std::max(localBarrierTime,partnerIdleTime);
+    }
+  }
+
+  // Note: each process will essentially have the same values for this now, so the Reduction at the end is uneccessary.
+  this->my_bar_time += idleTime;		// we actually don't even use this
+  this->crit_bar_time += idleTime;
 }
 
 void Critter::stop(){
@@ -181,6 +233,9 @@ void Critter::stop(){
   this->crit_comm_time += dt;
   this->last_start_time = MPI_Wtime();
   compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+
+  curComputationTimer = MPI_Wtime();		// reset this again
+
 }
 
 void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){

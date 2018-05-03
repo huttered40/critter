@@ -130,7 +130,7 @@ class Critter {
     void init();
 */
 };
-#define NUM_CRITTERS 16
+#define NUM_CRITTERS 17
 
 extern
 Critter * critter_list[NUM_CRITTERS];
@@ -138,6 +138,11 @@ Critter * critter_list[NUM_CRITTERS];
 /* \brief request/Critter dictionary for asynchronous messages */
 extern
 std::map<MPI_Request, Critter*> critter_req;
+
+extern double totalCritComputationTime;
+extern double curComputationTimer;
+extern double totalCommunicationTime;
+extern double totalIdleTime;
 
 extern
 Critter MPI_Barrier_critter, 
@@ -157,7 +162,8 @@ Critter MPI_Barrier_critter,
         MPI_Recv_critter, 
         MPI_Isend_critter, 
         MPI_Irecv_critter, 
-        MPI_Sendrecv_critter; 
+        MPI_Sendrecv_critter, 
+        MPI_Sendrecv_replace_critter; 
 
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
@@ -169,19 +175,43 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
    do {                                                  \
     assert(critter_req.size() == 0);                     \
     for (int i=0; i<NUM_CRITTERS; i++){                  \
-      critter_list[i]->init();                   \
-    }                                   \
+      critter_list[i]->init();                   	\
+    }                                   		\
+    totalCritComputationTime=0;				\
+    totalCommunicationTime=0;				\
+    totalIdleTime=0;				\
+    curComputationTimer=MPI_Wtime();				\
   } while (0)
 
 #define Critter_Print(ARG1, ARG2)            \
    do {                                                  \
+    volatile double endTimer = MPI_Wtime();		\
+    double timeDiff = endTimer - curComputationTimer;	\
+    double maxCurTime;					\
+    PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);	\
+    totalCritComputationTime += maxCurTime;		\
+    PMPI_Allreduce(MPI_IN_PLACE, &totalCritComputationTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);	\
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
     if (myrank == 0)					 \
     { printf("\nCRITTER\n");}				 \
     compute_all_max_crit(MPI_COMM_WORLD,-1,-1);          \
     compute_all_avg_crit_updates();			 \
-    if (myrank == 0) {                                   \
+    for (int i=0; i<NUM_CRITTERS; i++){                  \
+        totalCommunicationTime += critter_list[i]->crit_comm_time;		\
+    	totalIdleTime += critter_list[i]->crit_bar_time;			\
+    }							 \
+    if (rank == 0)					\
+    {							\
+      printf("total computation time - %g\n", totalCritComputationTime);  						\
+      printf("total communication time - %g\n", totalCommunicationTime);  						\
+      if (ARG2 == 0){	\
+        ARG1 << "Input\tComputation\tCommunication\n";				\
+        ARG1 << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\n";					\
+      } \
+      else {\
+        ARG1 << "\n" << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime;					\
+      }\
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
     }                                                    \
@@ -198,7 +228,6 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
       {							\
         ARG1 << "\t" << it.first;	\
       }							\
-      ARG1 << "\n";					\
     }							\
     ARG1 << "\n" << ARG2;				\
     for (auto& it : saveCritterInfo)			 \
@@ -350,6 +379,33 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
     MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);                 \
     PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);   \
     MPI_Sendrecv_critter.stop();                                                        \
+  } while (0)
+
+#define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status) \
+    do {									\
+    MPI_Sendrecv_replace_critter.start(scnt, st, cm, dest, src);                 \
+    PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);   \
+    MPI_Sendrecv_replace_critter.stop();                                                        \
+  } while (0)
+
+#define MPI_Comm_split(comm1, arg2, arg3, comm2) \
+    do {										\
+    volatile double curTime = MPI_Wtime();						\
+    double localDiffTime = curTime - curComputationTimer;				\
+    double maxTime;									\
+    PMPI_Allreduce(&localDiffTime, &maxTime, 1, MPI_DOUBLE, MPI_MAX, comm1);		\
+    totalCritComputationTime += maxTime;						\
+    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);					\
+    if (rank == 0)									\
+    {											\
+      printf("Updated total computational time before routine: MPI_Comm_split : %g\n", totalCritComputationTime);	\
+    }				\
+    curTime = MPI_Wtime();						\
+    PMPI_Comm_split(comm1, arg2, arg3, comm2);						\
+    localDiffTime = MPI_Wtime() - curTime;						\
+    PMPI_Allreduce(&localDiffTime, &maxTime, 1, MPI_DOUBLE, MPI_MAX, comm1);		\
+    totalCommunicationTime += maxTime;								\
+    curComputationTimer = MPI_Wtime();							\
   } while (0)
 
 #if 0
