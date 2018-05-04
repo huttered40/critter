@@ -306,13 +306,19 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
   } while (0)
 
 #define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                    \
-  do { assert(rt==st); MPI_Gather_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
+  do { assert(rt==st);										\
+    int pSize; MPI_Comm_size(cm, &pSize);							\
+    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize				\
+    MPI_Gather_critter.start(recvBufferSize, st, cm); \
     PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
     MPI_Gather_critter.stop();                                                                      \
   } while (0)
 
 #define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                                          \
-  do { assert(rt==st); MPI_Allgather_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
+  do { assert(rt==st);											\
+    int pSize; MPI_Comm_size(cm, &pSize);										\
+    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize				\
+    MPI_Allgather_critter.start(recvBufferSize, st, cm); \
     PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                                            \
     MPI_Allgather_critter.stop();                                                                      \
   } while (0)
