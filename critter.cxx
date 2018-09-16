@@ -108,6 +108,7 @@ std::map<std::string,std::tuple<double,double,double,double,double> > saveCritte
 
 double totalCritComputationTime;
 double curComputationTimer;
+double totalOverlapTime;			// Updated at each BSP step
 double totalCommunicationTime;
 double totalIdleTime;
 
@@ -121,6 +122,7 @@ void Critter::init(){
   this->crit_bar_time   = 0.;
   this->crit_msg        = 0.;
   this->crit_wrd        = 0.;
+  this->my_comp_time   = 0.;
 }
 
 void Critter::initSums(){
@@ -157,31 +159,9 @@ Critter::~Critter(){
 void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
-  // Deal with computational cost at the beginning
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
-  double computationalTimeDiff = curTime - curComputationTimer;
-  if (!is_async){
-    if (nbr_pe == -1){
-      double curMaxTime;
-      PMPI_Allreduce(&computationalTimeDiff, &curMaxTime, 1, MPI_DOUBLE, MPI_MAX, cm);
-      totalCritComputationTime += curMaxTime;
-    }
-    else {
-      double partnerCompTime;
-      PMPI_Sendrecv(&computationalTimeDiff, 1, MPI_DOUBLE, nbr_pe, 1232137, &partnerCompTime, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
-      totalCritComputationTime += std::max(computationalTimeDiff,partnerCompTime);
-    }
-  }
-
-  // debugging check
-  int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == 0)
-  {
-    // Note: this is just a sanity check. This might not be along the critical path if we have a p2p routine such as MPI_Sendrecv_replace.
-    //   In such a case, each pair of processes saves the max of themselves, and then this requires a final MPI_Allreduce over total
-    //     computation time at the very end in Critter_Print function.
-    printf("Updated total computational time before routine: %s : %g\n", this->name, totalCritComputationTime);
-  }
+  this->my_comp_time = curTime - curComputationTimer;
 
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
@@ -208,23 +188,10 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
     }
   }
   this->last_start_time = MPI_Wtime();
-  
   double localBarrierTime = this->last_start_time - init_time;
-  double idleTime;
-  if (!is_async){
-    if (nbr_pe == -1){
-      PMPI_Allreduce(&localBarrierTime, &idleTime, 1, MPI_DOUBLE, MPI_MIN, cm);
-    }
-    else {
-      double partnerIdleTime;
-      PMPI_Sendrecv(&localBarrierTime, 1, MPI_DOUBLE, nbr_pe, 1232137, &partnerIdleTime, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
-      idleTime = std::max(localBarrierTime,partnerIdleTime);
-    }
-  }
-
-  // Note: each process will essentially have the same values for this now, so the Reduction at the end is uneccessary.
-  this->my_bar_time += idleTime;		// we actually don't even use this
-  this->crit_bar_time += idleTime;
+  // crit_bar_time is a process-local data value for now, will get crittered after the communication routine is over.
+  this->crit_bar_time += localBarrierTime;
+  this->my_bar_time += localBarrierTime;
 }
 
 void Critter::stop(){
@@ -234,8 +201,30 @@ void Critter::stop(){
   this->last_start_time = MPI_Wtime();
   compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
 
-  curComputationTimer = MPI_Wtime();		// reset this again
+  // In order to get true overlap, I need to do another MPI_Allreduce using my_barrier_time, my_comm_time, and my_comp_time
+  std::vector<double> critterVec(3);
+  std::vector<double> localVec(3);
+  localVec[0] = this->my_comp_time; localVec[1] = this->my_comm_time; localVec[2] = this->my_comp_time + this->my_comm_time;
 
+  if (this->last_nbr_pe == -1)
+    PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, this->last_cm);
+  else {
+    PMPI_Sendrecv(&localVec[0], 3, MPI_DOUBLE, this->last_nbr_pe, 123213, &critterVec[0], 3, MPI_DOUBLE, this->last_nbr_pe, 123213, this->last_cm, MPI_STATUS_IGNORE);
+    for (int i=0; i<3; i++){
+      critterVec[i] = std::max(localVec[i], critterVec[i]);
+    }
+    if (this->last_nbr_pe2 != -1 && this->last_nbr_pe2 != this->last_nbr_pe){
+      PMPI_Sendrecv(&localVec[0], 3, MPI_DOUBLE, this->last_nbr_pe2, 123214, &critterVec[0], 3, MPI_DOUBLE, this->last_nbr_pe2, 123214, this->last_cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<3; i++){
+        critterVec[i] = std::max(localVec[i], critterVec[i]);
+      }
+    }
+  }
+
+  totalCritComputationTime += critterVec[0];
+  // totalCritCommunicationTime does not need to be tracked here, since I calculate it somewhere else. Doing so here would create double-counting
+  totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);
+  curComputationTimer = MPI_Wtime();		// reset this again
 }
 
 void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){

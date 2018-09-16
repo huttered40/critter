@@ -4,6 +4,7 @@
 
 #include "mpi.h"
 #include <fstream>
+#include <vector>
 #include <stdint.h>
 #include <functional>
 #include <map>
@@ -31,6 +32,10 @@ class Critter {
     double crit_wrd;
     /* \brief name of collective */
     char * name;
+
+     /* \brief duration of computation time for each call made locally,
+ *        Used to save the local computation time between Critter methods, so that we can synchronize it after communication */
+    double my_comp_time;
 
     /* Running sums in order to calculate averages */
     double my_bytesSum, my_comm_timeSum, my_bar_timeSum, crit_bytesSum, crit_comm_timeSum, crit_bar_timeSum, crit_msgSum, crit_wrdSum;
@@ -141,6 +146,7 @@ std::map<MPI_Request, Critter*> critter_req;
 
 extern double totalCritComputationTime;
 extern double curComputationTimer;
+extern double totalOverlapTime;			// Updated at each BSP step
 extern double totalCommunicationTime;
 extern double totalIdleTime;
 
@@ -179,6 +185,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
     }                                   		\
     totalCritComputationTime=0;				\
     totalCommunicationTime=0;				\
+    totalOverlapTime=0;					\
     totalIdleTime=0;				\
     curComputationTimer=MPI_Wtime();				\
   } while (0)
@@ -189,8 +196,6 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
     double timeDiff = endTimer - curComputationTimer;	\
     double maxCurTime;					\
     PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);	\
-    totalCritComputationTime += maxCurTime;		\
-    PMPI_Allreduce(MPI_IN_PLACE, &totalCritComputationTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);	\
     assert(critter_req.size() == 0);                     \
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
     if (myrank == 0)					 \
@@ -203,14 +208,15 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
     }							 \
     if (rank == 0)					\
     {							\
-      printf("total computation time - %g\n", totalCritComputationTime);  						\
-      printf("total communication time - %g\n", totalCommunicationTime);  						\
+      printf("computation-critical-path time - %g\n", totalCritComputationTime);  						\
+      printf("communication-critical-path time - %g\n", totalCommunicationTime);  						\
+      printf("total overlap time - %g\n", totalOverlapTime);  						\
       if (ARG2 == 0){	\
-        ARG1 << "Input\tComputation\tCommunication\n";				\
-        ARG1 << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\n";					\
+        ARG1 << "Input\tComputation\tCommunication\tOverlap\n";				\
+        ARG1 << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
       } \
       else {\
-        ARG1 << "\n" << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime;					\
+        ARG1 << "\n" << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
       }\
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
@@ -308,7 +314,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
 #define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                    \
   do { assert(rt==st);										\
     int pSize; MPI_Comm_size(cm, &pSize);							\
-    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize				\
+    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;				\
     MPI_Gather_critter.start(recvBufferSize, st, cm); \
     PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
     MPI_Gather_critter.stop();                                                                      \
@@ -317,7 +323,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
 #define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                                          \
   do { assert(rt==st);											\
     int pSize; MPI_Comm_size(cm, &pSize);										\
-    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize				\
+    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;				\
     MPI_Allgather_critter.start(recvBufferSize, st, cm); \
     PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                                            \
     MPI_Allgather_critter.stop();                                                                      \
@@ -397,20 +403,18 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
 #define MPI_Comm_split(comm1, arg2, arg3, comm2) \
     do {										\
     volatile double curTime = MPI_Wtime();						\
-    double localDiffTime = curTime - curComputationTimer;				\
-    double maxTime;									\
-    PMPI_Allreduce(&localDiffTime, &maxTime, 1, MPI_DOUBLE, MPI_MAX, comm1);		\
-    totalCritComputationTime += maxTime;						\
-    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);					\
-    if (rank == 0)									\
-    {											\
-      printf("Updated total computational time before routine: MPI_Comm_split : %g\n", totalCritComputationTime);	\
-    }				\
+    double localCompTime = curTime - curComputationTimer;				\
     curTime = MPI_Wtime();						\
     PMPI_Comm_split(comm1, arg2, arg3, comm2);						\
-    localDiffTime = MPI_Wtime() - curTime;						\
-    PMPI_Allreduce(&localDiffTime, &maxTime, 1, MPI_DOUBLE, MPI_MAX, comm1);		\
-    totalCommunicationTime += maxTime;								\
+    double localCommTime = MPI_Wtime() - curTime;						\
+    double localTotalTime = localCompTime + localCommTime;				\
+    std::vector<double> critterVec(3);							\
+    std::vector<double> localVec(3);							\
+    localVec[0] = localCompTime; localVec[1] = localCommTime; localVec[2] = localTotalTime;	\
+    PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, comm1);		\
+    totalCritComputationTime += critterVec[0];						\
+    totalCommunicationTime += critterVec[1];						\
+    totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);		\
     curComputationTimer = MPI_Wtime();							\
   } while (0)
 
