@@ -192,6 +192,8 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
   // crit_bar_time is a process-local data value for now, will get crittered after the communication routine is over.
   this->crit_bar_time += localBarrierTime;
   this->my_bar_time += localBarrierTime;
+  // start timer for communication routine
+  this->last_start_time = MPI_Wtime();
 }
 
 void Critter::stop(){
@@ -199,7 +201,15 @@ void Critter::stop(){
   this->my_comm_time += dt;
   this->crit_comm_time += dt;
   this->last_start_time = MPI_Wtime();
-  compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  // Sanity debugging check
+//  int tempRank;
+//  MPI_Comm_rank(MPI_COMM_WORLD, &tempRank);
+//  if (tempRank == 0)
+//  {
+//    printf("collective being called - %s\n", this->name);
+//  }
+  // New change (Oct. 6th, 2018) -- remove this compute_all_max_crit call. I think its corrupting the critical path measure
+  //compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
 
   // In order to get true overlap, I need to do another MPI_Allreduce using my_barrier_time, my_comm_time, and my_comp_time
   std::vector<double> critterVec(3);
@@ -224,6 +234,9 @@ void Critter::stop(){
   totalCritComputationTime += critterVec[0];
   // totalCritCommunicationTime does not need to be tracked here, since I calculate it somewhere else. Doing so here would create double-counting
   totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);
+
+  // Just for sanity, lets have all processors start at same place
+  PMPI_Barrier(MPI_COMM_WORLD);
   curComputationTimer = MPI_Wtime();		// reset this again
 }
 
@@ -235,6 +248,13 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   old_cs[2] = this->crit_bar_time;
   old_cs[3] = this->crit_msg;
   old_cs[4] = this->crit_wrd;
+  // Sanity debugging check
+//  int tempRank;
+//  MPI_Comm_rank(MPI_COMM_WORLD, &tempRank);
+//  if (tempRank == 0)
+//  {
+//    printf("Before crit_bar_time - %f %f %f %f %f, collective - %s\n", old_cs[0], old_cs[1], old_cs[2],old_cs[3],old_cs[4],this->name);
+//  }
 
   if (nbr_pe == -1)
     PMPI_Allreduce(old_cs, new_cs, 5, MPI_DOUBLE, MPI_MAX, cm);
@@ -255,6 +275,12 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   this->crit_bar_time  = new_cs[2];
   this->crit_msg       = new_cs[3];
   this->crit_wrd       = new_cs[4];
+
+  // Sanity debugging check
+//  if (tempRank == 0)
+//  {
+//    printf("After crit_bar_time - %f %f %f %f %f, collective - %s\n", this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd, this->name);
+//  }
 }
 
 void Critter::compute_avg_crit_update(){
