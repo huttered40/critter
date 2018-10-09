@@ -104,7 +104,7 @@ Critter * critter_list[NUM_CRITTERS] = {
         &MPI_Sendrecv_replace_critter };
 std::map<MPI_Request, Critter*> critter_req;
 
-std::map<std::string,std::tuple<double,double,double,double,double> > saveCritterInfo;
+std::map<std::string,std::tuple<double,double,double,double,double,double,double,double> > saveCritterInfo;
 
 double totalCritComputationTime;
 double curComputationTimer;
@@ -190,7 +190,7 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
   this->last_start_time = MPI_Wtime();
   double localBarrierTime = this->last_start_time - init_time;
   // crit_bar_time is a process-local data value for now, will get crittered after the communication routine is over.
-  this->crit_bar_time += localBarrierTime;
+  this->crit_bar_time += localBarrierTime;	// Will get updated after an AllReduce to find the current critical path
   this->my_bar_time += localBarrierTime;
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
@@ -199,17 +199,9 @@ void Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int 
 void Critter::stop(){
   double dt = MPI_Wtime() - this->last_start_time;
   this->my_comm_time += dt;
-  this->crit_comm_time += dt;
+  this->crit_comm_time += dt;	// Will get updated after an AllReduce to find the current critical path
   this->last_start_time = MPI_Wtime();
-  // Sanity debugging check
-//  int tempRank;
-//  MPI_Comm_rank(MPI_COMM_WORLD, &tempRank);
-//  if (tempRank == 0)
-//  {
-//    printf("collective being called - %s\n", this->name);
-//  }
-  // New change (Oct. 6th, 2018) -- remove this compute_all_max_crit call. I think its corrupting the critical path measure
-  //compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
 
   // In order to get true overlap, I need to do another MPI_Allreduce using my_barrier_time, my_comm_time, and my_comp_time
   std::vector<double> critterVec(3);
@@ -248,14 +240,6 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   old_cs[2] = this->crit_bar_time;
   old_cs[3] = this->crit_msg;
   old_cs[4] = this->crit_wrd;
-  // Sanity debugging check
-//  int tempRank;
-//  MPI_Comm_rank(MPI_COMM_WORLD, &tempRank);
-//  if (tempRank == 0)
-//  {
-//    printf("Before crit_bar_time - %f %f %f %f %f, collective - %s\n", old_cs[0], old_cs[1], old_cs[2],old_cs[3],old_cs[4],this->name);
-//  }
-
   if (nbr_pe == -1)
     PMPI_Allreduce(old_cs, new_cs, 5, MPI_DOUBLE, MPI_MAX, cm);
   else {
@@ -275,21 +259,29 @@ void Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   this->crit_bar_time  = new_cs[2];
   this->crit_msg       = new_cs[3];
   this->crit_wrd       = new_cs[4];
-
-  // Sanity debugging check
-//  if (tempRank == 0)
-//  {
-//    printf("After crit_bar_time - %f %f %f %f %f, collective - %s\n", this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd, this->name);
-//  }
 }
 
 void Critter::compute_avg_crit_update(){
+  /*
   // Contribute to running totals
   this->crit_bytesSum += this->crit_bytes;
   this->crit_comm_timeSum += this->crit_comm_time;
   this->crit_bar_timeSum += this->crit_bar_time;
   this->crit_msgSum += this->crit_msg;
   this->crit_wrdSum += this->crit_wrd;
+  */
+  // New meaning to this method: Compute the average of my_bytes, my_comm_time, and my_bar_time over all processes. Store them in same variables
+  int WorldSize;
+  MPI_Comm_size(MPI_COMM_WORLD, &WorldSize);
+  double old_cs[3];
+  double new_cs[3];
+  old_cs[0] = this->my_bytes;
+  old_cs[1] = this->my_comm_time;
+  old_cs[2] = this->my_bar_time;
+  PMPI_Allreduce(old_cs, new_cs, 3, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  this->my_bytes     = new_cs[0] / WorldSize;
+  this->my_comm_time = new_cs[1] / WorldSize;
+  this->my_bar_time  = new_cs[2] / WorldSize;
 }
 
 void Critter::print_crit(std::ofstream& fptr){
@@ -301,7 +293,9 @@ void Critter::print_crit(std::ofstream& fptr){
     
     // Instead of printing, as I did before (see below), I will save to a map and print out at the end of the iteration.
     //fptr << this->name << "\t" << this->crit_bytes << "\t" << this->crit_comm_time << "\t" << this->crit_bar_time << "\t" << this->crit_msg << "\t" << this->crit_wrd << std::endl;
-    saveCritterInfo[this->name] = std::make_tuple(this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+    // Note: the last 3 variables (this->my_*) have been AllReduced and averaged already. They are giving the average.
+    saveCritterInfo[this->name] = std::make_tuple(this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd,
+                                                  this->my_bytes,this->my_comm_time,this->my_bar_time);
   }
 }
 

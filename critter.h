@@ -175,7 +175,7 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
 
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
-extern std::map<std::string,std::tuple<double,double,double,double,double> > saveCritterInfo;
+extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double> > saveCritterInfo;
 
 #define Critter_Clear()                                   \
    do {                                                  \
@@ -213,7 +213,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
       printf("total overlap time - %g\n", totalOverlapTime);  						\
       if (ARG2 == 0){	\
         ARG1 << "Input\tComputation\tCommunication\tOverlap\n";				\
-        ARG1 << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
+        ARG1 << ARG2 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
       } \
       else {\
         ARG1 << "\n" << ARG2 << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
@@ -226,41 +226,57 @@ extern std::map<std::string,std::tuple<double,double,double,double,double> > sav
         critter_list[i]->print_crit(ARG1);      \
       }                                                  \
     }							 \
-    							\
-    if (ARG2 == 0)					\
-    {							\
-      ARG1 << "Input";				\
+    if (myrank == 0) {							\
+      if (ARG2 == 0)					\
+      {							\
+        ARG1 << "Input";				\
+        for (auto& it : saveCritterInfo)			 \
+        {							\
+          ARG1 << "\t" << it.first;	\
+        }							\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tCrit";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
-        ARG1 << "\t" << it.first;	\
+        ARG1 << "\t" << std::get<0>(it.second);	\
       }							\
+      ARG1 <<  "\n" << ARG2 << "\tCrit";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<1>(it.second);	\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tCrit";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<2>(it.second);	\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tCrit";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<3>(it.second);	\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tCrit";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<4>(it.second);	\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tAvg";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<5>(it.second);	\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tAvg";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<6>(it.second);	\
+      }							\
+      ARG1 << "\n" << ARG2 << "\tAvg";				\
+      for (auto& it : saveCritterInfo)			 \
+      {							\
+        ARG1 << "\t" << std::get<7>(it.second);	\
+      }							\
+      saveCritterInfo.clear();				\
     }							\
-    ARG1 << "\n" << ARG2;				\
-    for (auto& it : saveCritterInfo)			 \
-    {							\
-      ARG1 << "\t" << std::get<0>(it.second);	\
-    }							\
-    ARG1 <<  "\n" << ARG2;				\
-    for (auto& it : saveCritterInfo)			 \
-    {							\
-      ARG1 << "\t" << std::get<1>(it.second);	\
-    }							\
-    ARG1 << "\n" << ARG2;				\
-    for (auto& it : saveCritterInfo)			 \
-    {							\
-      ARG1 << "\t" << std::get<2>(it.second);	\
-    }							\
-    ARG1 << "\n" << ARG2;				\
-    for (auto& it : saveCritterInfo)			 \
-    {							\
-      ARG1 << "\t" << std::get<3>(it.second);	\
-    }							\
-    ARG1 << "\n" << ARG2;				\
-    for (auto& it : saveCritterInfo)			 \
-    {							\
-      ARG1 << "\t" << std::get<4>(it.second);	\
-    }							\
-    saveCritterInfo.clear();				\
   } while (0)
 
 /*
