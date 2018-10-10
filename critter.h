@@ -212,7 +212,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
       printf("communication-critical-path time - %g\n", totalCommunicationTime);  						\
       printf("total overlap time - %g\n", totalOverlapTime);  						\
       if (ARG2 == 0){	\
-        ARG1 << "Input\tComputation\tCommunication\tOverlap\n";				\
+        ARG1 << "Input\tInput\tComputation\tCommunication\tOverlap\n";				\
         ARG1 << ARG2 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
       } \
       else {\
@@ -229,7 +229,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
     if (myrank == 0) {							\
       if (ARG2 == 0)					\
       {							\
-        ARG1 << "Input";				\
+        ARG1 << "Input\tInput";				\
         for (auto& it : saveCritterInfo)			 \
         {							\
           ARG1 << "\t" << it.first;	\
