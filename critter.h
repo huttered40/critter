@@ -216,7 +216,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
         ARG1 << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
       } \
       else {\
-        ARG1 << "\n" << ARG3 << "\t" << ARG4 << "\t" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
+        ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
       }\
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
