@@ -197,6 +197,7 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
     double maxCurTime;					\
     PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);	\
     assert(critter_req.size() == 0);                     \
+    totalCritComputationTime += maxCurTime;		\
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
     if (myrank == 0)					 \
     { printf("\nCRITTER\n");}				 \
