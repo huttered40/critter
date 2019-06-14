@@ -214,10 +214,10 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
       printf("total overlap time - %g\n", totalOverlapTime);  						\
       if (ARG2 == 0){	\
         ARG1 << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap\n";				\
-        ARG1 << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
+        ARG1 << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
       } \
       else {\
-        ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
+        ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
       }\
       printf("\t\t comm_bytes\t comm_time\t bar_time "); \
       printf("\t msg_cost \t wrd_cost\n");               \
@@ -236,42 +236,42 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
           ARG1 << "\t" << it.first;	\
         }							\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<0>(it.second);	\
       }							\
-      ARG1 <<  "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";				\
+      ARG1 <<  "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<1>(it.second);	\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<2>(it.second);	\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<3>(it.second);	\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<4>(it.second);	\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tAvg";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<5>(it.second);	\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tAvg";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<6>(it.second);	\
       }							\
-      ARG1 << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";				\
+      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tAvg";				\
       for (auto& it : saveCritterInfo)			 \
       {							\
         ARG1 << "\t" << std::get<7>(it.second);	\
