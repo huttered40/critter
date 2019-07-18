@@ -177,209 +177,200 @@ void compute_all_avg_crit_updates();
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double> > saveCritterInfo;
 
-#define Critter_Clear()                                   \
-   do {                                                  \
-    assert(critter_req.size() == 0);                     \
-    for (int i=0; i<NUM_CRITTERS; i++){                  \
-      critter_list[i]->init();                   	\
-    }                                   		\
-    totalCritComputationTime=0;				\
-    totalCommunicationTime=0;				\
-    totalOverlapTime=0;					\
-    totalIdleTime=0;				\
-    curComputationTimer=MPI_Wtime();				\
+#define Critter_Clear()\
+   do {\
+    assert(critter_req.size() == 0);\
+    for (int i=0; i<NUM_CRITTERS; i++){\
+      critter_list[i]->init();\
+    }\
+    totalCritComputationTime=0;\
+    totalCommunicationTime=0;\
+    totalOverlapTime=0;\
+    totalIdleTime=0;\
+    curComputationTimer=MPI_Wtime();\
   } while (0)
 
-#define Critter_Print(ARG1, ARG2, ARG3, ARG4, ARG5)            \
-   do {                                                  \
-    volatile double endTimer = MPI_Wtime();		\
-    double timeDiff = endTimer - curComputationTimer;	\
-    double maxCurTime;					\
-    PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);	\
-    assert(critter_req.size() == 0);                     \
-    totalCritComputationTime += maxCurTime;		\
-    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
-    if (myrank == 0)					 \
-    { printf("\nCRITTER\n");}				 \
-    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);          \
-    compute_all_avg_crit_updates();			 \
-    for (int i=0; i<NUM_CRITTERS; i++){                  \
-        totalCommunicationTime += critter_list[i]->crit_comm_time;		\
-    	totalIdleTime += critter_list[i]->crit_bar_time;			\
-    }							 \
-    if (rank == 0)					\
-    {							\
-      printf("computation-critical-path time - %g\n", totalCritComputationTime);  						\
-      printf("communication-critical-path time - %g\n", totalCommunicationTime);  						\
-      printf("total overlap time - %g\n", totalOverlapTime);  						\
-      if (ARG2 == 0){	\
-        ARG1 << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap\n";				\
-        ARG1 << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";					\
-      } \
-      else {\
-        ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;					\
+#define Critter_Print(STREAM, ARG2, ARG3, ARG4, ARG5)\
+   do {\
+    volatile double endTimer = MPI_Wtime();\
+    double timeDiff = endTimer - curComputationTimer;\
+    double maxCurTime;\
+    PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);\
+    assert(critter_req.size() == 0);\
+    totalCritComputationTime += maxCurTime;\
+    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);\
+    if (myrank == 0)\
+    { printf("\nCRITTER\n");}\
+    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);\
+    compute_all_avg_crit_updates();\
+    for (int i=0; i<NUM_CRITTERS; i++){\
+        totalCommunicationTime += critter_list[i]->crit_comm_time;\
+    	totalIdleTime += critter_list[i]->crit_bar_time;\
+    }\
+    if (rank == 0){\
+      printf("computation-critical-path time - %g\n", totalCritComputationTime);\
+      printf("communication-critical-path time - %g\n", totalCommunicationTime);\
+      printf("total overlap time - %g\n", totalOverlapTime);\
+      if (ARG2 == 0){\
+        STREAM << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap\n";\
+        STREAM << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";\
       }\
-      printf("\t\t comm_bytes\t comm_time\t bar_time "); \
-      printf("\t msg_cost \t wrd_cost\n");               \
-    }                                                    \
-    for (int i=0; i<NUM_CRITTERS; i++){                  \
-      if (myrank == 0) {                                 \
-        critter_list[i]->print_crit(ARG1);      \
-      }                                                  \
-    }							 \
-    if (myrank == 0) {							\
-      if (ARG2 == 0)					\
-      {							\
-        ARG1 << "Input\tInput\tInput\tInput";				\
-        for (auto& it : saveCritterInfo)			 \
-        {							\
-          ARG1 << "\t" << it.first;	\
-        }							\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<0>(it.second);	\
-      }							\
-      ARG1 <<  "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<1>(it.second);	\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<2>(it.second);	\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<3>(it.second);	\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tCrit";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<4>(it.second);	\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tAvg";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<5>(it.second);	\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tAvg";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<6>(it.second);	\
-      }							\
-      ARG1 << "\n" << ARG3 << "\td=" << ARG4 << "\tc=" << ARG5 << "\tAvg";				\
-      for (auto& it : saveCritterInfo)			 \
-      {							\
-        ARG1 << "\t" << std::get<7>(it.second);	\
-      }							\
-      saveCritterInfo.clear();				\
-    }							\
+      else {\
+        STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;\
+      }\
+      STREAM << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";\
+      printf("\t\t comm_bytes\t comm_time\t bar_time ");\
+      printf("\t msg_cost \t wrd_cost\n");\
+    }\
+    for (int i=0; i<NUM_CRITTERS; i++){\
+      if (myrank == 0){\
+        critter_list[i]->print_crit(STREAM);\
+      }\
+    }\
+    if (myrank == 0){\
+      if (ARG2 == 0){\
+        STREAM << "Input\tInput\tInput\tInput";\
+        for (auto& it : saveCritterInfo)\
+        {\
+          STREAM << "\t" << it.first;\
+        }\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<0>(it.second);\
+      }\
+      STREAM <<  "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<1>(it.second);\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<2>(it.second);\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<3>(it.second);\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<4>(it.second);\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<5>(it.second);\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<6>(it.second);\
+      }\
+      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
+      for (auto& it : saveCritterInfo){\
+        STREAM << "\t" << std::get<7>(it.second);\
+      }\
+      saveCritterInfo.clear();\
+    }\
   } while (0)
 
 /*
-#define MPI_Finalize()                                   \
-   do {                                                  \
-    assert(critter_req.size() == 0);                     \
-    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);  \
-    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);          \
-    if (myrank == 0) {                                   \
-      printf("\t\t comm_bytes\t comm_time\t bar_time "); \
-      printf("\t msg_cost \t wrd_cost\n");               \
-    }                                                    \
-    for (int i=0; i<NUM_CRITTERS; i++){                  \
-      if (myrank == 0) {                                 \
-        critter_list[i]->print_crit();                   \
-      }                                                  \
-    } PMPI_Finalize();                                   \
+#define MPI_Finalize()\
+   do {\
+    assert(critter_req.size() == 0);\
+    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);\
+    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);\
+    if (myrank == 0) {\
+      printf("\t\t comm_bytes\t comm_time\t bar_time ");\
+      printf("\t msg_cost \t wrd_cost\n");\
+    }\
+    for (int i=0; i<NUM_CRITTERS; i++){\
+      if (myrank == 0) {\
+        critter_list[i]->print_crit();\
+      }\
+    } PMPI_Finalize();\
   } while (0)
 */
 
-#define MPI_Barrier(cm)                            \
-  do { MPI_Barrier_critter.start(0, MPI_CHAR, cm); \
-    PMPI_Barrier(cm);                              \
-    MPI_Barrier_critter.stop();                    \
+#define MPI_Barrier(cm)\
+  do { MPI_Barrier_critter.start(0, MPI_CHAR, cm);\
+    PMPI_Barrier(cm);\
+    MPI_Barrier_critter.stop();\
   } while (0)
 
-#define MPI_Bcast(buf, nelem, t, root, cm)    \
-  do { MPI_Bcast_critter.start(nelem, t, cm); \
-    PMPI_Bcast(buf, nelem, t, root, cm);      \
-    MPI_Bcast_critter.stop();                 \
+#define MPI_Bcast(buf, nelem, t, root, cm)\
+  do { MPI_Bcast_critter.start(nelem, t, cm);\
+    PMPI_Bcast(buf, nelem, t, root, cm);\
+    MPI_Bcast_critter.stop();\
   } while (0)
 
-#define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm) \
-  do { MPI_Allreduce_critter.start(nelem, t, cm);   \
-    PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);   \
-    MPI_Allreduce_critter.stop();                   \
+#define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)\
+  do { MPI_Allreduce_critter.start(nelem, t, cm);\
+    PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);\
+    MPI_Allreduce_critter.stop();\
   } while (0)
 
-#define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm) \
-  do { MPI_Reduce_critter.start(nelem, t, cm);         \
-    PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);   \
-    MPI_Reduce_critter.stop();                         \
+#define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm)\
+  do { MPI_Reduce_critter.start(nelem, t, cm);\
+    PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);\
+    MPI_Reduce_critter.stop();\
   } while (0)
 
-#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                    \
-  do { assert(rt==st); MPI_Scatter_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
-    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
-    MPI_Scatter_critter.stop();                                                                      \
+#define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
+  do { assert(rt==st); MPI_Scatter_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
+    MPI_Scatter_critter.stop();\
   } while (0)
 
-#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)                                    \
-  do { assert(rt==st);										\
-    int pSize; MPI_Comm_size(cm, &pSize);							\
-    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;				\
-    MPI_Gather_critter.start(recvBufferSize, st, cm); \
-    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);                                      \
-    MPI_Gather_critter.stop();                                                                      \
+#define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
+  do { assert(rt==st);\
+    int pSize; MPI_Comm_size(cm, &pSize);\
+    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
+    MPI_Gather_critter.start(recvBufferSize, st, cm);\
+    PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
+    MPI_Gather_critter.stop();\
   } while (0)
 
-#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)                                          \
-  do { assert(rt==st);											\
-    int pSize; MPI_Comm_size(cm, &pSize);										\
-    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;				\
-    MPI_Allgather_critter.start(recvBufferSize, st, cm); \
-    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);                                            \
-    MPI_Allgather_critter.stop();                                                                      \
+#define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)\
+  do { assert(rt==st);\
+    int pSize; MPI_Comm_size(cm, &pSize);\
+    int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
+    MPI_Allgather_critter.start(recvBufferSize, st, cm);\
+    PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);\
+    MPI_Allgather_critter.stop();\
   } while (0)
 
-#define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm) \
-  do { int64_t tot_recv=0;                                 \
-    int p; MPI_Comm_size(cm, &p);                          \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }     \
-    MPI_Reduce_scatter_critter.start(tot_recv, t, cm);     \
-    PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);   \
-    MPI_Reduce_scatter_critter.stop();                     \
+#define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)\
+  do { int64_t tot_recv=0;\
+    int p; MPI_Comm_size(cm, &p);\
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
+    MPI_Reduce_scatter_critter.start(tot_recv, t, cm);\
+    PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);\
+    MPI_Reduce_scatter_critter.stop();\
   } while (0)
 
-#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)                                          \
-  do { assert(rt==st); MPI_Alltoall_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm); \
-    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);                                            \
-    MPI_Alltoall_critter.stop();                                                                      \
+#define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)\
+  do { assert(rt==st); MPI_Alltoall_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);\
+    MPI_Alltoall_critter.stop();\
   } while (0)
 
-#define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)     \
-  do { assert(rt==st);                                                        \
-    int64_t tot_recv=0;                                                       \
-    int p; MPI_Comm_size(cm, &p);                                             \
-    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }                        \
-    MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm); \
-    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);       \
-    MPI_Allgatherv_critter.stop();                                            \
+#define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)\
+  do { assert(rt==st);\
+    int64_t tot_recv=0;\
+    int p; MPI_Comm_size(cm, &p);\
+    for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
+    MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);\
+    PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\
+    MPI_Allgatherv_critter.stop();\
   } while (0)
 
 
-#define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)  \
-  do { assert(rt==st);                                                        \
-    int64_t tot_recv=0;                                                       \
-    int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);                   \
-    if (r == root) for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; } \
-    MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);    \
-    PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);    \
-    MPI_Gatherv_critter.stop();                                               \
+#define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)\
+  do { assert(rt==st);\
+    int64_t tot_recv=0;\
+    int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
+    if (r == root) for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; }\
+    MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);\
+    PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);\
+    MPI_Gatherv_critter.stop();\
   } while (0)
 
 #define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm)  \
@@ -389,93 +380,93 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
     if (r == root) for (int i=0; i<p; i++){ tot_send += ((int*)scounts)[i]; } \
     MPI_Scatterv_critter.start(std::max(tot_send,(int64_t)rcount), st, cm);   \
     PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm);    \
-    MPI_Scatterv_critter.stop();                                              \
+    MPI_Scatterv_critter.stop();\
   } while (0)
 
-#define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm) \
-  do { assert(rt==st);                                                             \
-    int64_t tot_send=0, tot_recv=0;                                                \
-    int p; MPI_Comm_size(cm, &p);                                                  \
-    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }     \
-    MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);              \
-    PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);   \
-    MPI_Alltoallv_critter.stop();                                                  \
+#define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)\
+  do { assert(rt==st);\
+    int64_t tot_send=0, tot_recv=0;\
+    int p; MPI_Comm_size(cm, &p);\
+    for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }\
+    MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);\
+    PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);\
+    MPI_Alltoallv_critter.stop();\
   } while (0)
 
 
-#define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status) \
-  do { assert(st == rt);                                                                \
-    MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);                 \
-    PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);   \
-    MPI_Sendrecv_critter.stop();                                                        \
+#define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)\
+  do { assert(st == rt);\
+    MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);\
+    PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
+    MPI_Sendrecv_critter.stop();\
   } while (0)
 
-#define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status) \
-    do {									\
-    MPI_Sendrecv_replace_critter.start(scnt, st, cm, dest, src);                 \
-    PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);   \
-    MPI_Sendrecv_replace_critter.stop();                                                        \
+#define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status)\
+    do {\
+    MPI_Sendrecv_replace_critter.start(scnt, st, cm, dest, src);\
+    PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
+    MPI_Sendrecv_replace_critter.stop();\
   } while (0)
 
-#define MPI_Comm_split(comm1, arg2, arg3, comm2) \
-    do {										\
-    volatile double curTime = MPI_Wtime();						\
-    double localCompTime = curTime - curComputationTimer;				\
-    curTime = MPI_Wtime();						\
-    PMPI_Comm_split(comm1, arg2, arg3, comm2);						\
-    double localCommTime = MPI_Wtime() - curTime;						\
-    double localTotalTime = localCompTime + localCommTime;				\
-    std::vector<double> critterVec(3);							\
-    std::vector<double> localVec(3);							\
-    localVec[0] = localCompTime; localVec[1] = localCommTime; localVec[2] = localTotalTime;	\
-    PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, comm1);		\
-    totalCritComputationTime += critterVec[0];						\
-    totalCommunicationTime += critterVec[1];						\
-    totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);		\
-    curComputationTimer = MPI_Wtime();							\
+#define MPI_Comm_split(comm1, arg2, arg3, comm2)\
+    do {\
+    volatile double curTime = MPI_Wtime();\
+    double localCompTime = curTime - curComputationTimer;\
+    curTime = MPI_Wtime();\
+    PMPI_Comm_split(comm1, arg2, arg3, comm2);\
+    double localCommTime = MPI_Wtime() - curTime;\
+    double localTotalTime = localCompTime + localCommTime;\
+    std::vector<double> critterVec(3);\
+    std::vector<double> localVec(3);\
+    localVec[0] = localCompTime; localVec[1] = localCommTime; localVec[2] = localTotalTime;\
+    PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, comm1);\
+    totalCritComputationTime += critterVec[0];\
+    totalCommunicationTime += critterVec[1];\
+    totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);\
+    curComputationTimer = MPI_Wtime();\
   } while (0)
 
 #if 0
-#define MPI_Send(buf, nelem, t, dest, tag, cm)                                            \
-  do { MPI_Send_critter.start(nelem, t, cm, dest);                                        \
-    PMPI_Send(buf, nelem, t, dest, tag, cm);                                      \
-    MPI_Send_critter.stop(); \
+#define MPI_Send(buf, nelem, t, dest, tag, cm)\
+  do { MPI_Send_critter.start(nelem, t, cm, dest);\
+    PMPI_Send(buf, nelem, t, dest, tag, cm);\
+    MPI_Send_critter.stop();\
   } while (0)
 
-#define MPI_Recv(buf, nelem, t, src, tag, cm, status)                                            \
-  do { MPI_Recv_critter.start(nelem, t, cm, src);                                        \
-    PMPI_Recv(buf, nelem, t, src, tag, cm, status);                                      \
-    MPI_Recv_critter.stop(); \
+#define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
+  do { MPI_Recv_critter.start(nelem, t, cm, src);\
+    PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
+    MPI_Recv_critter.stop();\
   } while (0)
 
-#define MPI_Irecv(buf, nelem, t, src, tag, cm, req)                                            \
-  do { MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);                                        \
-    PMPI_Irecv(buf, nelem, t, src, tag, cm, req);                                      \
-    critter_req[*req] = &MPI_Irecv_critter; \
+#define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
+  do { MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);\
+    PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
+    critter_req[*req] = &MPI_Irecv_critter;\
   } while (0)
 
-#define MPI_Isend(buf, nelem, t, dest, tag, cm, req)                                            \
-  do { MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);                                        \
-    PMPI_Isend(buf, nelem, t, dest, tag, cm, req);                                      \
-    critter_req[*req] = &MPI_Isend_critter; \
+#define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
+  do { MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);\
+    PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
+    critter_req[*req] = &MPI_Isend_critter;\
   } while (0)
 
-#define MPI_Wait(req, stat) \
-  do { std::map<MPI_Request, Critter*>::iterator it = critter_req.find(*req); \
-    if (it == critter_req.end()) *(int*)NULL = 1; \
-    assert(it != critter_req.end()); \
-    PMPI_Wait(req, stat); \
-    it->second->stop(); critter_req.erase(it);  \
+#define MPI_Wait(req, stat)\
+  do { std::map<MPI_Request, Critter*>::iterator it = critter_req.find(*req);\
+    if (it == critter_req.end()) *(int*)NULL = 1;\
+    assert(it != critter_req.end());\
+    PMPI_Wait(req, stat);\
+    it->second->stop(); critter_req.erase(it);\
   } while (0)
 
-#define MPI_Waitany(cnt, reqs, indx, stat) \
-  do { PMPI_Waitany(cnt, reqs, indx, stat); \
-    std::map<MPI_Request, Critter*>::iterator it = critter_req.find((reqs)[*(indx)]); \
-    if (it != critter_req.end()) { it->second->stop(); critter_req.erase(it); } \
+#define MPI_Waitany(cnt, reqs, indx, stat)\
+  do { PMPI_Waitany(cnt, reqs, indx, stat);\
+    std::map<MPI_Request, Critter*>::iterator it = critter_req.find((reqs)[*(indx)]);\
+    if (it != critter_req.end()) { it->second->stop(); critter_req.erase(it); }\
   } while (0)
 
-#define MPI_Waitall(cnt, reqs, stats) \
-  do { int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat; } \
+#define MPI_Waitall(cnt, reqs, stats)\
+  do { int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat; }\
   } while (0)
 #endif
 #endif
