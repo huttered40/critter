@@ -176,7 +176,7 @@ extern _Critter MPI_Barrier_critter,
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
 void reset();
-void print(std::ofstream& Stream, int IsFirstIteration, int ARG3, int ARG4, int ARG5);
+void print(std::ofstream& Stream, int ARG3, int ARG4, int ARG5);
 }
 
 /*

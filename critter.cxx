@@ -342,7 +342,7 @@ void reset(){
   curComputationTimer=MPI_Wtime();
 }
 
-void print(std::ofstream& Stream, int IsFirstIteration, int ARG3, int ARG4, int ARG5){
+void print(std::ofstream& Stream, int ARG3, int ARG4, int ARG5){
   volatile double endTimer = MPI_Wtime();
   double timeDiff = endTimer - curComputationTimer;
   double maxCurTime;
@@ -358,23 +358,15 @@ void print(std::ofstream& Stream, int IsFirstIteration, int ARG3, int ARG4, int 
   }
   if (myrank == 0){
     /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-    if (IsFirstIteration == 0){
-      Stream << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap\n";
-      Stream << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";
-    }
-    else {
-      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
-    }
-    Stream << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";
+    Stream << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap";
+    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
     for (int i=0; i<NUM_CRITTERS; i++){
       critter_list[i]->print_crit(Stream);
     }
     /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-    if (IsFirstIteration == 0){
-      Stream << "Input\tInput\tInput\tInput";
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << it.first;
-      }
+    Stream << "\nInput\tInput\tInput\tInput";
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << it.first;
     }
     Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";
     for (auto& it : saveCritterInfo){
@@ -408,6 +400,7 @@ void print(std::ofstream& Stream, int IsFirstIteration, int ARG3, int ARG4, int 
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<7>(it.second);
     }
+    Stream << "\n";
     saveCritterInfo.clear();
   }
 }
