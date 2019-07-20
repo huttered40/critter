@@ -332,7 +332,6 @@ void print(std::ofstream& Stream, int IsFirstIteration, int ARG3, int ARG4, int 
     Critter::curComputationTimer = MPI_Wtime();\
   } while (0)
 
-#if 0
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do { Critter::MPI_Send_critter.start(nelem, t, cm, dest);\
     PMPI_Send(buf, nelem, t, dest, tag, cm);\
@@ -374,5 +373,4 @@ void print(std::ofstream& Stream, int IsFirstIteration, int ARG3, int ARG4, int 
 #define MPI_Waitall(cnt, reqs, stats)\
   do { int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat; }\
   } while (0)
-#endif
 #endif
