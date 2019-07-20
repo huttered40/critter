@@ -137,12 +137,10 @@ class Critter {
 };
 #define NUM_CRITTERS 17
 
-extern
-Critter * critter_list[NUM_CRITTERS];
+extern Critter * critter_list[NUM_CRITTERS];
 
 /* \brief request/Critter dictionary for asynchronous messages */
-extern
-std::map<MPI_Request, Critter*> critter_req;
+extern std::map<MPI_Request, Critter*> critter_req;
 
 extern double totalCritComputationTime;
 extern double curComputationTimer;
@@ -177,7 +175,7 @@ void compute_all_avg_crit_updates();
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double> > saveCritterInfo;
 
-#define Critter_Clear()\
+#define Critter_reset()\
    do {\
     assert(critter_req.size() == 0);\
     for (int i=0; i<NUM_CRITTERS; i++){\
@@ -187,10 +185,11 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
     totalCommunicationTime=0;\
     totalOverlapTime=0;\
     totalIdleTime=0;\
+    /*Initiate new timer*/\
     curComputationTimer=MPI_Wtime();\
   } while (0)
 
-#define Critter_Print(STREAM, ARG2, ARG3, ARG4, ARG5)\
+#define Critter_print(Stream, IsFirstIteration, ARG3, ARG4, ARG5)\
    do {\
     volatile double endTimer = MPI_Wtime();\
     double timeDiff = endTimer - curComputationTimer;\
@@ -199,73 +198,67 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
     assert(critter_req.size() == 0);\
     totalCritComputationTime += maxCurTime;\
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);\
-    if (myrank == 0)\
-    { printf("\nCRITTER\n");}\
     compute_all_max_crit(MPI_COMM_WORLD,-1,-1);\
     compute_all_avg_crit_updates();\
     for (int i=0; i<NUM_CRITTERS; i++){\
-        totalCommunicationTime += critter_list[i]->crit_comm_time;\
-    	totalIdleTime += critter_list[i]->crit_bar_time;\
+      totalCommunicationTime += critter_list[i]->crit_comm_time;\
+      totalIdleTime += critter_list[i]->crit_bar_time;\
     }\
     if (rank == 0){\
-      printf("computation-critical-path time - %g\n", totalCritComputationTime);\
-      printf("communication-critical-path time - %g\n", totalCommunicationTime);\
-      printf("total overlap time - %g\n", totalOverlapTime);\
-      if (ARG2 == 0){\
-        STREAM << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap\n";\
-        STREAM << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";\
+      /*Note: First iteration prints out the column headers for each tracked MPI routine*/\
+      if (IsFirstIteration == 0){\
+        Stream << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap\n";\
+        Stream << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";\
       }\
       else {\
-        STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;\
+        Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;\
       }\
-      STREAM << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";\
-      printf("\t\t comm_bytes\t comm_time\t bar_time ");\
-      printf("\t msg_cost \t wrd_cost\n");\
+      Stream << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime << "\n";\
     }\
     for (int i=0; i<NUM_CRITTERS; i++){\
       if (myrank == 0){\
-        critter_list[i]->print_crit(STREAM);\
+        critter_list[i]->print_crit(Stream);\
       }\
     }\
     if (myrank == 0){\
-      if (ARG2 == 0){\
-        STREAM << "Input\tInput\tInput\tInput";\
-        for (auto& it : saveCritterInfo)\
-        {\
-          STREAM << "\t" << it.first;\
+      /*Note: First iteration prints out the column headers for each tracked MPI routine*/\
+      if (IsFirstIteration == 0){\
+        Stream << "Input\tInput\tInput\tInput";\
+        for (auto& it : saveCritterInfo){\
+          Stream << "\t" << it.first;\
         }\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<0>(it.second);\
+        Stream << "\t" << std::get<0>(it.second);\
       }\
-      STREAM <<  "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      Stream <<  "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<1>(it.second);\
+        Stream << "\t" << std::get<1>(it.second);\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<2>(it.second);\
+        Stream << "\t" << std::get<2>(it.second);\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<3>(it.second);\
+        Stream << "\t" << std::get<3>(it.second);\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<4>(it.second);\
+        Stream << "\t" << std::get<4>(it.second);\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<5>(it.second);\
+        Stream << "\t" << std::get<5>(it.second);\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<6>(it.second);\
+        Stream << "\t" << std::get<6>(it.second);\
       }\
-      STREAM << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
+      Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";\
       for (auto& it : saveCritterInfo){\
-        STREAM << "\t" << std::get<7>(it.second);\
+        Stream << "\t" << std::get<7>(it.second);\
       }\
       saveCritterInfo.clear();\
     }\
@@ -278,8 +271,6 @@ extern std::map<std::string,std::tuple<double,double,double,double,double,double
     int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);\
     compute_all_max_crit(MPI_COMM_WORLD,-1,-1);\
     if (myrank == 0) {\
-      printf("\t\t comm_bytes\t comm_time\t bar_time ");\
-      printf("\t msg_cost \t wrd_cost\n");\
     }\
     for (int i=0; i<NUM_CRITTERS; i++){\
       if (myrank == 0) {\
