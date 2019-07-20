@@ -373,7 +373,37 @@ void reset(){
   curComputationTimer=MPI_Wtime();
 }
 
-void print(std::ofstream& Stream, std::string AlgName, int ARG3, int ARG4, int ARG5){
+void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char** InputNames, size_t* Inputs){
+  Stream << "\n" << NumPEs;
+  for (size_t idx = 0; idx < NumInputs; idx++){
+    Stream << "\t" << Inputs[idx];
+  }
+  for (size_t idx = 0; idx < NumInputs; idx++){
+    Stream << "\t" << InputNames[idx] << "=" << Inputs[idx];
+  }
+}
+
+void PrintBreakdownHeader(std::ofstream& Stream, size_t NumInputs){
+  for (size_t idx = 0; idx < (2*NumInputs+1); idx++){
+    Stream << "Input\t";
+  }
+  Stream << "Computation\tCommunication\tOverlap";
+}
+
+void PrintCritterHeader(std::ofstream& Stream, size_t NumInputs){
+  Stream << "\n";
+  for (size_t idx = 0; idx < (2*NumInputs+1); idx++){
+    if (idx != 0){
+      Stream << "\t";
+    }
+    Stream << "Input";
+  }
+  for (auto& it : saveCritterInfo){
+    Stream << "\t" << it.first;
+  }
+}
+
+void print(std::ofstream& Stream, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames){
   volatile double endTimer = MPI_Wtime();
   double timeDiff = endTimer - curComputationTimer;
   double maxCurTime;
@@ -389,45 +419,44 @@ void print(std::ofstream& Stream, std::string AlgName, int ARG3, int ARG4, int A
   }
   if (myrank == 0){
     /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-    Stream << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap";
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+    PrintBreakdownHeader(Stream,NumInputs);
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+    Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+    // Save the critter information before printing
     for (int i=0; i<NUM_CRITTERS; i++){
       critter_list[i]->print_crit(Stream,AlgName);
     }
     /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-    Stream << "\nInput\tInput\tInput\tInput";
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << it.first;
-    }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";
+    PrintCritterHeader(Stream,NumInputs);
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<0>(it.second);
     }
-    Stream <<  "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<1>(it.second);
     }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<2>(it.second);
     }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<3>(it.second);
     }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<4>(it.second);
     }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<5>(it.second);
     }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<6>(it.second);
     }
-    Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tAvg";
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<7>(it.second);
     }

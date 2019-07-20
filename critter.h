@@ -180,7 +180,7 @@ bool InAlgCritterList(std::string AlgName, std::string CritterName);
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
 void reset();
-void print(std::ofstream& Stream, std::string name, int ARG3, int ARG4, int ARG5);
+void print(std::ofstream& Stream, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames);
 }
 
 /*
