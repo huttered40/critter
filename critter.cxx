@@ -112,7 +112,40 @@ double totalOverlapTime;			// Updated at each BSP step
 double totalCommunicationTime;
 double totalIdleTime;
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
-std::map<std::string,std::tuple<double,double,double,double,double,double,double,double> > saveCritterInfo;
+std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
+std::map<std::string,std::vector<std::string>> AlgCritters;
+
+void FillAlgCritterList(){
+  // Fill in algorithm-specific critter names, as scaling studies for some variants might not incorporate the same as others
+  // Note: we organize into generic bins (QR instead of CA-CQR2) for usefulness when comparing two different algorithms
+  // QR
+  AlgCritters["QR"].push_back("MPI_Bcast");
+  AlgCritters["QR"].push_back("MPI_AllReduce");
+  AlgCritters["QR"].push_back("MPI_Reduce");
+  AlgCritters["QR"].push_back("MPI_Allgather");
+  AlgCritters["QR"].push_back("MPI_Sendrecv_replace");
+
+  // Cholesky
+  AlgCritters["Cholesky"].push_back("MPI_Bcast");
+  AlgCritters["Cholesky"].push_back("MPI_AllReduce");
+  AlgCritters["Cholesky"].push_back("MPI_Allgather");
+  AlgCritters["Cholesky"].push_back("MPI_Sendrecv_replace");
+
+  // Matrix multiplication
+  AlgCritters["MatrixMultiplication"].push_back("MPI_Bcast");
+  AlgCritters["MatrixMultiplication"].push_back("MPI_AllReduce");
+  AlgCritters["MatrixMultiplication"].push_back("MPI_Reduce");
+  AlgCritters["MatrixMultiplication"].push_back("MPI_Allgather");
+}
+
+bool InAlgCritterList(std::string AlgName, std::string CritterName){
+  for (auto Critter_ : AlgCritters[AlgName]){
+    if (CritterName == Critter_){
+      return true;
+    }
+  }
+  return false;
+}
 
 void _Critter::init(){
   this->last_start_time = -1.;
@@ -138,25 +171,21 @@ void _Critter::initSums(){
   this->crit_wrdSum        = 0.;
 }
 
-_Critter::_Critter(char const * name_, std::function< std::pair<double,double>(int64_t,int) > 
+_Critter::_Critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
               cost_func_){
   this->cost_func = cost_func_;
-  this->name = (char*)malloc(strlen(name_)+1);
-  strcpy(this->name, name_);
+  this->name = std::move(name_);
   this->init();
   this->initSums();
 }
 
 _Critter::_Critter(_Critter const & t){
   this->cost_func = t.cost_func;
-  this->name = (char*)malloc(strlen(t.name)+1);
-  strcpy(this->name, t.name);
+  this->name = t.name;
   this->init();
 }
 
-_Critter::~_Critter(){
-  free(this->name);
-}
+_Critter::~_Critter(){}
 
 void _Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
@@ -286,12 +315,13 @@ void _Critter::compute_avg_crit_update(){
   this->my_bar_time  = new_cs[2] / WorldSize;
 }
 
-void _Critter::print_crit(std::ofstream& fptr){
+void _Critter::print_crit(std::ofstream& fptr, std::string name){
   if (this->last_start_time != -1.){
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
     printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
-    
+  }
+  if ((this->last_start_time != -1.) || (InAlgCritterList(name,this->name))){
     // Instead of printing, as I did before (see below), I will save to a map and print out at the end of the iteration.
     //fptr << this->name << "\t" << this->crit_bytes << "\t" << this->crit_comm_time << "\t" << this->crit_bar_time << "\t" << this->crit_msg << "\t" << this->crit_wrd << std::endl;
     // Note: the last 3 variables (this->my_*) have been AllReduced and averaged already. They are giving the average.
@@ -331,6 +361,7 @@ void compute_all_avg_crit_updates(){
 
 void reset(){
   assert(critter_req.size() == 0);
+  FillAlgCritterList();
   for (int i=0; i<NUM_CRITTERS; i++){
     critter_list[i]->init();
   }
@@ -342,7 +373,7 @@ void reset(){
   curComputationTimer=MPI_Wtime();
 }
 
-void print(std::ofstream& Stream, int ARG3, int ARG4, int ARG5){
+void print(std::ofstream& Stream, std::string AlgName, int ARG3, int ARG4, int ARG5){
   volatile double endTimer = MPI_Wtime();
   double timeDiff = endTimer - curComputationTimer;
   double maxCurTime;
@@ -361,7 +392,7 @@ void print(std::ofstream& Stream, int ARG3, int ARG4, int ARG5){
     Stream << "Input\tInput\tInput\tInput\tComputation\tCommunication\tOverlap";
     Stream << "\n" << ARG3 << "\tc=" << ARG4 << "\td=" << ARG5 << "\tCrit" << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
     for (int i=0; i<NUM_CRITTERS; i++){
-      critter_list[i]->print_crit(Stream);
+      critter_list[i]->print_crit(Stream,AlgName);
     }
     /*Note: First iteration prints out the column headers for each tracked MPI routine*/
     Stream << "\nInput\tInput\tInput\tInput";

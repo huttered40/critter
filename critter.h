@@ -34,7 +34,7 @@ class _Critter {
     /* \brief comm cost #words term */
     double crit_wrd;
     /* \brief name of collective */
-    char * name;
+    std::string name;
 
      /* \brief duration of computation time for each call made locally,
  *        Used to save the local computation time between _Critter methods, so that we can synchronize it after communication */
@@ -60,7 +60,7 @@ class _Critter {
      * \param[in] name symbol name of MPI routine
      * \param[in] function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) 
      */
-    _Critter(char const * name,
+    _Critter(std::string name,
             std::function< std::pair<double,double>(int64_t,int) > 
               cost_func = [](int64_t n, int p){ 
                 return std::pair<double,double>(1.,n); 
@@ -106,7 +106,7 @@ class _Critter {
     /**
      * \brief prints timer data for critical path measurements
      */
-    void print_crit(std::ofstream& ptr);
+    void print_crit(std::ofstream& ptr, std::string name);
 
     /**
      * \brief prints averaged timer data over all 'numIter' iterations for critical path measurements
@@ -151,14 +151,15 @@ extern double totalOverlapTime;			// Updated at each BSP step
 extern double totalCommunicationTime;
 extern double totalIdleTime;
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
-extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double> > saveCritterInfo;
+extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
+extern std::map<std::string,std::vector<std::string>> AlgCritters;
 
 extern _Critter MPI_Barrier_critter, 
          MPI_Bcast_critter, 
          MPI_Reduce_critter, 
          MPI_Allreduce_critter, 
          MPI_Gather_critter, 
-         MPI_Gatherv_critter, 
+         MPI_Gatherv_critter,
          MPI_Allgather_critter, 
          MPI_Allgatherv_critter, 
          MPI_Scatter_critter, 
@@ -173,10 +174,13 @@ extern _Critter MPI_Barrier_critter,
          MPI_Sendrecv_critter, 
          MPI_Sendrecv_replace_critter; 
 
+
+void FillAlgCritterList();
+bool InAlgCritterList(std::string AlgName, std::string CritterName);
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
 void reset();
-void print(std::ofstream& Stream, int ARG3, int ARG4, int ARG5);
+void print(std::ofstream& Stream, std::string name, int ARG3, int ARG4, int ARG5);
 }
 
 /*
