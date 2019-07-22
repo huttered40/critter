@@ -120,20 +120,20 @@ void FillAlgCritterList(){
   // Note: we organize into generic bins (QR instead of CA-CQR2) for usefulness when comparing two different algorithms
   // QR
   AlgCritters["QR"].push_back("MPI_Bcast");
-  AlgCritters["QR"].push_back("MPI_AllReduce");
+  AlgCritters["QR"].push_back("MPI_Allreduce");
   AlgCritters["QR"].push_back("MPI_Reduce");
   AlgCritters["QR"].push_back("MPI_Allgather");
   AlgCritters["QR"].push_back("MPI_Sendrecv_replace");
 
   // Cholesky
   AlgCritters["Cholesky"].push_back("MPI_Bcast");
-  AlgCritters["Cholesky"].push_back("MPI_AllReduce");
+  AlgCritters["Cholesky"].push_back("MPI_Allreduce");
   AlgCritters["Cholesky"].push_back("MPI_Allgather");
   AlgCritters["Cholesky"].push_back("MPI_Sendrecv_replace");
 
   // Matrix multiplication
   AlgCritters["MatrixMultiplication"].push_back("MPI_Bcast");
-  AlgCritters["MatrixMultiplication"].push_back("MPI_AllReduce");
+  AlgCritters["MatrixMultiplication"].push_back("MPI_Allreduce");
   AlgCritters["MatrixMultiplication"].push_back("MPI_Reduce");
   AlgCritters["MatrixMultiplication"].push_back("MPI_Allgather");
 }
