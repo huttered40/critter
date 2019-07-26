@@ -3,30 +3,7 @@
 # ********************************************************************************************************************************
 # LibraryPaths - list of paths to libraries to be built automatically
 #              - append more if necessary
-LibraryPaths=()
-if [ "$(hostname |grep "porter")" != "" ];
-then
-  camfsDir=~/hutter2/CAMFS
-  candmcDir=~/hutter2/ExternalLibraries/CANDMC
-elif [ "$(hostname |grep "mira")" != "" ] || [ "$(hostname |grep "cetus")" != "" ];
-then
-  camfsDir=~/scratch/CAMFS
-  candmcDir=~/scratch/CANDMC
-elif [ "$(hostname |grep "theta")" != "" ];
-then
-  camfsDir=~/scratch/CAMFS
-  candmcDir=~/scratch/CANDMC
-elif [ "$(hostname |grep "stampede2")" != "" ];
-then
-  camfsDir=~/CAMFS
-  candmcDir=~/CANDMC
-elif [ "$(hostname |grep "h2o")" != "" ];
-then
-  camfsDir=~/CAMFS
-  candmcDir=~/CANDMC
-fi
-LibraryPaths+=(${camfsDir})
-LibraryPaths+=(${candmcDir})
+LibraryPaths=("camfs" "candmc")
 
 # ********************************************************************************************************************************
 # BinaryPath - where binaries (of all libraries) are stored before transfer to SCRATCH
