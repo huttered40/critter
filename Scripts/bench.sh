@@ -1,93 +1,62 @@
 #!/bin/bash
 
-tag1='cqr2'
-tag2='bsqr'
-tag3='cfr3d'
-tag4='bscf'
-tag5='mm3d'
+# Warning to set relevant paths before proceeding with launch
+read -p "Warning: Have you set the user-defined environment variables inside bench.sh? Yes[1] No[0]" FillEnvironVar
 
-# Product of PPN and TPR. Tells me how each node is being used.
-minPEcountPerNode=""
-maxPEcountPerNode=""
+source Instructions.sh
 
-# Make sure that the src/bin directory is created, or else compilation won't work
-if [ ! -d "../bin" ];
+# Create Build Instructions for all libraries
+for lib in "${LibraryPaths[@]}"
+do
+  source Libraries/${lib}/build.sh
+done
+
+# Make sure that the bin directory is created, or else compilation won't work
+if [ ! -d "${BinaryPath}" ];
 then
-  mkdir ../bin
+  mkdir ${BinaryPath}
 fi
 
-scalaDir=""
 machineName=""
-mpiType=""
 accelType=""
 testAccel_NoAccel=""
 if [ "$(hostname |grep "porter")" != "" ];
 then
   machineName=PORTER
-  scalaDir=~/hutter2/ExternalLibraries/CANDMC/CANDMC
-  scaplotDir=~/hutter2/ExternalLibraries/SCAPLOT/scaplot
-  read -p "Do you want to use MPI[mpi] or AMPI[ampi]? " mpiType
-  if [ "${mpiType}" == "mpi" ];
-  then
-    export MPITYPE=MPI_TYPE
-    minPEcountPerNode=1
-    maxPEcountPerNode=16
-  elif [ "${mpiType}" == "ampi" ];
-  then
-    export MPITYPE=AMPI_TYPE
-    minPEcountPerNode=1
-    maxPEcountPerNode=512
-  fi
 elif [ "$(hostname |grep "mira")" != "" ] || [ "$(hostname |grep "cetus")" != "" ];
 then
   machineName=BGQ
-  scalaDir=~/scratch/CANDMC
-  export MPITYPE=MPI_TYPE
-  mpiType=mpi
 elif [ "$(hostname |grep "theta")" != "" ];
 then
   machineName=THETA
-  scalaDir=~/scratch/CANDMC
-  export MPITYPE=MPI_TYPE
-  mpiType=mpi
 elif [ "$(hostname |grep "stampede2")" != "" ];
 then
   machineName=STAMPEDE2
-  scalaDir=~/CANDMC
-  export MPITYPE=MPI_TYPE
-  mpiType=mpi 
-  minPEcountPerNode=64		# Note: this will need to be changed before launching Critter runs
-  maxPEcountPerNode=128
 elif [ "$(hostname |grep "h2o")" != "" ];
 then
-  read -p "GPU acceleration via XK7[y] or no[n]: " accelType
-  if [ "${accelType}" == "y" ];
-  then
-    export GPU=GPUACCEL
-    read -p "Do you want to test CA-CQR2 on both GPU accelated machines and the non-accelerated option[y] or no[n]: " testAccel_NoAccel
-  else
-    export GPU=NOGPU
-    testAccel_NoAccel="n"
-  fi
+  accelType="n"
+  testAccel_NoAccel="n"
+#  read -p "GPU acceleration via XK7[y] or no[n]: " accelType
+#  if [ "${accelType}" == "y" ];
+#  then
+#    export GPU=GPUACCEL
+#    read -p "Do you want to test CA-CQR2 on both GPU accelated machines and the non-accelerated option[y] or no[n]: " testAccel_NoAccel
+#  else
+#    export GPU=NOGPU
+#    testAccel_NoAccel="n"
+#  fi
   machineName=BLUEWATERS
-  scalaDir=~/CANDMC
+fi
+
+if [ "${mpiType}" == "mpi" ];
+then
   export MPITYPE=MPI_TYPE
-  mpiType=mpi
-  minPEcountPerNode=16
-  maxPEcountPerNode=32
+elif [ "${mpiType}" == "ampi" ];
+then
+  export MPITYPE=AMPI_TYPE
 fi
 
 dateStr=$(date +%Y-%m-%d-%H_%M_%S)
-read -p "Enter ID of auto-generated file this program will create: " fileID
-read -p "What round is this? " roundID
-read -p "Enter minimum number of nodes requested: " minNumNodes
-read -p "Enter maximum number of nodes requested: " maxNumNodes
-read -p "Also enter factor to scale number of nodes: " nodeScaleFactor
-read -p "Also enter factor to scale PPN: " ppnScaleFactor
-# Only revelant for non-GPU
-read -p "Also enter factor to scale thread-per-rank: " tprScaleFactor
-read -p "Enter number of launches per binary: " NumLaunchesPerBinary
-
 ppnMinList=()
 ppnMaxList=()
 tprMinList=()
@@ -124,39 +93,9 @@ do
   curNumNodes=$(( ${curNumNodes} * ${nodeScaleFactor} ))   # So far, only use cases for nodeScaleFactor are 2 and 16.
 done
 
-# test echo
-echo "ppn min list - ${ppnMinList[@]}"
-echo "ppn max list - ${ppnMaxList[@]}"
-echo "tpr min list - ${tprMinList[@]}"
-echo "tpr max list ${tprMaxList[@]}"
+fileName=launch${fileID}_${dateStr}_${machineName}_round${roundID}
+fileNameToProcess=launch${fileID}_${machineName}	# Name of the corresponding directory in CAMFS_data. Allows for appending multiple runs
 
-read -p "Enter number of tests (equal to number of strong scaling or weak scaling tests that will be run): " numTests
-
-numHours=""
-numMinutes=""
-numSeconds=""
-if [ "${machineName}" == "BLUEWATERS" ] || [ "${machineName}" == "STAMPEDE2" ];
-then
-  read -p "Enter number of hours of job: " numHours
-  read -p "Enter number of minutes of job: " numMinutes
-  read -p "Enter number of seconds of job: " numSeconds
-elif [ "${machineName}" == "BGQ" ] || [ "${machineName}" == "THETA" ];
-then
-  read -p "Enter number of minutes of job: " numMinutes
-fi
-read -p "Enter email for job update: " MyEmail
-
-fileName=benchQR_launch${fileID}_${dateStr}_${machineName}_round${roundID}
-fileNameToProcess=benchQR_launch${fileID}_${machineName}	# Name of the corresponding directory in CAMFS_data. Allows for appending multiple runs
-
-# Below: might delete. Not sure if this is really necessary, but don't currently want to delete it before I'm sure.
-#if [ "${machineName}" == "STAMPEDE2" ];   # Will allow me to run multiple jobs with different numThreadsPerRank without the fileName aliasing.
-#then
-#  fileName=${fileName}_${numThreadsPerRankMin}_${numThreadsPerRankMax}
-#fi
-
-read -p "What datatype? float[0], double[1], complex<float>[2], complex<double>[3]: " dataType
-read -p "What integer type? int[0], int64_t[1]: " intType
 if [ ${dataType} == 0 ];
 then
   export DATATYPE=FLOAT_TYPE
@@ -178,9 +117,7 @@ then
   export INTTYPE=INT64_T_TYPE
 fi
 
-# Build CAMFS code
-# Build separately for performance runs, critter runs, and profiling runs. To properly analyze, all 3 are necessary.
-# Any one without the other two renders it meaningless.
+###################################################### Library Builds ######################################################
 
 # Choice of compiler for Blue Waters (assumes Cray compiler is loaded by default)
 if [ "${machineName}" == "BLUEWATERS" ];
@@ -194,8 +131,6 @@ then
     elif [ "${PE_ENV}" == "CRAY" ];
     then
       module swap PrgEnv-cray PrgEnv-intel
-    #elif [ "${PE_ENV}" == "INTEL" ];
-    #then
     fi
   elif [ "${bwPrgEnv}" == "G" ];
   then
@@ -205,8 +140,6 @@ then
     elif [ "${PE_ENV}" == "CRAY" ];
     then
       module swap PrgEnv-cray PrgEnv-gnu
-    #elif [ "${PE_ENV}" == "GNU" ];
-    #then
     fi
   fi
   if [ "${accelType}" == "n" ];
@@ -218,113 +151,29 @@ then
   fi
 fi
 
-read -p "Do you want to analyze these tests with Critter? Yes[1], No[0]: " analyzeDecision1
-read -p "Do you want to analyze these tests with TAU? Yes[1], No[0]: " analyzeDecision2
-make -C./.. clean
-export PROFTYPE=PERFORMANCE
+# Build each library
+for lib in "${LibraryPaths[@]}"
+do
+  export PROFTYPE=PERFORMANCE
+  profType=P
+  # export SPECIAL_SCALA_ARG=REF
+  build_${lib}
 
-read -p "QR factorization [cqr2], Cholesky factorization [cfr3d], or Matrix multiplication [mm3d]: " makebinarytag
-
-make -C./.. ${makebinarytag}_${mpiType}
-profType=P
-# If GPU-accelerated, we might want to run the non-accelerated binary as well
-if [ "${testAccel_NoAccel}" == "y" ];
-then
-  module unload cudatoolkit
-  module load cblas
-  export GPU=NOGPU
-  make -C./.. ${makebinarytag}_${mpiType}
-fi
-if [ ${analyzeDecision1} == 1 ];
-then
-  if [ "${testAccel_NoAccel}" == "y" ];
+  if [ ${analyzeDecision1} == 1 ];
   then
-    # load back in GPU modules
-    module unload cblas
-    module load cudatoolkit
-    export GPU=GPUACCEL
-  fi
-  profType=${profType}C
-  export PROFTYPE=CRITTER
-  make -C./.. ${makebinarytag}_${mpiType}
-  # If GPU-accelerated, we might want to run the non-accelerated binary as well
-  if [ "${testAccel_NoAccel}" == "y" ];
-  then
-    module unload cudatoolkit
-    module load cblas
-    export GPU=NOGPU
+    profType=${profType}C
+    export PROFTYPE=CRITTER
     make -C./.. ${makebinarytag}_${mpiType}
   fi
-fi
-if [ ${analyzeDecision2} == 1 ];
-then
-  if [ "${testAccel_NoAccel}" == "y" ];
+
+  if [ ${analyzeDecision2} == 1 ];
   then
-    # load back in GPU modules
-    module unload cblas
-    module load cudatoolkit
-    export GPU=GPUACCEL
-  fi
-  profType=${profType}T
-  export PROFTYPE=PROFILE
-  make -C./.. ${makebinarytag}_${mpiType}
-  # If GPU-accelerated, we might want to run the non-accelerated binary as well
-  if [ "${testAccel_NoAccel}" == "y" ];
-  then
-    module unload cudatoolkit
-    module load cblas
-    export GPU=NOGPU
+    profType=${profType}T
+    export PROFTYPE=PROFILE
     make -C./.. ${makebinarytag}_${mpiType}
   fi
-fi
+done
 
-# Now that all CA-CQR2 binaries have been created, set the GPU environment variable back to GPUACCEL if necessary
-if [ "${testAccel_NoAccel}" == "y" ];
-then
-  # load back in GPU modules
-  module unload cblas
-  module load cudatoolkit
-  export GPU=GPUACCEL
-fi
-
-
-# Build CANDMC code - not GPU accelerated by default. Therefore, no extra logic needs to go into setting GPU environment variable before building, since
-#                     that flag is not being used inside CANDMC
-read -p "Build scalapack? Yes[1], No[0]: " buildScala
-if [ ${buildScala} -eq 1 ];
-then
-  if [ "${profType}" == "P" ];
-  then
-    if [ "${machineName}" == "THETA" ] || [ "${machineName}" == "STAMPEDE2" ] || [ "${machineName}" == "BLUEWATERS" ];
-    then
-      # ScaLAPACK should now work for both analyzing (critter only) and performance
-      cd ${scalaDir}
-      make clean
-      rm config.mk
-      export PROFTYPE=PERFORMANCE
-      export SPECIAL_SCALA_ARG=MKL
-      profType=P
-      ./configure
-      make bench_scala_qr
-      cd -
-      mv ${scalaDir}/bin/benchmarks/bench_scala_qr ${scalaDir}/bin/benchmarks/bsqr_${machineName}_${PROFTYPE}
-      mv ${scalaDir}/bin/benchmarks/bsqr_${machineName}_${PROFTYPE} ../bin/
-
-      # Now build reference scalapack
-      cd ${scalaDir}
-      make clean
-      rm config.mk
-      export PROFTYPE=PERFORMANCE
-      export SPECIAL_SCALA_ARG=REF
-      profType=P
-      ./configure
-      make bench_scala_qr
-      cd -
-      mv ${scalaDir}/bin/benchmarks/bench_scala_qr ${scalaDir}/bin/benchmarks/rsqr_${machineName}_${PROFTYPE}
-      mv ${scalaDir}/bin/benchmarks/rsqr_${machineName}_${PROFTYPE} ../bin/
-    fi
-  fi
-fi
 if [ "${machineName}" == "BGQ" ];
 then
   export SCRATCH=/projects/QMCat/huttered
@@ -341,13 +190,12 @@ then
   export BINPATH=${SCRATCH}/${fileName}/bin/
 elif [ "${machineName}" == "PORTER" ];
 then
-  export SCRATCH=../../../CAMFS_data
-  export BINPATH=./../bin/
+  export SCRATCH=${HOME}/hutter2/Critter_data
+  export BINPATH=${BinaryPath}
 fi
 
 # collectData.sh will always be a single line, just a necessary intermediate step.
 echo "bash $SCRATCH/${fileName}/collectInstructionsStage1.sh | bash PackageDataRemoteStage1.sh" > collectData.sh
-# plotData.sh will always be a single line, just a necessary intermediate step.
 
 cat <<-EOF > $SCRATCH/${fileName}.sh
 scriptName=$SCRATCH/${fileName}/script.sh
@@ -787,293 +635,17 @@ launchJobsPortal () {
   fi
 }
 
-
-###################################################### Method Launches ######################################################
+###################################################### Method Definitions ######################################################
 
 # For CA-CQR2
 collectPlotTags=()
-launch$tag1 () {
-  # launch CQR2
-  local scale=\${1}
-  local binaryPath=\${2}
-  local numIterations=\${3}
-  local launchID=\${4}
-  local NumNodes=\${5}
-  local ppn=\${6}
-  local tpr=\${7}
-  local matrixDimM=\${8}
-  local matrixDimN=\${9}
-  local matrixDimMorig=\${10}
-  local matrixDimNorig=\${11}
-  local pDimDorig=\${12}
-  local pDimCorig=\${13}
-  local pDimD=\${14}
-  local pDimC=\${15}
-  local nodeIndex=\${16}
-  local scaleRegime=\${17}
-  local nodeCount=\${18}
-  local WScounterOffset=\${19}
-  local tuneInvCutOff=\${20}
-  local bcDim=0
+source Libraries/camfs/cacqr2.sh
+source Libraries/camfs/cfr3d.sh
+source Libraries/camfs/mm3d.sh
+source Libraries/candmc/bsqr.sh
+source Libraries/candmc/bscf.sh
 
-  # Next: Based on pDimC, decide on invCutOff parameter, which will range from 0 to a max of 2 for now
-  invCutOffLoopMax=0
-  # Note: I am just not seeing enough performance boost at the moment to warrant launching the varying invCutOff runs, especially for Critter
-  if [ "\${tuneInvCutOff}" == "y" ];
-  then
-    if [ \${pDimC} -le 2 ];
-    then
-      invCutOffLoopMax=0
-    elif [ \${pDimC} -eq 4 ];
-    then
-      invCutOffLoopMax=1
-    else
-      invCutOffLoopMax=2
-      #invCutOffLoopMax=\$(( \${pDimC} / 2 ))
-      #invCutOffLoopMax=\$(( \${invCutOffLoopMax} - 1 ))
-    fi
-  fi
-
-  curInverseCutOffMult=0
-  while [ \${curInverseCutOffMult} -le \${invCutOffLoopMax} ];
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag1}_\${scale}_\${NumNodes}nodes_\${matrixDimM}dimM_\${matrixDimN}dimN_\${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_\${pDimD}pDimD_\${pDimC}pDimC_\${numIterations}numIter_\${ppn}ppn_\${tpr}tpr_\${launchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag1}_\${scale}_\${matrixDimM}_\${matrixDimN}_\${curInverseCutOffMult}_\${pDimD}_\${pDimC}_\${ppn}_\${tpr}_\${NumNodes}nodes"
-    local PostFile="${tag1}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${curInverseCutOffMult}_\${pDimDorig}_\${pDimCorig}_\${ppn}_\${tpr}"
-    local UpdatePlotFile1="${tag1}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${curInverseCutOffMult}_\${pDimCorig}"
-    local UpdatePlotFile2="${tag1}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${ppn}_\${tpr}"
-
-    # Special corner case that only occurs for weak scaling, where invCutOff can increment abruptly to a value its never been before.
-    isUniqueTag=1
-    collectPlotTagArrayLen=\${#collectPlotTags[@]}
-    for ((ii=0;ii<\${collectPlotTagArrayLen};ii++));
-    do
-      if [ "\${PostFile}" == "\${collectPlotTags[\${ii}]}" ];
-      then
-        isUniqueTag=0
-      fi
-    done
-    if [ \${isUniqueTag} -eq 1 ];
-    then
-      #echo "HERE, plotTags -- \${collectPlotTags[@]}"
-      collectPlotTags+=(\${PostFile})
-    fi
-
-    # Plot instructions only need a single output per scaling study
-    if [ \${nodeIndex} == 0 ] || [ \${isUniqueTag} -eq 1 ];
-    then
-      WriteMethodDataForPlotting 0 \${UpdatePlotFile1} \${UpdatePlotFile2} ${tag1} \${PostFile} \${pDimD} \${pDimC} \${curInverseCutOffMult} \${ppn} \${tpr}
-      TemporaryDCplotInfo \${scaleRegime} \${nodeIndex} \${nodeCount} \${pDimDorig} \${pDimCorig} \${WScounterOffset}
-      writePlotFileName \${PostFile} $SCRATCH/${fileName}/plotInstructions.sh 1  
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag1} \${PreFile} \${PreFile}_perf \${PreFile}_numerics $SCRATCH/${fileName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 \${launchID} ${tag1} \${PreFile} \${PreFile}_perf \${PreFile}_numerics \${PostFile} \${PostFile}_perf \${PostFile}_numerics $SCRATCH/${fileName}/collectInstructionsStage2.sh
-    launchJobsPortal \${binaryPath} ${tag1} \${fileString} \${launchID} \${NumNodes} \${ppn} \${tpr} \${matrixDimM} \${matrixDimN} \${bcDim} \${curInverseCutOffMult} 0 \${pDimD} \${pDimC} \${numIterations} $SCRATCH/${fileName}/\${fileString}
-    writePlotFileName \${fileString} $SCRATCH/${fileName}/collectInstructionsStage1.sh 0
-    curInverseCutOffMult=\$(( \${curInverseCutOffMult} + 1 ))
-  done
-}
-
-
-
-
-# For ScaLAPACK QR
-launch$tag2 () {
-  # launch scaLAPACK_QR
-  local binaryTag=\${1}
-  local scale=\${2}
-  local binaryPath=\${3}
-  local numIterations=\${4}
-  local launchID=\${5}
-  local NumNodes=\${6}
-  local ppn=\${7}
-  local tpr=\${8}
-  local matrixDimM=\${9}
-  local matrixDimN=\${10}
-  local matrixDimMorig=\${11}
-  local matrixDimNorig=\${12}
-  local numProwsorig=\${13}
-  local numPcolsorig=\${14}
-  local numProws=\${15}
-  local minBlockSize=\${16}
-  local maxBlockSize=\${17}
-  local nodeIndex=\${18}
-  local scaleRegime=\${19}
-  local nodeCount=\${20}
-  for ((k=\${minBlockSize}; k<=\${maxBlockSize}; k*=2))
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_\${binaryTag}_\${scale}_\${NumNodes}nodes_\${matrixDimM}dimM_\${matrixDimN}dimN_\${numProws}numProws_\${k}bSize_\${numIterations}numIter_\${ppn}ppn_\${tpr}tpr_\${curLaunchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="\${binaryTag}_\${scale}_\${matrixDimM}_\${matrixDimN}_\${numProws}_\${k}_\${ppn}_\${tpr}_\${NumNodes}nodes"
-    local PostFile="\${binaryTag}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${numProwsorig}_\${k}_\${ppn}_\${tpr}"
-    local UpdatePlotFile1="\${binaryTag}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${numPcolsorig}_\${k}"
-    local UpdatePlotFile2="\${binaryTag}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${ppn}_\${tpr}"
-
-    # Plot instructions only need a single output per scaling study
-    if [ \${nodeIndex} == 0 ];
-    then
-      WriteMethodDataForPlotting 0 \${UpdatePlotFile1} \${UpdatePlotFile2} \${binaryTag} \${PostFile} \${numProws} \${k} \${ppn} \${tpr}
-      writePlotFileNameScalapackQR \${PostFile} $SCRATCH/${fileName}/plotInstructions.sh 1
-    fi
-
-    WriteMethodDataForCollectingStage1 \${binaryTag} \${PreFile} \${PreFile}_NoFormQ \${PreFile}_FormQ $SCRATCH/${fileName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 \${launchID} \${binaryTag} \${PreFile} \${PreFile}_NoFormQ \${PreFile}_FormQ \${PostFile} \${PostFile}_NoFormQ \${PostFile}_FormQ $SCRATCH/${fileName}/collectInstructionsStage2.sh
-    launchJobsPortal \${binaryPath} \${binaryTag} \${fileString} \${curLaunchID} \${NumNodes} \${ppn} \${tpr} \${matrixDimM} \${matrixDimN} \${k} \${numIterations} 0 \${numProws} 1 0 $SCRATCH/${fileName}/\${fileString}
-    writePlotFileNameScalapackQR \${fileString} $SCRATCH/${fileName}/collectInstructionsStage1.sh 0
-  done
-}
-
-# For CFR3D
-launch$tag3 () {
-  # launch CFR3D
-  local scale=\${1}
-  local binaryPath=\${2}
-  local numIterations=\${3}
-  local launchID=\${4}
-  local NumNodes=\${5}
-  local ppn=\${6}
-  local tpr=\${7}
-  local matrixDimM=\${8}
-  local matrixDimMorig=\${9}
-  local cubeDimorig=\${10}
-  local cubeDim=\${11}
-  local nodeIndex=\${12}
-  local scaleRegime=\${13}
-  local nodeCount=\${14}
-  local bcDim=0
-
-  # Next: Based on pDimC, decide on invCutOff parameter, which will range from 0 to a max of 2 for now
-  invCutOffLoopMax=0
-  if [ \${cubeDim} -le 2 ];
-  then
-    invCutOffLoopMax=0
-  elif [ \${cubeDim} -eq 4 ];
-  then
-    invCutOffLoopMax=1
-  else
-    invCutOffLoopMax=2
-    #invCutOffLoopMax=\$(( \${cubeDim} / 2 ))
-    #invCutOffLoopMax=\$(( \${invCutOffLoopMax} - 1 ))
-  fi
-
-  curInverseCutOffMult=0
-  while [ \${curInverseCutOffMult} -le \${invCutOffLoopMax} ];
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag3}_\${scale}_\${NumNodes}nodes_\${matrixDimM}dimM_\${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_\${cubeDim}cubeDim_\${numIterations}numIter_\${ppn}ppn_\${tpr}tpr_\${curLaunchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag3}_\${scale}_\${matrixDimM}_\${curInverseCutOffMult}_\${cubeDim}_\${ppn}_\${tpr}_\${NumNodes}nodes"
-    local PostFile="${tag3}_\${scale}_\${matrixDimMorig}_\${curInverseCutOffMult}_\${cubeDimorig}_\${ppn}_\${tpr}"
-    local UpdatePlotFile1="${tag3}_\${scale}_\${matrixDimMorig}_\${curInverseCutOffMult}_\${cubeDimorig}"
-    local UpdatePlotFile2="${tag3}_\${scale}_\${matrixDimMorig}_\${ppn}_\${tpr}"
-
-    # Plot instructions only need a single output per scaling study
-    if [ \${nodeIndex} == 0 ];
-    then
-      WriteMethodDataForPlotting 0 \${UpdatePlotFile1} \${UpdatePlotFile2} ${tag3} \${PostFile} \${cubeDim} \${curInverseCutOffMult} \${ppn} \${tpr}
-      writePlotFileName \${PostFile} $SCRATCH/${fileName}/plotInstructions.sh 1
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag3} \${PreFile} \${PreFile}_perf \${PreFile}_numerics $SCRATCH/${fileName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 \${launchID} ${tag3} \${PreFile} \${PreFile}_perf \${PreFile}_numerics \${PostFile} \${PostFile}_perf \${PostFile}_numerics $SCRATCH/${fileName}/collectInstructionsStage2.sh
-    # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-    launchJobsPortal \${binaryPath} ${tag3} \${fileString} \${curLaunchID} \${NumNodes} \${ppn} \${tpr} \${matrixDimM} \${bcDim} \${curInverseCutOffMult} 0 \${numIterations} $SCRATCH/${fileName}/\${fileString}
-    writePlotFileName \${fileString} $SCRATCH/${fileName}/collectInstructionsStage1.sh 0
-    curInverseCutOffMult=\$(( \${curInverseCutOffMult} + 1 ))
-  done
-}
-
-# For ScaLAPACK Cholesky Factorization --- DOESNT CURRENTLY WORK!
-launch$tag4 () {
-  # launch scaLAPACK_CF
-  local scale=\${1}
-  local binaryPath=\${2}
-  local numIterations=\${3}
-  local launchID=\${4}
-  local NumNodes=\${5}
-  local ppn=\${6}
-  local tpr=\${7}
-  local matrixDimM=\${8}
-  local matrixDimMorig=\${8}
-  local minBlockSize=\${9}
-  local maxBlockSize=\${10}
-  local nodeIndex=\${11}
-  local scaleRegime=\${12}
-  local nodeCount=\${13}
-  for ((k=\${minBlockSize}; k<=\${maxBlockSize}; k*=2))
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag4}_\${scale}_\${NumNodes}nodes_\${matrixDimM}dimM_\${k}bSize_\${numIterations}numIter_\${ppn}ppn_\${tpr}tpr_\${curLaunchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag4}_\${scale}_\${matrixDimM}_\${k}_\${ppn}_\${tpr}_\${NumNodes}nodes"
-    local PostFile="${tag4}_\${scale}_\${matrixDimMorig}_\${k}_\${ppn}_\${tpr}"
-    local UpdatePlotFile1="${tag4}_\${scale}_\${matrixDimMorig}_\${k}"
-    local UpdatePlotFile2="${tag4}_\${scale}_\${ppn}_\${tpr}"
-
-    if [ \${nodeIndex} == 0 ];
-    then
-      # Write to plotInstructions file
-      WriteMethodDataForPlotting 0 \${UpdatePlotFile1} \${UpdatePlotFile2} ${tag4} \${PostFile} \${k} \${ppn} \${tpr}
-      writePlotFileNameScalapackCholesky \${PostFile} $SCRATCH/${fileName}/plotInstructions.sh 1
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag4} \${PreFile} \${PreFile} \${PreFile}_blah $SCRATCH/${fileName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 \${launchID} ${tag4} \${PreFile} \${PreFile} \${PreFile}_blah \${PostFile} \${PostFile} \${PostFile} $SCRATCH/${fileName}/collectInstructionsStage2.sh
-    launchJobsPortal \${binaryPath} ${tag4} \${fileString} \${curLaunchID} \${NumNodes} \${ppn} \${tpr} \${matrixDimM} \${k} \${numIterations} $SCRATCH/${fileName}/\${fileString}
-    writePlotFileNameScalapackCholesky \${fileString} $SCRATCH/${fileName}/collectInstructionsStage1.sh 0
-  done
-}
-
-# For MM3D
-launch$tag5 () {
-  # launch CFR3D
-  local scale=\${1}
-  local binaryPath=\${2}
-  local numIterations=\${3}
-  local launchID=\${4}
-  local NumNodes=\${5}
-  local ppn=\${6}
-  local tpr=\${7}
-  local gemmORtrmm=\${8}
-  local algChoice=\${9}
-  local matrixDimM=\${10}
-  local matrixDimN=\${11}
-  local matrixDimK=\${12}
-  local matrixDimMorig=\${13}
-  local matrixDimNorig=\${14}
-  local matrixDimKorig=\${15}
-  local cubeDimorig=\${16}
-  local cubeDim=\${17}
-  local nodeIndex=\${18}
-  local scaleRegime=\${19}
-  local nodeCount=\${20}
-
-  # Set up the file string that will store the local benchmarking results
-  local fileString="DataFiles/results_${tag5}_\${scale}_\${NumNodes}nodes_\${matrixDimM}dimM_\${matrixDimN}dimN_\${matrixDimK}dimK_\${cubeDim}cubeDim_\${numIterations}numIter_\${ppn}ppn_\${tpr}tpr_\${curLaunchID}launchID"
-  # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-  local PreFile="${tag5}_\${scale}_\${matrixDimM}_\${matrixDimN}_\${matrixDimK}_\${cubeDim}_\${ppn}_\${tpr}_\${NumNodes}nodes"
-  local PostFile="${tag5}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${matrixDimKorig}_\${cubeDimorig}_\${ppn}_\${tpr}"
-  local UpdatePlotFile1="${tag5}_\${scale}_\${matrixDimMorig}_\${matrixDimNorig}_\${matrixDimKorig}_\${cubeDimorig}"
-  local UpdatePlotFile2="${tag5}_\${scale}_\${matrixDimMorig}__\${matrixDimNorig}_\${matrixDimKorig}\${ppn}_\${tpr}"
-
-  # Plot instructions only need a single output per scaling study
-  if [ \${nodeIndex} == 0 ];
-  then
-    WriteMethodDataForPlotting 0 \${UpdatePlotFile1} \${UpdatePlotFile2} ${tag5} \${PostFile} \${cubeDim} \${ppn} \${tpr}
-    writePlotFileName \${PostFile} $SCRATCH/${fileName}/plotInstructions.sh 1
-  fi
-
-  WriteMethodDataForCollectingStage1 ${tag5} \${PreFile} \${PreFile}_perf \${PreFile}_numerics $SCRATCH/${fileName}/collectInstructionsStage1.sh
-  WriteMethodDataForCollectingStage2 \${launchID} ${tag5} \${PreFile} \${PreFile}_perf \${PreFile}_numerics \${PostFile} \${PostFile}_perf \${PostFile}_numerics $SCRATCH/${fileName}/collectInstructionsStage2.sh
-  # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-  launchJobsPortal \${binaryPath} ${tag5} \${fileString} \${curLaunchID} \${NumNodes} \${ppn} \${tpr} \${gemmORtrmm} \${algChoice} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${numIterations} $SCRATCH/${fileName}/\${fileString}
-  writePlotFileName \${fileString} $SCRATCH/${fileName}/collectInstructionsStage1.sh 0
-}
-
+###################################################### Method Launches ######################################################
 
 # Note: in future, I may want to decouple numBinaries and numPlotTargets, but only when I find it necessary
 # Write to Plot Instructions file, for use by SCAPLOT makefile generator
@@ -1084,8 +656,6 @@ echo "echo \"${machineName}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
 echo "echo \"${profType}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
 echo "echo \"${nodeScaleFactor}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
 
-# Echo for data collection from remote machine (not porter) to CAMFS/src/Results
-# This temporary file will be deleted while collectScript.sh is called.
 WriteHeaderForCollection $SCRATCH/${fileName}/collectInstructionsStage1.sh
 WriteHeaderForCollection $SCRATCH/${fileName}/collectInstructionsStage2.sh
 
@@ -1435,7 +1005,6 @@ if [ "${machineName}" == "BGQ" ] || [ "${machineName}" == "THETA" ] || [ "${mach
 then
   mkdir $SCRATCH/${fileName}/bin
   mv ../bin/* $SCRATCH/${fileName}/bin
-  #mv ${scalaDir}/bin/benchmarks/* $SCRATCH/${fileName}/bin  # move all scalapack benchmarks to same place before job is submitted
   cd $SCRATCH
 
   # Submit all scripts
