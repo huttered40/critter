@@ -57,42 +57,6 @@ then
 fi
 
 dateStr=$(date +%Y-%m-%d-%H_%M_%S)
-ppnMinList=()
-ppnMaxList=()
-tprMinList=()
-tprMaxList=()
-ppnMin=""
-ppnMax=""
-tprMin=""
-tprMax=""
-read -p "Will ppn/tpr be the same for all tested node counts across all tests? yes[1] or no[0]: " skipHardwareSpec
-if [ ${skipHardwareSpec} == 1 ];
-then
-  read -p "Enter min ppn: " ppnMin
-  read -p "Enter max ppn: " ppnMax
-  # Only revelant for non-GPU
-  read -p "Enter min tpr: " tprMin
-  read -p "Enter max tpr: " tprMax
-fi
-curNumNodes=${minNumNodes}
-while [ ${curNumNodes} -le ${maxNumNodes} ];
-do
-  if [ ${skipHardwareSpec} == 0 ];
-  then
-    read -p "Enter min ppn for node count ${curNumNodes}: " ppnMin
-    read -p "Enter max ppn for node count ${curNumNodes}: " ppnMax
-    # Only revelant for non-GPU
-    read -p "Enter min tpr for node count ${curNumNodes}: " tprMin
-    read -p "Enter max tpr for node count ${curNumNodes}: " tprMax
-  fi
-  ppnMinList+=(${ppnMin})
-  ppnMaxList+=(${ppnMax})
-  tprMinList+=(${tprMin})
-  tprMaxList+=(${tprMax})
-
-  curNumNodes=$(( ${curNumNodes} * ${nodeScaleFactor} ))   # So far, only use cases for nodeScaleFactor are 2 and 16.
-done
-
 fileName=launch${fileID}_${dateStr}_${machineName}_round${roundID}
 fileNameToProcess=launch${fileID}_${machineName}	# Name of the corresponding directory in CAMFS_data. Allows for appending multiple runs
 
@@ -212,33 +176,11 @@ ppnMin=""
 ppnMax=""
 tprMin=""
 tprMax=""
-read -p "Will ppn/tpr be the same for all tested node counts across all tests? yes[1] or no[0]: " skipHardwareSpec
-if [ \${skipHardwareSpec} == 1 ];
-then
-  read -p "Enter min ppn: " ppnMin
-  read -p "Enter max ppn: " ppnMax
-  # Only revelant for non-GPU
-  read -p "Enter min tpr: " tprMin
-  read -p "Enter max tpr: " tprMax
-fi
-curNumNodes=${minNumNodes}
-while [ \${curNumNodes} -le ${maxNumNodes} ];
-do
-  if [ \${skipHardwareSpec} == 0 ];
-  then
-    read -p "Enter min ppn for node count \${curNumNodes}: " ppnMin
-    read -p "Enter max ppn for node count \${curNumNodes}: " ppnMax
-    # Only revelant for non-GPU
-    read -p "Enter min tpr for node count \${curNumNodes}: " tprMin
-    read -p "Enter max tpr for node count \${curNumNodes}: " tprMax
-  fi
-  ppnMinListRunTime+=(\${ppnMin})
-  ppnMaxListRunTime+=(\${ppnMax})
-  tprMinListRunTime+=(\${tprMin})
-  tprMaxListRunTime+=(\${tprMax})
-
-  curNumNodes=\$(( \${curNumNodes} * ${nodeScaleFactor} ))   # So far, only use cases for nodeScaleFactor are 2 and 16.
-done
+read -p "Enter min ppn: " ppnMin
+read -p "Enter max ppn: " ppnMax
+# Only revelant for non-GPU
+read -p "Enter min tpr: " tprMin
+read -p "Enter max tpr: " tprMax
 
 curLaunchID=1
 while [ \${curLaunchID} -le ${NumLaunchesPerBinary} ];
@@ -248,13 +190,13 @@ do
   ppnIndex=0
   while [ \${curNumNodes} -le ${maxNumNodes} ];
   do
-    minPPN=\${ppnMinListRunTime[\${ppnIndex}]}
-    maxPPN=\${ppnMaxListRunTime[\${ppnIndex}]}
+    minPPN=\${ppnMin}
+    maxPPN=\${ppnMax}
     curPPN=\${minPPN}
     while [ \${curPPN} -le \${maxPPN} ];
     do
-      minTPR=\${tprMinListRunTime[\${ppnIndex}]}
-      maxTPR=\${tprMaxListRunTime[\${ppnIndex}]}
+      minTPR=\${tprMin}
+      maxTPR=\${tprMax}
       curTPR=\${minTPR}
       while [ \${curTPR} -le \${maxTPR} ];
       do
@@ -1015,16 +957,12 @@ then
     ppnIndex=0
     while [ ${curNumNodes} -le ${maxNumNodes} ];
     do
-      minPPN=${ppnMinList[${ppnIndex}]}
-      maxPPN=${ppnMaxList[${ppnIndex}]}
-      curPPN=${minPPN}
+      curPPN=${ppnMin}
       tprIndex=0
-      while [ ${curPPN} -le ${maxPPN} ];
+      while [ ${curPPN} -le ${ppnMax} ];
       do
-        minTPR=${tprMinList[${tprIndex}]}
-        maxTPR=${tprMaxList[${tprIndex}]}
-        curTPR=${minTPR}
-        while [ ${curTPR} -le ${maxTPR} ];
+        curTPR=${tprMin}
+        while [ ${curTPR} -le ${tprMax} ];
         do
           # Make sure we are in a suitable range
           numPEsPerNode=$(( ${curPPN} * ${curTPR} ))
