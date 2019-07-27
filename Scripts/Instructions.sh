@@ -4,7 +4,7 @@
 # ********************************************************************************************************************************
 # CritterPath - specify full path to Critter repository
 #             - do not include a '/' after 'critter'
-CritterPath="${HOME}/src/ExternalLibraries/critter"
+CritterPath="${HOME}/hutter2/ExternalLibraries/critter"
 
 # ********************************************************************************************************************************
 # MachinePath - machine name corresponding to script file in Machines/ directory
@@ -13,14 +13,14 @@ MachinePath="porter"
 # ********************************************************************************************************************************
 # LibraryPaths - list of library names to be built automatically
 #              - append more if necessary
-LibraryPaths=("camfs" "candmc")
+LibraryPaths=("camfs")
 
 # ********************************************************************************************************************************
 # Algorithm tags (5 predefined)
 Algorithms=()
 
 # Fill a list of methods to be tested against, then add to Algorithms list
-Test1=('camfs/cqr2' 'candmc/bsqr')
+Test1=('camfs/cqr2')
 
 Algorithms+=(${Test1})
 
@@ -136,7 +136,7 @@ fi
 #                                             - 'ppn' stands for 'MPI processes per node'
 #                                             - 'tpr' stands for 'threads-per-MPI-rank'
 ppnMinList=(1)
-ppnMaxList=(64)
+ppnMaxList=(8)
 tprMinList=(1)
 tprMaxList=(1)
 

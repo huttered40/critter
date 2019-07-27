@@ -17,5 +17,5 @@ fi
   make bench_scala_qr
   cd -
   mv ${candmcDir}/bin/benchmarks/bench_scala_qr ${candmcDir}/bin/benchmarks/rsqr_${machineName}_${PROFTYPE}
-  mv ${candmcDir}/bin/benchmarks/rsqr_${machineName}_${PROFTYPE} ../Tests/${testName}/bin/
+  mv ${candmcDir}/bin/benchmarks/rsqr_${machineName}_${PROFTYPE} ${CritterPath}/Tests/${testName}/bin/
 }

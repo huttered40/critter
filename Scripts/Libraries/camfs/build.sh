@@ -12,5 +12,5 @@ fi
 
 make -C${camfsDir}/src clean
 make -C${camfsDir}/src all
-mv ${camfsDir}/src/bin/* ../../Tests/${testName}/bin/
+mv ${camfsDir}/src/bin/* ${CritterPath}/Tests/${testName}/bin/
 }
