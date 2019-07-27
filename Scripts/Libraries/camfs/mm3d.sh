@@ -1,5 +1,5 @@
 # For MM3D
-mm3d () {
+camfs_mm3d () {
   # launch CFR3D
   local scale=${1}
   local binaryPath=${2}

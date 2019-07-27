@@ -1,4 +1,4 @@
-bsqr () {
+candmc_bsqr () {
   # launch scaLAPACK_QR
   local binaryTag=${1}
   local scale=${2}

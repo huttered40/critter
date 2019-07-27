@@ -1,5 +1,5 @@
 # For CA-CQR2
-cacqr2 () {
+camfs_cacqr2 () {
   # launch CQR2
   local scale=${1}
   local binaryPath=${2}

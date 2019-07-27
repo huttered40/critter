@@ -7,11 +7,12 @@
 CritterPath="${HOME}/hutter2/ExternalLibraries/critter"
 
 # ********************************************************************************************************************************
-# MachinePath - machine name corresponding to script file in Machines/ directory
+# MachinePath - machine name corresponds to script file in Machines/ directory
 MachinePath="porter"
 
 # ********************************************************************************************************************************
 # LibraryPaths - list of library names to be built automatically
+#              - library name corresponds to script file in Machines/ directory
 #              - append more if necessary
 LibraryPaths=("camfs")
 
@@ -20,7 +21,7 @@ LibraryPaths=("camfs")
 Algorithms=()
 
 # Fill a list of methods to be tested against, then add to Algorithms list
-Test1=('camfs/cqr2')
+Test1=('camfs/mm3d')
 
 Algorithms+=(${Test1})
 

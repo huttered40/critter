@@ -133,11 +133,6 @@ do
         if [ ${minPEcountPerNode} -le \${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge \${numPEsPerNode} ];
         then
 	  scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr
-          if [ "${machineName}" == "BGQ" ];
-          then
-            scriptName=\${scriptName}.sh
-            echo "TODO" > \${scriptName}
-          fi
 	  if [ "${machineName}" == "BLUEWATERS" ];
 	  then
             scriptName=\${scriptName}.pbs
@@ -169,23 +164,6 @@ do
             #  export CRAY_CUDA_MPS=1
             #  export MPICH_RDMA_ENABLED_CUDA=1
             #fi
-	  elif [ "${machineName}" == "THETA" ];
-	  then
-            scriptName=\${scriptName}.sh
-	    echo "#!/bin/bash" > \${scriptName}
-	    echo "#COBALT -t ${numMinutes}" >> \${scriptName}
-	    echo "#COBALT -n \${curNumNodes}" >> \${scriptName}
-	    echo "#COBALT --attrs mcdram=cache:numa=quad" >> \${scriptName}
-	    echo "#COBALT -A QMCat" >> \${scriptName}
-	    echo "export n_nodes=\${curNumNodes}" >> \${scriptName}
-	    echo "export n_mpi_ranks_per_node=\${curPPN}" >> \${scriptName}
-	    echo "export n_mpi_ranks=\$((\${curNumNodes} * \${curPPN}))" >> \${scriptName}
-	    read -p "Enter number of OpenMP threads per rank: " numOMPthreadsPerRank
-	    read -p "Enter number of hyperthreads per core: " numHyperThreadsPerCore
-	    read -p "Enter number of hyperthreads skipped per rank: " numHyperThreadsSkippedPerRank
-	    echo "export n_openmp_threads_per_rank=\${numOMPthreadsPerRank}" >> \${scriptName}
-	    echo "export n_hyperthreads_per_core=\${numHyperThreadsPerCore}" >> \${scriptName}
-	    echo "export n_hyperthreads_skipped_between_ranks=\${numHyperThreadsSkippedPerRank}" >> \${scriptName}
 	  elif [ "${machineName}" == "STAMPEDE2" ];
 	  then
             scriptName=\${scriptName}.sh
@@ -355,15 +333,9 @@ launchJobs () {
   local numProcesses=\$((\${numNodes} * \${ppn}))
   local scriptName=script_${fileID}id_${roundID}round_\${launchID}launchID_\${numNodes}nodes_\${ppn}ppn_\${tpr}tpr
   echo "What is scriptName - \${scriptName}"
-  if [ "$machineName" == "BGQ" ];
-  then
-    echo "runjob --np \${numProcesses} -p \${ppn} --block \$COBALT_PARTNAME --verbose=INFO : \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
-  elif [ "$machineName" == "BLUEWATERS" ];
+  if [ "$machineName" == "BLUEWATERS" ];
   then
     echo "aprun -n \${numProcesses} -N \${ppn} -d \${tpr} \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.pbs
-  elif [ "$machineName" == "THETA" ];
-  then
-    echo "aprun -n \${numProcesses} -N \${ppn} --env OMP_NUM_THREADS=\${numOMPthreadsPerRank} -cc depth -d \${numHyperThreadsSkippedPerRank} -j \${numHyperThreadsPerCore} \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
   elif [ "$machineName" == "STAMPEDE2" ];
   then
     echo "ibrun \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
@@ -727,7 +699,7 @@ do
 		    originalPdimC=\${pDimCArrayOrig[\${w}]}
 		    originalPdimCsquared=\$(( \${originalPdimC} * \${originalPdimC} ))
 		    originalPdDimD=\$(( \${StartingNumProcesses} / \${originalPdimCsquared} ))
-		    \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
+		    camfs_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
 		  fi
 		done
 	      elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
@@ -745,18 +717,18 @@ do
                     originalNumPcols=\${numPcolsArrayOrig[\${w}]}
                     originalNumProws=\$(( \${StartingNumProcesses} / \${originalNumPcols} ))
                     sharedBinaryTag="bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
-                    \${sharedBinaryTag} \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                    candmc_\${sharedBinaryTag} \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
                   fi
 		done
               elif [ \${binaryTag} == 'cfr3d' ];
               then
-                \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                camfs_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
               elif [ \${binaryTag} == 'bscf' ];
               then
-                \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                candmc_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
               elif [ \${binaryTag} == 'mm3d' ];
               then
-                \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                camfs_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
               fi
             fi
           done

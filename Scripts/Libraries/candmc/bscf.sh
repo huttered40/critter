@@ -1,4 +1,4 @@
-bscf () {
+candmc_bscf () {
   # launch scaLAPACK_CF
   local scale=${1}
   local binaryPath=${2}
