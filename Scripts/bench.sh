@@ -5,6 +5,9 @@ read -p "Warning: Have you set the user-defined environment variables inside ben
 
 source Instructions.sh
 
+# Load the machine-specific variables/modules/etc.
+source Machines/${MachinePath}.sh
+
 # Create Build Instructions for all libraries
 for lib in "${LibraryPaths[@]}"
 do
@@ -12,9 +15,9 @@ do
 done
 
 # Make sure that the bin directory is created, or else compilation won't work
-if [ ! -d "${BinaryPath}" ];
+if [ ! -d "../Tests/" ];
 then
-  mkdir ${BinaryPath}
+  mkdir ../Tests/
 fi
 
 machineName=""
@@ -23,12 +26,6 @@ testAccel_NoAccel=""
 if [ "$(hostname |grep "porter")" != "" ];
 then
   machineName=PORTER
-elif [ "$(hostname |grep "mira")" != "" ] || [ "$(hostname |grep "cetus")" != "" ];
-then
-  machineName=BGQ
-elif [ "$(hostname |grep "theta")" != "" ];
-then
-  machineName=THETA
 elif [ "$(hostname |grep "stampede2")" != "" ];
 then
   machineName=STAMPEDE2
@@ -36,16 +33,8 @@ elif [ "$(hostname |grep "h2o")" != "" ];
 then
   accelType="n"
   testAccel_NoAccel="n"
-#  read -p "GPU acceleration via XK7[y] or no[n]: " accelType
-#  if [ "${accelType}" == "y" ];
-#  then
-#    export GPU=GPUACCEL
-#    read -p "Do you want to test CA-CQR2 on both GPU accelated machines and the non-accelerated option[y] or no[n]: " testAccel_NoAccel
-#  else
-#    export GPU=NOGPU
-#    testAccel_NoAccel="n"
-#  fi
   machineName=BLUEWATERS
+  export GPU=NOGPU
 fi
 
 if [ "${mpiType}" == "mpi" ];
@@ -57,8 +46,10 @@ then
 fi
 
 dateStr=$(date +%Y-%m-%d-%H_%M_%S)
-fileName=launch${fileID}_${dateStr}_${machineName}_round${roundID}
-fileNameToProcess=launch${fileID}_${machineName}	# Name of the corresponding directory in CAMFS_data. Allows for appending multiple runs
+testName=${fileID}_${dateStr}_${machineName}_round${roundID}
+testNameAllRounds=${fileID}_${machineName}	# Name of the corresponding directory in CAMFS_data. Allows for appending multiple runs
+mkdir ../Tests/${testName}
+mkdir ../Tests/${testName}/bin
 
 if [ ${dataType} == 0 ];
 then
@@ -82,39 +73,6 @@ then
 fi
 
 ###################################################### Library Builds ######################################################
-
-# Choice of compiler for Blue Waters (assumes Cray compiler is loaded by default)
-if [ "${machineName}" == "BLUEWATERS" ];
-then
-  read -p "Do you want the Intel Programming Environment (I) or the GNU Programming Environment (G) (choose G if running on GPU): " bwPrgEnv
-  if [ "${bwPrgEnv}" == "I" ];
-  then
-    if [ "${PE_ENV}" == "GNU" ];
-    then
-      module swap PrgEnv-gnu PrgEnv-intel
-    elif [ "${PE_ENV}" == "CRAY" ];
-    then
-      module swap PrgEnv-cray PrgEnv-intel
-    fi
-  elif [ "${bwPrgEnv}" == "G" ];
-  then
-    if [ "${PE_ENV}" == "INTEL" ];
-    then
-      module swap PrgEnv-intel PrgEnv-gnu
-    elif [ "${PE_ENV}" == "CRAY" ];
-    then
-      module swap PrgEnv-cray PrgEnv-gnu
-    fi
-  fi
-  if [ "${accelType}" == "n" ];
-  then
-    module load cblas
-  else
-    module load cudatoolkit
-    # Swap or load anything else? Does the PrgEnv matter with Cuda?
-  fi
-fi
-
 # Build each library
 for lib in "${LibraryPaths[@]}"
 do
@@ -127,44 +85,25 @@ do
   then
     profType=${profType}C
     export PROFTYPE=CRITTER
-    make -C./.. ${makebinarytag}_${mpiType}
+    build_${lib}
   fi
 
   if [ ${analyzeDecision2} == 1 ];
   then
     profType=${profType}T
     export PROFTYPE=PROFILE
-    make -C./.. ${makebinarytag}_${mpiType}
+    build_${lib}
   fi
 done
 
-if [ "${machineName}" == "BGQ" ];
-then
-  export SCRATCH=/projects/QMCat/huttered
-elif [ "${machineName}" == "THETA" ];
-then
-  export SCRATCH=/projects/QMCat/huttered
-  export BINPATH=${SCRATCH}/${fileName}/bin/
-elif [ "${machineName}" == "STAMPEDE2" ];
-then
-  export BINPATH=${SCRATCH}/${fileName}/bin/
-elif [ "${machineName}" == "BLUEWATERS" ];
-then
-  export SCRATCH=/scratch/sciteam/hutter
-  export BINPATH=${SCRATCH}/${fileName}/bin/
-elif [ "${machineName}" == "PORTER" ];
-then
-  export SCRATCH=${HOME}/hutter2/Critter_data
-  export BINPATH=${BinaryPath}
-fi
+export BINARYPATH=${SCRATCH}/${testName}/bin/
 
 # collectData.sh will always be a single line, just a necessary intermediate step.
-echo "bash $SCRATCH/${fileName}/collectInstructionsStage1.sh | bash PackageDataRemoteStage1.sh" > collectData.sh
+echo "bash $SCRATCH/${testName}/collectInstructionsStage1.sh | bash PackageDataRemoteStage1.sh" > collectData.sh
 
-cat <<-EOF > $SCRATCH/${fileName}.sh
-scriptName=$SCRATCH/${fileName}/script.sh
-mkdir $SCRATCH/${fileName}/
-mkdir $SCRATCH/${fileName}/DataFiles
+cat <<-EOF > ${SCRATCH}/${testName}.sh
+mkdir ${SCRATCH}/${testName}/
+mkdir ${SCRATCH}/${testName}/DataFiles
 
 # Need to re-build ppn/tpr lists (for each node count) because I cannot access the pre-time list with run-time indices
 ppnMinListRunTime=()
@@ -204,7 +143,7 @@ do
         numPEsPerNode=\$(( \${curPPN} * \${curTPR} ))
         if [ ${minPEcountPerNode} -le \${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge \${numPEsPerNode} ];
         then
-	  scriptName=$SCRATCH/${fileName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr
+	  scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr
           if [ "${machineName}" == "BGQ" ];
           then
             scriptName=\${scriptName}.sh
@@ -226,8 +165,8 @@ do
 	    echo "#PBS -l nodes=\${curNumNodes}:ppn=\${numPEsPerNode}:xe" >> \${scriptName}
 	    echo "#PBS -l walltime=${numHours}:${numMinutes}:${numSeconds}" >> \${scriptName}
 	    echo "#PBS -N camfs" >> \${scriptName}
-	    echo "#PBS -e ${fileName}_\${curNumNodes}_\${curPPN}.err" >> \${scriptName}
-	    echo "#PBS -o ${fileName}_\${curNumNodes}_\${curPPN}.out" >> \${scriptName}
+	    echo "#PBS -e ${testName}_\${curNumNodes}_\${curPPN}.err" >> \${scriptName}
+	    echo "#PBS -o ${testName}_\${curNumNodes}_\${curPPN}.out" >> \${scriptName}
 	    echo "##PBS -m Ed" >> \${scriptName}
 	    echo "#PBS -M hutter2@illinois.edu" >> \${scriptName}
 	    echo "#PBS -A bahv" >> \${scriptName}
@@ -335,8 +274,8 @@ log2 () {
 
 # Writes the beginning of collectInstructionsStage1 and collectInstructionsStage2
 WriteHeaderForCollection () {
-  echo "echo \"${fileName}\"" > \${1}
-  echo "echo \"${fileNameToProcess}\"" >> \${1}
+  echo "echo \"${testName}\"" > \${1}
+  echo "echo \"${testNameAllRounds}\"" >> \${1}
   echo "echo \"${machineName}\"" >> \${1}
   echo "echo \"${profType}\"" >> \${1}
   echo "echo \"${nodeScaleFactor}\"" >> \${1}
@@ -429,16 +368,16 @@ launchJobs () {
   echo "What is scriptName - \${scriptName}"
   if [ "$machineName" == "BGQ" ];
   then
-    echo "runjob --np \${numProcesses} -p \${ppn} --block \$COBALT_PARTNAME --verbose=INFO : \${@:7:\$#}" >> $SCRATCH/${fileName}/\${scriptName}.sh
+    echo "runjob --np \${numProcesses} -p \${ppn} --block \$COBALT_PARTNAME --verbose=INFO : \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
   elif [ "$machineName" == "BLUEWATERS" ];
   then
-    echo "aprun -n \${numProcesses} -N \${ppn} -d \${tpr} \${@:7:\$#}" >> $SCRATCH/${fileName}/\${scriptName}.pbs
+    echo "aprun -n \${numProcesses} -N \${ppn} -d \${tpr} \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.pbs
   elif [ "$machineName" == "THETA" ];
   then
-    echo "aprun -n \${numProcesses} -N \${ppn} --env OMP_NUM_THREADS=\${numOMPthreadsPerRank} -cc depth -d \${numHyperThreadsSkippedPerRank} -j \${numHyperThreadsPerCore} \${@:7:\$#}" >> $SCRATCH/${fileName}/\${scriptName}.sh
+    echo "aprun -n \${numProcesses} -N \${ppn} --env OMP_NUM_THREADS=\${numOMPthreadsPerRank} -cc depth -d \${numHyperThreadsSkippedPerRank} -j \${numHyperThreadsPerCore} \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
   elif [ "$machineName" == "STAMPEDE2" ];
   then
-    echo "ibrun \${@:7:\$#}" >> $SCRATCH/${fileName}/\${scriptName}.sh
+    echo "ibrun \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
   elif [ "$machineName" == "PORTER" ];
   then
     if [ "${mpiType}" == "mpi" ];
@@ -446,7 +385,7 @@ launchJobs () {
       mpiexec -n \${numProcesses} \${@:7:\$#}
     elif [ "${mpiType}" == "ampi" ];
     then
-      ${BINPATH}charmrun +p1 +vp\${numProcesses} \${@:7:\$#}
+      ${BINARYPATH}charmrun +p1 +vp\${numProcesses} \${@:7:\$#}
     fi
   fi
 }
@@ -455,7 +394,7 @@ launchJobs () {
 WriteMethodDataForPlotting () {
   for arg in "\${@}"
   do
-    echo "echo \"\${arg}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+    echo "echo \"\${arg}\"" >> $SCRATCH/${testName}/plotInstructions.sh
   done
 }
 
@@ -471,15 +410,15 @@ TemporaryDCplotInfo () {
   # Write to plotInstructions file
   if [ \${scaleRegime} == 2 ];
   then
-    echo "echo \"\${nodeCount}\" " >> $SCRATCH/${fileName}/plotInstructions.sh
+    echo "echo \"\${nodeCount}\" " >> $SCRATCH/${testName}/plotInstructions.sh
     curD=\${pDimD}
     curC=\${pDimC}
     trickOffsetTemp=\${trickOffset}
     for ((z=\${nodeIndex}; z<\${nodeCount}; z++))
     do
-      echo "echo \"\${curD}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-      echo "echo \"\${curC}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-      echo "echo \"(\${curD},\${curC})\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+      echo "echo \"\${curD}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+      echo "echo \"\${curC}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+      echo "echo \"(\${curD},\${curC})\"" >> $SCRATCH/${testName}/plotInstructions.sh
       trickOffsetTempMod=\$(( trickOffsetTemp % 4 ))
       if [ \${trickOffsetTempMod} == 0 ];
       then
@@ -581,25 +520,25 @@ launchJobsPortal () {
 
 # For CA-CQR2
 collectPlotTags=()
-source Libraries/camfs/cacqr2.sh
-source Libraries/camfs/cfr3d.sh
-source Libraries/camfs/mm3d.sh
-source Libraries/candmc/bsqr.sh
-source Libraries/candmc/bscf.sh
+source ${CritterPath}/Scripts/Libraries/camfs/cacqr2.sh
+source ${CritterPath}/Scripts/Libraries/camfs/cfr3d.sh
+source ${CritterPath}/Scripts/Libraries/camfs/mm3d.sh
+source ${CritterPath}/Scripts/Libraries/candmc/bsqr.sh
+source ${CritterPath}/Scripts/Libraries/candmc/bscf.sh
 
 ###################################################### Method Launches ######################################################
 
 # Note: in future, I may want to decouple numBinaries and numPlotTargets, but only when I find it necessary
 # Write to Plot Instructions file, for use by SCAPLOT makefile generator
-echo "echo \"1\"" > $SCRATCH/${fileName}/plotInstructions.sh
-echo "echo \"${fileNameToProcess}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-echo "echo \"${numTests}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-echo "echo \"${machineName}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-echo "echo \"${profType}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-echo "echo \"${nodeScaleFactor}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+echo "echo \"1\"" > $SCRATCH/${testName}/plotInstructions.sh
+echo "echo \"${testNameAllRounds}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+echo "echo \"${numTests}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+echo "echo \"${machineName}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+echo "echo \"${profType}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+echo "echo \"${nodeScaleFactor}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
-WriteHeaderForCollection $SCRATCH/${fileName}/collectInstructionsStage1.sh
-WriteHeaderForCollection $SCRATCH/${fileName}/collectInstructionsStage2.sh
+WriteHeaderForCollection $SCRATCH/${testName}/collectInstructionsStage1.sh
+WriteHeaderForCollection $SCRATCH/${testName}/collectInstructionsStage2.sh
 
 for ((i=1; i<=${numTests}; i++))
 do
@@ -621,15 +560,15 @@ do
     scale="SS"
   fi
 
-  echo "echo \"\${scale}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+  echo "echo \"\${scale}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
   nodeCount=\$(findCountLength \${startNumNodes} \${endNumNodes} 3 ${nodeScaleFactor})
-  echo "echo \"\${nodeCount}\" " >> $SCRATCH/${fileName}/plotInstructions.sh
+  echo "echo \"\${nodeCount}\" " >> $SCRATCH/${testName}/plotInstructions.sh
 
   curNumNodes=\${startNumNodes}
   for ((j=0; j<\${nodeCount}; j++))
   do
-    echo "echo \"\${curNumNodes}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+    echo "echo \"\${curNumNodes}\"" >> $SCRATCH/${testName}/plotInstructions.sh
     curNumNodes=\$(( \${curNumNodes} * ${nodeScaleFactor} ))
   done
 
@@ -637,8 +576,8 @@ do
   read -p "Enter matrix dimension n: " matrixDimN
   read -p "Enter number of iterations (per launch): " numIterations
 
-  echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
-  echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+  echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+  echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
   j=1
   while [ 1 -eq 1 ];		# Loop iterates until user says stop
@@ -647,9 +586,9 @@ do
 
     # Echo for SCAPLOT makefile generator
     read -p "Enter binary tag [0 for CA-CQR2, 1 for bsqr, 2 for CFR3D, 3 for bscf, 4 for quit, 5 for rsqr, 6 for mm3d]: " binaryTagChoice
-    echo "echo \"\${binaryTagChoice}\"" >> $SCRATCH/${fileName}/collectInstructionsStage1.sh
-    echo "echo \"\${binaryTagChoice}\"" >> $SCRATCH/${fileName}/collectInstructionsStage2.sh
-    echo "echo \"\${binaryTagChoice}\"" >> $SCRATCH/${fileName}/plotInstructions.sh
+    echo "echo \"\${binaryTagChoice}\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh
+    echo "echo \"\${binaryTagChoice}\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh
+    echo "echo \"\${binaryTagChoice}\"" >> $SCRATCH/${testName}/plotInstructions.sh
     # break case
     if [ \${binaryTagChoice} -eq "4" ];
     then
@@ -678,7 +617,7 @@ do
       binaryTag=mm3d
     fi
 
-    binaryPath=${BINPATH}\${binaryTag}_${machineName}
+    binaryPath=${BINARYPATH}\${binaryTag}_${machineName}
     if [ "${machineName}" == "PORTER" ];
     then
       binaryPath=\${binaryPath}_${mpiType}
@@ -687,7 +626,7 @@ do
       # special case, only for CAMFS, not for bench_scalapack routines
       if [ "\${binaryTag}" == "cqr2" ] || [ "\${binaryTag}" == "cfr3d" ];
       then
-        binaryPath=${BINPATH}\${binaryTag}_${machineName}_${GPU}
+        binaryPath=${BINARYPATH}\${binaryTag}_${machineName}_${GPU}
       fi
     fi
 
@@ -799,7 +738,7 @@ do
 		    originalPdimC=\${pDimCArrayOrig[\${w}]}
 		    originalPdimCsquared=\$(( \${originalPdimC} * \${originalPdimC} ))
 		    originalPdDimD=\$(( \${StartingNumProcesses} / \${originalPdimCsquared} ))
-		    launch\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
+		    \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
 		  fi
 		done
 	      elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
@@ -817,18 +756,18 @@ do
 		    originalNumPcols=\${numPcolsArrayOrig[\${w}]}
 		    originalNumProws=\$(( \${StartingNumProcesses} / \${originalNumPcols} ))
                     sharedBinaryTag="bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
-		    launch\${sharedBinaryTag} \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
+		    \${sharedBinaryTag} \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
 		  fi
 		done
 	      elif [ \${binaryTag} == 'cfr3d' ];
 	      then
-		launch\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
+		\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
 	      elif [ \${binaryTag} == 'bscf' ];
 	      then
-		launch\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
+		\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
 	      elif [ \${binaryTag} == 'mm3d' ];
 	      then
-		launch\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
+		\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
 	      fi
             fi
           done
@@ -926,27 +865,21 @@ do
       done
     done
     j=\$(( \${j} + 1 ))
-    echo "echo \"1\"" >> $SCRATCH/${fileName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
-    echo "echo \"1\"" >> $SCRATCH/${fileName}/collectInstructionsStage2.sh	# Signals end of the data files for this specific methodID
-    echo "echo \"1\"" >> $SCRATCH/${fileName}/plotInstructions.sh	# Signals end of the data files for this specific methodID
+    echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
+    echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh	# Signals end of the data files for this specific methodID
+    echo "echo \"1\"" >> $SCRATCH/${testName}/plotInstructions.sh	# Signals end of the data files for this specific methodID
   done
 done
 EOF
 
+# Launch the generated script
+bash $SCRATCH/${testName}.sh
 
-bash $SCRATCH/${fileName}.sh
-#rm $SCRATCH/${fileName}.sh
-
-# Copy a local version to Scripts directory so that it can be used on the local side to generate plots.
-# But its important that we keep a backup in SCRATCH/fileName in case we overwrite collectInstructionsStage1.sh, we can always write it back.
-# cp $SCRATCH/${fileName}/collectInstructionsStage1.sh collectInstructionsStage1.sh		// collectInstructionsStage1.sh will not be needed locally anymore.
-# Do not copy collectInstructionsStage2 to local directory.
-
-# Note that for Porter, no need to do this, since we are submitting to a queue
-if [ "${machineName}" == "BGQ" ] || [ "${machineName}" == "THETA" ] || [ "${machineName}" == "STAMPEDE2" ] || [ "${machineName}" == "BLUEWATERS" ];
+# Submit job scripts to queue - note that Porter doesn't need to do this
+if [ "${SubmitToQueue}" == "1" ];
 then
-  mkdir $SCRATCH/${fileName}/bin
-  mv ../bin/* $SCRATCH/${fileName}/bin
+  mkdir $SCRATCH/${testName}/bin
+  mv ../Tests/${testName}/* $SCRATCH/${testName}/bin
   cd $SCRATCH
 
   # Submit all scripts
@@ -954,38 +887,31 @@ then
   while [ ${curLaunchID} -le ${NumLaunchesPerBinary} ];
   do
     curNumNodes=${minNumNodes}
-    ppnIndex=0
+    listIndex=0
     while [ ${curNumNodes} -le ${maxNumNodes} ];
     do
-      curPPN=${ppnMin}
-      tprIndex=0
+      curPPN=${ppnMinList[${listIndex}]}
+      ppnMax=${ppnMaxList[${listIndex}]}
       while [ ${curPPN} -le ${ppnMax} ];
       do
-        curTPR=${tprMin}
+        curTPR=${tprMinList[${listIndex}]}
+        tprMax=${tprMaxList[${listIndex}]}
         while [ ${curTPR} -le ${tprMax} ];
         do
           # Make sure we are in a suitable range
           numPEsPerNode=$(( ${curPPN} * ${curTPR} ))
           if [ ${minPEcountPerNode} -le ${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge ${numPEsPerNode} ];
           then
-            if [ "${machineName}" == "BGQ" ] || [ "${machineName}" == "THETA" ];
-            then
-              qsub ${fileName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.sh
-            elif [ "${machineName}" == "BLUEWATERS" ];
-            then
-              qsub ${fileName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.pbs
-            else
-              chmod +x ${fileName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.sh
-              sbatch --mail-user=${MyEmail} --mail-type=all ${fileName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.sh
-            fi
+            FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${fileExtension}
+            chmod +x ${FullScriptName}
+	    ${Batch} ${FullScriptName}
           fi
-          curTPR=$(( ${curTPR} * ${ppnScaleFactor} ))
+          curTPR=$(( ${curTPR} * ${tprScaleFactor} ))
         done
-        curPPN=$(( ${curPPN} * ${tprScaleFactor} ))
-        tprIndex=$(( ${tprIndex} + 1 ))
+        curPPN=$(( ${curPPN} * ${ppnScaleFactor} ))
       done
       curNumNodes=$(( ${curNumNodes} * ${nodeScaleFactor} ))
-      ppnIndex=$(( ${ppnIndex} + 1 ))
+      listIndex=$(( ${listIndex} + 1 ))
     done
     curLaunchID=$(( ${curLaunchID} + 1 ))
   done

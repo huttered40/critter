@@ -1,39 +1,26 @@
 ### Below: variables set by user
 
-# ********************************************************************************************************************************
-# LibraryPaths - list of paths to libraries to be built automatically
-#              - append more if necessary
-LibraryPaths=("camfs" "candmc")
 
 # ********************************************************************************************************************************
-# BinaryPath - where binaries (of all libraries) are stored before transfer to SCRATCH
-if [ "$(hostname |grep "porter")" != "" ];
-then
-  camfsDir=~/hutter2/CAMFS
-elif [ "$(hostname |grep "mira")" != "" ] || [ "$(hostname |grep "cetus")" != "" ];
-then
-  camfsDir=~/scratch/CAMFS
-elif [ "$(hostname |grep "theta")" != "" ];
-then
-  camfsDir=~/scratch/CAMFS
-elif [ "$(hostname |grep "stampede2")" != "" ];
-then
-  camfsDir=~/CAMFS
-elif [ "$(hostname |grep "h2o")" != "" ];
-then
-  camfsDir=~/CAMFS
-fi
-BinaryPath=${camfsDir}/src/bin
+# CritterPath - specify full path to Critter repository
+#             - do not include a '/' after 'critter'
+CritterPath="${HOME}/src/ExternalLibraries/critter"
+
+# ********************************************************************************************************************************
+# MachinePath - machine name corresponding to script file in Machines/ directory
+MachinePath="porter"
+
+# ********************************************************************************************************************************
+# LibraryPaths - list of library names to be built automatically
+#              - append more if necessary
+LibraryPaths=("camfs" "candmc")
 
 # ********************************************************************************************************************************
 # Algorithm tags (5 predefined)
 Algorithms=()
 
-Test1=()
-
 # Fill a list of methods to be tested against, then add to Algorithms list
-Test1+=('camfs/cqr2')
-Test1+=('candmc/bsqr')
+Test1=('camfs/cqr2' 'candmc/bsqr')
 
 Algorithms+=(${Test1})
 
@@ -152,3 +139,7 @@ ppnMinList=(1)
 ppnMaxList=(64)
 tprMinList=(1)
 tprMaxList=(1)
+
+# ********************************************************************************************************************************
+# SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
+SubmitToQueue=0
