@@ -6,7 +6,7 @@ read -p "Warning: Have you set the user-defined environment variables inside ben
 source Instructions.sh
 
 # Load the machine-specific variables/modules/etc.
-source Machines/${MachinePath}.sh
+source Machines/${MachinePath}/info.sh
 
 # Create Build Instructions for all libraries
 for lib in "${LibraryPaths[@]}"
@@ -99,6 +99,9 @@ cat <<-EOF > ${SCRATCH}/${testName}.sh
 mkdir ${SCRATCH}/${testName}/
 mkdir ${SCRATCH}/${testName}/DataFiles
 
+# Include the launch() function for the machine
+source ${CritterPath}/Scripts/Machines/${MachinePath}/script.sh
+
 # Redefine 'testName' so that the algorithm files in Libraries/ can use it
 testName=${testName}
 
@@ -135,57 +138,8 @@ do
         numPEsPerNode=\$(( \${curPPN} * \${curTPR} ))
         if [ ${minPEcountPerNode} -le \${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge \${numPEsPerNode} ];
         then
-	  scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr
-	  if [ "${machineName}" == "BLUEWATERS" ];
-	  then
-            scriptName=\${scriptName}.pbs
-	    echo "#!/bin/bash" > \${scriptName}
-            # Check if we want GPU acceleration (XK7 vs. XE6 nodes)
-            #read -p "XE6 (Y) or XK7 (N) node: " nodeType
-            #if [ "${nodeType}" == "Y" ];
-            #then
-	    #echo "#PBS -l nodes=\${curNumNodes}:ppn=\${curPPN}:xe" >> \${scriptName}
-            #elif [ "${nodeType}" == "N" ];
-            #then
-	    #  echo "#PBS -l nodes=\${curNumNodes}:ppn=\${curPPN}:xk" >> \${scriptName}
-            #fi
-	    echo "#PBS -l nodes=\${curNumNodes}:ppn=\${numPEsPerNode}:xe" >> \${scriptName}
-	    echo "#PBS -l walltime=${numHours}:${numMinutes}:${numSeconds}" >> \${scriptName}
-	    echo "#PBS -N camfs" >> \${scriptName}
-	    echo "#PBS -e ${testName}_\${curNumNodes}_\${curPPN}.err" >> \${scriptName}
-	    echo "#PBS -o ${testName}_\${curNumNodes}_\${curPPN}.out" >> \${scriptName}
-	    echo "##PBS -m Ed" >> \${scriptName}
-	    echo "#PBS -M hutter2@illinois.edu" >> \${scriptName}
-	    echo "#PBS -A bahv" >> \${scriptName}
-	    echo "#PBS -W umask=0027" >> \${scriptName}
-  #          echo "cd \${PBS_O_WORKDIR}" >> \${scriptName}
-	    echo "#module load craype-hugepages2M  perftools" >> \${scriptName}
-	    echo "#export APRUN_XFER_LIMITS=1  # to transfer shell limits to the executable" >> \${scriptName}
-            echo "export OMP_NUM_THREADS=\${curTPR}" >> \${scriptName}
-            #if [ "${nodeType}" == "N" ];
-            #then
-            #  export CRAY_CUDA_MPS=1
-            #  export MPICH_RDMA_ENABLED_CUDA=1
-            #fi
-	  elif [ "${machineName}" == "STAMPEDE2" ];
-	  then
-            scriptName=\${scriptName}.sh
-	    echo "bash script name: \${scriptName}"
-	    echo "#!/bin/bash" > \${scriptName}
-	    echo "#SBATCH -J myjob_${fileID}id_${roundID}round_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr" >> \${scriptName}
-	    echo "#SBATCH -o myjob_${fileID}id_${roundID}round_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.o%j" >> \${scriptName}
-	    echo "#SBATCH -e myjob_${fileID}id_${roundID}round_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.e%j" >> \${scriptName}
-	    if [ \${curNumNodes} -le 256 ];
-	    then
-	      echo "#SBATCH -p normal" >> \${scriptName}
-	    else
-	      echo "#SBATCH -p large" >> \${scriptName}
-	    fi
-	    echo "#SBATCH -N \${curNumNodes}" >> \${scriptName}
-	    echo "#SBATCH -n \$((\${curNumNodes} * \${curPPN}))" >> \${scriptName}
-	    echo "#SBATCH -t ${numHours}:${numMinutes}:${numSeconds}" >> \${scriptName}
-	    echo "export MKL_NUM_THREADS=\${curTPR}" >> \${scriptName}
-	  fi
+          scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.${BatchFileExtension}
+          launch \${scriptName} ${testName} \${curNumNodes} \${curPPN} \${curTPR} \${numPEsPerNode} ${numHours} ${numMinutes} ${numSeconds}
         fi
         curTPR=\$(( \${curTPR} * ${tprScaleFactor} ))
       done
@@ -865,7 +819,7 @@ then
           numPEsPerNode=$(( ${curPPN} * ${curTPR} ))
           if [ ${minPEcountPerNode} -le ${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge ${numPEsPerNode} ];
           then
-            FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${fileExtension}
+            FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
             chmod +x ${FullScriptName}
 	    ${Batch} ${FullScriptName}
           fi
