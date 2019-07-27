@@ -39,27 +39,61 @@ Algorithms+=(${Test1})
 
 
 # ********************************************************************************************************************************
+# fileID - base name of the directory inside which all data/scripts will be stored
+#        - will appear inside the SCRATCH directory
 fileID=benchQR1
+
+# ********************************************************************************************************************************
+# roundID - set to '1' unless performing piecewise testing (launching same job separately) to enhance performance reproducibility
 roundID=1
+
+# ********************************************************************************************************************************
+# minNumNodes - minimum number of nodes needed for any one test
 minNumNodes=1
+
+# ********************************************************************************************************************************
+# maxNumNodes - maximum number of nodes needed for any one test
 maxNumNodes=1
+
+# ********************************************************************************************************************************
+# nodeScaleFactor - scaling factor to apply to the number of nodes
 nodeScaleFactor=2
+
+# ********************************************************************************************************************************
+# ppnScaleFactor - scaling factor to apply to the number of MPI processes per node (ppn)
 ppnScaleFactor=8
+
+# ********************************************************************************************************************************
+# tprScaleFactor - scaling factor to apply to the number of threads per MPI rank (tpr)
 tprScaleFactor=2
+
+# ********************************************************************************************************************************
+# NumLaunchesPerBinary - set to '1' unless performing testing to enhance performance reproducibility (by launching same jobs multiple times)
+#                      - different from 'roundID' because the former did not launch at the same time, but waited via a separate launch of bench.sh
 NumLaunchesPerBinary=1
+
+# ********************************************************************************************************************************
+# numTests - number of scaling studies
+#          - for example, weak scaling and strong scaling, even across the same variants, constitute separate tests
 numTests=${#Algorithms[@]}
 
+# ********************************************************************************************************************************
+# numHours,numMinutes,numSeconds - specify the 
 numHours=01
 numMinutes=00
 numSeconds=00
-MyEmail="hutter2@illinois.edu"
+# ********************************************************************************************************************************
+# email - specify email address that you'd like job updates to appear
+email="hutter2@illinois.edu"
 
 # ********************************************************************************************************************************
 # dataType - float[0], double[1], complex<float>[2], complex<double>[3]
+#          - only relevant if test file uses an environment variable to specify this
 dataType=1
 
 # ********************************************************************************************************************************
 # intType - int[0], int64_t[1]
+#         - only relevant if test file uses an environment variable to specify this
 intType=1
 
 # ********************************************************************************************************************************
@@ -68,6 +102,7 @@ analyzeDecision1=1
 
 # ********************************************************************************************************************************
 # analyzeDecision2 - profile using TAU
+#                  - not currently supported
 analyzeDecision2=0
 
 # ********************************************************************************************************************************
@@ -75,7 +110,7 @@ analyzeDecision2=0
 mpiType=mpi
 
 # ********************************************************************************************************************************
-# minPEcountPerNode/maxPEcountPerNodempiType - specify the min and max number of ppn x threads
+# minPEcountPerNode/maxPEcountPerNodempiType - specify the min and max number of processing elements (processes per node x threads per process)
 minPEcountPerNode=""
 maxPEcountPerNode=""
 if [ "$(hostname |grep "porter")" != "" ];
@@ -107,3 +142,13 @@ then
   minPEcountPerNode=16
   maxPEcountPerNode=32
 fi
+
+# ********************************************************************************************************************************
+# ppnMinList,ppnMaxList,tprMinList,tprMaxList - Lists with an element for each node count
+#                                             - specify the min and max ppn,tpr at each node count
+#                                             - 'ppn' stands for 'MPI processes per node'
+#                                             - 'tpr' stands for 'threads-per-MPI-rank'
+ppnMinList=(1)
+ppnMaxList=(64)
+tprMinList=(1)
+tprMaxList=(1)
