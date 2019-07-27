@@ -99,6 +99,9 @@ cat <<-EOF > ${SCRATCH}/${testName}.sh
 mkdir ${SCRATCH}/${testName}/
 mkdir ${SCRATCH}/${testName}/DataFiles
 
+# Redefine 'testName' so that the algorithm files in Libraries/ can use it
+testName=${testName}
+
 # Need to re-build ppn/tpr lists (for each node count) because I cannot access the pre-time list with run-time indices
 # TODO: Fix this once we add in the auto-generation
 ppnMinListRunTime=(1)
@@ -332,7 +335,6 @@ launchJobs () {
   local tpr=\${6}
   local numProcesses=\$((\${numNodes} * \${ppn}))
   local scriptName=script_${fileID}id_${roundID}round_\${launchID}launchID_\${numNodes}nodes_\${ppn}ppn_\${tpr}tpr
-  echo "What is scriptName - \${scriptName}"
   if [ "$machineName" == "BLUEWATERS" ];
   then
     echo "aprun -n \${numProcesses} -N \${ppn} -d \${tpr} \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.pbs
