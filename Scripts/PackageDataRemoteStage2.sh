@@ -1,23 +1,5 @@
 #!/bin/bash
 
-
-CheckRepeatTags () {
-  local arr=${1}
-  local candidate=${2}
-  local arrLen=${#arr[@]}
-  local info=0	# assume not in list
-  echo "What is length?? - ${#arr[@]}"
-  for i in "${arr[@]}"
-  do
-#    if [ "$i" == "$candidate" ] ; then
-#      echo "1"
-#    fi
-    echo "compare these two - $i and $candidate"
-  done
-#  echo "0"
-}
-
-
 if [ "$(hostname |grep "porter")" != "" ]
 then
   export SCRATCH=../../../CAMFS_data
@@ -86,8 +68,6 @@ do
           then
             CheckFileTagArray+=(${postFilePerf})
           fi
-
-          echo "check array length and isRepeat - ${#CheckFileTagArray[@]} and $IsRepeat"
 
           preFileNumerics=""
           if [ "${binaryTag}" != "bench_scala_cholesky" ];
