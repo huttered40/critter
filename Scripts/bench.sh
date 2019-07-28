@@ -102,8 +102,9 @@ mkdir ${SCRATCH}/${testName}/DataFiles
 # Include the launch() function for the machine
 source ${CritterPath}/Scripts/Machines/${MachinePath}/script.sh
 
-# Redefine 'testName' so that the algorithm files in Libraries/ can use it
+# Redefine a few variables so that files sourced from subdirectories can reference them
 testName=${testName}
+mpiType=${mpiType}
 
 # Need to re-build ppn/tpr lists (for each node count) because I cannot access the pre-time list with run-time indices
 # TODO: Fix this once we add in the auto-generation
@@ -151,10 +152,6 @@ do
   curLaunchID=\$(( \${curLaunchID} + 1 ))
 done
 
-# Now I need to use a variable for the command-line prompt, since it will change based on the binary executable,
-#   for example, scalapack QR has multiple special inputs that take up comm-line prompts that others dont
-#   I want special functions in the inner-loop to handle this
-
 updateCounter () {
   local counter=\${1}
   if [ \${2} -eq 1 ];
@@ -173,9 +170,6 @@ updateCounter () {
   echo "\${counter}"
 }
 
-# Note: this function is only used for finding the number of dependencies for each binary run
-# Therefore, I can multiply the output by 2 (total and average) and it won't affect anything else
-# New note: I am getting rid of the *2, since that will be understood by all other scripts, including MakePlotScript.sh
 findCountLength () {
   local curr=\${1}
   local counter=0
@@ -288,23 +282,8 @@ launchJobs () {
   local ppn=\${5}
   local tpr=\${6}
   local numProcesses=\$((\${numNodes} * \${ppn}))
-  local scriptName=script_${fileID}id_${roundID}round_\${launchID}launchID_\${numNodes}nodes_\${ppn}ppn_\${tpr}tpr
-  if [ "$machineName" == "BLUEWATERS" ];
-  then
-    echo "aprun -n \${numProcesses} -N \${ppn} -d \${tpr} \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.pbs
-  elif [ "$machineName" == "STAMPEDE2" ];
-  then
-    echo "ibrun \${@:7:\$#}" >> $SCRATCH/${testName}/\${scriptName}.sh
-  elif [ "$machineName" == "PORTER" ];
-  then
-    if [ "${mpiType}" == "mpi" ];
-    then
-      mpiexec -n \${numProcesses} \${@:7:\$#}
-    elif [ "${mpiType}" == "ampi" ];
-    then
-      ${BINARYPATH}charmrun +p1 +vp\${numProcesses} \${@:7:\$#}
-    fi
-  fi
+  local scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${launchID}launchID_\${numNodes}nodes_\${ppn}ppn_\${tpr}tpr.${BatchFileExtension}
+  writeTest \${numProcesses} \${ppn} \${tpr} \${scriptName} \${@:7:\$#}
 }
 
 

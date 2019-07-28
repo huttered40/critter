@@ -23,3 +23,11 @@ launch () {
   echo "#SBATCH -t ${numHours}:${numMinutes}:${numSeconds}" >> ${scriptName}
   echo "export MKL_NUM_THREADS=${curTPR}" >> ${scriptName}
 }
+
+writeTest () {
+  local numProcesses=${1}
+  local ppn=${2}
+  local tpr=${3}
+  local scriptName=${4}
+  echo "ibrun ${@:5:$#}" >> ${scriptName}
+}

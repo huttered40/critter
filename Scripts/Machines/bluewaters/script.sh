@@ -37,3 +37,11 @@ launch () {
   #  export MPICH_RDMA_ENABLED_CUDA=1
   #fi
 }
+
+writeTest () {
+  local numProcesses=${1}
+  local ppn=${2}
+  local tpr=${3}
+  local scriptName=${4}
+  echo "aprun -n ${numProcesses} -N ${ppn} -d ${tpr} ${@:5:$#}" >> ${scriptName}
+}
