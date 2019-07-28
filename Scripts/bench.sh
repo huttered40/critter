@@ -414,8 +414,7 @@ launchJobsPortal () {
 
 ###################################################### Method Definitions ######################################################
 
-# For CA-CQR2
-collectPlotTags=()
+collectPlotTags=()	# For CA-CQR2
 source ${CritterPath}/Scripts/Libraries/camfs/cacqr2.sh
 source ${CritterPath}/Scripts/Libraries/camfs/cfr3d.sh
 source ${CritterPath}/Scripts/Libraries/camfs/mm3d.sh
@@ -495,23 +494,25 @@ do
     binaryTag=""
     if [ \${binaryTagChoice} == 0 ];
     then
-      binaryTag=cacqr2
+      binaryTag=camfs/cacqr2
     elif [ \${binaryTagChoice} == 1 ];
     then
-      binaryTag=bsqr
+      binaryTag=candmc/bsqr
     elif [ \${binaryTagChoice} == 2 ];
     then
-      binaryTag=cfr3d
+      binaryTag=camfs/cfr3d
     elif [ \${binaryTagChoice} == 3 ];
     then
-      binaryTag=bscf
+      binaryTag=candmc/bscf
     elif [ \${binaryTagChoice} == 5 ];
     then
-      binaryTag=rsqr
+      binaryTag=candmc/rsqr
     elif [ \${binaryTagChoice} == 6 ];
     then
-      binaryTag=mm3d
+      binaryTag=camfs/mm3d
     fi
+
+    binaryTag=\${binaryTag/\\//_}
 
     binaryPath=${BINARYPATH}\${binaryTag}_${machineName}
     if [ "${machineName}" == "PORTER" ];
@@ -520,35 +521,35 @@ do
     elif [ "${machineName}" == "BLUEWATERS" ];
     then
       # special case, only for CAMFS, not for bench_scalapack routines
-      if [ "\${binaryTag}" == "cacqr2" ] || [ "\${binaryTag}" == "cfr3d" ];
+      if [ "\${binaryTag}" == "camfs_cacqr2" ] || [ "\${binaryTag}" == "camfs_cfr3d" ];
       then
         binaryPath=${BINARYPATH}\${binaryTag}_${machineName}_${GPU}
       fi
     fi
 
     # State variables that scale with nodes must be initialized here. Otherwise, repeated input is needed in loops below
-    if [ \${binaryTag} == 'cacqr2' ];
+    if [ \${binaryTag} == 'camfs_cacqr2' ];
     then
       read -p "Enter start range of starting tunable processor grid dimension c: " startStartPdimC
       read -p "Enter end range of starting tunable processor grid dimension c (for any node count * ppn pairing): " endStartPdimC
       # invCutOff shouldn't be asked for. It should, for now, range up to 2 from 0, unless I am seeing a pattern in performance.
       read -p "Do you want to vary the invCutOff? yes[y] or no[n]: " invCutOffDec
-    elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
+    elif [ \${binaryTag} == 'candmc_bsqr' ] || [ \${binaryTag} == 'candmc_rsqr' ];
     then
       read -p "Enter the starting number of processor grid columns: " startStartNumPcols
       read -p "Enter the ending number of processor grid columns: " endStartNumPcols
       read -p "Enter the minimum block size: " minBlockSize
       read -p "Enter the maximum block size: " maxBlockSize
       # Anything else? Is above, sufficient?
-    elif [ \${binaryTag} == 'cfr3d' ];
+    elif [ \${binaryTag} == 'camfs_cfr3d' ];
     then
       read -p "Enter the starting (cubic) processor grid dimension: " cubeDim
-    elif [ \${binaryTag} == 'bscf' ];
+    elif [ \${binaryTag} == 'candmc_bscf' ];
     then
       read -p "Enter the minimum block size: " minBlockSize
       read -p "Enter the maximum block size: " maxBlockSize
       # Anything else? Is above, sufficient?
-    elif [ \${binaryTag} == 'mm3d' ];
+    elif [ \${binaryTag} == 'camfs_mm3d' ];
     then
       read -p "Gemm[0] or TRMM[1]: " gemmORtrmmChoice
       read -p "Bcast+Allreduce[0] or Allgather+Allreduce[1]: " bcastORallgatherChoice
@@ -572,7 +573,7 @@ do
       pDimCArray=()
       pDimCArrayOrig=()
       rangePdimClen=0
-      if [ \${binaryTag} == 'cacqr2' ];
+      if [ \${binaryTag} == 'camfs_cacqr2' ];
       then
         for ((w=\${startStartPdimC}; w<=\${endStartPdimC}; w*=2));
         do
@@ -615,7 +616,7 @@ do
             then
 	      # Now decide on a method:
 
-	      if [ \${binaryTag} == 'cacqr2' ];
+	      if [ \${binaryTag} == 'camfs_cacqr2' ];
 	      then
 		# Below: note that the STARTING dimC is being changed. The parameters that aren't solely dependent on the node count are
 		#   changed here and not in launchTag***
@@ -634,7 +635,7 @@ do
 		    originalPdimC=\${pDimCArrayOrig[\${w}]}
 		    originalPdimCsquared=\$(( \${originalPdimC} * \${originalPdimC} ))
 		    originalPdDimD=\$(( \${StartingNumProcesses} / \${originalPdimCsquared} ))
-		    camfs_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
+		    \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
 		  fi
 		done
 	      elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
@@ -651,19 +652,19 @@ do
                   then
                     originalNumPcols=\${numPcolsArrayOrig[\${w}]}
                     originalNumProws=\$(( \${StartingNumProcesses} / \${originalNumPcols} ))
-                    sharedBinaryTag="bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
-                    candmc_\${sharedBinaryTag} \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                    sharedBinaryTag="candmc_bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
+                    \${sharedBinaryTag} \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
                   fi
 		done
               elif [ \${binaryTag} == 'cfr3d' ];
               then
-                camfs_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
               elif [ \${binaryTag} == 'bscf' ];
               then
-                candmc_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime} \${nodeCount}
               elif [ \${binaryTag} == 'mm3d' ];
               then
-                camfs_\${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
+                \${binaryTag} \${scale} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime} \${nodeCount}
               fi
             fi
           done
@@ -674,8 +675,8 @@ do
         then
 	  # below: shared
 	  curMatrixDimM=\$(( \${curMatrixDimM} * 2 ))
-	  # below: cacqr2
-	  if [ \${binaryTag} == 'cacqr2' ];
+	  # below: camfs_cacqr2
+	  if [ \${binaryTag} == 'camfs_cacqr2' ];
           then
 	    #pDimD=\$(( \${pDimD} * 2 ))
 	    echo "Do nothing"
@@ -697,8 +698,8 @@ do
           fi
         elif [ \${scaleRegime} == 1 ];
 	then
-	  # below: ca-cacqr2
-	  if [ \${binaryTag} == 'cacqr2' ];
+	  # below: camfs_cacqr2
+	  if [ \${binaryTag} == 'camfs_cacqr2' ];
           then
             #pDimD=\$(( \${pDimD} * 2 ))
 	    echo "Do nothing"
@@ -721,8 +722,8 @@ do
             # shared
 	    curMatrixDimM=\$(( \${curMatrixDimM} / 2 ))
 	    curMatrixDimN=\$(( \${curMatrixDimN} * 2 ))
-	    # below: ca-cacqr2
-	    if [ \${binaryTag} == 'cacqr2' ];
+	    # below: camfs_cacqr2
+	    if [ \${binaryTag} == 'camfs_cacqr2' ];
             then
 	      #pDimD=\$(( \${pDimD} / 2 ))
 	      for ((w=0; w<\${rangePdimClen}; w+=1));
@@ -743,8 +744,8 @@ do
 	  else
             # shared
 	    curMatrixDimM=\$(( \${curMatrixDimM} * 2 ))
-	    # below: ca-cacqr2
-	    if [ \${binaryTag} == 'cacqr2' ];
+	    # below: camfs_cacqr2
+	    if [ \${binaryTag} == 'camfs_cacqr2' ];
             then
               #pDimD=\$(( \${pDimD} * 2 ))
 	      echo "Do nothing"
