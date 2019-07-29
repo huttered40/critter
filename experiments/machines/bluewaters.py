@@ -8,7 +8,7 @@ class bluewaters(object):
     AllocationName="bahv"
     accelType="n"
     testAccel_NoAccel="n"
-    machineName=BLUEWATERS
+    machineName="BLUEWATERS"
 
     @staticmethod
     def set():
@@ -67,3 +67,7 @@ class bluewaters(object):
     @staticmethod
     def queue(Script):
         call("cd %s; %s %s"%(os.environ["SCRATCH"],Batch,Script),shell=True)
+
+    @staticmethod
+    def IsAccelerated():
+        return 0

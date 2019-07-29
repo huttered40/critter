@@ -1,259 +1,6 @@
 import os
 from subprocess import call
-
-
-# For CA-CQR2
-camfs_cacqr2 () {
-  # launch CQR2
-  local scale=${1}
-  local binaryPath=${2}
-  local numIterations=${3}
-  local launchID=${4}
-  local NumNodes=${5}
-  local ppn=${6}
-  local tpr=${7}
-  local matrixDimM=${8}
-  local matrixDimN=${9}
-  local matrixDimMorig=${10}
-  local matrixDimNorig=${11}
-  local pDimDorig=${12}
-  local pDimCorig=${13}
-  local pDimD=${14}
-  local pDimC=${15}
-  local nodeIndex=${16}
-  local scaleRegime=${17}
-  local nodeCount=${18}
-  local WScounterOffset=${19}
-  local tuneInvCutOff=${20}
-  local bcDim=0
-  local tag1="cacqr2"
-
-  # Next: Based on pDimC, decide on invCutOff parameter, which will range from 0 to a max of 2 for now
-  curInverseCutOffMult=0
-  # Set up the file string that will store the local benchmarking results
-  local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${matrixDimN}dimN_${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_${pDimD}pDimD_${pDimC}pDimC_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${launchID}launchID"
-  # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-  local PreFile="${tag1}_${scale}_${matrixDimM}_${matrixDimN}_${curInverseCutOffMult}_${pDimD}_${pDimC}_${ppn}_${tpr}_${NumNodes}nodes"
-  local PostFile="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${curInverseCutOffMult}_${pDimDorig}_${pDimCorig}_${ppn}_${tpr}"
-  local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${curInverseCutOffMult}_${pDimCorig}"
-  local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${ppn}_${tpr}"
-
-  # Special corner case that only occurs for weak scaling, where invCutOff can increment abruptly to a value its never been before.
-  isUniqueTag=1
-  collectPlotTagArrayLen=${#collectPlotTags[@]}
-  for ((ii=0;ii<${collectPlotTagArrayLen};ii++));
-  do
-    if [ "${PostFile}" == "${collectPlotTags[${ii}]}" ];
-    then
-      isUniqueTag=0
-    fi
-  done
-  if [ ${isUniqueTag} -eq 1 ];
-  then
-    #echo "HERE, plotTags -- ${collectPlotTags[@]}"
-    collectPlotTags+=(${PostFile})
-  fi
-
-  # Plot instructions only need a single output per scaling study
-  if [ ${nodeIndex} == 0 ] || [ ${isUniqueTag} -eq 1 ];
-  then
-    WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${pDimD} ${pDimC} ${curInverseCutOffMult} ${ppn} ${tpr}
-    TemporaryDCplotInfo ${scaleRegime} ${nodeIndex} ${nodeCount} ${pDimDorig} ${pDimCorig} ${WScounterOffset}
-    writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1  
-  fi
-
-  WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
-  WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
-  launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${launchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${matrixDimN} ${bcDim} ${curInverseCutOffMult} 0 ${pDimD} ${pDimC} ${numIterations} $SCRATCH/${testName}/${fileString}
-  writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-  curInverseCutOffMult=$(( ${curInverseCutOffMult} + 1 ))
-}
-
-
-# For CFR3D
-camfs_cfr3d () {
-  # launch CFR3D
-  local scale=${1}
-  local binaryPath=${2}
-  local numIterations=${3}
-  local launchID=${4}
-  local NumNodes=${5}
-  local ppn=${6}
-  local tpr=${7}
-  local matrixDimM=${8}
-  local matrixDimMorig=${9}
-  local cubeDimorig=${10}
-  local cubeDim=${11}
-  local nodeIndex=${12}
-  local scaleRegime=${13}
-  local nodeCount=${14}
-  local bcDim=0
-  local tag1="cfr3d"
-
-  curInverseCutOffMult=0
-  # Set up the file string that will store the local benchmarking results
-  local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_${cubeDim}cubeDim_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${curLaunchID}launchID"
-  # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-  local PreFile="${tag1}_${scale}_${matrixDimM}_${curInverseCutOffMult}_${cubeDim}_${ppn}_${tpr}_${NumNodes}nodes"
-  local PostFile="${tag1}_${scale}_${matrixDimMorig}_${curInverseCutOffMult}_${cubeDimorig}_${ppn}_${tpr}"
-  local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${curInverseCutOffMult}_${cubeDimorig}"
-  local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${ppn}_${tpr}"
-
-  # Plot instructions only need a single output per scaling study
-  if [ ${nodeIndex} == 0 ];
-  then
-    WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${curInverseCutOffMult} ${ppn} ${tpr}
-    writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
-  fi
-
-  WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
-  WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
-  # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-  launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${bcDim} ${curInverseCutOffMult} 0 ${numIterations} $SCRATCH/${testName}/${fileString}
-  writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-  curInverseCutOffMult=$(( ${curInverseCutOffMult} + 1 ))
-}
-
-
-# For MM3D
-camfs_mm3d () {
-  # launch CFR3D
-  local scale=${1}
-  local binaryPath=${2}
-  local numIterations=${3}
-  local launchID=${4}
-  local NumNodes=${5}
-  local ppn=${6}
-  local tpr=${7}
-  local gemmORtrmm=${8}
-  local algChoice=${9}
-  local matrixDimM=${10}
-  local matrixDimN=${11}
-  local matrixDimK=${12}
-  local matrixDimMorig=${13}
-  local matrixDimNorig=${14}
-  local matrixDimKorig=${15}
-  local cubeDimorig=${16}
-  local cubeDim=${17}
-  local nodeIndex=${18}
-  local scaleRegime=${19}
-  local nodeCount=${20}
-  local tag1="mm3d"
-
-  # Set up the file string that will store the local benchmarking results
-  local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${matrixDimN}dimN_${matrixDimK}dimK_${cubeDim}cubeDim_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${curLaunchID}launchID"
-  # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-  local PreFile="${tag1}_${scale}_${matrixDimM}_${matrixDimN}_${matrixDimK}_${cubeDim}_${ppn}_${tpr}_${NumNodes}nodes"
-  local PostFile="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}_${ppn}_${tpr}"
-  local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
-  local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
-
-  # Plot instructions only need a single output per scaling study
-  if [ ${nodeIndex} == 0 ];
-  then
-    WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-    writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
-  fi
-
-  WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
-  WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
-  # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-  launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${gemmORtrmm} ${algChoice} ${matrixDimM} ${matrixDimN} ${matrixDimK} ${numIterations} $SCRATCH/${testName}/${fileString}
-  writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-}
-
-
-candmc_bsqr () {
-  # launch scaLAPACK_QR
-  local binaryTag=${1}
-  local scale=${2}
-  local binaryPath=${3}
-  local numIterations=${4}
-  local launchID=${5}
-  local NumNodes=${6}
-  local ppn=${7}
-  local tpr=${8}
-  local matrixDimM=${9}
-  local matrixDimN=${10}
-  local matrixDimMorig=${11}
-  local matrixDimNorig=${12}
-  local numProwsorig=${13}
-  local numPcolsorig=${14}
-  local numProws=${15}
-  local minBlockSize=${16}
-  local maxBlockSize=${17}
-  local nodeIndex=${18}
-  local scaleRegime=${19}
-  local nodeCount=${20}
-  local tag1="bsqr"
-
-  for ((k=${minBlockSize}; k<=${maxBlockSize}; k*=2))
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${matrixDimN}dimN_${numProws}numProws_${k}bSize_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${curLaunchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag1}_${scale}_${matrixDimM}_${matrixDimN}_${numProws}_${k}_${ppn}_${tpr}_${NumNodes}nodes"
-    local PostFile="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${numProwsorig}_${k}_${ppn}_${tpr}"
-    local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${numPcolsorig}_${k}"
-    local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${ppn}_${tpr}"
-
-    # Plot instructions only need a single output per scaling study
-    if [ ${nodeIndex} == 0 ];
-    then
-      WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${numProws} ${k} ${ppn} ${tpr}
-      writePlotFileNameScalapackQR ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_NoFormQ ${PreFile}_FormQ $SCRATCH/${testName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_NoFormQ ${PreFile}_FormQ ${PostFile} ${PostFile}_NoFormQ ${PostFile}_FormQ $SCRATCH/${testName}/collectInstructionsStage2.sh
-    launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${matrixDimN} ${k} ${numIterations} 0 ${numProws} 1 0 $SCRATCH/${testName}/${fileString}
-    writePlotFileNameScalapackQR ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-  done
-}
-
-candmc_bscf () {
-  # launch scaLAPACK_CF
-  local scale=${1}
-  local binaryPath=${2}
-  local numIterations=${3}
-  local launchID=${4}
-  local NumNodes=${5}
-  local ppn=${6}
-  local tpr=${7}
-  local matrixDimM=${8}
-  local matrixDimMorig=${8}
-  local minBlockSize=${9}
-  local maxBlockSize=${10}
-  local nodeIndex=${11}
-  local scaleRegime=${12}
-  local nodeCount=${13}
-  local tag1="bscf"
-
-  for ((k=${minBlockSize}; k<=${maxBlockSize}; k*=2))
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${k}bSize_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${curLaunchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag1}_${scale}_${matrixDimM}_${k}_${ppn}_${tpr}_${NumNodes}nodes"
-    local PostFile="${tag1}_${scale}_${matrixDimMorig}_${k}_${ppn}_${tpr}"
-    local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${k}"
-    local UpdatePlotFile2="${tag1}_${scale}_${ppn}_${tpr}"
-
-    if [ ${nodeIndex} == 0 ];
-    then
-      # Write to plotInstructions file
-      WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${k} ${ppn} ${tpr}
-      writePlotFileNameScalapackCholesky ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile} ${PreFile}_blah $SCRATCH/${testName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile} ${PreFile}_blah ${PostFile} ${PostFile} ${PostFile} $SCRATCH/${testName}/collectInstructionsStage2.sh
-    launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${k} ${numIterations} $SCRATCH/${testName}/${fileString}
-    writePlotFileNameScalapackCholesky ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-  done
-}
-
-
+import datetime
 
 class bench(object):
     """
@@ -388,7 +135,7 @@ class bench(object):
         self.tprScaleOperatorList=tprScaleOperatorList
         self.SubmitToQueue = SubmitToQueue
         self.AlgorithmList = AlgorithmList
-        dateStr=$(date +%Y-%m-%d-%H_%M_%S)
+        dateStr=datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
         self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.machineName,roundID)
         self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.machineName)
 
@@ -416,20 +163,28 @@ class bench(object):
             os.environ["INTTYPE"] = "INT64_T_TYPE"
 
         self.MachineType.set()
-        os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin/"%(self.testName)
+        os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin"%(self.testName)
 
         call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
 
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
-        self.CollectInstructions1File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
-        self.CollectInstructions2File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructionsStage1File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructionsStage2File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
 
 
     def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID)
         for param in self.AlgorithmList[TestID][0][AlgID]:
-            ...write(..) echo "echo \"\${arg}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+            self.PlotInstructionsFile.write(str(param)+"\n")
 
+    def __WriteHeaderForCollection(self,File):
+        """
+        Writes the beginning of collectInstructionsStage1 and collectInstructionsStage2
+	"""
+        File.write("%s\n"%(self.testName))
+        File.write("%s\n"%(self.testNameAllRounds))
+        File.write("%s\n"%(self.MachineType.machineName))
+        File.write("%d\n"%(self.numTests))
 
     def __algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
@@ -461,16 +216,7 @@ class bench(object):
 
     def __portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0):
         """
-        # Submit all scripts
-        .. due to new format, need to watch out for repeats
-        .. also note that different calls (3 so far) might want different things
-        ..     writing scripts requires looking over every unique possible combination
-        ..     launching scripts requires looking over every unique possible combination
-        ..     calling the alg portal requires looking only over the test-specific node,ppn,tpr
-        .. one solution here is to pass in a start,end testID parameters, and then use that as the outer-most loop
-        .. and also to use a dictionary of tuples (node,ppn,tpr)
         """
-
         for LaunchIndex in range(1,NumLaunchesPerBinary+1):
             PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
@@ -484,17 +230,21 @@ class bench(object):
                             # Make sure we are in a suitable range
                             numPEsPerNode=curPPN*curTPR
                             if (minPEcountPerNode <= numPEsPerNode) and (maxPEcountPerNode >= numPEsPerNode):
-                                add to PortalDict
                                 if (op == 0):
-                                    scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
-                                    self.MachineType.queue(scriptName)
+                                    TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
+				    if not(TupleKey in PortalDict):
+                                        scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                        self.MachineType.queue(scriptName)
+				        PortalDict[TupleKey]=1
                                 elif (op == 1):
-                                    scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
-                                    scriptFile=open(scriptName,"a+")
-                                    self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
+                                    TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
+				    if not(TupleKey in PortalDict):
+                                        scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                        scriptFile=open(scriptName,"a+")
+                                        self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
+				        PortalDict[TupleKey]=1
                                 elif (op == 2):
                                     algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR):
-                                .. what about checking in PortalDict??
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
                     scaleIndex=scaleIndex+1
@@ -516,16 +266,13 @@ class bench(object):
         """
         for lib in self.LibraryTypeList:
             os.environ["PROFTYPE"]="PERFORMANCE"
-	    profType="P"
             # export SPECIAL_SCALA_ARG=REF
             lib.build()
             if (self.analyzeDecision1 == 1):
-                profType="PC"
                 os.environ["PROFTYPE"]="CRITTER"
                 lib.build()
 
             if (self.analyzeDecision2 == 1):
-                profType=profType+"T"
                 export PROFTYPE=PROFILE
                 os.environ["PROFTYPE"]="PROFILE"
                 lib.build()
@@ -533,8 +280,6 @@ class bench(object):
     def launch(self):
         """
         """
-        os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin/"%(self.testName)
-
         # collectData.sh will always be a single line, just a necessary intermediate step.
         ## echo "bash $SCRATCH/${testName}/collectInstructionsStage1.sh | bash PackageDataRemoteStage1.sh" > collectData.sh
 
@@ -543,30 +288,18 @@ class bench(object):
 
         portal(1,0,self.NumTests)
 
-        # Note: in future, I may want to decouple numBinaries and numPlotTargets, but only when I find it necessary
-        # Write to Plot Instructions file, for use by SCAPLOT makefile generator
-        echo "echo \"1\"" > $SCRATCH/${testName}/plotInstructions.sh
-        echo "echo \"${testNameAllRounds}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-        echo "echo \"${numTests}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-        echo "echo \"${machineName}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-        echo "echo \"${profType}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-        echo "echo \"${nodeScaleFactor}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-
-        WriteHeaderForCollection $SCRATCH/${testName}/collectInstructionsStage1.sh
-        WriteHeaderForCollection $SCRATCH/${testName}/collectInstructionsStage2.sh
+        self.PlotInstructionsFile.write("1\n")
+	self.PlotInstructionsFile.write("%s\n"%(self.testNameAllRounds))
+	self.PlotInstructionsFile.write("%d\n"%(self.numTests))
+	self.PlotInstructionsFile.write("%s\n"%(self.MachineType.machineName))
+        WriteHeaderForCollection(self.CollectInstructionsStage1File)
+        WriteHeaderForCollection(self.CollectInstructionsStage2File)
 
         for TestIndex in range(0,numTests):
             print("Test %d\n"%(i))
 
-            # Nodes
-            startNumNodes,endNumNodes comes from the corresponding test
-
-            scaleRegime,scale comes from algList .. problem here is that the .sh files want them as test-level, not alg-level
-
-            echo "echo \"\${scale}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-
-            nodeCount= get from len of list
-            echo "echo \"\${nodeCount}\" " >> $SCRATCH/${testName}/plotInstructions.sh
+            self.PlotInstructionsFile.write("%s"%(self.AlgorithmList[TestIndex][1]))
+            ..nodecount for the test.. self.PlotInstructionsFile.write("%d"%(self.[TestIndex][1]))
 
             curNumNodes=\${startNumNodes}
             for ((j=0; j<\${nodeCount}; j++))
@@ -583,23 +316,18 @@ class bench(object):
 
                 # Echo for SCAPLOT makefile generator
                 binaryTag=self.AlgorithmList[...].Tag
-                echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh
-                echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh
-                echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+                self.CollectInstructionsStage1File.write("%s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
+                self.CollectInstructionsStage2File.write("%s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
+                self.PlotInstructionsFile.write("%s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
 
-                .. figure out what is going on with binaryPath and how it relates to experiments/machine/
-                ..binaryPath=${BINARYPATH}\${binaryTag}_${machineName}
-                if [ "${machineName}" == "PORTER" ];
-                    binaryPath=\${binaryPath}_${mpiType}
-                elif [ "${machineName}" == "BLUEWATERS" ];
-                    # special case, only for CAMFS, not for bench_scalapack routines
-                    if [ "\${binaryTag}" == "camfs_cacqr2" ] || [ "\${binaryTag}" == "camfs_cfr3d" ];
-                        binaryPath=${BINARYPATH}\${binaryTag}_${machineName}_${GPU}
+                binaryPath="%s/%s"%(os.environ["BINARYPATH"],self.AlgorithmList[TestIndex][0][AlgIndex].Tag)
+                # Below: special case that will hopefully be replaced soon
+                if (self.MachineType.IsAccelerated())
+                    binaryPath=binaryPath + "_GPU"
 
                 portal(2,TestIndex,TestIndex,AlgIndex)
-            echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
-            echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh	# Signals end of the data files for this specific methodID
-            echo "echo \"1\"" >> $SCRATCH/${testName}/plotInstructions.sh	# Signals end of the data files for this specific methodID
-
+            self.CollectInstructionsStage1File.write("1\n")
+            self.CollectInstructionsStage2File.write("1\n")
+            self.PlotInstructionsFile.write("1\n")
         queue_submit()
 

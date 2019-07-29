@@ -5,7 +5,7 @@ class porter(object):
     """
     BatchFileExtension=""
     Batch=""
-    machineName=PORTER
+    machineName="PORTER"
 
     @staticmethod
     def set():
@@ -32,3 +32,7 @@ class porter(object):
         pass
         call("chmod +x ${Script}"%(Script),shell=True)
         call("${Batch} ${Script}"%(Batch,Script),shell=True)
+
+    @staticmethod
+    def IsAccelerated():
+        return 0
