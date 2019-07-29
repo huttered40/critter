@@ -29,64 +29,44 @@ camfs_cacqr2 () {
   local tag1="cacqr2"
 
   # Next: Based on pDimC, decide on invCutOff parameter, which will range from 0 to a max of 2 for now
-  invCutOffLoopMax=0
-  # Note: I am just not seeing enough performance boost at the moment to warrant launching the varying invCutOff runs, especially for Critter
-  if [ "${tuneInvCutOff}" == "y" ];
-  then
-    if [ ${pDimC} -le 2 ];
+  curInverseCutOffMult=0
+  # Set up the file string that will store the local benchmarking results
+  local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${matrixDimN}dimN_${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_${pDimD}pDimD_${pDimC}pDimC_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${launchID}launchID"
+  # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
+  local PreFile="${tag1}_${scale}_${matrixDimM}_${matrixDimN}_${curInverseCutOffMult}_${pDimD}_${pDimC}_${ppn}_${tpr}_${NumNodes}nodes"
+  local PostFile="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${curInverseCutOffMult}_${pDimDorig}_${pDimCorig}_${ppn}_${tpr}"
+  local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${curInverseCutOffMult}_${pDimCorig}"
+  local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${ppn}_${tpr}"
+
+  # Special corner case that only occurs for weak scaling, where invCutOff can increment abruptly to a value its never been before.
+  isUniqueTag=1
+  collectPlotTagArrayLen=${#collectPlotTags[@]}
+  for ((ii=0;ii<${collectPlotTagArrayLen};ii++));
+  do
+    if [ "${PostFile}" == "${collectPlotTags[${ii}]}" ];
     then
-      invCutOffLoopMax=0
-    elif [ ${pDimC} -eq 4 ];
-    then
-      invCutOffLoopMax=1
-    else
-      invCutOffLoopMax=2
-      #invCutOffLoopMax=$(( ${pDimC} / 2 ))
-      #invCutOffLoopMax=$(( ${invCutOffLoopMax} - 1 ))
+      isUniqueTag=0
     fi
+  done
+  if [ ${isUniqueTag} -eq 1 ];
+  then
+    #echo "HERE, plotTags -- ${collectPlotTags[@]}"
+    collectPlotTags+=(${PostFile})
   fi
 
-  curInverseCutOffMult=0
-  while [ ${curInverseCutOffMult} -le ${invCutOffLoopMax} ];
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${matrixDimN}dimN_${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_${pDimD}pDimD_${pDimC}pDimC_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${launchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag1}_${scale}_${matrixDimM}_${matrixDimN}_${curInverseCutOffMult}_${pDimD}_${pDimC}_${ppn}_${tpr}_${NumNodes}nodes"
-    local PostFile="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${curInverseCutOffMult}_${pDimDorig}_${pDimCorig}_${ppn}_${tpr}"
-    local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${curInverseCutOffMult}_${pDimCorig}"
-    local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${ppn}_${tpr}"
+  # Plot instructions only need a single output per scaling study
+  if [ ${nodeIndex} == 0 ] || [ ${isUniqueTag} -eq 1 ];
+  then
+    WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${pDimD} ${pDimC} ${curInverseCutOffMult} ${ppn} ${tpr}
+    TemporaryDCplotInfo ${scaleRegime} ${nodeIndex} ${nodeCount} ${pDimDorig} ${pDimCorig} ${WScounterOffset}
+    writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1  
+  fi
 
-    # Special corner case that only occurs for weak scaling, where invCutOff can increment abruptly to a value its never been before.
-    isUniqueTag=1
-    collectPlotTagArrayLen=${#collectPlotTags[@]}
-    for ((ii=0;ii<${collectPlotTagArrayLen};ii++));
-    do
-      if [ "${PostFile}" == "${collectPlotTags[${ii}]}" ];
-      then
-        isUniqueTag=0
-      fi
-    done
-    if [ ${isUniqueTag} -eq 1 ];
-    then
-      #echo "HERE, plotTags -- ${collectPlotTags[@]}"
-      collectPlotTags+=(${PostFile})
-    fi
-
-    # Plot instructions only need a single output per scaling study
-    if [ ${nodeIndex} == 0 ] || [ ${isUniqueTag} -eq 1 ];
-    then
-      WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${pDimD} ${pDimC} ${curInverseCutOffMult} ${ppn} ${tpr}
-      TemporaryDCplotInfo ${scaleRegime} ${nodeIndex} ${nodeCount} ${pDimDorig} ${pDimCorig} ${WScounterOffset}
-      writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1  
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
-    launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${launchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${matrixDimN} ${bcDim} ${curInverseCutOffMult} 0 ${pDimD} ${pDimC} ${numIterations} $SCRATCH/${testName}/${fileString}
-    writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-    curInverseCutOffMult=$(( ${curInverseCutOffMult} + 1 ))
-  done
+  WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
+  WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
+  launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${launchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${matrixDimN} ${bcDim} ${curInverseCutOffMult} 0 ${pDimD} ${pDimC} ${numIterations} $SCRATCH/${testName}/${fileString}
+  writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
+  curInverseCutOffMult=$(( ${curInverseCutOffMult} + 1 ))
 }
 
 
@@ -110,45 +90,28 @@ camfs_cfr3d () {
   local bcDim=0
   local tag1="cfr3d"
 
-  # Next: Based on pDimC, decide on invCutOff parameter, which will range from 0 to a max of 2 for now
-  invCutOffLoopMax=0
-  if [ ${cubeDim} -le 2 ];
+  curInverseCutOffMult=0
+  # Set up the file string that will store the local benchmarking results
+  local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_${cubeDim}cubeDim_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${curLaunchID}launchID"
+  # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
+  local PreFile="${tag1}_${scale}_${matrixDimM}_${curInverseCutOffMult}_${cubeDim}_${ppn}_${tpr}_${NumNodes}nodes"
+  local PostFile="${tag1}_${scale}_${matrixDimMorig}_${curInverseCutOffMult}_${cubeDimorig}_${ppn}_${tpr}"
+  local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${curInverseCutOffMult}_${cubeDimorig}"
+  local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${ppn}_${tpr}"
+
+  # Plot instructions only need a single output per scaling study
+  if [ ${nodeIndex} == 0 ];
   then
-    invCutOffLoopMax=0
-  elif [ ${cubeDim} -eq 4 ];
-  then
-    invCutOffLoopMax=1
-  else
-    invCutOffLoopMax=2
-    #invCutOffLoopMax=$(( ${cubeDim} / 2 ))
-    #invCutOffLoopMax=$(( ${invCutOffLoopMax} - 1 ))
+    WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${curInverseCutOffMult} ${ppn} ${tpr}
+    writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
   fi
 
-  curInverseCutOffMult=0
-  while [ ${curInverseCutOffMult} -le ${invCutOffLoopMax} ];
-  do
-    # Set up the file string that will store the local benchmarking results
-    local fileString="DataFiles/results_${tag1}_${scale}_${NumNodes}nodes_${matrixDimM}dimM_${curInverseCutOffMult}inverseCutOffMult_0bcMult_0panelDimMult_${cubeDim}cubeDim_${numIterations}numIter_${ppn}ppn_${tpr}tpr_${curLaunchID}launchID"
-    # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-    local PreFile="${tag1}_${scale}_${matrixDimM}_${curInverseCutOffMult}_${cubeDim}_${ppn}_${tpr}_${NumNodes}nodes"
-    local PostFile="${tag1}_${scale}_${matrixDimMorig}_${curInverseCutOffMult}_${cubeDimorig}_${ppn}_${tpr}"
-    local UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${curInverseCutOffMult}_${cubeDimorig}"
-    local UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}_${ppn}_${tpr}"
-
-    # Plot instructions only need a single output per scaling study
-    if [ ${nodeIndex} == 0 ];
-    then
-      WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${curInverseCutOffMult} ${ppn} ${tpr}
-      writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
-    fi
-
-    WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
-    WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
-    # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-    launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${bcDim} ${curInverseCutOffMult} 0 ${numIterations} $SCRATCH/${testName}/${fileString}
-    writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
-    curInverseCutOffMult=$(( ${curInverseCutOffMult} + 1 ))
-  done
+  WriteMethodDataForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
+  WriteMethodDataForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
+  # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
+  launchJobsPortal ${binaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${matrixDimM} ${bcDim} ${curInverseCutOffMult} 0 ${numIterations} $SCRATCH/${testName}/${fileString}
+  writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
+  curInverseCutOffMult=$(( ${curInverseCutOffMult} + 1 ))
 }
 
 
@@ -389,8 +352,9 @@ class bench(object):
 
        SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
 
-       AlgorithmList - list of lists of lists of inputs, must be of length 'numTests'
-                          - each inner list holds the inputs for the corresponding algorithm in AlgorithmList
+       AlgorithmList - list of lists of algorithm class instances
+                     - outer list must be of length 'numTests'
+                     - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
        """
        self.CritterPath = CritterPath
        self.MachineType = MachineType
@@ -428,8 +392,40 @@ class bench(object):
        self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.machineName,roundID)
        self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.machineName)
 
-    def __portal(self,func,op,TestStartIndex,TestEndIndex):
+    def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID)
+        for param in self.AlgorithmList[TestID][0][AlgID]:
+            ...write(..) echo "echo \"\${arg}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+
+
+    def __algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
+	"""
+        # Set up the file string that will store the local benchmarking results
+        fileString="DataFiles/%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
+	          +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%()
+        # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
+        PreFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
+               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(....)
+        PostFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
+               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(....)
+
+        #UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
+        #UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
+
+        # Plot instructions only need a single output per scaling study
+        if (scaleIndex == 0):
+            #WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
+            WriteAlgorithmInfoForPlotting(0,TestID,AlgID,launchIndex,ppn,tpr)	# Note that NumNodes is not included
+            writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
+
+        WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
+        WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
+        # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
+        launchJobsPortal ${BinaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${gemmORtrmm} ${algChoice} ${matrixDimM} ${matrixDimN} ${matrixDimK} ${numIterations} $SCRATCH/${testName}/${fileString}
+        writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
+
+
+    def __portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0):
         """
         # Submit all scripts
         .. due to new format, need to watch out for repeats
@@ -439,11 +435,13 @@ class bench(object):
         ..     calling the alg portal requires looking only over the test-specific node,ppn,tpr
         .. one solution here is to pass in a start,end testID parameters, and then use that as the outer-most loop
         .. and also to use a dictionary of tuples (node,ppn,tpr)
+        """
 
-        for curLaunchID in range(1,NumLaunchesPerBinary+1):
+        for launchIndex in range(1,NumLaunchesPerBinary+1):
             PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
                 curNumNodes=self.nodeMinList[TestIndex]
+		scaleIndex=0
                 while (curNumNodes <= self.nodeMaxList[TestIndex]):
                     curPPN=self.ppnMinList[TestIndex]
                     while (curPPN <= self.ppnMaxList[TestIndex]):
@@ -453,15 +451,22 @@ class bench(object):
                             numPEsPerNode=curPPN*curTPR
                             if (minPEcountPerNode <= numPEsPerNode) and (maxPEcountPerNode >= numPEsPerNode):
                                 add to PortalDict
-                                .. user 'op' to differentiate between whether to pass 9 args (to op=2) or not
-                                .. note that we will want to append to the script files, and this is important, since python might have a special tag for that
-
-                                FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
-                                scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.${BatchFileExtension}
-                                def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
+                                if (op == 0):
+                                    FullScriptName=${testName}/script_${fileID}id_${roundID}round_${launchIndex}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
+                                    self.MachineType.queue(..)
+                                    def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
+                                elif (op == 1):
+                                    scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${launchIndex}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.${BatchFileExtension}
+                                    self.MachineType.script(..)
+                                elif (op == 2):
+                                    algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,launchIndex,curNumNodes,curPPN,curTPR):
+                                .. what about checking in PortalDict??
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
+                    scaleIndex=scaleIndex+1
                     curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
+		    if (op == 2):
+		        self.AlgorithmList[TestIndex][0][AlgIndex].scale(TestIndex)
 
     def queue_submit(self):
         """
@@ -469,7 +474,7 @@ class bench(object):
 	if (self.SubmitToQueue == 1):
 	  call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName))
 	  call("mv ../Tests/%s/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName))
-          portal(self.MachineType.queue,0,self.NumTests)
+          portal(0,0,self.NumTests)
 
     def launch(self):
         """
@@ -527,7 +532,7 @@ class bench(object):
 
         call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
-        portal(self.MachineType.script,0,self.NumTests)
+        portal(1,0,self.NumTests)
 
         .. need to open 3 files for appending: plotInstructions.sh, collectInstructionsStage1.sh, collectInstructionsStage2.sh
 
@@ -543,7 +548,7 @@ class bench(object):
         WriteHeaderForCollection $SCRATCH/${testName}/collectInstructionsStage1.sh
         WriteHeaderForCollection $SCRATCH/${testName}/collectInstructionsStage2.sh
 
-        for test in range(1,numTests+1):
+        for TestIndex in range(0,numTests):
             print("Test %d\n"%(i))
 
             # Nodes
@@ -566,13 +571,8 @@ class bench(object):
             echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
             echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
-
-            .. basically the loop below should go over all algorithms, BUT it should also go over all starting input parameters, which is set by the Alg
-            .. need a separate loop for that
-            .. also need a check for the last input parameters. maybe just a while (), then grab
-            j=1
-            while [ 1 -eq 1 ];		# Loop iterates until user says stop
-                echo -e "\nStage #\${j}"
+            for AlgIndex in range(len()):
+                print("\nAlgorithm %s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
 
                 # Echo for SCAPLOT makefile generator
                 binaryTag=self.AlgorithmList[...].Tag
@@ -588,85 +588,7 @@ class bench(object):
                     if [ "\${binaryTag}" == "camfs_cacqr2" ] || [ "\${binaryTag}" == "camfs_cfr3d" ];
                         binaryPath=${BINARYPATH}\${binaryTag}_${machineName}_${GPU}
 
-                .. can we re-use portal here for the outer-loop-structure?
-                for ((curLaunchID=1; curLaunchID<=${NumLaunchesPerBinary}; curLaunchID+=1));
-                    # Initialize all possible variables that change with node count
-                    # shared
-                    nodeIndex=0
-                    curMatrixDimM=\${matrixDimM}
-                    curMatrixDimN=\${matrixDimN}
-                    if [ \${binaryTag} == 'mm3d' ];
-                        curMatrixDimK=\${matrixDimK}
-                    # cacqr2
-                    pDimCArray=()
-                    pDimCArrayOrig=()
-                    rangePdimClen=0
-                    if [ \${binaryTag} == 'camfs_cacqr2' ];
-                        for ((w=\${startStartPdimC}; w<=\${endStartPdimC}; w*=2));
-                            pDimCArray+=(\${w})
-                            pDimCArrayOrig+=(\${w})
-                            rangePdimClen=\$(( \${rangePdimClen} + 1 ))
-                    # bsqr/rsqr
-                    numPcolsArray=()
-                    numPcolsArrayOrig=()
-                    rangeNumPcolslen=0
-                    if [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
-                        for ((w=\${startStartNumPcols}; w<=\${endStartNumPcols}; w*=2));
-                            numPcolsArray+=(\${w})
-                            numPcolsArrayOrig+=(\${w})
-                            rangeNumPcolslen=\$(( \${rangeNumPcolslen} + 1 ))
-                    # cfr3d
-                    curCubeDim=\${cubeDim}
-                    for ((curNumNodes=\${startNumNodes}; curNumNodes<=\${endNumNodes}; curNumNodes*=${nodeScaleFactor}));
-                        minPPN=\${ppnMinListRunTime[\${nodeIndex}]}
-                        maxPPN=\${ppnMaxListRunTime[\${nodeIndex}]}
-                        for ((curPPN=\${minPPN}; curPPN<=\${maxPPN}; curPPN*=${ppnScaleFactor}));
-                            numProcesses=\$(( \${curNumNodes} * \${curPPN} ))
-                            StartingNumProcesses=\$(( \${startNumNodes} * \${curPPN} ))
-
-                            minTPR=\${tprMinListRunTime[\${nodeIndex}]}
-                            maxTPR=\${tprMaxListRunTime[\${nodeIndex}]}
-                            for ((curTPR=\${minTPR}; curTPR<=\${maxTPR}; curTPR*=${tprScaleFactor}));
-                                # Make sure we are in a suitable range
-                                numPEsPerNode=\$(( \${curPPN} * \${curTPR} ))
-                                if [ ${minPEcountPerNode} -le \${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge \${numPEsPerNode} ];
-                                    if [ \${binaryTag} == 'camfs_cacqr2' ];
-                                        # Below: note that the STARTING dimC is being changed. The parameters that aren't solely dependent on the node count are
-                                        #   changed here and not in launchTag***
-                                        for ((w=0; w<\${rangePdimClen}; w+=1));
-                                            pDimC=\${pDimCArray[\${w}]}
-                                            pDimCsquared=\$(( \${pDimC} * \${pDimC} ))
-                                            pDimD=\$(( \${numProcesses} / \${pDimCsquared} ))
-
-                                            # Special check because performance for 16 PPN, 4 TPR shows superior performance for the skinniest grid
-                                            isSpecial=1
-
-                                            # Check if pDimC is too big. If so, pDimD will be 0
-                                            if [ \${pDimD} -ge \${pDimC} ] && [ \${isSpecial} == 1 ];
-                                                originalPdimC=\${pDimCArrayOrig[\${w}]}
-                                                originalPdimCsquared=\$(( \${originalPdimC} * \${originalPdimC} ))
-                                                originalPdDimD=\$(( \${StartingNumProcesses} / \${originalPdimCsquared} ))
-                                                \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime..} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
-                                    elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
-                                        # Special case to watch out for.
-                                        for ((w=0; w<\${rangeNumPcolslen}; w+=1));
-                                        numPcols=\${numPcolsArray[\${w}]}
-                                        numProws=\$(( \${numProcesses} / \${numPcols} ))
-                                        isSpecial=1
-                                        if [ \${numPcols} -le \${numProws} ] && [ \${isSpecial} == 1 ];
-                                            originalNumPcols=\${numPcolsArrayOrig[\${w}]}
-                                            originalNumProws=\$(( \${StartingNumProcesses} / \${originalNumPcols} ))
-                                            sharedBinaryTag="candmc_bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
-                                            \${sharedBinaryTag} \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-                                    elif [ \${binaryTag} == 'cfr3d' ];
-                                        \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-                                    elif [ \${binaryTag} == 'bscf' ];
-                                        \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-                                    elif [ \${binaryTag} == 'mm3d' ];
-                                        \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-                        alg.scale(alg.IndirectIndexFunc(scaleCount))	.. now it looks like this will be moved to the portal func
-	                nodeIndex=\$(( \${nodeIndex} + 1 ))
-            j=\$(( \${j} + 1 ))
+                portal(2,TestIndex,TestIndex,AlgIndex)
             echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
             echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh	# Signals end of the data files for this specific methodID
             echo "echo \"1\"" >> $SCRATCH/${testName}/plotInstructions.sh	# Signals end of the data files for this specific methodID

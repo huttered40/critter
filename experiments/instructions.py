@@ -50,7 +50,7 @@ nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 SubmitToQueue=0
-Algorithm1 = algorithm("camfs/cacqr2",\
+Algorithm1 = algorithm("camfs_cacqr2",\
                        [1024,128,0,0,0,1,1,3],\
 		       [1024,128,0,0,0,1,1,3],\
 		       [1,1,1,1,1,1,1,1],\
@@ -59,7 +59,7 @@ Algorithm1 = algorithm("camfs/cacqr2",\
                        lambda InputList: ((InputList[5]>=InputList[6]**2) and (InputList[2] <= int(math.log(InputList[6])-1))),\
 		       [[1,1,1,1,1,8,1,1]],\
 		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
-Test1=[Algorithm1]
+Test1=[[Algorithm1],"Strong Scaling"]
 AlgorithmList=[Test1]
 
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
