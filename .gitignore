@@ -1,0 +1,6 @@
+critter.egg-info
+*.pyc
+setup.py
+bin/*
+lib/*
+obj/*
