@@ -291,106 +291,140 @@ class bench(object):
                  tprScaleOperatorList,\
 		 SubmitToQueue,\
 		 AlgorithmList):
-       """
-       CritterPath - specify full path to Critter repository
-                   - do not include a '/' after 'critter'
-                   - specified as a string
+        """
+        CritterPath - specify full path to Critter repository
+                    - do not include a '/' after 'critter'
+                    - specified as a string
 
-       MachineType - machine type specified in ../experiments/machines/
+        MachineType - machine type specified in ../experiments/machines/
 
-       LibraryTypeList - list of types specified in ../experiments/libraries/
+        LibraryTypeList - list of types specified in ../experiments/libraries/
 
-       fileID - base name of the directory inside which all data/scripts will be stored
-              - will appear inside the SCRATCH directory
-              - specified as a string
+        fileID - base name of the directory inside which all data/scripts will be stored
+               - will appear inside the SCRATCH directory
+               - specified as a string
 
-       roundID - set to '1' unless performing piecewise testing (launching same job separately) to enhance performance reproducibility
+        roundID - set to '1' unless performing piecewise testing (launching same job separately) to enhance performance reproducibility
 
-       NumLaunchesPerBinary - set to '1' unless performing testing to enhance performance reproducibility (by launching same jobs multiple times)
-                            - different from 'roundID' because the former did not launch at the same time, but waited via a separate launch of bench.sh
+        NumLaunchesPerBinary - set to '1' unless performing testing to enhance performance reproducibility (by launching same jobs multiple times)
+                             - different from 'roundID' because the former did not launch at the same time, but waited via a separate launch of bench.sh
 
-       numTests - number of scaling studies
-                - for example, weak scaling and strong scaling, even across the same variants, constitute separate tests
+        numTests - number of scaling studies
+                 - for example, weak scaling and strong scaling, even across the same variants, constitute separate tests
 
-       numHours,numMinutes,numSeconds - time for job
-                                      - must be specified as two-digit strings
+        numHours,numMinutes,numSeconds - time for job
+                                       - must be specified as two-digit strings
 
-       email - specify email address that you'd like job updates to appear
+        email - specify email address that you'd like job updates to appear
 
-       dataType - float[0], double[1], complex<float>[2], complex<double>[3]
+        dataType - float[0], double[1], complex<float>[2], complex<double>[3]
+                 - only relevant if test file uses an environment variable to specify this
+
+        intType - int[0], int64_t[1]
                 - only relevant if test file uses an environment variable to specify this
 
-       intType - int[0], int64_t[1]
-               - only relevant if test file uses an environment variable to specify this
+        analyzeDecision1 - profile using Critter
 
-       analyzeDecision1 - profile using Critter
+        analyzeDecision2 - profile using TAU
+                         - not currently supported
 
-       analyzeDecision2 - profile using TAU
-                        - not currently supported
+        mpiType - specify 'mpi' (unless on Porter, then 'ampi' is available)
 
-       mpiType - specify 'mpi' (unless on Porter, then 'ampi' is available)
+        minPEcountPerNode/maxPEcountPerNode - specify the min and max number of processing elements (processes per node x threads per process)
 
-       minPEcountPerNode/maxPEcountPerNode - specify the min and max number of processing elements (processes per node x threads per process)
+        nodeMinList,nodeMaxList - min/max number of nodes for each test
 
-       nodeMinList,nodeMaxList - min/max number of nodes for each test
+        ppnMinList,ppnMaxList - min/max number of processes-per-node for each node count for each test
 
-       ppnMinList,ppnMaxList - min/max number of processes-per-node for each node count for each test
+        tprMinList,tprMaxList - min/max number of threads-per-process for each node count for each test
 
-       tprMinList,tprMaxList - min/max number of threads-per-process for each node count for each test
+        nodeScaleFactorList - scaling factor to apply to the number of nodes for each test
 
-       nodeScaleFactorList - scaling factor to apply to the number of nodes for each test
+        ppnScaleFactorList - scaling factor to apply to the number of MPI processes per node (ppn) for each test
 
-       ppnScaleFactorList - scaling factor to apply to the number of MPI processes per node (ppn) for each test
+        tprScaleFactorList - scaling factor to apply to the number of threads per MPI rank (tpr) for each test
 
-       tprScaleFactorList - scaling factor to apply to the number of threads per MPI rank (tpr) for each test
+        nodeScaleOperatorList - scaling operator to apply to the number of nodes for each test
 
-       nodeScaleOperatorList - scaling operator to apply to the number of nodes for each test
+        ppnScaleOperatorList - scaling operator to apply to the number of MPI processes per node (ppn) for each test
 
-       ppnScaleOperatorList - scaling operator to apply to the number of MPI processes per node (ppn) for each test
+        tprScaleOperatorList - scaling operator to apply to the number of threads per MPI rank (tpr) for each test
 
-       tprScaleOperatorList - scaling operator to apply to the number of threads per MPI rank (tpr) for each test
+        SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
 
-       SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
+        AlgorithmList - list of lists of algorithm class instances
+                      - outer list must be of length 'numTests'
+                      - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
+        """
+        self.CritterPath = CritterPath
+        self.MachineType = MachineType
+        self.LibraryTypeList = LibraryTypeList
+        self.fileID = fileID
+        self.roundID = roundID
+        self.NumLaunchesPerBinary = NumLaunchesPerBinary
+        self.numTests = numTests
+        self.numHours = numHours
+        self.numMinutes = numMinutes
+        self.numSeconds = numSeconds
+        self.email = email
+        self.dataType = dataType
+        self.intType = intType
+        self.analyzeDecision1 = analyzeDecision1
+        self.analyzeDecision2 = analyzeDecision2
+        self.mpiType = mpiType
+        self.minPEcountPerNode = minPEcountPerNode
+        self.maxPEcountPerNode = maxPEcountPerNode
+        self.nodeMinList = nodeMinList
+        self.nodeMaxList = nodeMaxList
+        self.ppnMinList = ppnMinList
+        self.ppnMaxList = ppnMaxList
+        self.tprMinList = tprMinList
+        self.tprMaxList = tprMaxList
+        self.nodeScaleFactorList = nodeScaleFactorList
+        self.ppnScaleFactorList = ppnScaleFactorList
+        self.tprScaleFactorList = tprScaleFactorList
+        self.nodeScaleOperatorList=nodeScaleOperatorList
+        self.ppnScaleOperatorList=ppnScaleOperatorList
+        self.tprScaleOperatorList=tprScaleOperatorList
+        self.SubmitToQueue = SubmitToQueue
+        self.AlgorithmList = AlgorithmList
+        dateStr=$(date +%Y-%m-%d-%H_%M_%S)
+        self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.machineName,roundID)
+        self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.machineName)
 
-       AlgorithmList - list of lists of algorithm class instances
-                     - outer list must be of length 'numTests'
-                     - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
-       """
-       self.CritterPath = CritterPath
-       self.MachineType = MachineType
-       self.LibraryTypeList = LibraryTypeList
-       self.fileID = fileID
-       self.roundID = roundID
-       self.NumLaunchesPerBinary = NumLaunchesPerBinary
-       self.numTests = numTests
-       self.numHours = numHours
-       self.numMinutes = numMinutes
-       self.numSeconds = numSeconds
-       self.email = email
-       self.dataType = dataType
-       self.intType = intType
-       self.analyzeDecision1 = analyzeDecision1
-       self.analyzeDecision2 = analyzeDecision2
-       self.mpiType = mpiType
-       self.minPEcountPerNode = minPEcountPerNode
-       self.maxPEcountPerNode = maxPEcountPerNode
-       self.nodeMinList = nodeMinList
-       self.nodeMaxList = nodeMaxList
-       self.ppnMinList = ppnMinList
-       self.ppnMaxList = ppnMaxList
-       self.tprMinList = tprMinList
-       self.tprMaxList = tprMaxList
-       self.nodeScaleFactorList = nodeScaleFactorList
-       self.ppnScaleFactorList = ppnScaleFactorList
-       self.tprScaleFactorList = tprScaleFactorList
-       self.nodeScaleOperatorList=nodeScaleOperatorList
-       self.ppnScaleOperatorList=ppnScaleOperatorList
-       self.tprScaleOperatorList=tprScaleOperatorList
-       self.SubmitToQueue = SubmitToQueue
-       self.AlgorithmList = AlgorithmList
-       dateStr=$(date +%Y-%m-%d-%H_%M_%S)
-       self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.machineName,roundID)
-       self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.machineName)
+        if (self.mpiType == "mpi"):
+            os.environ["MPITYPE"] = "MPI_TYPE"
+        elif (self.mpiType == "ampi"):
+            os.environ["MPITYPE"] = "AMPI_TYPE"
+
+        # I think these directories serve mainly as a intermediate place to put the binaries
+	#   before being moved to SCRATCH
+        call("mkdir ../Tests/%s"%(self.testName))
+        call("mkdir ../Tests/%s/bin"%(self.testName))
+
+        if (dataType == 0):
+            os.environ["DATATYPE"] = "FLOAT_TYPE"
+        elif (dataType == 1)
+            os.environ["DATATYPE"] = "DOUBLE_TYPE"
+        elif (dataType == 2):
+            os.environ["DATATYPE"] = "COMPLEX_FLOAT_TYPE"
+        elif (dataType == 3):
+            os.environ["DATATYPE"] = "COMPLEX_DOUBLE_TYPE"
+        if (intType == 0):
+            os.environ["INTTYPE"] = "INT_TYPE"
+        elif (intType == 1):
+            os.environ["INTTYPE"] = "INT64_T_TYPE"
+
+        self.MachineType.set()
+        os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin/"%(self.testName)
+
+        call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
+        call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
+
+        self.PlotInstructionsFile = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructions1File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructions2File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+
 
     def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID)
         for param in self.AlgorithmList[TestID][0][AlgID]:
@@ -437,7 +471,7 @@ class bench(object):
         .. and also to use a dictionary of tuples (node,ppn,tpr)
         """
 
-        for launchIndex in range(1,NumLaunchesPerBinary+1):
+        for LaunchIndex in range(1,NumLaunchesPerBinary+1):
             PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
                 curNumNodes=self.nodeMinList[TestIndex]
@@ -452,14 +486,14 @@ class bench(object):
                             if (minPEcountPerNode <= numPEsPerNode) and (maxPEcountPerNode >= numPEsPerNode):
                                 add to PortalDict
                                 if (op == 0):
-                                    FullScriptName=${testName}/script_${fileID}id_${roundID}round_${launchIndex}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
-                                    self.MachineType.queue(..)
-                                    def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
+                                    scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                    self.MachineType.queue(scriptName)
                                 elif (op == 1):
-                                    scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${launchIndex}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.${BatchFileExtension}
-                                    self.MachineType.script(..)
+                                    scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                    scriptFile=open(scriptName,"a+")
+                                    self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
                                 elif (op == 2):
-                                    algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,launchIndex,curNumNodes,curPPN,curTPR):
+                                    algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR):
                                 .. what about checking in PortalDict??
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
@@ -472,56 +506,33 @@ class bench(object):
         """
         """
 	if (self.SubmitToQueue == 1):
-	  call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName))
-	  call("mv ../Tests/%s/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName))
+          # Create directory to hold all binaries and then move them from ../Tests/testName/bin
+          call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName))
+	  call("mv ../Tests/%s/bin/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName))
           portal(0,0,self.NumTests)
 
-    def launch(self):
+    def build(self):
         """
         """
-        self.MachineType.set()
-
-        if (self.mpiType == "mpi"):
-            os.environ["MPITYPE"] = "MPI_TYPE"
-        elif (self.mpiType == "ampi"):
-            os.environ["MPITYPE"] = "AMPI_TYPE"
-
-        call("mkdir ../Tests/%s"%(self.testName))
-        call("mkdir ../Tests/%s/bin"%(self.testName))
-
-        if (dataType == 0):
-            os.environ["DATATYPE"] = "FLOAT_TYPE"
-        elif (dataType == 1)
-            os.environ["DATATYPE"] = "DOUBLE_TYPE"
-        elif (dataType == 2):
-            os.environ["DATATYPE"] = "COMPLEX_FLOAT_TYPE"
-        elif (dataType == 3):
-            os.environ["DATATYPE"] = "COMPLEX_DOUBLE_TYPE"
-        if (intType == 0):
-            os.environ["INTTYPE"] = "INT_TYPE"
-        elif (intType == 1):
-            os.environ["INTTYPE"] = "INT64_T_TYPE"
-
         for lib in self.LibraryTypeList:
             os.environ["PROFTYPE"]="PERFORMANCE"
 	    profType="P"
             # export SPECIAL_SCALA_ARG=REF
             lib.build()
-            if [ self.analyzeDecision1 == 1 ];
-            then
+            if (self.analyzeDecision1 == 1):
                 profType="PC"
                 os.environ["PROFTYPE"]="CRITTER"
                 lib.build()
-            fi
 
-            if [ ${analyzeDecision2} == 1 ];
-            then
+            if (self.analyzeDecision2 == 1):
                 profType=profType+"T"
                 export PROFTYPE=PROFILE
                 os.environ["PROFTYPE"]="PROFILE"
                 lib.build()
-            fi
 
+    def launch(self):
+        """
+        """
         os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin/"%(self.testName)
 
         # collectData.sh will always be a single line, just a necessary intermediate step.
@@ -530,11 +541,7 @@ class bench(object):
         # Launch the generated script
         #bash $SCRATCH/${testName}.sh
 
-        call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
-        call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
         portal(1,0,self.NumTests)
-
-        .. need to open 3 files for appending: plotInstructions.sh, collectInstructionsStage1.sh, collectInstructionsStage2.sh
 
         # Note: in future, I may want to decouple numBinaries and numPlotTargets, but only when I find it necessary
         # Write to Plot Instructions file, for use by SCAPLOT makefile generator
@@ -580,6 +587,7 @@ class bench(object):
                 echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh
                 echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
+                .. figure out what is going on with binaryPath and how it relates to experiments/machine/
                 ..binaryPath=${BINARYPATH}\${binaryTag}_${machineName}
                 if [ "${machineName}" == "PORTER" ];
                     binaryPath=\${binaryPath}_${mpiType}
