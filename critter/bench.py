@@ -36,6 +36,7 @@ class bench(object):
        """
        CritterPath - specify full path to Critter repository
                    - do not include a '/' after 'critter'
+                   - specified as a string
 
        MachineType - machine type specified in ../experiments/machines/
 
@@ -43,6 +44,7 @@ class bench(object):
 
        fileID - base name of the directory inside which all data/scripts will be stored
               - will appear inside the SCRATCH directory
+              - specified as a string
 
        roundID - set to '1' unless performing piecewise testing (launching same job separately) to enhance performance reproducibility
 
@@ -62,7 +64,8 @@ class bench(object):
        numTests - number of scaling studies
                 - for example, weak scaling and strong scaling, even across the same variants, constitute separate tests
 
-       numHours,numMinutes,numSeconds - ....
+       numHours,numMinutes,numSeconds - time for job
+                                      - must be specified as two-digit strings
 
        email - specify email address that you'd like job updates to appear
 
@@ -125,3 +128,111 @@ class bench(object):
         """
         """
         self.MachineType.set()
+
+machineName=""
+accelType=""
+testAccel_NoAccel=""
+if [ "$(hostname |grep "porter")" != "" ];
+  machineName=PORTER
+elif [ "$(hostname |grep "stampede2")" != "" ];
+  machineName=STAMPEDE2
+elif [ "$(hostname |grep "h2o")" != "" ];
+  accelType="n"
+  testAccel_NoAccel="n"
+  machineName=BLUEWATERS
+  export GPU=NOGPU
+
+if [ "${mpiType}" == "mpi" ];
+  export MPITYPE=MPI_TYPE
+elif [ "${mpiType}" == "ampi" ];
+  export MPITYPE=AMPI_TYPE
+
+dateStr=$(date +%Y-%m-%d-%H_%M_%S)
+testName=${fileID}_${dateStr}_${machineName}_round${roundID}
+testNameAllRounds=${fileID}_${machineName}	# Name of the corresponding directory in CAMFS_data. Allows for appending multiple runs
+mkdir ../Tests/${testName}
+mkdir ../Tests/${testName}/bin
+
+if [ ${dataType} == 0 ];
+  export DATATYPE=FLOAT_TYPE
+elif [ ${dataType} == 1 ];
+  export DATATYPE=DOUBLE_TYPE
+elif [ ${dataType} == 2 ];
+  export DATATYPE=COMPLEX_FLOAT_TYPE
+elif [ ${dataType} == 3 ];
+  export DATATYPE=COMPLEX_DOUBLE_TYPE
+if [ ${intType} == 0 ];
+  export INTTYPE=INT_TYPE
+elif [ ${intType} == 1 ];
+  export INTTYPE=INT64_T_TYPE
+
+
+        for lib in self.LibraryTypeList:
+            os.environ["PROFTYPE"]="PERFORMANCE"
+	    profType="P"
+            # export SPECIAL_SCALA_ARG=REF
+            lib.build()
+            if [ self.analyzeDecision1 == 1 ];
+            then
+                profType="PC"
+                os.environ["PROFTYPE"]="CRITTER"
+                lib.build()
+            fi
+
+            if [ ${analyzeDecision2} == 1 ];
+            then
+                profType=profType+"T"
+                export PROFTYPE=PROFILE
+                os.environ["PROFTYPE"]="PROFILE"
+                lib.build()
+            fi
+
+        os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin/"%(self.testName)
+
+        # collectData.sh will always be a single line, just a necessary intermediate step.
+        ## echo "bash $SCRATCH/${testName}/collectInstructionsStage1.sh | bash PackageDataRemoteStage1.sh" > collectData.sh
+
+# Launch the generated script
+bash $SCRATCH/${testName}.sh
+
+# Submit job scripts to queue - note that Porter doesn't need to do this
+if [ "${SubmitToQueue}" == "1" ];
+then
+  mkdir $SCRATCH/${testName}/bin
+  mv ../Tests/${testName}/* $SCRATCH/${testName}/bin
+  cd $SCRATCH
+
+  # Submit all scripts
+  curLaunchID=1
+  while [ ${curLaunchID} -le ${NumLaunchesPerBinary} ];
+  do
+    curNumNodes=${minNumNodes}
+    listIndex=0
+    while [ ${curNumNodes} -le ${maxNumNodes} ];
+    do
+      curPPN=${ppnMinList[${listIndex}]}
+      ppnMax=${ppnMaxList[${listIndex}]}
+      while [ ${curPPN} -le ${ppnMax} ];
+      do
+        curTPR=${tprMinList[${listIndex}]}
+        tprMax=${tprMaxList[${listIndex}]}
+        while [ ${curTPR} -le ${tprMax} ];
+        do
+          # Make sure we are in a suitable range
+          numPEsPerNode=$(( ${curPPN} * ${curTPR} ))
+          if [ ${minPEcountPerNode} -le ${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge ${numPEsPerNode} ];
+          then
+            FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
+            chmod +x ${FullScriptName}
+	    ${Batch} ${FullScriptName}
+          fi
+          curTPR=$(( ${curTPR} * ${tprScaleFactor} ))
+        done
+        curPPN=$(( ${curPPN} * ${ppnScaleFactor} ))
+      done
+      curNumNodes=$(( ${curNumNodes} * ${nodeScaleFactor} ))
+      listIndex=$(( ${listIndex} + 1 ))
+    done
+    curLaunchID=$(( ${curLaunchID} + 1 ))
+  done
+fi
