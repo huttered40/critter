@@ -323,6 +323,9 @@ class bench(object):
 		 nodeScaleFactorList,\
 		 ppnScaleFactorList,\
 		 tprScaleFactorList,\
+                 nodeScaleOperatorList,\
+                 ppnScaleOperatorList,\
+                 tprScaleOperatorList,\
 		 SubmitToQueue,\
 		 AlgorithmList):
        """
@@ -378,6 +381,12 @@ class bench(object):
 
        tprScaleFactorList - scaling factor to apply to the number of threads per MPI rank (tpr) for each test
 
+       nodeScaleOperatorList - scaling operator to apply to the number of nodes for each test
+
+       ppnScaleOperatorList - scaling operator to apply to the number of MPI processes per node (ppn) for each test
+
+       tprScaleOperatorList - scaling operator to apply to the number of threads per MPI rank (tpr) for each test
+
        SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
 
        AlgorithmList - list of lists of lists of inputs, must be of length 'numTests'
@@ -410,43 +419,49 @@ class bench(object):
        self.nodeScaleFactorList = nodeScaleFactorList
        self.ppnScaleFactorList = ppnScaleFactorList
        self.tprScaleFactorList = tprScaleFactorList
+       self.nodeScaleOperatorList=nodeScaleOperatorList
+       self.ppnScaleOperatorList=ppnScaleOperatorList
+       self.tprScaleOperatorList=tprScaleOperatorList
        self.SubmitToQueue = SubmitToQueue
        self.AlgorithmList = AlgorithmList
        dateStr=$(date +%Y-%m-%d-%H_%M_%S)
        self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.machineName,roundID)
        self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.machineName)
 
-    def __portal(self,func,op):
+    def __portal(self,func,op,TestStartIndex,TestEndIndex):
         """
         """
         # Submit all scripts
         .. due to new format, need to watch out for repeats
-        curLaunchID=1
-        while [ ${curLaunchID} -le ${NumLaunchesPerBinary} ];
-            curNumNodes=${minNumNodes}
-            listIndex=0
-            while [ ${curNumNodes} -le ${maxNumNodes} ];
-                curPPN=${ppnMinList[${listIndex}]}
-                ppnMax=${ppnMaxList[${listIndex}]}
-                while [ ${curPPN} -le ${ppnMax} ];
-                    curTPR=${tprMinList[${listIndex}]}
-                    tprMax=${tprMaxList[${listIndex}]}
-                    while [ ${curTPR} -le ${tprMax} ];
-                        # Make sure we are in a suitable range
-                        numPEsPerNode=$(( ${curPPN} * ${curTPR} ))
-                        if [ ${minPEcountPerNode} -le ${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge ${numPEsPerNode} ];
+        .. also note that different calls (3 so far) might want different things
+        ..     writing scripts requires looking over every unique possible combination
+        ..     launching scripts requires looking over every unique possible combination
+        ..     calling the alg portal requires looking only over the test-specific node,ppn,tpr
+        .. one solution here is to pass in a start,end testID parameters, and then use that as the outer-most loop
+        .. and also to use a dictionary of tuples (node,ppn,tpr)
 
-                            .. user 'op' to differentiate between whether to pass 9 args (to op=2) or not
-                            .. note that we will want to append to the script files, and this is important, since python might have a special tag for that
+        for curLaunchID in range(1,NumLaunchesPerBinary+1):
+            PortalDict = {}
+            for TestIndex in range(TestStartIndex,TestEndIndex):
+                curNumNodes=self.nodeMinList[TestIndex]
+                while (curNumNodes <= self.nodeMaxList[TestIndex]):
+                    curPPN=self.ppnMinList[TestIndex]
+                    while (curPPN <= self.ppnMaxList[TestIndex]):
+                        curTPR=self.tprMinList[TestIndex]
+                        while (curTPR <= self.tprMaxList[TestIndex])
+                            # Make sure we are in a suitable range
+                            numPEsPerNode=curPPN*curTPR
+                            if (minPEcountPerNode <= numPEsPerNode) and (maxPEcountPerNode >= numPEsPerNode):
+                                add to PortalDict
+                                .. user 'op' to differentiate between whether to pass 9 args (to op=2) or not
+                                .. note that we will want to append to the script files, and this is important, since python might have a special tag for that
 
-                            FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
-                            scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.${BatchFileExtension}
-                            def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
-                        curTPR=$(( ${curTPR} * ${tprScaleFactor} ))
-                    curPPN=$(( ${curPPN} * ${ppnScaleFactor} ))
-                curNumNodes=$(( ${curNumNodes} * ${nodeScaleFactor} ))
-                listIndex=$(( ${listIndex} + 1 ))
-            curLaunchID=$(( ${curLaunchID} + 1 ))
+                                FullScriptName=${testName}/script_${fileID}id_${roundID}round_${curLaunchID}launchID_${curNumNodes}nodes_${curPPN}ppn_${curTPR}tpr.${BatchFileExtension}
+                                scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${curLaunchID}launchID_\${curNumNodes}nodes_\${curPPN}ppn_\${curTPR}tpr.${BatchFileExtension}
+                                def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
+                            curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
+                        curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
+                    curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
 
     def queue_submit(self):
         """
@@ -454,7 +469,7 @@ class bench(object):
 	if (self.SubmitToQueue == 1):
 	  call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName))
 	  call("mv ../Tests/%s/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName))
-          portal(self.MachineType.queue)
+          portal(self.MachineType.queue,0,self.NumTests)
 
     def launch(self):
         """
@@ -512,7 +527,7 @@ class bench(object):
 
         call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
-        portal(self.MachineType.script)
+        portal(self.MachineType.script,0,self.NumTests)
 
         .. need to open 3 files for appending: plotInstructions.sh, collectInstructionsStage1.sh, collectInstructionsStage2.sh
 
@@ -649,7 +664,7 @@ class bench(object):
                                         \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
                                     elif [ \${binaryTag} == 'mm3d' ];
                                         \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-                        alg.scale(alg.IndirectIndexFunc(scaleCount))
+                        alg.scale(alg.IndirectIndexFunc(scaleCount))	.. now it looks like this will be moved to the portal func
 	                nodeIndex=\$(( \${nodeIndex} + 1 ))
             j=\$(( \${j} + 1 ))
             echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
