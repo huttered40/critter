@@ -557,109 +557,104 @@ class bench(object):
             .. also need a check for the last input parameters. maybe just a while (), then grab
             j=1
             while [ 1 -eq 1 ];		# Loop iterates until user says stop
-              echo -e "\nStage #\${j}"
+                echo -e "\nStage #\${j}"
 
-              # Echo for SCAPLOT makefile generator
-              binaryTag=self.AlgorithmList[...].Tag
-              echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh
-              echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh
-              echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+                # Echo for SCAPLOT makefile generator
+                binaryTag=self.AlgorithmList[...].Tag
+                echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh
+                echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh
+                echo "echo \"\${binaryTag}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
-              ..binaryPath=${BINARYPATH}\${binaryTag}_${machineName}
-              if [ "${machineName}" == "PORTER" ];
-                  binaryPath=\${binaryPath}_${mpiType}
-              elif [ "${machineName}" == "BLUEWATERS" ];
-                  # special case, only for CAMFS, not for bench_scalapack routines
-                  if [ "\${binaryTag}" == "camfs_cacqr2" ] || [ "\${binaryTag}" == "camfs_cfr3d" ];
-                      binaryPath=${BINARYPATH}\${binaryTag}_${machineName}_${GPU}
+                ..binaryPath=${BINARYPATH}\${binaryTag}_${machineName}
+                if [ "${machineName}" == "PORTER" ];
+                    binaryPath=\${binaryPath}_${mpiType}
+                elif [ "${machineName}" == "BLUEWATERS" ];
+                    # special case, only for CAMFS, not for bench_scalapack routines
+                    if [ "\${binaryTag}" == "camfs_cacqr2" ] || [ "\${binaryTag}" == "camfs_cfr3d" ];
+                        binaryPath=${BINARYPATH}\${binaryTag}_${machineName}_${GPU}
 
-              .. can we re-use portal here for the outer-loop-structure?
-              for ((curLaunchID=1; curLaunchID<=${NumLaunchesPerBinary}; curLaunchID+=1));
-                  # Initialize all possible variables that change with node count
-                  # shared
-                  nodeIndex=0
-                  curMatrixDimM=\${matrixDimM}
-                  curMatrixDimN=\${matrixDimN}
-                  if [ \${binaryTag} == 'mm3d' ];
-                      curMatrixDimK=\${matrixDimK}
-                  WShelpcounter=0			# change if we want to start at node offset (rare)
-                  # cacqr2
-                  pDimCArray=()
-                  pDimCArrayOrig=()
-                  rangePdimClen=0
-                  if [ \${binaryTag} == 'camfs_cacqr2' ];
-                      for ((w=\${startStartPdimC}; w<=\${endStartPdimC}; w*=2));
-                          pDimCArray+=(\${w})
-                          pDimCArrayOrig+=(\${w})
-                          rangePdimClen=\$(( \${rangePdimClen} + 1 ))
-      # bsqr/rsqr
-      numPcolsArray=()
-      numPcolsArrayOrig=()
-      rangeNumPcolslen=0
-      if [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
-        for ((w=\${startStartNumPcols}; w<=\${endStartNumPcols}; w*=2));
-          numPcolsArray+=(\${w})
-          numPcolsArrayOrig+=(\${w})
-          rangeNumPcolslen=\$(( \${rangeNumPcolslen} + 1 ))
-      # cfr3d
-      curCubeDim=\${cubeDim}
-      for ((curNumNodes=\${startNumNodes}; curNumNodes<=\${endNumNodes}; curNumNodes*=${nodeScaleFactor}));
-        minPPN=\${ppnMinListRunTime[\${nodeIndex}]}
-        maxPPN=\${ppnMaxListRunTime[\${nodeIndex}]}
-        for ((curPPN=\${minPPN}; curPPN<=\${maxPPN}; curPPN*=${ppnScaleFactor}));
-          numProcesses=\$(( \${curNumNodes} * \${curPPN} ))
-          StartingNumProcesses=\$(( \${startNumNodes} * \${curPPN} ))
+                .. can we re-use portal here for the outer-loop-structure?
+                for ((curLaunchID=1; curLaunchID<=${NumLaunchesPerBinary}; curLaunchID+=1));
+                    # Initialize all possible variables that change with node count
+                    # shared
+                    nodeIndex=0
+                    curMatrixDimM=\${matrixDimM}
+                    curMatrixDimN=\${matrixDimN}
+                    if [ \${binaryTag} == 'mm3d' ];
+                        curMatrixDimK=\${matrixDimK}
+                    # cacqr2
+                    pDimCArray=()
+                    pDimCArrayOrig=()
+                    rangePdimClen=0
+                    if [ \${binaryTag} == 'camfs_cacqr2' ];
+                        for ((w=\${startStartPdimC}; w<=\${endStartPdimC}; w*=2));
+                            pDimCArray+=(\${w})
+                            pDimCArrayOrig+=(\${w})
+                            rangePdimClen=\$(( \${rangePdimClen} + 1 ))
+                    # bsqr/rsqr
+                    numPcolsArray=()
+                    numPcolsArrayOrig=()
+                    rangeNumPcolslen=0
+                    if [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
+                        for ((w=\${startStartNumPcols}; w<=\${endStartNumPcols}; w*=2));
+                            numPcolsArray+=(\${w})
+                            numPcolsArrayOrig+=(\${w})
+                            rangeNumPcolslen=\$(( \${rangeNumPcolslen} + 1 ))
+                    # cfr3d
+                    curCubeDim=\${cubeDim}
+                    for ((curNumNodes=\${startNumNodes}; curNumNodes<=\${endNumNodes}; curNumNodes*=${nodeScaleFactor}));
+                        minPPN=\${ppnMinListRunTime[\${nodeIndex}]}
+                        maxPPN=\${ppnMaxListRunTime[\${nodeIndex}]}
+                        for ((curPPN=\${minPPN}; curPPN<=\${maxPPN}; curPPN*=${ppnScaleFactor}));
+                            numProcesses=\$(( \${curNumNodes} * \${curPPN} ))
+                            StartingNumProcesses=\$(( \${startNumNodes} * \${curPPN} ))
 
-          minTPR=\${tprMinListRunTime[\${nodeIndex}]}
-          maxTPR=\${tprMaxListRunTime[\${nodeIndex}]}
-	  for ((curTPR=\${minTPR}; curTPR<=\${maxTPR}; curTPR*=${tprScaleFactor}));
-            # Make sure we are in a suitable range
-            numPEsPerNode=\$(( \${curPPN} * \${curTPR} ))
-            if [ ${minPEcountPerNode} -le \${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge \${numPEsPerNode} ];
-	      # Now decide on a method:
+                            minTPR=\${tprMinListRunTime[\${nodeIndex}]}
+                            maxTPR=\${tprMaxListRunTime[\${nodeIndex}]}
+                            for ((curTPR=\${minTPR}; curTPR<=\${maxTPR}; curTPR*=${tprScaleFactor}));
+                                # Make sure we are in a suitable range
+                                numPEsPerNode=\$(( \${curPPN} * \${curTPR} ))
+                                if [ ${minPEcountPerNode} -le \${numPEsPerNode} ] && [ ${maxPEcountPerNode} -ge \${numPEsPerNode} ];
+                                    if [ \${binaryTag} == 'camfs_cacqr2' ];
+                                        # Below: note that the STARTING dimC is being changed. The parameters that aren't solely dependent on the node count are
+                                        #   changed here and not in launchTag***
+                                        for ((w=0; w<\${rangePdimClen}; w+=1));
+                                            pDimC=\${pDimCArray[\${w}]}
+                                            pDimCsquared=\$(( \${pDimC} * \${pDimC} ))
+                                            pDimD=\$(( \${numProcesses} / \${pDimCsquared} ))
 
-	      if [ \${binaryTag} == 'camfs_cacqr2' ];
-		# Below: note that the STARTING dimC is being changed. The parameters that aren't solely dependent on the node count are
-		#   changed here and not in launchTag***
-		for ((w=0; w<\${rangePdimClen}; w+=1));
-		  pDimC=\${pDimCArray[\${w}]}
-		  pDimCsquared=\$(( \${pDimC} * \${pDimC} ))
-		  pDimD=\$(( \${numProcesses} / \${pDimCsquared} ))
+                                            # Special check because performance for 16 PPN, 4 TPR shows superior performance for the skinniest grid
+                                            isSpecial=1
 
-		  # Special check because performance for 16 PPN, 4 TPR shows superior performance for the skinniest grid
-                  isSpecial=1
-
-		  # Check if pDimC is too big. If so, pDimD will be 0
-		  if [ \${pDimD} -ge \${pDimC} ] && [ \${isSpecial} == 1 ];
-		    originalPdimC=\${pDimCArrayOrig[\${w}]}
-		    originalPdimCsquared=\$(( \${originalPdimC} * \${originalPdimC} ))
-		    originalPdDimD=\$(( \${StartingNumProcesses} / \${originalPdimCsquared} ))
-		    \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime..} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
-	      elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
-                # Special case to watch out for.
-                for ((w=0; w<\${rangeNumPcolslen}; w+=1));
-                  numPcols=\${numPcolsArray[\${w}]}
-                  numProws=\$(( \${numProcesses} / \${numPcols} ))
-
-                  isSpecial=1
-
-                  if [ \${numPcols} -le \${numProws} ] && [ \${isSpecial} == 1 ];
-                    originalNumPcols=\${numPcolsArrayOrig[\${w}]}
-                    originalNumProws=\$(( \${StartingNumProcesses} / \${originalNumPcols} ))
-                    sharedBinaryTag="candmc_bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
-                    \${sharedBinaryTag} \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-              elif [ \${binaryTag} == 'cfr3d' ];
-                \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-              elif [ \${binaryTag} == 'bscf' ];
-                \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-              elif [ \${binaryTag} == 'mm3d' ];
-                \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
-            alg.scale(scaleCount) method (in right indent?)	.. but what about special scalings, like using WShelpCounter or whater? Current generic interface thru algorithm class doesnt handle this currently
-	nodeIndex=\$(( \${nodeIndex} + 1 ))
-    j=\$(( \${j} + 1 ))
-    echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
-    echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh	# Signals end of the data files for this specific methodID
-    echo "echo \"1\"" >> $SCRATCH/${testName}/plotInstructions.sh	# Signals end of the data files for this specific methodID
+                                            # Check if pDimC is too big. If so, pDimD will be 0
+                                            if [ \${pDimD} -ge \${pDimC} ] && [ \${isSpecial} == 1 ];
+                                                originalPdimC=\${pDimCArrayOrig[\${w}]}
+                                                originalPdimCsquared=\$(( \${originalPdimC} * \${originalPdimC} ))
+                                                originalPdDimD=\$(( \${StartingNumProcesses} / \${originalPdimCsquared} ))
+                                                \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalPdDimD} \${originalPdimC} \${pDimD} \${pDimC} \${nodeIndex} \${scaleRegime..} \${nodeCount} \${WShelpcounter} \${invCutOffDec}
+                                    elif [ \${binaryTag} == 'bsqr' ] || [ \${binaryTag} == 'rsqr' ];
+                                        # Special case to watch out for.
+                                        for ((w=0; w<\${rangeNumPcolslen}; w+=1));
+                                        numPcols=\${numPcolsArray[\${w}]}
+                                        numProws=\$(( \${numProcesses} / \${numPcols} ))
+                                        isSpecial=1
+                                        if [ \${numPcols} -le \${numProws} ] && [ \${isSpecial} == 1 ];
+                                            originalNumPcols=\${numPcolsArrayOrig[\${w}]}
+                                            originalNumProws=\$(( \${StartingNumProcesses} / \${originalNumPcols} ))
+                                            sharedBinaryTag="candmc_bsqr"	# Even if rsqr, use bsqr and then have the corresponding method use the new argument for binaryTag
+                                            \${sharedBinaryTag} \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${curMatrixDimN} \${matrixDimM} \${matrixDimN} \${originalNumProws} \${originalNumPcols} \${numProws} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
+                                    elif [ \${binaryTag} == 'cfr3d' ];
+                                        \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
+                                    elif [ \${binaryTag} == 'bscf' ];
+                                        \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${curMatrixDimM} \${matrixDimM} \${minBlockSize} \${maxBlockSize} \${nodeIndex} \${scaleRegime..} \${nodeCount}
+                                    elif [ \${binaryTag} == 'mm3d' ];
+                                        \${binaryTag} \${scale..} \${binaryPath} \${numIterations} \${curLaunchID} \${curNumNodes} \${curPPN} \${curTPR} \${gemmORtrmmChoice} \${bcastORallgatherChoice} \${curMatrixDimM} \${curMatrixDimN} \${curMatrixDimK} \${matrixDimM} \${matrixDimN} \${matrixDimK} \${cubeDim} \${curCubeDim} \${nodeIndex} \${scaleRegime..} \${nodeCount}
+                        alg.scale(alg.IndirectIndexFunc(scaleCount))
+	                nodeIndex=\$(( \${nodeIndex} + 1 ))
+            j=\$(( \${j} + 1 ))
+            echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage1.sh	# Signals end of the data files for this specific methodID
+            echo "echo \"1\"" >> $SCRATCH/${testName}/collectInstructionsStage2.sh	# Signals end of the data files for this specific methodID
+            echo "echo \"1\"" >> $SCRATCH/${testName}/plotInstructions.sh	# Signals end of the data files for this specific methodID
 
         queue_submit()
 

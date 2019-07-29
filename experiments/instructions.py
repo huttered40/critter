@@ -51,7 +51,7 @@ Algorithm1 = algorithm("camfs/cacqr2",\
 		       [1024,128,0,0,0,1,1,3],\
 		       [1,1,1,1,1,1,1,1],\
 		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
-                       .. need lambda to map scaleIndex (0,1,2,3,..) to index into the lists below ..
+                       lambda x: 0,\
 		       [[1,1,1,1,1,8,1,1]],\
 		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
 Test1=[Algorithm1]
