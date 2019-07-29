@@ -1,22 +1,22 @@
+from subprocess import call
+
 class camfs(object):
     """
     """
     @staticmethod
-    def build():
-        if [ "$(hostname |grep "porter")" != "" ];
+    def build(CritterPath,testName):
+        if (os.system("hostname |grep \"porter\"") != ""):
         then
-            camfsDir=~/hutter2/CAMFS
-        elif [ "$(hostname |grep "stampede2")" != "" ];
+            camfsDir="~/hutter2/CAMFS"
+        elif (os.system("hostname |grep \"stampede2\"") != ""):
         then
-            camfsDir=~/CAMFS
-        elif [ "$(hostname |grep "h2o")" != "" ];
+            camfsDir="~/CAMFS"
+        elif (os.system("hostname |grep \"h2o\"") != ""):
         then
-            camfsDir=~/CAMFS
+            camfsDir="~/CAMFS"
         fi
 
-        make -C${camfsDir}/src clean
-        make -C${camfsDir}/src all
-        cd ${camfsDir}/src/bin/
-        for j in *; do mv -- "$j" "camfs_$j"; done
-        cd -
-        mv ${camfsDir}/src/bin/* ${CritterPath}/Tests/${testName}/bin/
+        call("make -C%s/src clean"%(camfsDir),shell=True)
+        call("make -C%s/src all"%(camfsDir),shell=True)
+        call("cd %s/src/bin; for j in *; do mv -- \"$j\" \"camfs_$j\"; done; cd -;"%(camfsDir),shell=True)
+        call("mv %s/src/bin/* %s/Tests/%s/bin/"%(camfsDir,CritterPath,testName),shell=True)

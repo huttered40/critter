@@ -6,6 +6,9 @@ class bluewaters(object):
     BatchFileExtension="pbs"
     Batch="qsub"
     AllocationName="bahv"
+    accelType="n"
+    testAccel_NoAccel="n"
+    machineName=BLUEWATERS
 
     @staticmethod
     def set():
@@ -16,18 +19,19 @@ class bluewaters(object):
         bwPrgEnv="G"
         if (bwPrgEnv == "I"):
             if (os.environ["PE_ENV"] == "GNU"):
-                call("module swap PrgEnv-gnu PrgEnv-intel")
+                call("module swap PrgEnv-gnu PrgEnv-intel",shell=True)
             elif (os.environ["PE_ENV"] == "CRAY"):
-                call("module swap PrgEnv-cray PrgEnv-intel")
+                call("module swap PrgEnv-cray PrgEnv-intel",shell=True))
         elif (bwPrgEnv == "G"):
             if (os.environ["PE_ENV"] == "INTEL"):
-                call("module swap PrgEnv-intel PrgEnv-gnu")
+                call("module swap PrgEnv-intel PrgEnv-gnu",shell=True))
             elif (os.environ["PE_ENV"] == "CRAY"):
-                call("module swap PrgEnv-cray PrgEnv-gnu")
+                call("module swap PrgEnv-cray PrgEnv-gnu",shell=True))
+        os.environ["GPU"] = "NOGPU"
         #if (accelType == "n"):
-        #    call("module load cblas")
+        #    call("module load cblas",shell=True))
         #else
-        #    call("module load cudatoolkit")
+        #    call("module load cudatoolkit",shell=True))
 
     @staticmethod
     def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
@@ -59,3 +63,7 @@ class bluewaters(object):
 	"""
 	Str1="aprun -n %d -N %d -d %d " %(numProcesses,ppn,tpr)
         ScriptFile.write(Str1+AlgInputString)
+
+    @staticmethod
+    def queue(Script):
+        call("cd %s; %s %s"%(os.environ["SCRATCH"],Batch,Script),shell=True)

@@ -4,6 +4,7 @@ class stampede2(object):
     BatchFileExtension="sh"
     Batch="sbatch --mail-user=hutter2@illinois.edu --mailtype=all"
     AllocationName=""
+    machineName=STAMPEDE2
 
     @staticmethod
     def set():
@@ -31,3 +32,8 @@ class stampede2(object):
 	"""
         Str1="ibrun "
         ScriptFile.write(Str1+AlgInputString)
+
+    @staticmethod
+    def queue(Script):
+        call("cd %s; chmod +x %s"%(os.environ["SCRATCH"],Script),shell=True)
+        call("cd %s; %s %s"%(os.environ["SCRATCH"],Batch,Script),shell=True)
