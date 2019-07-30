@@ -21,12 +21,12 @@ class bluewaters(object):
             if (os.environ["PE_ENV"] == "GNU"):
                 call("module swap PrgEnv-gnu PrgEnv-intel",shell=True)
             elif (os.environ["PE_ENV"] == "CRAY"):
-                call("module swap PrgEnv-cray PrgEnv-intel",shell=True))
+                call("module swap PrgEnv-cray PrgEnv-intel",shell=True)
         elif (bwPrgEnv == "G"):
             if (os.environ["PE_ENV"] == "INTEL"):
-                call("module swap PrgEnv-intel PrgEnv-gnu",shell=True))
+                call("module swap PrgEnv-intel PrgEnv-gnu",shell=True)
             elif (os.environ["PE_ENV"] == "CRAY"):
-                call("module swap PrgEnv-cray PrgEnv-gnu",shell=True))
+                call("module swap PrgEnv-cray PrgEnv-gnu",shell=True)
         os.environ["GPU"] = "NOGPU"
         #if (accelType == "n"):
         #    call("module load cblas",shell=True))

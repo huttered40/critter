@@ -151,7 +151,7 @@ class bench(object):
 
         if (dataType == 0):
             os.environ["DATATYPE"] = "FLOAT_TYPE"
-        elif (dataType == 1)
+        elif (dataType == 1):
             os.environ["DATATYPE"] = "DOUBLE_TYPE"
         elif (dataType == 2):
             os.environ["DATATYPE"] = "COMPLEX_FLOAT_TYPE"
@@ -184,7 +184,7 @@ class bench(object):
 	    Count = Count + 1
 	return Count
 
-    def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID)
+    def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID):
         for param in self.AlgorithmList[TestID][0][AlgID]:
             self.PlotInstructionsFile.write(str(param)+"\n")
 
@@ -297,7 +297,7 @@ class bench(object):
     """
 
     # Functions that write the actual script, depending on machine
-    def __launchJobs (self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,fileString):
+    def __launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,fileString):
         """
 	"""
         numProcesses=node*ppn
@@ -331,11 +331,12 @@ class bench(object):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             #WriteAlgorithmInfoForPlotting(0,TestID,AlgID,launchIndex,ppn,tpr)	# Note that NumNodes is not included
             #writePlotFileName ${PostFile} self.PlotInstructionsFile 1
+            pass
 
         #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
         #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        launchJobsPortal(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],PrePath+"/%s"%(fileString))
+        launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],PrePath+"/%s"%(fileString))
         #writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
@@ -351,7 +352,7 @@ class bench(object):
                     curPPN=self.ppnMinList[TestIndex]
                     while (curPPN <= self.ppnMaxList[TestIndex]):
                         curTPR=self.tprMinList[TestIndex]
-                        while (curTPR <= self.tprMaxList[TestIndex])
+                        while (curTPR <= self.tprMaxList[TestIndex]):
                             # Make sure we are in a suitable range
                             numPEsPerNode=curPPN*curTPR
                             if (minPEcountPerNode <= numPEsPerNode) and (maxPEcountPerNode >= numPEsPerNode):
@@ -369,7 +370,7 @@ class bench(object):
                                         self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
 				        PortalDict[TupleKey]=1
                                 elif (op == 2):
-                                    algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR):
+                                    algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
                     scaleIndex=scaleIndex+1
@@ -398,7 +399,6 @@ class bench(object):
                 lib.build()
 
             if (self.analyzeDecision2 == 1):
-                export PROFTYPE=PROFILE
                 os.environ["PROFTYPE"]="PROFILE"
                 lib.build()
 
@@ -447,7 +447,7 @@ class bench(object):
 
                     binaryPath="%s/%s"%(os.environ["BINARYPATH"],binaryTag)
                     # Below: special case that will hopefully be replaced soon
-                    if (self.MachineType.IsAccelerated())
+                    if (self.MachineType.IsAccelerated()):
                         binaryPath=binaryPath + "_GPU"
 
                     portal(2,TestIndex,TestIndex,AlgIndex)
