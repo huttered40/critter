@@ -144,10 +144,13 @@ class bench(object):
         elif (self.mpiType == "ampi"):
             os.environ["MPITYPE"] = "AMPI_TYPE"
 
+        # TODO: create conditional check to see if Tests/ exists. Its not tracked by git.
+	call("mkdir %s/Tests"%(self.CritterPath),shell=True)
+
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
-        call("mkdir ../Tests/%s"%(self.testName))
-        call("mkdir ../Tests/%s/bin"%(self.testName))
+        call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
+        call("mkdir %s/Tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
 
         if (dataType == 0):
             os.environ["DATATYPE"] = "FLOAT_TYPE"
@@ -172,7 +175,7 @@ class bench(object):
         self.CollectInstructionsStage1File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsStage2File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
 
-    def __GetRangeCount(self,op,File,Start,End,Factor,Operator):
+    def GetRangeCount(self,op,File,Start,End,Factor,Operator):
         """
 	"""
 	Curr = Start
@@ -184,11 +187,11 @@ class bench(object):
 	    Count = Count + 1
 	return Count
 
-    def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID):
+    def WriteAlgorithmInfoForPlotting(self,TestID,AlgID):
         for param in self.AlgorithmList[TestID][0][AlgID]:
             self.PlotInstructionsFile.write(str(param)+"\n")
 
-    def __WriteHeaderForCollection(self,File):
+    def WriteHeaderForCollection(self,File):
         """
         Writes the beginning of collectInstructionsStage1 and collectInstructionsStage2
 	"""
@@ -297,30 +300,30 @@ class bench(object):
     """
 
     # Functions that write the actual script, depending on machine
-    def __launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,fileString):
+    def launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,fileString):
         """
 	"""
         numProcesses=node*ppn
-        scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+        scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
-        MethodStringPerformance = BinaryPath+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
+        MethodStringPerformance = BinaryPath+"_PERFORMANCE"+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
         # Launch performance job always.
-	AlgorithmInfo.writeTest(numProcesses,ppn,tpr,MethodStringPerformance)
+	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodStringPerformance)
         # TODO: For now, just assume that critter job is always launched as well, and timer job is not an option
         MethodStringCritter = BinaryPath+"_CRITTER"+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
-	AlgorithmInfo.writeTest(numProcesses,ppn,tpr,MethodStringCritter)
+	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodStringCritter)
 
-    def __algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
+    def algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
         fileString="DataFiles/%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-	          +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+	          +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "_%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-        PreFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
-        PostFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+        #PreFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
+        #       +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+        #PostFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
+        #       +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
 
         #UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
         #UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
@@ -336,41 +339,42 @@ class bench(object):
         #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
         #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],PrePath+"/%s"%(fileString))
+        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],PrePath+"/%s"%(fileString))
         #writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
-    def __portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0):
+    def portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0,BinaryPath=0):
         """
         """
-        for LaunchIndex in range(1,NumLaunchesPerBinary+1):
+        for LaunchIndex in range(1,self.NumLaunchesPerBinary+1):
             PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
                 curNumNodes=self.nodeMinList[TestIndex]
 		scaleIndex=0
                 while (curNumNodes <= self.nodeMaxList[TestIndex]):
-                    curPPN=self.ppnMinList[TestIndex]
-                    while (curPPN <= self.ppnMaxList[TestIndex]):
-                        curTPR=self.tprMinList[TestIndex]
-                        while (curTPR <= self.tprMaxList[TestIndex]):
+                    curPPN=self.ppnMinList[TestIndex][scaleIndex]
+                    while (curPPN <= self.ppnMaxList[TestIndex][scaleIndex]):
+                        curTPR=self.tprMinList[TestIndex][scaleIndex]
+                        while (curTPR <= self.tprMaxList[TestIndex][scaleIndex]):
                             # Make sure we are in a suitable range
-                            numPEsPerNode=curPPN*curTPR
-                            if (minPEcountPerNode <= numPEsPerNode) and (maxPEcountPerNode >= numPEsPerNode):
+                            print(curPPN,curTPR)
+			    numPEsPerNode=curPPN*curTPR
+                            if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
                                 if (op == 0):
                                     TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
 				    if not(TupleKey in PortalDict):
-                                        scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                        scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                         self.MachineType.queue(scriptName)
 				        PortalDict[TupleKey]=1
                                 elif (op == 1):
                                     TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
 				    if not(TupleKey in PortalDict):
-                                        scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                        scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                         scriptFile=open(scriptName,"a+")
                                         self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
 				        PortalDict[TupleKey]=1
                                 elif (op == 2):
-                                    algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+                                    self.algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
                     scaleIndex=scaleIndex+1
@@ -383,9 +387,9 @@ class bench(object):
         """
 	if (self.SubmitToQueue == 1):
           # Create directory to hold all binaries and then move them from ../Tests/testName/bin
-          call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName))
-	  call("mv ../Tests/%s/bin/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName))
-          portal(0,0,self.NumTests)
+          call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
+	  call("mv ../Tests/%s/bin/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName),shell=True)
+          self.portal(0,0,self.NumTests)
 
     def build(self):
         """
@@ -393,14 +397,13 @@ class bench(object):
         for lib in self.LibraryTypeList:
             os.environ["PROFTYPE"]="PERFORMANCE"
             # export SPECIAL_SCALA_ARG=REF
-            lib.build()
+            lib.build(self.CritterPath,self.testName)
             if (self.analyzeDecision1 == 1):
                 os.environ["PROFTYPE"]="CRITTER"
-                lib.build()
-
-            if (self.analyzeDecision2 == 1):
-                os.environ["PROFTYPE"]="PROFILE"
-                lib.build()
+                lib.build(self.CritterPath,self.testName)
+            #if (self.analyzeDecision2 == 1):
+            #    os.environ["PROFTYPE"]="PROFILE"
+            #    lib.build()
 
     def launch(self):
         """
@@ -411,28 +414,29 @@ class bench(object):
         # Launch the generated script
         #bash $SCRATCH/${testName}.sh
 
-        portal(1,0,self.NumTests)
+        self.portal(1,0,self.numTests)
 
         self.PlotInstructionsFile.write("1\n")
 	self.PlotInstructionsFile.write("%s\n"%(self.testNameAllRounds))
 	self.PlotInstructionsFile.write("%d\n"%(self.numTests))
 	self.PlotInstructionsFile.write("%s\n"%(self.MachineType.machineName))
-        WriteHeaderForCollection(self.CollectInstructionsStage1File)
-        WriteHeaderForCollection(self.CollectInstructionsStage2File)
+        self.WriteHeaderForCollection(self.CollectInstructionsStage1File)
+        self.WriteHeaderForCollection(self.CollectInstructionsStage2File)
 
-        for TestIndex in range(0,numTests):
-            print("Test %d\n"%(i))
+        for TestIndex in range(0,self.numTests):
+            print("Test %d\n"%(TestIndex))
 
             self.PlotInstructionsFile.write("%s"%(self.AlgorithmList[TestIndex][1]))
-            self.PlotInstructionsFile.write("%d"%(GetRangeCount(self.PlotInstructionsFile,0,self.nodeMinList[TestIndex],self.self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])))
-            GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
+            NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
+	    self.PlotInstructionsFile.write("%d"%(NodeCount))
+            self.GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
 
             # Figure out what PlotInstructions needs before fixing below
             #matrixDimM,matrixDimN,numIterations, comes from AlgList
             #echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
             #echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
-            for AlgIndex in range(len()):
+            for AlgIndex in range(len(self.AlgorithmList[TestIndex][0])):
                 print("\nAlgorithm %s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
 
                 VariantIndex=0
@@ -450,9 +454,9 @@ class bench(object):
                     if (self.MachineType.IsAccelerated()):
                         binaryPath=binaryPath + "_GPU"
 
-                    portal(2,TestIndex,TestIndex,AlgIndex)
+                    self.portal(2,TestIndex,TestIndex+1,AlgIndex,binaryPath)
             self.CollectInstructionsStage1File.write("1\n")
             self.CollectInstructionsStage2File.write("1\n")
             self.PlotInstructionsFile.write("1\n")
-        queue_submit()
+        self.queue_submit()
 

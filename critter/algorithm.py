@@ -15,12 +15,16 @@ class algorithm(object):
         self.SpecialFunc = SpecialFunc
 	self.CurrentStartParameters=list(self.InputParameterStartRange)
 	self.CurrentScaleParameters=list(self.InputParameterStartRange)
+        self.Save = 0
 
     def next(self):
         """
         """
-	if (self.CurrentStartParameters == self.InputParameterEndRange):
+	if (self.Save == 1):
 	    return 0
+	elif (self.CurrentStartParameters == self.InputParameterEndRange):
+	    self.Save=1
+	    return 1
         else:
 	    for i in range(len(self.InputParameterStartRange)):
                 self.CurrentStartParameters[i] = self.InputParameterScaleOperator[i](self.CurrentStartParameters[i],self.InputParameterScaleFactor[i])
@@ -30,5 +34,5 @@ class algorithm(object):
     def scale(self,index):
         """
         """
-	for i in range(len(self.ParameterStartRange)):
-	    self.CurrentScaleParameters[i] = self.ScaleOperator[index][i](self.CurrentScaleParameters[i],self.ScaleFactor[index][i])
+	for i in range(len(self.InputParameterStartRange)):
+	    self.CurrentScaleParameters[i] = self.ScaleOperatorList[index][i](self.CurrentScaleParameters[i],self.ScaleFactorList[index][i])

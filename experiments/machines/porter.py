@@ -1,3 +1,4 @@
+import os
 from subprocess import call
 
 class porter(object):
@@ -14,7 +15,7 @@ class porter(object):
         os.environ["SCRATCH"] = os.environ["HOME"]+"/hutter2/ExternalLibraries/critter/Tests"
 
     @staticmethod
-    def script():
+    def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
         """
 	"""
 	pass
@@ -24,6 +25,7 @@ class porter(object):
         """
 	"""
 	Str1="mpiexec -n %d " %(numProcesses)
+        #print(Str1+AlgInputString)
         call(Str1+AlgInputString,shell=True)
         #${BINARYPATH}charmrun +p1 +vp${numProcesses} ${@:5:$#}
 

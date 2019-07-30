@@ -1,3 +1,6 @@
+import os
+from subprocess import call
+
 class stampede2(object):
     """
     """
