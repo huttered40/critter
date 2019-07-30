@@ -197,75 +197,53 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.machineName))
         File.write("%d\n"%(self.numTests))
 
+    """
+    def __WriteMethodDataForCollectingStage1(self):
+        MethodTag=\${1}
+        FileNameBase=\${2}
+        FileName1=\${3}
+        FileName2=\${4}
+        WriteFile=\${5}
 
-WriteMethodDataForCollectingStage1 () {
-  local MethodTag=\${1}
-  local FileNameBase=\${2}
-  local FileName1=\${3}
-  local FileName2=\${4}
-  local WriteFile=\${5}
+        echo "echo \"0\"" >> \${WriteFile}
+        echo "echo \"\${MethodTag}\"" >> \${WriteFile}
+        echo "echo \"\${FileName1}\"" >> \${WriteFile}
+        if [ "\${MethodTag}" != "bscf" ];
+            echo "echo \"\${FileName2}\"" >> \${WriteFile}
+        if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+            echo "echo \"\${FileNameBase}_critter\"" >> \${WriteFile}
+        if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+            echo "echo \"\${FileNameBase}_timer\"" >> \${WriteFile}
 
-  echo "echo \"0\"" >> \${WriteFile}
-  echo "echo \"\${MethodTag}\"" >> \${WriteFile}
-  echo "echo \"\${FileName1}\"" >> \${WriteFile}
-  if [ "\${MethodTag}" != "bscf" ];
-  then
-    echo "echo \"\${FileName2}\"" >> \${WriteFile}
-  fi
-  if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-  then
-    echo "echo \"\${FileNameBase}_critter\"" >> \${WriteFile}
-  fi
-  if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-  then
-    echo "echo \"\${FileNameBase}_timer\"" >> \${WriteFile}
-  fi
-}
+    def __WriteMethodDataForCollectingStage2(self):
+        # Because 'Pre' (Stage1) collapses the NumLaunchesPerBinary, we do not want to overcount.
+        launchID=\${1}
+        if [ \${launchID} -eq 1 ];
+            MethodTag=\${2}
+            PreFileNameBase=\${3}
+            PreFileName1=\${4}
+            PreFileName2=\${5}
+            PostFileNameBase=\${6}
+            PostFileName1=\${7}
+            PostFileName2=\${8}
+            WriteFile=\${9}
 
-WriteMethodDataForCollectingStage2 () {
-  # Because 'Pre' (Stage1) collapses the NumLaunchesPerBinary, we do not want to overcount.
-  local launchID=\${1}
-  if [ \${launchID} -eq 1 ];
-  then
-    local MethodTag=\${2}
-    local PreFileNameBase=\${3}
-    local PreFileName1=\${4}
-    local PreFileName2=\${5}
-    local PostFileNameBase=\${6}
-    local PostFileName1=\${7}
-    local PostFileName2=\${8}
-    local WriteFile=\${9}
-
-    echo "echo \"0\"" >> \${WriteFile}
-    echo "echo \"\${MethodTag}\"" >> \${WriteFile}
-    echo "echo \"\${PostFileName1}\"" >> \${WriteFile}
-    if [ "\${MethodTag}" != "bscf" ];
-    then
-      echo "echo \"\${PostFileName2}\"" >> \${WriteFile}
-    fi
-    if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-    then
-      echo "echo \"\${PostFileNameBase}_critter\"" >> \${WriteFile}
-    fi
-    if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-    then
-      echo "echo \"\${PostFileNameBase}_timer\"" >> \${WriteFile}
-    fi
-    echo "echo \"\${PreFileName1}\"" >> \${WriteFile}
-    if [ "\${MethodTag}" != "bscf" ];
-    then
-      echo "echo \"\${PreFileName2}\"" >> \${WriteFile}
-    fi
-    if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-    then
-      echo "echo \"\${PreFileNameBase}_critter\"" >> \${WriteFile}
-    fi
-    if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-    then
-      echo "echo \"\${PreFileNameBase}_timer\"" >> \${WriteFile}
-    fi
-  fi
-}
+            echo "echo \"0\"" >> \${WriteFile}
+            echo "echo \"\${MethodTag}\"" >> \${WriteFile}
+            echo "echo \"\${PostFileName1}\"" >> \${WriteFile}
+            if [ "\${MethodTag}" != "bscf" ];
+                echo "echo \"\${PostFileName2}\"" >> \${WriteFile}
+            if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+                echo "echo \"\${PostFileNameBase}_critter\"" >> \${WriteFile}
+            if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+                echo "echo \"\${PostFileNameBase}_timer\"" >> \${WriteFile}
+            echo "echo \"\${PreFileName1}\"" >> \${WriteFile}
+            if [ "\${MethodTag}" != "bscf" ];
+                echo "echo \"\${PreFileName2}\"" >> \${WriteFile}
+            if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+                echo "echo \"\${PreFileNameBase}_critter\"" >> \${WriteFile}
+            if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+                echo "echo \"\${PreFileNameBase}_timer\"" >> \${WriteFile}
 
 
     def __writePlotFileName(self,..):
@@ -273,103 +251,64 @@ WriteMethodDataForCollectingStage2 () {
         Prefix1=""
         Prefix2=""
         if [ "\${3}" == "1" ];
-        then
             Prefix1="Raw/"
             Prefix2="Stats/"
-        fi
         echo "echo \"\${Prefix1}\${1}_perf.txt\"" >> \${2}
         if [ "\${3}" == "1" ];
-        then
             echo "echo \"\${Prefix2}\${1}_perf_stats.txt\"" >> \${2}
-        fi
   
         echo "echo \"\${Prefix1}\${1}_numerics.txt\"" >> \${2}
         if [ "\${3}" == "1" ];
-        then
             echo "echo \"\${Prefix2}\${1}_numerics_stats.txt\"" >> \${2}
-        fi
 
         if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-        then
             echo "echo \"\${1}_critter.txt\"" >> \${2}
             if [ "\${3}" == "1" ];
-            then
                 echo "echo \"\${1}_critter_breakdown.txt\"" >> \${2}
-            fi
-        fi
         if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-        then
             echo "echo \"\${1}_timer.txt\"" >> \${2}
-        fi
 
 
-# Only for bsqr/rsqr -- only necessary for Performance now. Might want to use Critter later, but not Profiler
-writePlotFileNameScalapackQR() {
-  Prefix1=""
-  Prefix2=""
-  if [ "\${3}" == "1" ];
-  then
-    Prefix1="Raw/"
-    Prefix2="Stats/"
-  fi
-  echo "echo \"\${Prefix1}\${1}_NoFormQ.txt\"" >> \${2}
-  if [ "\${3}" == "1" ];
-  then
-    echo "echo \"\${Prefix2}\${1}_NoFormQ_stats.txt\"" >> \${2}
-  fi
-  echo "echo \"\${Prefix1}\${1}_FormQ.txt\"" >> \${2}
-  if [ "\${3}" == "1" ];
-  then
-    echo "echo \"\${Prefix2}\${1}_FormQ_stats.txt\"" >> \${2}
-  fi
-}
-
-# Only for bscf -- only necessary for Performance now. Might want to use Critter later, but not Profiler
-writePlotFileNameScalapackCholesky() {
-  Prefix1=""
-  Prefix2=""
-  if [ "\${3}" == "1" ];
-  then
-    Prefix1="Raw/"
-    Prefix2="Stats/"
-  fi
-  echo "echo \"\${Prefix1}\${1}.txt\"" >> \${2}
-  if [ "\${3}" == "1" ];
-  then
-    echo "echo \"\${Prefix2}\${1}_stats.txt\"" >> \${2}
-  fi
-}
+    # Only for bsqr/rsqr -- only necessary for Performance now. Might want to use Critter later, but not Profiler
+    def __writePlotFileNameScalapackQR(self):
+	Prefix1=""
+        Prefix2=""
+        if [ "\${3}" == "1" ];
+            Prefix1="Raw/"
+            Prefix2="Stats/"
+        echo "echo \"\${Prefix1}\${1}_NoFormQ.txt\"" >> \${2}
+        if [ "\${3}" == "1" ];
+            echo "echo \"\${Prefix2}\${1}_NoFormQ_stats.txt\"" >> \${2}
+        echo "echo \"\${Prefix1}\${1}_FormQ.txt\"" >> \${2}
+        if [ "\${3}" == "1" ];
+            echo "echo \"\${Prefix2}\${1}_FormQ_stats.txt\"" >> \${2}
 
 
-# Functions that write the actual script, depending on machine
-launchJobs () {
-  local launchID=\${3}
-  local numNodes=\${4}
-  local ppn=\${5}
-  local tpr=\${6}
-  local numProcesses=\$((\${numNodes} * \${ppn}))
-  local scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${launchID}launchID_\${numNodes}nodes_\${ppn}ppn_\${tpr}tpr.${BatchFileExtension}
-  writeTest \${numProcesses} \${ppn} \${tpr} \${scriptName} \${@:7:\$#}
-}
+    # Only for bscf -- only necessary for Performance now. Might want to use Critter later, but not Profiler
+    def __writePlotFileNameScalapackCholesky(self):
+	Prefix1=""
+        Prefix2=""
+        if [ "\${3}" == "1" ];
+            Prefix1="Raw/"
+            Prefix2="Stats/"
+        echo "echo \"\${Prefix1}\${1}.txt\"" >> \${2}
+        if [ "\${3}" == "1" ];
+            echo "echo \"\${Prefix2}\${1}_stats.txt\"" >> \${2}
+    """
 
+    # Functions that write the actual script, depending on machine
+    def __launchJobs (self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,fileString):
+        """
+	"""
+        numProcesses=node*ppn
+        scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
 
-launchJobsPortal () {
-  # Launch performance job always.
-  launchJobs \${@:2:6} \${1}_PERFORMANCE \${@:8:\${#}}
-
-  # If analysis is turned on, launch Profiling job and Critter job.
-  if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-  then
-    launchJobs \${@:2:6} \${1}_CRITTER \${@:8:\${#}}
-  fi
-  if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-  then
-    launchJobs \${@:2:6} \${1}_TIMER \${@:8:\${#}}
-  fi
-}
-
-
-
+        MethodStringPerformance = BinaryPath+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
+        # Launch performance job always.
+	AlgorithmInfo.writeTest(numProcesses,ppn,tpr,MethodStringPerformance)
+        # TODO: For now, just assume that critter job is always launched as well, and timer job is not an option
+        MethodStringCritter = BinaryPath+"_CRITTER"+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
+	AlgorithmInfo.writeTest(numProcesses,ppn,tpr,MethodStringCritter)
 
     def __algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
@@ -389,15 +328,15 @@ launchJobsPortal () {
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
         # Plot instructions only need a single output per scaling study
         if (scaleIndex == 0):
-            #WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            WriteAlgorithmInfoForPlotting(0,TestID,AlgID,launchIndex,ppn,tpr)	# Note that NumNodes is not included
-            writePlotFileName ${PostFile} self.PlotInstructionsFile 1
+            # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
+            #WriteAlgorithmInfoForPlotting(0,TestID,AlgID,launchIndex,ppn,tpr)	# Note that NumNodes is not included
+            #writePlotFileName ${PostFile} self.PlotInstructionsFile 1
 
-        WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
-        WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
+        #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
+        #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        launchJobsPortal(BinaryPath,tag1,fileString,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters,PrePath+"/%s"%(fileString))
-        writePlotFileName fileString self.CollectInstructionsStage1File 0
+        launchJobsPortal(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],PrePath+"/%s"%(fileString))
+        #writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
     def __portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0):

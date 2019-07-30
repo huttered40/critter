@@ -27,7 +27,7 @@ class stampede2(object):
         scriptFile.write("export MKL_NUM_THREADS=%d\n" %(curTPR))
 
     @staticmethod
-    def writeTest(scriptFile,numProcesses,ppn,tpr,AlgInputString):
+    def writeTest(numProcesses,ppn,tpr,AlgInputString):
         """
 	"""
         Str1="ibrun "

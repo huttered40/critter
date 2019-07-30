@@ -20,7 +20,7 @@ class porter(object):
 	pass
 
     @staticmethod
-    def writeTest(scriptFile,numProcesses,ppn,tpr,AlgInputString):
+    def writeTest(numProcesses,ppn,tpr,AlgInputString):
         """
 	"""
 	Str1="mpiexec -n %d " %(numProcesses)
