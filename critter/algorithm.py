@@ -16,12 +16,16 @@ class algorithm(object):
 	self.CurrentStartParameters=list(self.InputParameterStartRange)
 	self.CurrentScaleParameters=list(self.InputParameterStartRange)
 
-    def getNextStartParameters(self):
+    def next(self):
         """
         """
-        for i in range(len(self.InputParameterStartRange)):
-            self.CurrentStartParameters[i] = self.InputParameterScaleOperator[i](self.CurrentStartParameters[i],self.InputParameterScaleFactor[i])
-            self.CurrentScaleParameters[i] = self.CurrentStartParameters[i]
+	if (self.CurrentStartParameters == self.InputParameterEndRange):
+	    return 0
+        else:
+	    for i in range(len(self.InputParameterStartRange)):
+                self.CurrentStartParameters[i] = self.InputParameterScaleOperator[i](self.CurrentStartParameters[i],self.InputParameterScaleFactor[i])
+                self.CurrentScaleParameters[i] = self.CurrentStartParameters[i]
+	    return 1
 
     def scale(self,index):
         """

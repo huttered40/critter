@@ -496,18 +496,22 @@ launchJobsPortal () {
             for AlgIndex in range(len()):
                 print("\nAlgorithm %s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
 
-                # Echo for SCAPLOT makefile generator
-                binaryTag=self.AlgorithmList[...].Tag
-                self.CollectInstructionsStage1File.write("%s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
-                self.CollectInstructionsStage2File.write("%s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
-                self.PlotInstructionsFile.write("%s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
+                VariantIndex=0
+                while (self.AlgorithmList[TestIndex][0][AlgIndex].next()):
+                    print("Variant %d\n"%(VariantIndex))
 
-                binaryPath="%s/%s"%(os.environ["BINARYPATH"],self.AlgorithmList[TestIndex][0][AlgIndex].Tag)
-                # Below: special case that will hopefully be replaced soon
-                if (self.MachineType.IsAccelerated())
-                    binaryPath=binaryPath + "_GPU"
+                    # Echo for SCAPLOT makefile generator
+                    binaryTag=self.AlgorithmList[TestIndex][0][AlgIndex].Tag
+                    self.CollectInstructionsStage1File.write("%s\n"%(binaryTag))
+                    self.CollectInstructionsStage2File.write("%s\n"%(binaryTag))
+                    self.PlotInstructionsFile.write("%s\n"%(binaryTag))
 
-                portal(2,TestIndex,TestIndex,AlgIndex)
+                    binaryPath="%s/%s"%(os.environ["BINARYPATH"],binaryTag)
+                    # Below: special case that will hopefully be replaced soon
+                    if (self.MachineType.IsAccelerated())
+                        binaryPath=binaryPath + "_GPU"
+
+                    portal(2,TestIndex,TestIndex,AlgIndex)
             self.CollectInstructionsStage1File.write("1\n")
             self.CollectInstructionsStage2File.write("1\n")
             self.PlotInstructionsFile.write("1\n")
