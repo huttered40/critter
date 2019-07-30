@@ -172,6 +172,17 @@ class bench(object):
         self.CollectInstructionsStage1File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsStage2File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
 
+    def __GetRangeCount(self,op,File,Start,End,Factor,Operator):
+        """
+	"""
+	Curr = Start
+	Count = 0
+	while (Curr <= End):
+	    if (op == 1):
+	        File.write(str(Start)+"\n")
+            Curr = Operator(Curr,Factor)
+	    Count = Count + 1
+	return Count
 
     def __WriteAlgorithmInfoForPlotting(self,TestID,AlgID)
         for param in self.AlgorithmList[TestID][0][AlgID]:
@@ -186,32 +197,207 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.machineName))
         File.write("%d\n"%(self.numTests))
 
+
+WriteMethodDataForCollectingStage1 () {
+  local MethodTag=\${1}
+  local FileNameBase=\${2}
+  local FileName1=\${3}
+  local FileName2=\${4}
+  local WriteFile=\${5}
+
+  echo "echo \"0\"" >> \${WriteFile}
+  echo "echo \"\${MethodTag}\"" >> \${WriteFile}
+  echo "echo \"\${FileName1}\"" >> \${WriteFile}
+  if [ "\${MethodTag}" != "bscf" ];
+  then
+    echo "echo \"\${FileName2}\"" >> \${WriteFile}
+  fi
+  if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+  then
+    echo "echo \"\${FileNameBase}_critter\"" >> \${WriteFile}
+  fi
+  if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+  then
+    echo "echo \"\${FileNameBase}_timer\"" >> \${WriteFile}
+  fi
+}
+
+WriteMethodDataForCollectingStage2 () {
+  # Because 'Pre' (Stage1) collapses the NumLaunchesPerBinary, we do not want to overcount.
+  local launchID=\${1}
+  if [ \${launchID} -eq 1 ];
+  then
+    local MethodTag=\${2}
+    local PreFileNameBase=\${3}
+    local PreFileName1=\${4}
+    local PreFileName2=\${5}
+    local PostFileNameBase=\${6}
+    local PostFileName1=\${7}
+    local PostFileName2=\${8}
+    local WriteFile=\${9}
+
+    echo "echo \"0\"" >> \${WriteFile}
+    echo "echo \"\${MethodTag}\"" >> \${WriteFile}
+    echo "echo \"\${PostFileName1}\"" >> \${WriteFile}
+    if [ "\${MethodTag}" != "bscf" ];
+    then
+      echo "echo \"\${PostFileName2}\"" >> \${WriteFile}
+    fi
+    if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+    then
+      echo "echo \"\${PostFileNameBase}_critter\"" >> \${WriteFile}
+    fi
+    if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+    then
+      echo "echo \"\${PostFileNameBase}_timer\"" >> \${WriteFile}
+    fi
+    echo "echo \"\${PreFileName1}\"" >> \${WriteFile}
+    if [ "\${MethodTag}" != "bscf" ];
+    then
+      echo "echo \"\${PreFileName2}\"" >> \${WriteFile}
+    fi
+    if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+    then
+      echo "echo \"\${PreFileNameBase}_critter\"" >> \${WriteFile}
+    fi
+    if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+    then
+      echo "echo \"\${PreFileNameBase}_timer\"" >> \${WriteFile}
+    fi
+  fi
+}
+
+
+    def __writePlotFileName(self,..):
+        # Performance runs will always run, so no reason for an if-statement here
+        Prefix1=""
+        Prefix2=""
+        if [ "\${3}" == "1" ];
+        then
+            Prefix1="Raw/"
+            Prefix2="Stats/"
+        fi
+        echo "echo \"\${Prefix1}\${1}_perf.txt\"" >> \${2}
+        if [ "\${3}" == "1" ];
+        then
+            echo "echo \"\${Prefix2}\${1}_perf_stats.txt\"" >> \${2}
+        fi
+  
+        echo "echo \"\${Prefix1}\${1}_numerics.txt\"" >> \${2}
+        if [ "\${3}" == "1" ];
+        then
+            echo "echo \"\${Prefix2}\${1}_numerics_stats.txt\"" >> \${2}
+        fi
+
+        if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+        then
+            echo "echo \"\${1}_critter.txt\"" >> \${2}
+            if [ "\${3}" == "1" ];
+            then
+                echo "echo \"\${1}_critter_breakdown.txt\"" >> \${2}
+            fi
+        fi
+        if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+        then
+            echo "echo \"\${1}_timer.txt\"" >> \${2}
+        fi
+
+
+# Only for bsqr/rsqr -- only necessary for Performance now. Might want to use Critter later, but not Profiler
+writePlotFileNameScalapackQR() {
+  Prefix1=""
+  Prefix2=""
+  if [ "\${3}" == "1" ];
+  then
+    Prefix1="Raw/"
+    Prefix2="Stats/"
+  fi
+  echo "echo \"\${Prefix1}\${1}_NoFormQ.txt\"" >> \${2}
+  if [ "\${3}" == "1" ];
+  then
+    echo "echo \"\${Prefix2}\${1}_NoFormQ_stats.txt\"" >> \${2}
+  fi
+  echo "echo \"\${Prefix1}\${1}_FormQ.txt\"" >> \${2}
+  if [ "\${3}" == "1" ];
+  then
+    echo "echo \"\${Prefix2}\${1}_FormQ_stats.txt\"" >> \${2}
+  fi
+}
+
+# Only for bscf -- only necessary for Performance now. Might want to use Critter later, but not Profiler
+writePlotFileNameScalapackCholesky() {
+  Prefix1=""
+  Prefix2=""
+  if [ "\${3}" == "1" ];
+  then
+    Prefix1="Raw/"
+    Prefix2="Stats/"
+  fi
+  echo "echo \"\${Prefix1}\${1}.txt\"" >> \${2}
+  if [ "\${3}" == "1" ];
+  then
+    echo "echo \"\${Prefix2}\${1}_stats.txt\"" >> \${2}
+  fi
+}
+
+
+# Functions that write the actual script, depending on machine
+launchJobs () {
+  local launchID=\${3}
+  local numNodes=\${4}
+  local ppn=\${5}
+  local tpr=\${6}
+  local numProcesses=\$((\${numNodes} * \${ppn}))
+  local scriptName=$SCRATCH/${testName}/script_${fileID}id_${roundID}round_\${launchID}launchID_\${numNodes}nodes_\${ppn}ppn_\${tpr}tpr.${BatchFileExtension}
+  writeTest \${numProcesses} \${ppn} \${tpr} \${scriptName} \${@:7:\$#}
+}
+
+
+launchJobsPortal () {
+  # Launch performance job always.
+  launchJobs \${@:2:6} \${1}_PERFORMANCE \${@:8:\${#}}
+
+  # If analysis is turned on, launch Profiling job and Critter job.
+  if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
+  then
+    launchJobs \${@:2:6} \${1}_CRITTER \${@:8:\${#}}
+  fi
+  if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
+  then
+    launchJobs \${@:2:6} \${1}_TIMER \${@:8:\${#}}
+  fi
+}
+
+
+
+
     def __algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
         fileString="DataFiles/%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-	          +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%()
+	          +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
         PreFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(....)
+               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
         PostFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(....)
+               +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
 
         #UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
         #UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
 
+	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
         # Plot instructions only need a single output per scaling study
         if (scaleIndex == 0):
             #WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             WriteAlgorithmInfoForPlotting(0,TestID,AlgID,launchIndex,ppn,tpr)	# Note that NumNodes is not included
-            writePlotFileName ${PostFile} $SCRATCH/${testName}/plotInstructions.sh 1
+            writePlotFileName ${PostFile} self.PlotInstructionsFile 1
 
-        WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics $SCRATCH/${testName}/collectInstructionsStage1.sh
-        WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics $SCRATCH/${testName}/collectInstructionsStage2.sh
+        WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
+        WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        launchJobsPortal ${BinaryPath} ${tag1} ${fileString} ${curLaunchID} ${NumNodes} ${ppn} ${tpr} ${gemmORtrmm} ${algChoice} ${matrixDimM} ${matrixDimN} ${matrixDimK} ${numIterations} $SCRATCH/${testName}/${fileString}
-        writePlotFileName ${fileString} $SCRATCH/${testName}/collectInstructionsStage1.sh 0
+        launchJobsPortal(BinaryPath,tag1,fileString,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters,PrePath+"/%s"%(fileString))
+        writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
     def __portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0):
@@ -299,17 +485,13 @@ class bench(object):
             print("Test %d\n"%(i))
 
             self.PlotInstructionsFile.write("%s"%(self.AlgorithmList[TestIndex][1]))
-            ..nodecount for the test.. self.PlotInstructionsFile.write("%d"%(self.[TestIndex][1]))
+            self.PlotInstructionsFile.write("%d"%(GetRangeCount(self.PlotInstructionsFile,0,self.nodeMinList[TestIndex],self.self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])))
+            GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
 
-            curNumNodes=\${startNumNodes}
-            for ((j=0; j<\${nodeCount}; j++))
-                echo "echo \"\${curNumNodes}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-                curNumNodes=\$(( \${curNumNodes} * ${nodeScaleFactor} ))
-
-            matrixDimM,matrixDimN,numIterations, comes from AlgList
-
-            echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-            echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+            # Figure out what PlotInstructions needs before fixing below
+            #matrixDimM,matrixDimN,numIterations, comes from AlgList
+            #echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
+            #echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
             for AlgIndex in range(len()):
                 print("\nAlgorithm %s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
