@@ -32,8 +32,6 @@ class porter(object):
     @staticmethod
     def queue(Script):
         pass
-        call("chmod +x ${Script}"%(Script),shell=True)
-        call("${Batch} ${Script}"%(Batch,Script),shell=True)
 
     @staticmethod
     def IsAccelerated():

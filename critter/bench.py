@@ -172,8 +172,8 @@ class bench(object):
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
 
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
-        self.CollectInstructionsStage1File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
-        self.CollectInstructionsStage2File = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructionsStage1File = open("%s/%s/collectInstructionsStage1.sh"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructionsStage2File = open("%s/%s/collectInstructionsStage2.sh"%(os.environ["SCRATCH"],self.testName),"a+")
 
     def GetRangeCount(self,op,File,Start,End,Factor,Operator):
         """
