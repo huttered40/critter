@@ -34,4 +34,4 @@ class algorithm(object):
         """
         """
 	for i in range(len(self.InputParameterStartRange)):
-	    self.CurrentScaleParameters[i] = self.ScaleOperatorList[self.IndirectIndexFunc(index)][i](self.CurrentScaleParameters[i],self.ScaleFactorList[index][i])
+	    self.CurrentScaleParameters[i] = self.ScaleOperatorList[self.IndirectIndexFunc(index)][i](self.CurrentScaleParameters[i],self.ScaleFactorList[self.IndirectIndexFunc(index)][i])
