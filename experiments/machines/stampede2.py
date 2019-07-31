@@ -7,7 +7,9 @@ class stampede2(object):
     BatchFileExtension="sh"
     Batch="sbatch --mail-user=hutter2@illinois.edu --mailtype=all"
     AllocationName=""
-    machineName="STAMPEDE2"
+    MachineName="STAMPEDE2"
+    PeakNetworkInjectionRate=None
+    PeakNodePerformance=None
 
     @staticmethod
     def set():

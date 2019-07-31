@@ -7,9 +7,11 @@ class bluewaters(object):
     BatchFileExtension="pbs"
     Batch="qsub"
     AllocationName="bahv"
-    accelType="n"
-    testAccel_NoAccel="n"
-    machineName="BLUEWATERS"
+    AccelType="n"
+    MachineName="BLUEWATERS"
+    AllocationName=""
+    PeakNetworkInjectionRate=None
+    PeakNodePerformance=None
 
     @staticmethod
     def set():

@@ -140,8 +140,8 @@ class bench(object):
         self.SubmitToQueue = SubmitToQueue
         self.AlgorithmList = AlgorithmList
         dateStr=datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
-        self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.machineName,roundID)
-        self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.machineName)
+        self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.MachineName,roundID)
+        self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.MachineName)
 
         if (self.mpiType == "mpi"):
             os.environ["MPITYPE"] = "MPI_TYPE"
@@ -201,7 +201,7 @@ class bench(object):
 	"""
         File.write("%s\n"%(self.testName))
         File.write("%s\n"%(self.testNameAllRounds))
-        File.write("%s\n"%(self.MachineType.machineName))
+        File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
 
     """
@@ -423,7 +423,7 @@ class bench(object):
         self.PlotInstructionsFile.write("1\n")
 	self.PlotInstructionsFile.write("%s\n"%(self.testNameAllRounds))
 	self.PlotInstructionsFile.write("%d\n"%(self.numTests))
-	self.PlotInstructionsFile.write("%s\n"%(self.MachineType.machineName))
+	self.PlotInstructionsFile.write("%s\n"%(self.MachineType.MachineName))
         self.WriteHeaderForCollection(self.CollectInstructionsStage1File)
         self.WriteHeaderForCollection(self.CollectInstructionsStage2File)
 
@@ -446,6 +446,7 @@ class bench(object):
                 VariantIndex=0
                 while (True):
                     print("Variant %d\n"%(VariantIndex))
+		    VariantIndex = VariantIndex + 1
 
                     # Echo for SCAPLOT makefile generator
                     binaryTag=self.AlgorithmList[TestIndex][0][AlgIndex].Tag

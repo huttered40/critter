@@ -6,7 +6,10 @@ class porter(object):
     """
     BatchFileExtension=""
     Batch=""
-    machineName="PORTER"
+    AllocationName=""
+    MachineName="PORTER"
+    PeakNetworkInjectionRate=None
+    PeakNodePerformance=None
 
     @staticmethod
     def set():
