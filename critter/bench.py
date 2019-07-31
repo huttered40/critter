@@ -2,6 +2,10 @@ import os
 from subprocess import call
 import datetime
 
+# See if this works with the lambda specified in instructions2.py
+# I don't really want to include all possible libraries that the user might use in the lambda
+import math
+
 class bench(object):
     """
     """
@@ -357,7 +361,6 @@ class bench(object):
                         curTPR=self.tprMinList[TestIndex][scaleIndex]
                         while (curTPR <= self.tprMaxList[TestIndex][scaleIndex]):
                             # Make sure we are in a suitable range
-                            print(curPPN,curTPR)
 			    numPEsPerNode=curPPN*curTPR
                             if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
                                 if (op == 0):
@@ -374,13 +377,14 @@ class bench(object):
                                         self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
 				        PortalDict[TupleKey]=1
                                 elif (op == 2):
-                                    self.algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+                                    if (self.AlgorithmList[TestIndex][0][AlgIndex].SpecialFunc(self.AlgorithmList[TestIndex][0][AlgIndex].CurrentScaleParameters,[LaunchIndex,curNumNodes,curPPN,curTPR])):
+				        self.algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
-                    scaleIndex=scaleIndex+1
                     curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
 		    if (op == 2):
-		        self.AlgorithmList[TestIndex][0][AlgIndex].scale(TestIndex)
+		        self.AlgorithmList[TestIndex][0][AlgIndex].scale(scaleIndex)
+                    scaleIndex=scaleIndex+1
 
     def queue_submit(self):
         """
@@ -440,7 +444,7 @@ class bench(object):
                 print("\nAlgorithm %s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
 
                 VariantIndex=0
-                while (self.AlgorithmList[TestIndex][0][AlgIndex].next()):
+                while (True):
                     print("Variant %d\n"%(VariantIndex))
 
                     # Echo for SCAPLOT makefile generator
@@ -455,6 +459,8 @@ class bench(object):
                         binaryPath=binaryPath + "_GPU"
 
                     self.portal(2,TestIndex,TestIndex+1,AlgIndex,binaryPath)
+		    if (not(self.AlgorithmList[TestIndex][0][AlgIndex].next())):
+		        break
             self.CollectInstructionsStage1File.write("1\n")
             self.CollectInstructionsStage2File.write("1\n")
             self.PlotInstructionsFile.write("1\n")
