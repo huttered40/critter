@@ -5,6 +5,7 @@ class algorithm(object):
         """
 	"""
 	self.Tag=Tag
+	self.NumParameters=len(ParameterStartRange)
 	self.InputParameterStartRange=ParameterStartRange
 	self.InputParameterEndRange=ParameterEndRange
 	self.InputParameterScaleFactor=ParameterScaleFactor
@@ -13,27 +14,17 @@ class algorithm(object):
 	self.ScaleOperatorList=ScaleOperatorList
         self.IndirectIndexFunc = IndirectIndexFunc
         self.SpecialFunc = SpecialFunc
-	self.CurrentStartParameters=list(self.InputParameterStartRange)
-	self.CurrentScaleParameters=list(self.InputParameterStartRange)
-        self.SaveParameterStartRange=list(self.InputParameterStartRange)
-        self.ParameterIndex=0
+        self.TagList=[]
+	for i in range(len( self.InputParameterStartRange)):
+	    if (self.InputParameterStartRange[i] < self.InputParameterEndRange[i]):
+	        self.TagList.append(-1)
+	    elif (self.InputParameterStartRange[i] > self.InputParameterEndRange[i]):
+	        self.TagList.append(1)
+	    else:
+	        self.TagList.append(0)
 
-    def next(self):
+    def scale(self,Parameters,Index):
         """
         """
-        #print("Here in next with ParameterIndex - %d, with val - %d and ref - %d\n"%(self.ParameterIndex, self.CurrentStartParameters[self.ParameterIndex], self.SaveParameterStartRange[self.ParameterIndex]))
-        self.CurrentScaleParameters = list(self.CurrentStartParameters)
-        while (self.ParameterIndex < len(self.InputParameterStartRange)):
-	    while (self.CurrentStartParameters[self.ParameterIndex] != self.InputParameterEndRange[self.ParameterIndex]):
-		self.CurrentStartParameters[self.ParameterIndex] = self.InputParameterScaleOperator[self.ParameterIndex](\
-		       self.CurrentStartParameters[self.ParameterIndex],self.InputParameterScaleFactor[self.ParameterIndex])
-		self.CurrentScaleParameters[self.ParameterIndex] = self.CurrentStartParameters[self.ParameterIndex]
-		return 1
-	    self.ParameterIndex = self.ParameterIndex + 1
-	return 0
-
-    def scale(self,index):
-        """
-        """
-	for i in range(len(self.InputParameterStartRange)):
-	    self.CurrentScaleParameters[i] = self.ScaleOperatorList[self.IndirectIndexFunc(index)][i](self.CurrentScaleParameters[i],self.ScaleFactorList[self.IndirectIndexFunc(index)][i])
+	for i in range(len(Parameters)):
+	    Parameters[i] = self.ScaleOperatorList[self.IndirectIndexFunc(Index)][i](Parameters[i],self.ScaleFactorList[self.IndirectIndexFunc(Index)][i])

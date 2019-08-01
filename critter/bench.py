@@ -304,25 +304,25 @@ class bench(object):
     """
 
     # Functions that write the actual script, depending on machine
-    def launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,fileString):
+    def launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,AlgParameters,fileString):
         """
 	"""
         numProcesses=node*ppn
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
-        MethodStringPerformance = BinaryPath+"_PERFORMANCE"+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
+        MethodStringPerformance = BinaryPath+"_PERFORMANCE"+"".join(" "+str(x) for x in AlgParameters)+" %s"%(fileString)
         # Launch performance job always.
 	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodStringPerformance)
         # TODO: For now, just assume that critter job is always launched as well, and timer job is not an option
-        MethodStringCritter = BinaryPath+"_CRITTER"+"".join(" "+str(x) for x in AlgorithmInfo.CurrentScaleParameters)+" %s"%(fileString)
+        MethodStringCritter = BinaryPath+"_CRITTER"+"".join(" "+str(x) for x in AlgParameters)+" %s"%(fileString)
 	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodStringCritter)
 
-    def algorithmDispatch(self,TestID,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
+    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
         fileString="DataFiles/%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-	          +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "_%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+	          +"".join("_"+str(x) for x in AlgParameters) + "_%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
         #PreFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
         #       +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
@@ -343,11 +343,11 @@ class bench(object):
         #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
         #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],PrePath+"/%s"%(fileString))
+        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],AlgParameters,PrePath+"/%s"%(fileString))
         #writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
-    def portal(self,op,TestStartIndex,TestEndIndex,AlgIndex=0,BinaryPath=0):
+    def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0):
         """
         """
         for LaunchIndex in range(1,self.NumLaunchesPerBinary+1):
@@ -377,13 +377,13 @@ class bench(object):
                                         self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
 				        PortalDict[TupleKey]=1
                                 elif (op == 2):
-                                    if (self.AlgorithmList[TestIndex][0][AlgIndex].SpecialFunc(self.AlgorithmList[TestIndex][0][AlgIndex].CurrentScaleParameters,[LaunchIndex,curNumNodes,curPPN,curTPR])):
-				        self.algorithmDispatch(TestIndex,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+                                    if (self.AlgorithmList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
+				        self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
                     curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
 		    if (op == 2):
-		        self.AlgorithmList[TestIndex][0][AlgIndex].scale(scaleIndex)
+		        self.AlgorithmList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
                     scaleIndex=scaleIndex+1
 
     def queue_submit(self):
@@ -408,6 +408,37 @@ class bench(object):
             #if (self.analyzeDecision2 == 1):
             #    os.environ["PROFTYPE"]="PROFILE"
             #    lib.build()
+
+    def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList):
+        """
+	"""
+        # base case at the last level -- this is when we are sure a valid parameter combination exists
+	if (ParameterIndex == self.AlgorithmList[TestIndex][0][AlgIndex].NumParameters):
+            # Echo for SCAPLOT makefile generator
+            BinaryTag=self.AlgorithmList[TestIndex][0][AlgIndex].Tag
+            self.CollectInstructionsStage1File.write("%s\n"%(BinaryTag))
+            self.CollectInstructionsStage2File.write("%s\n"%(BinaryTag))
+            self.PlotInstructionsFile.write("%s\n"%(BinaryTag))
+
+            BinaryPath="%s/%s"%(os.environ["BINARYPATH"],BinaryTag)
+            # Below: special case that will hopefully be replaced soon
+            if (self.MachineType.IsAccelerated()):
+                BinaryPath=BinaryPath + "_GPU"
+
+            print("\n    Variant %d"%(VariantIndex))
+            self.portal(2,TestIndex,TestIndex+1,list(AlgParameterList),AlgIndex,BinaryPath)
+	    return VariantIndex+1
+
+        IsValid=1
+	while (IsValid):
+	    if (AlgParameterList[ParameterIndex] == self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterEndRange[ParameterIndex]):
+	        IsValid=0
+            VariantIndex = self.cycle(TestIndex,AlgIndex,VariantIndex,ParameterIndex+1,list(AlgParameterList))
+            if (IsValid):
+	        AlgParameterList[ParameterIndex] = self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterScaleOperator[ParameterIndex](\
+                    AlgParameterList[ParameterIndex],self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterScaleFactor[ParameterIndex])
+	    else:
+	        return VariantIndex
 
     def launch(self):
         """
@@ -442,26 +473,10 @@ class bench(object):
 
             for AlgIndex in range(len(self.AlgorithmList[TestIndex][0])):
                 print("\n  Algorithm %s"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
-
                 VariantIndex=0
-                while (True):
-                    print("\n    Variant %d"%(VariantIndex))
-		    VariantIndex = VariantIndex + 1
-
-                    # Echo for SCAPLOT makefile generator
-                    binaryTag=self.AlgorithmList[TestIndex][0][AlgIndex].Tag
-                    self.CollectInstructionsStage1File.write("%s\n"%(binaryTag))
-                    self.CollectInstructionsStage2File.write("%s\n"%(binaryTag))
-                    self.PlotInstructionsFile.write("%s\n"%(binaryTag))
-
-                    binaryPath="%s/%s"%(os.environ["BINARYPATH"],binaryTag)
-                    # Below: special case that will hopefully be replaced soon
-                    if (self.MachineType.IsAccelerated()):
-                        binaryPath=binaryPath + "_GPU"
-
-                    self.portal(2,TestIndex,TestIndex+1,AlgIndex,binaryPath)
-		    if (not(self.AlgorithmList[TestIndex][0][AlgIndex].next())):
-		        break
+		AlgParameterList=list(self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterStartRange)
+		print("AlgParameterList - ",AlgParameterList)
+		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList)
             self.CollectInstructionsStage1File.write("1\n")
             self.CollectInstructionsStage2File.write("1\n")
             self.PlotInstructionsFile.write("1\n")
