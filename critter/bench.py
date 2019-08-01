@@ -428,7 +428,7 @@ class bench(object):
         self.WriteHeaderForCollection(self.CollectInstructionsStage2File)
 
         for TestIndex in range(0,self.numTests):
-            print("Test %d\n"%(TestIndex))
+            print("\nTest %d"%(TestIndex))
 
             self.PlotInstructionsFile.write("%s"%(self.AlgorithmList[TestIndex][1]))
             NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
@@ -441,11 +441,11 @@ class bench(object):
             #echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
             for AlgIndex in range(len(self.AlgorithmList[TestIndex][0])):
-                print("\nAlgorithm %s\n"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
+                print("\n  Algorithm %s"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
 
                 VariantIndex=0
                 while (True):
-                    print("Variant %d\n"%(VariantIndex))
+                    print("\n    Variant %d"%(VariantIndex))
 		    VariantIndex = VariantIndex + 1
 
                     # Echo for SCAPLOT makefile generator
