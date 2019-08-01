@@ -440,7 +440,7 @@ class bench(object):
 	    else:
 	        return VariantIndex
 
-    def launch(self):
+    def generate(self):
         """
         """
         # collectData.sh will always be a single line, just a necessary intermediate step.
@@ -475,10 +475,11 @@ class bench(object):
                 print("\n  Algorithm %s"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
                 VariantIndex=0
 		AlgParameterList=list(self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterStartRange)
-		print("AlgParameterList - ",AlgParameterList)
 		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList)
             self.CollectInstructionsStage1File.write("1\n")
             self.CollectInstructionsStage2File.write("1\n")
             self.PlotInstructionsFile.write("1\n")
+
+    def launch(self):
         self.queue_submit()
 
