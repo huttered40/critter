@@ -28,8 +28,8 @@ class porter(object):
         """
 	"""
 	Str1="mpiexec -n %d " %(numProcesses)
-        #print(Str1+AlgInputString)
-        call(Str1+AlgInputString,shell=True)
+        print("\n      "+Str1+AlgInputString)
+        #call(Str1+AlgInputString,shell=True)
         #${BINARYPATH}charmrun +p1 +vp${numProcesses} ${@:5:$#}
 
     @staticmethod
