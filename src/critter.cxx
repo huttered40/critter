@@ -5,9 +5,9 @@
 #include <assert.h>
 #include <stdio.h>
 
-namespace Critter{
+namespace critter{
 
-_Critter MPI_Barrier_critter("MPI_Barrier", 
+_critter MPI_Barrier_critter("MPI_Barrier", 
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),0.); 
                           }), 
@@ -86,7 +86,7 @@ _Critter MPI_Barrier_critter("MPI_Barrier",
                           }); 
 
 
-_Critter * critter_list[NUM_CRITTERS] = {
+_critter * critter_list[NUM_CRITTERS] = {
         &MPI_Barrier_critter,
         &MPI_Bcast_critter,
         &MPI_Reduce_critter,
@@ -104,7 +104,7 @@ _Critter * critter_list[NUM_CRITTERS] = {
         &MPI_Isend_critter,
         &MPI_Sendrecv_critter,
         &MPI_Sendrecv_replace_critter };
-std::map<MPI_Request, _Critter*> critter_req;
+std::map<MPI_Request, _critter*> critter_req;
 
 double totalCritComputationTime;
 double curComputationTimer;
@@ -139,15 +139,15 @@ void FillAlgCritterList(){
 }
 
 bool InAlgCritterList(std::string AlgName, std::string CritterName){
-  for (auto Critter_ : AlgCritters[AlgName]){
-    if (CritterName == Critter_){
+  for (auto Critter : AlgCritters[AlgName]){
+    if (CritterName == Critter){
       return true;
     }
   }
   return false;
 }
 
-void _Critter::init(){
+void _critter::init(){
   this->last_start_time = -1.;
   this->my_bytes        = 0.;
   this->my_comm_time    = 0.;
@@ -160,7 +160,7 @@ void _Critter::init(){
   this->my_comp_time   = 0.;
 }
 
-void _Critter::initSums(){
+void _critter::initSums(){
   this->my_bytesSum        = 0.;
   this->my_comm_timeSum    = 0.;
   this->my_bar_timeSum     = 0.;
@@ -171,7 +171,7 @@ void _Critter::initSums(){
   this->crit_wrdSum        = 0.;
 }
 
-_Critter::_Critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
+_critter::_critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
               cost_func_){
   this->cost_func = cost_func_;
   this->name = std::move(name_);
@@ -179,15 +179,15 @@ _Critter::_Critter(std::string name_, std::function< std::pair<double,double>(in
   this->initSums();
 }
 
-_Critter::_Critter(_Critter const & t){
+_critter::_critter(_critter const & t){
   this->cost_func = t.cost_func;
   this->name = t.name;
   this->init();
 }
 
-_Critter::~_Critter(){}
+_critter::~_critter(){}
 
-void _Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
+void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical-path yet or that will screw up calculation of overlap!
@@ -227,7 +227,7 @@ void _Critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   this->last_start_time = MPI_Wtime();
 }
 
-void _Critter::stop(){
+void _critter::stop(){
   double dt = MPI_Wtime() - this->last_start_time;
   this->my_comm_time += dt;
   this->crit_comm_time += dt;	// Will get updated after an AllReduce to find the current critical path
@@ -263,7 +263,7 @@ void _Critter::stop(){
   curComputationTimer = MPI_Wtime();		// reset this again
 }
 
-void _Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void _critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   double old_cs[5];
   double new_cs[5];
   old_cs[0] = this->crit_bytes;
@@ -292,7 +292,7 @@ void _Critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   this->crit_wrd       = new_cs[4];
 }
 
-void _Critter::compute_avg_crit_update(){
+void _critter::compute_avg_crit_update(){
   /*
   // Contribute to running totals
   this->crit_bytesSum += this->crit_bytes;
@@ -315,7 +315,7 @@ void _Critter::compute_avg_crit_update(){
   this->my_bar_time  = new_cs[2] / WorldSize;
 }
 
-void _Critter::print_crit(std::ofstream& fptr, std::string name){
+void _critter::print_crit(std::ofstream& fptr, std::string name){
   if (this->last_start_time != -1.){
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
@@ -330,20 +330,20 @@ void _Critter::print_crit(std::ofstream& fptr, std::string name){
   }
 }
 
-void _Critter::print_crit_avg(std::ofstream& fptr, int numIter){
+void _critter::print_crit_avg(std::ofstream& fptr, int numIter){
   if (this->last_start_time != -1.){
     fptr << this->name << "\t" << this->crit_bytesSum/numIter << "\t" << this->crit_comm_timeSum/numIter << "\t" << this->crit_bar_timeSum/numIter << "\t" << this->crit_msgSum/numIter << "\t" << this->crit_wrdSum/numIter << std::endl;
   }
 }
 
-void _Critter::print_local(){
+void _critter::print_local(){
   if (this->last_start_time != -1.){
     printf("loc%s\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
     //printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
   }
 }
 
-std::pair<double,double> _Critter::get_crit_cost(){
+std::pair<double,double> _critter::get_crit_cost(){
   return std::pair<double,double>(crit_msg, crit_wrd); 
 }
 
