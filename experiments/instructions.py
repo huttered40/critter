@@ -19,11 +19,9 @@ numHours="01"
 numMinutes="00"
 numSeconds="00"
 email="hutter2@illinois.edu"
-dataType=1
-intType=1
 analyzeDecision1=1
 analyzeDecision2=0
-mpiType="mpi"
+mpiType="mpi"	# Not specified to critter
 if (os.system("hostname |grep \"porter\"") != ""):
     if (mpiType == "mpi"):
         minPEcountPerNode=1
@@ -63,7 +61,7 @@ Test1=[[Algorithm1],"Strong Scaling"]
 AlgorithmList=[Test1]
 
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
-                 numTests,numHours,numMinutes,numSeconds,email,dataType,intType,analyzeDecision1,analyzeDecision2,mpiType,minPEcountPerNode,maxPEcountPerNode,\
+                 numTests,numHours,numMinutes,numSeconds,email,analyzeDecision1,analyzeDecision2,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,AlgorithmList)
 #Launcher.build()

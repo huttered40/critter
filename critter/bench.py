@@ -41,7 +41,7 @@ class bench(object):
                  ppnScaleOperatorList,\
                  tprScaleOperatorList,\
 		 SubmitToQueue,\
-		 AlgorithmList):
+		 TestList):
         """
         CritterPath - specify full path to Critter repository
                     - do not include a '/' after 'critter'
@@ -68,18 +68,10 @@ class bench(object):
 
         email - specify email address that you'd like job updates to appear
 
-        dataType - float[0], double[1], complex<float>[2], complex<double>[3]
-                 - only relevant if test file uses an environment variable to specify this
-
-        intType - int[0], int64_t[1]
-                - only relevant if test file uses an environment variable to specify this
-
         analyzeDecision1 - profile using Critter
 
         analyzeDecision2 - profile using TAU
                          - not currently supported
-
-        mpiType - specify 'mpi' (unless on Porter, then 'ampi' is available)
 
         minPEcountPerNode/maxPEcountPerNode - specify the min and max number of processing elements (processes per node x threads per process)
 
@@ -103,7 +95,13 @@ class bench(object):
 
         SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
 
-        AlgorithmList - list of lists of algorithm class instances
+        TestList - list of lists
+	              - each inner list holds:
+		          - a list of 'algorithm' instances to be tested against
+			  - a string detailing the kind of scaling study
+			  - a list holding a list of strings detailing the specific launch, where each string is accompanied by a tuple of column names used for plotting,
+			     each listed in the same data file
+			        - strings must be in order corresponding to how they are called in source code.
                       - outer list must be of length 'numTests'
                       - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
         """
@@ -118,11 +116,8 @@ class bench(object):
         self.numMinutes = numMinutes
         self.numSeconds = numSeconds
         self.email = email
-        self.dataType = dataType
-        self.intType = intType
         self.analyzeDecision1 = analyzeDecision1
         self.analyzeDecision2 = analyzeDecision2
-        self.mpiType = mpiType
         self.minPEcountPerNode = minPEcountPerNode
         self.maxPEcountPerNode = maxPEcountPerNode
         self.nodeMinList = nodeMinList
@@ -138,15 +133,10 @@ class bench(object):
         self.ppnScaleOperatorList=ppnScaleOperatorList
         self.tprScaleOperatorList=tprScaleOperatorList
         self.SubmitToQueue = SubmitToQueue
-        self.AlgorithmList = AlgorithmList
+        self.TestList = TestList
         dateStr=datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
         self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.MachineName,roundID)
         self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.MachineName)
-
-        if (self.mpiType == "mpi"):
-            os.environ["MPITYPE"] = "MPI_TYPE"
-        elif (self.mpiType == "ampi"):
-            os.environ["MPITYPE"] = "AMPI_TYPE"
 
         # TODO: create conditional check to see if Tests/ exists. Its not tracked by git.
 	call("mkdir %s/Tests"%(self.CritterPath),shell=True)
@@ -155,19 +145,6 @@ class bench(object):
 	#   before being moved to SCRATCH
         call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
         call("mkdir %s/Tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
-
-        if (dataType == 0):
-            os.environ["DATATYPE"] = "FLOAT_TYPE"
-        elif (dataType == 1):
-            os.environ["DATATYPE"] = "DOUBLE_TYPE"
-        elif (dataType == 2):
-            os.environ["DATATYPE"] = "COMPLEX_FLOAT_TYPE"
-        elif (dataType == 3):
-            os.environ["DATATYPE"] = "COMPLEX_DOUBLE_TYPE"
-        if (intType == 0):
-            os.environ["INTTYPE"] = "INT_TYPE"
-        elif (intType == 1):
-            os.environ["INTTYPE"] = "INT64_T_TYPE"
 
         self.MachineType.set()
         os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin"%(self.testName)
@@ -192,7 +169,7 @@ class bench(object):
 	return Count
 
     def WriteAlgorithmInfoForPlotting(self,TestID,AlgID):
-        for param in self.AlgorithmList[TestID][0][AlgID]:
+        for param in self.TestList[TestID][0][AlgID]:
             self.PlotInstructionsFile.write(str(param)+"\n")
 
     def WriteHeaderForCollection(self,File):
@@ -310,24 +287,20 @@ class bench(object):
         numProcesses=node*ppn
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
-        MethodStringPerformance = BinaryPath+"_PERFORMANCE"+"".join(" "+str(x) for x in AlgParameters)+" %s"%(fileString)
-        # Launch performance job always.
-	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodStringPerformance)
-        # TODO: For now, just assume that critter job is always launched as well, and timer job is not an option
-        MethodStringCritter = BinaryPath+"_CRITTER"+"".join(" "+str(x) for x in AlgParameters)+" %s"%(fileString)
-	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodStringCritter)
+        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)+" %s"%(fileString)
+	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodString)
 
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
-        fileString="DataFiles/%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
+        fileString="DataFiles/%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
 	          +"".join("_"+str(x) for x in AlgParameters) + "_%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-        #PreFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-        #       +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
-        #PostFile="%s_%dtest"%(self.AlgorithmList[TestID][0][AlgID].Tag,TestID)\
-        #       +"".join("_"+str(x) for x in self.AlgorithmList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+        #PreFile="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+        #       +"".join("_"+str(x) for x in self.TestList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+        #PostFile="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+        #       +"".join("_"+str(x) for x in self.TestList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
 
         #UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
         #UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
@@ -343,7 +316,7 @@ class bench(object):
         #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
         #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.AlgorithmList[TestID][0][AlgID],AlgParameters,PrePath+"/%s"%(fileString))
+        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.TestList[TestID][0][AlgID],AlgParameters,PrePath+"/%s"%(fileString))
         #writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
@@ -377,45 +350,38 @@ class bench(object):
                                         self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
 				        PortalDict[TupleKey]=1
                                 elif (op == 2):
-                                    if (self.AlgorithmList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
+                                    if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
 				        self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                             curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                         curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
                     curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
 		    if (op == 2):
-		        self.AlgorithmList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
+		        self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
                     scaleIndex=scaleIndex+1
 
     def queue_submit(self):
         """
         """
 	if (self.SubmitToQueue == 1):
-          # Create directory to hold all binaries and then move them from ../Tests/testName/bin
-          call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
-	  call("mv ../Tests/%s/bin/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName),shell=True)
-          self.portal(0,0,self.NumTests)
+	    # Create directory to hold all binaries and then move them from ../Tests/testName/bin
+            call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
+	    call("mv ../Tests/%s/bin/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName),shell=True)
+            self.portal(0,0,self.NumTests)
 
     def build(self):
         """
         """
         for lib in self.LibraryTypeList:
-            os.environ["PROFTYPE"]="PERFORMANCE"
             # export SPECIAL_SCALA_ARG=REF
             lib.build(self.CritterPath,self.testName)
-            if (self.analyzeDecision1 == 1):
-                os.environ["PROFTYPE"]="CRITTER"
-                lib.build(self.CritterPath,self.testName)
-            #if (self.analyzeDecision2 == 1):
-            #    os.environ["PROFTYPE"]="PROFILE"
-            #    lib.build()
 
     def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList):
         """
 	"""
         # base case at the last level -- this is when we are sure a valid parameter combination exists
-	if (ParameterIndex == self.AlgorithmList[TestIndex][0][AlgIndex].NumParameters):
+	if (ParameterIndex == self.TestList[TestIndex][0][AlgIndex].NumParameters):
             # Echo for SCAPLOT makefile generator
-            BinaryTag=self.AlgorithmList[TestIndex][0][AlgIndex].Tag
+            BinaryTag=self.TestList[TestIndex][0][AlgIndex].Tag
             self.CollectInstructionsStage1File.write("%s\n"%(BinaryTag))
             self.CollectInstructionsStage2File.write("%s\n"%(BinaryTag))
             self.PlotInstructionsFile.write("%s\n"%(BinaryTag))
@@ -431,12 +397,12 @@ class bench(object):
 
         IsValid=1
 	while (IsValid):
-	    if (AlgParameterList[ParameterIndex] == self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterEndRange[ParameterIndex]):
+	    if (AlgParameterList[ParameterIndex] == self.TestList[TestIndex][0][AlgIndex].InputParameterEndRange[ParameterIndex]):
 	        IsValid=0
             VariantIndex = self.cycle(TestIndex,AlgIndex,VariantIndex,ParameterIndex+1,list(AlgParameterList))
             if (IsValid):
-	        AlgParameterList[ParameterIndex] = self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterScaleOperator[ParameterIndex](\
-                    AlgParameterList[ParameterIndex],self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterScaleFactor[ParameterIndex])
+	        AlgParameterList[ParameterIndex] = self.TestList[TestIndex][0][AlgIndex].InputParameterScaleOperator[ParameterIndex](\
+                    AlgParameterList[ParameterIndex],self.TestList[TestIndex][0][AlgIndex].InputParameterScaleFactor[ParameterIndex])
 	    else:
 	        return VariantIndex
 
@@ -461,7 +427,7 @@ class bench(object):
         for TestIndex in range(0,self.numTests):
             print("\nTest %d"%(TestIndex))
 
-            self.PlotInstructionsFile.write("%s"%(self.AlgorithmList[TestIndex][1]))
+            self.PlotInstructionsFile.write("%s"%(self.TestList[TestIndex][1]))
             NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
 	    self.PlotInstructionsFile.write("%d"%(NodeCount))
             self.GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
@@ -471,10 +437,10 @@ class bench(object):
             #echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
             #echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
-            for AlgIndex in range(len(self.AlgorithmList[TestIndex][0])):
-                print("\n  Algorithm %s"%(self.AlgorithmList[TestIndex][0][AlgIndex].Tag))
+            for AlgIndex in range(len(self.TestList[TestIndex][0])):
+                print("\n  Algorithm %s"%(self.TestList[TestIndex][0][AlgIndex].Tag))
                 VariantIndex=0
-		AlgParameterList=list(self.AlgorithmList[TestIndex][0][AlgIndex].InputParameterStartRange)
+		AlgParameterList=list(self.TestList[TestIndex][0][AlgIndex].InputParameterStartRange)
 		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList)
             self.CollectInstructionsStage1File.write("1\n")
             self.CollectInstructionsStage2File.write("1\n")

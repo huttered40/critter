@@ -403,65 +403,101 @@ void PrintCritterHeader(std::ofstream& Stream, size_t NumInputs){
   }
 }
 
-void print(std::ofstream& Stream, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames){
-  volatile double endTimer = MPI_Wtime();
-  double timeDiff = endTimer - curComputationTimer;
-  double maxCurTime;
-  PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-  assert(critter_req.size() == 0);
-  totalCritComputationTime += maxCurTime;
-  int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-  compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
-  compute_all_avg_crit_updates();
-  for (int i=0; i<NUM_CRITTERS; i++){
-    totalCommunicationTime += critter_list[i]->crit_comm_time;
-    totalIdleTime += critter_list[i]->crit_bar_time;
-  }
-  if (myrank == 0){
-    /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-    PrintBreakdownHeader(Stream,NumInputs);
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
-    // Save the critter information before printing
+void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData, double* Data){
+  if (UseCritter){
+    volatile double endTimer = MPI_Wtime();
+    double timeDiff = endTimer - curComputationTimer;
+    double maxCurTime;
+    PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    assert(critter_req.size() == 0);
+    totalCritComputationTime += maxCurTime;
+    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
+    compute_all_avg_crit_updates();
     for (int i=0; i<NUM_CRITTERS; i++){
-      critter_list[i]->print_crit(Stream,AlgName);
+      totalCommunicationTime += critter_list[i]->crit_comm_time;
+      totalIdleTime += critter_list[i]->crit_bar_time;
     }
-    /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-    PrintCritterHeader(Stream,NumInputs);
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<0>(it.second);
+    if (IsWorldRoot){
+      // Open temporary file to populate Critter Comm/Comp/Overlap breakdown info
+      std::ofstream StreamBreakDown;
+      std::string FileNameBreakDown = FileName + "_breakdown.txt";
+      StreamBreakDown.open(FileNameBreakDown.c_str());
+      /*Note: First iteration prints out the column headers for each tracked MPI routine*/
+      PrintBreakdownHeader(StreamBreakDown,NumInputs);
+      PrintInputs(StreamBreakDown,NumPEs,NumInputs,InputNames,Inputs);
+      StreamBreakDown << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      StreamBreakDown.close();
+
+      // Save the critter information before printing
+      for (int i=0; i<NUM_CRITTERS; i++){
+        critter_list[i]->print_crit(Stream,AlgName);
+      }
+      /*Note: First iteration prints out the column headers for each tracked MPI routine*/
+      PrintCritterHeader(Stream,NumInputs);
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<0>(it.second);
+     }
+     PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<1>(it.second);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<2>(it.second);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<3>(it.second);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<4>(it.second);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<5>(it.second);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<6>(it.second);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto& it : saveCritterInfo){
+        Stream << "\t" << std::get<7>(it.second);
+      }
+      Stream << "\n";
+      saveCritterInfo.clear();
     }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<1>(it.second);
+  }
+  else{
+    if (IsWorldRoot){
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      for (auto i=0; i<NumData; i++){
+        Stream << "\t" << Data[i];
+      }
+      Stream << "\n";
     }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<2>(it.second);
-    }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<3>(it.second);
-    }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<4>(it.second);
-    }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<5>(it.second);
-    }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<6>(it.second);
-    }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-    for (auto& it : saveCritterInfo){
-      Stream << "\t" << std::get<7>(it.second);
-    }
-    Stream << "\n";
-    saveCritterInfo.clear();
+  }
+}
+
+void init(bool _UseCritter, std::string _FileName){
+  FileName = std::move(_FileName);
+  // Reason .. is the one corner case where critter-stats output must populate two files instead of one (breakdown is the 2nd)
+  StreamName = FileName + ".txt";
+  UseCritter = _UseCritter;
+
+  int rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  if (rank == 0){
+    IsWorldRoot = true;
+    Stream.open(StreamName.c_str());
+  } else {IsWorldRoot=false;}
+}
+
+void finalize(){
+  if (IsWorldRoot){
+    Stream.close();
   }
 }
 

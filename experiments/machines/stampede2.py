@@ -14,7 +14,8 @@ class stampede2(object):
     @staticmethod
     def set():
         # Note: SCRATCH environment variable does not need to be set
-        pass
+        os.environ["MPITYPE"] = "MPI_TYPE"
+        #os.environ["MPITYPE"] = "AMPI_TYPE"
 
     @staticmethod
     def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):

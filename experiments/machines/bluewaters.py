@@ -18,6 +18,8 @@ class bluewaters(object):
         """
 	"""
         os.environ["SCRATCH"] = "/scratch/sciteam/hutter"
+        os.environ["MPITYPE"] = "MPI_TYPE"
+        #os.environ["MPITYPE"] = "AMPI_TYPE"
         #read -p "Do you want the Intel Programming Environment (I) or the GNU Programming Environment (G) (choose G if running on GPU): " bwPrgEnv
         bwPrgEnv="G"
         if (bwPrgEnv == "I"):

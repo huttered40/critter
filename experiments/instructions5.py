@@ -20,8 +20,6 @@ numHours="01"
 numMinutes="00"
 numSeconds="00"
 email="hutter2@illinois.edu"
-dataType=1
-intType=1
 analyzeDecision1=1
 analyzeDecision2=0
 mpiType="mpi"
@@ -60,13 +58,14 @@ Algorithm1 = algorithm("candmc_bsqr",\
                        lambda InputList,HardwareList: True,\
 		       [[2,1,1,1,1,1,1],[2,2,1,1,2,1,1]],\
 		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
-Test1=[[Algorithm1],"Weak Scaling"]
-AlgorithmList=[Test1]
+File1 = [["perf",("Performance","Residual","Deviation from Orthogonality")]]
+Test1=[[Algorithm1],"Weak Scaling",File1]
+TestList=[Test1]
 
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
-                 numTests,numHours,numMinutes,numSeconds,email,dataType,intType,analyzeDecision1,analyzeDecision2,mpiType,minPEcountPerNode,maxPEcountPerNode,\
+                 numTests,numHours,numMinutes,numSeconds,email,analyzeDecision1,analyzeDecision2,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
-                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,AlgorithmList)
+                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,TestList)
 #Launcher.build()
 Launcher.generate()
 Launcher.launch()

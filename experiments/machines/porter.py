@@ -16,6 +16,8 @@ class porter(object):
         """
 	"""
         os.environ["SCRATCH"] = os.environ["HOME"]+"/hutter2/ExternalLibraries/critter/Tests"
+        os.environ["MPITYPE"] = "MPI_TYPE"
+        #os.environ["MPITYPE"] = "AMPI_TYPE"
 
     @staticmethod
     def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
