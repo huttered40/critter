@@ -20,8 +20,6 @@ numHours="01"
 numMinutes="00"
 numSeconds="00"
 email="hutter2@illinois.edu"
-analyzeDecision1=1
-analyzeDecision2=0
 mpiType="mpi"
 if (os.system("hostname |grep \"porter\"") != ""):
     if (mpiType == "mpi"):
@@ -63,7 +61,7 @@ Test1=[[Algorithm1],"Weak Scaling",File1]
 TestList=[Test1]
 
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
-                 numTests,numHours,numMinutes,numSeconds,email,analyzeDecision1,analyzeDecision2,minPEcountPerNode,maxPEcountPerNode,\
+                 numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,TestList)
 Launcher.build()

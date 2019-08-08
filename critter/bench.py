@@ -21,8 +21,6 @@ class bench(object):
 		 numMinutes,\
 		 numSeconds,\
 		 email,\
-		 analyzeDecision1,\
-		 analyzeDecision2,\
 		 minPEcountPerNode,\
 		 maxPEcountPerNode,\
 		 nodeMinList,\
@@ -64,11 +62,6 @@ class bench(object):
                                        - must be specified as two-digit strings
 
         email - specify email address that you'd like job updates to appear
-
-        analyzeDecision1 - profile using Critter
-
-        analyzeDecision2 - profile using TAU
-                         - not currently supported
 
         minPEcountPerNode/maxPEcountPerNode - specify the min and max number of processing elements (processes per node x threads per process)
 
@@ -113,8 +106,6 @@ class bench(object):
         self.numMinutes = numMinutes
         self.numSeconds = numSeconds
         self.email = email
-        self.analyzeDecision1 = analyzeDecision1
-        self.analyzeDecision2 = analyzeDecision2
         self.minPEcountPerNode = minPEcountPerNode
         self.maxPEcountPerNode = maxPEcountPerNode
         self.nodeMinList = nodeMinList
