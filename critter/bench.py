@@ -21,11 +21,8 @@ class bench(object):
 		 numMinutes,\
 		 numSeconds,\
 		 email,\
-		 dataType,\
-		 intType,\
 		 analyzeDecision1,\
 		 analyzeDecision2,\
-		 mpiType,\
 		 minPEcountPerNode,\
 		 maxPEcountPerNode,\
 		 nodeMinList,\
@@ -281,13 +278,16 @@ class bench(object):
     """
 
     # Functions that write the actual script, depending on machine
-    def launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,AlgParameters,fileString):
+    def launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,AlgParameters,fileString,fileExtensions):
         """
 	"""
         numProcesses=node*ppn
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
-        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)+" %s"%(fileString)
+        # Allow for any number of user-defined tests
+        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters);
+	for i in range(len(fileExtensions)):
+            MethodString = MethodString + " %s_%s"%(fileString,fileExtensions[i][0])
 	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodString)
 
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
@@ -316,7 +316,7 @@ class bench(object):
         #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
         #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
         # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.TestList[TestID][0][AlgID],AlgParameters,PrePath+"/%s"%(fileString))
+        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.TestList[TestID][0][AlgID],AlgParameters,PrePath+"/%s"%(fileString),self.TestList[TestID][2])
         #writePlotFileName fileString self.CollectInstructionsStage1File 0
 
 
