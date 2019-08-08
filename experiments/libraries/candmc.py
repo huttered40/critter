@@ -14,5 +14,5 @@ class candmc(object):
             candmcDir="~/CANDMC"
 
         call("cd %s; make clean; rm config.mk; ./configure; make bench_scala_qr; cd -"%(candmcDir),shell=True)
-        call("mv %s/bin/benchmarks/bench_scala_qr %s/bin/benchmarks/candmc_rsqr_%s"%(candmcDir,candmcDir,os.environ["PROFTYPE"]),shell=True)
-        call("mv %s/bin/benchmarks/candmc_rsqr_%s %s/Tests/%s/bin/"%(candmcDir,os.environ["PROFTYPE"],CritterPath,testName),shell=True)
+        call("mv %s/bin/benchmarks/bench_scala_qr %s/bin/benchmarks/candmc_rsqr"%(candmcDir,candmcDir),shell=True)
+        call("mv %s/bin/benchmarks/candmc_rsqr %s/Tests/%s/bin/"%(candmcDir,CritterPath,testName),shell=True)
