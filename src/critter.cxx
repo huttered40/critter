@@ -114,6 +114,10 @@ double totalIdleTime;
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::map<std::string,std::vector<std::string>> AlgCritters;
+std::string StreamName,FileName;
+bool UseCritter;
+std::ofstream Stream,StreamBreakDown;
+bool IsWorldRoot;
 
 void FillAlgCritterList(){
   // Fill in algorithm-specific critter names, as scaling studies for some variants might not incorporate the same as others
@@ -384,6 +388,7 @@ void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char
 }
 
 void PrintBreakdownHeader(std::ofstream& Stream, size_t NumInputs){
+  Stream << "\n";
   for (size_t idx = 0; idx < (2*NumInputs+1); idx++){
     Stream << "Input\t";
   }
@@ -418,15 +423,9 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
       totalIdleTime += critter_list[i]->crit_bar_time;
     }
     if (IsWorldRoot){
-      // Open temporary file to populate Critter Comm/Comp/Overlap breakdown info
-      std::ofstream StreamBreakDown;
-      std::string FileNameBreakDown = FileName + "_breakdown.txt";
-      StreamBreakDown.open(FileNameBreakDown.c_str());
-      /*Note: First iteration prints out the column headers for each tracked MPI routine*/
       PrintBreakdownHeader(StreamBreakDown,NumInputs);
       PrintInputs(StreamBreakDown,NumPEs,NumInputs,InputNames,Inputs);
       StreamBreakDown << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
-      StreamBreakDown.close();
 
       // Save the critter information before printing
       for (int i=0; i<NUM_CRITTERS; i++){
@@ -492,12 +491,19 @@ void init(bool _UseCritter, std::string _FileName){
   if (rank == 0){
     IsWorldRoot = true;
     Stream.open(StreamName.c_str());
+    if (UseCritter){
+      std::string FileNameBreakDown = FileName + "breakdown.txt";
+      StreamBreakDown.open(FileNameBreakDown.c_str());
+    }
   } else {IsWorldRoot=false;}
 }
 
 void finalize(){
   if (IsWorldRoot){
     Stream.close();
+    if (UseCritter){
+      StreamBreakDown.close();
+    }
   }
 }
 
