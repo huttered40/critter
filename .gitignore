@@ -1,7 +1,6 @@
 critter.egg-info
 Tests/*
 *.pyc
-setup.py
 bin/*
 lib/*
 obj/*
