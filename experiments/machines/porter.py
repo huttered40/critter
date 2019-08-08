@@ -29,9 +29,9 @@ class porter(object):
     def writeTest(numProcesses,ppn,tpr,AlgInputString):
         """
 	"""
-	Str1="mpiexec -n %d " %(numProcesses)
+        Str1="mpiexec -n %d " %(numProcesses)
         print("\n      "+Str1+AlgInputString)
-        #call(Str1+AlgInputString,shell=True)
+        call(Str1+AlgInputString,shell=True)
         #${BINARYPATH}charmrun +p1 +vp${numProcesses} ${@:5:$#}
 
     @staticmethod
