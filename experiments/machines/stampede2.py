@@ -21,8 +21,8 @@ class stampede2(object):
     def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
         scriptFile.write("#!/bin/bash\n")
         scriptFile.write("#SBATCH -J %s_%dnodes_%dppn_%dtpr\n" %(testName,curNumNodes,curPPN,curTPR))
-        scriptFile.write("#SBATCH -o %s_%dnodes_%dppn_%dtpr.o%j\n" %(testName,curNumNodes,curPPN,curTPR))
-        scriptFile.write("#SBATCH -e %s_%dnodes_%dppn_%dtpr.e%j\n" %(testName,curNumNodes,curPPN,curTPR))
+        scriptFile.write("#SBATCH -o %s_%dnodes_%dppn_%dtpr.o\n" %(testName,curNumNodes,curPPN,curTPR))
+        scriptFile.write("#SBATCH -e %s_%dnodes_%dppn_%dtpr.e\n" %(testName,curNumNodes,curPPN,curTPR))
         if (curNumNodes <= 256):
             scriptFile.write("#SBATCH -p normal\n")
         else:
@@ -33,7 +33,7 @@ class stampede2(object):
         scriptFile.write("export MKL_NUM_THREADS=%d\n" %(curTPR))
 
     @staticmethod
-    def writeTest(numProcesses,ppn,tpr,AlgInputString):
+    def write_test(ScriptFile,numProcesses,ppn,tpr,AlgInputString):
         """
 	"""
         Str1="ibrun "

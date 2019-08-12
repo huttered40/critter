@@ -279,7 +279,9 @@ class bench(object):
         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters);
 	for i in range(len(fileExtensions)):
             MethodString = MethodString + " %s_%s"%(fileString,fileExtensions[i][0])
-	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodString)
+        scriptFile=open(scriptName,"a+")
+	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
+        scriptFile.close()
 
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
@@ -339,6 +341,7 @@ class bench(object):
                                         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                         scriptFile=open(scriptName,"a+")
                                         self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
+                                        scriptFile.close()
 				        PortalDict[TupleKey]=1
                                 elif (op == 2):
                                     if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):

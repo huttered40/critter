@@ -63,7 +63,7 @@ class bluewaters(object):
         #fi
 
     @staticmethod
-    def writeTest(numProcesses,ppn,tpr,AlgInputString):
+    def write_test(ScriptFile,numProcesses,ppn,tpr,AlgInputString):
         """
 	"""
 	Str1="aprun -n %d -N %d -d %d " %(numProcesses,ppn,tpr)

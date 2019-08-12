@@ -35,10 +35,10 @@ elif (os.system("hostname |grep \"h2o\"") != 256):
     maxPEcountPerNode=32
 nodeMinList=[1]
 nodeMaxList=[8]
-ppnMinList=[[32,32]]
-ppnMaxList=[[64,64]]
-tprMinList=[[1,1]]
-tprMaxList=[[2,2]]
+ppnMinList=[[32,32,32,32]]
+ppnMaxList=[[64,64,64,64]]
+tprMinList=[[1,1,1,1]]
+tprMaxList=[[2,2,2,2]]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[2]
 tprScaleFactorList=[2]
@@ -64,5 +64,5 @@ Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunc
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,TestList)
 Launcher.build()
-#Launcher.generate()
+Launcher.generate()
 #Launcher.launch()
