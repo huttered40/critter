@@ -13,7 +13,7 @@ class camfs(object):
         elif (os.system("hostname |grep \"h2o\"") != 256):
             camfsDir="~/CAMFS"
 
-        #call("make -C%s/src clean"%(camfsDir),shell=True)
-        #call("make -C%s/src all"%(camfsDir),shell=True)
-        #call("cd %s/src/bin; for j in *; do mv -- \"$j\" \"camfs_$j\"; done; cd -;"%(camfsDir),shell=True)
-        #call("mv %s/src/bin/* %s/Tests/%s/bin/"%(camfsDir,CritterPath,testName),shell=True)
+        call("make -C%s/src clean"%(camfsDir),shell=True)
+        call("make -C%s/src all"%(camfsDir),shell=True)
+        call("cd %s/src/bin; for j in *; do mv -- \"$j\" \"camfs_$j\"; done; cd -;"%(camfsDir),shell=True)
+        call("mv %s/src/bin/* %s/Tests/%s/bin/"%(camfsDir,CritterPath,testName),shell=True)

@@ -8,7 +8,7 @@ from critter import (bench,algorithm)
 from machines import (stampede2)
 from libraries import (camfs)
 
-CritterPath=os.environ["HOME"]
+CritterPath=os.environ["HOME"]+"/critter/"
 MachineType=stampede2
 LibraryTypeList=[camfs]
 fileID="benchQR1"
