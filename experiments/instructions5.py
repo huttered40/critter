@@ -21,17 +21,17 @@ numMinutes="00"
 numSeconds="00"
 email="hutter2@illinois.edu"
 mpiType="mpi"
-if (os.system("hostname |grep \"porter\"") != ""):
+if (os.system("hostname |grep \"porter\"") != 256):
     if (mpiType == "mpi"):
         minPEcountPerNode=64
         maxPEcountPerNode=128
     elif (mpiType == "ampi"):
         minPEcountPerNode=1
         maxPEcountPerNode=512
-elif (os.system("hostname |grep \"stampede2\"") != ""):
+elif (os.system("hostname |grep \"stampede2\"") != 256):
     minPEcountPerNode=64          # Note: this will need to be changed before launching Critter runs
     maxPEcountPerNode=128
-elif (os.system("hostname |grep \"h2o\"") != ""):
+elif (os.system("hostname |grep \"h2o\"") != 256):
     minPEcountPerNode=16
     maxPEcountPerNode=32
 nodeMinList=[8]

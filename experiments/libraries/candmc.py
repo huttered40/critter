@@ -6,11 +6,11 @@ class candmc(object):
     """
     @staticmethod
     def build(CritterPath,testName):
-        if (os.system("hostname |grep \"porter\"") != ""):
+        if (os.system("hostname |grep \"porter\"") != 256):
             candmcDir="~/hutter2/ExternalLibraries/CANDMC"
-        elif (os.system("hostname |grep \"stampede2\"") != ""):
+        elif (os.system("hostname |grep \"stampede2\"") != 256):
             candmcDir="~/CANDMC"
-        elif (os.system("hostname |grep \"h2o\"") != ""):
+        elif (os.system("hostname |grep \"h2o\"") != 256):
             candmcDir="~/CANDMC"
 
         call("cd %s; make clean; rm config.mk; ./configure; make bench_scala_qr; cd -"%(candmcDir),shell=True)
