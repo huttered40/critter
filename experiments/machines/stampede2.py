@@ -37,7 +37,7 @@ class stampede2(object):
         """
 	"""
         Str1="ibrun "
-        ScriptFile.write(Str1+AlgInputString)
+        ScriptFile.write(Str1+AlgInputString+"\n")
 
     @staticmethod
     def queue(Script):

@@ -67,7 +67,7 @@ class bluewaters(object):
         """
 	"""
 	Str1="aprun -n %d -N %d -d %d " %(numProcesses,ppn,tpr)
-        ScriptFile.write(Str1+AlgInputString)
+        ScriptFile.write(Str1+AlgInputString+"\n")
 
     @staticmethod
     def queue(Script):
