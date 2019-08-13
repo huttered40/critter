@@ -5,7 +5,7 @@ class stampede2(object):
     """
     """
     BatchFileExtension="sh"
-    Batch="sbatch --mail-user=hutter2@illinois.edu --mailtype=all"
+    Batch="sbatch --mail-user=hutter2@illinois.edu --mail-type=all"
     AllocationName=""
     MachineName="STAMPEDE2"
     PeakNetworkInjectionRate=None
@@ -42,7 +42,7 @@ class stampede2(object):
     @staticmethod
     def queue(Script):
         call("cd %s; chmod +x %s"%(os.environ["SCRATCH"],Script),shell=True)
-        call("cd %s; %s %s"%(os.environ["SCRATCH"],Batch,Script),shell=True)
+        call("cd %s; %s %s"%(os.environ["SCRATCH"],stampede2.Batch,Script),shell=True)
 
     @staticmethod
     def IsAccelerated():

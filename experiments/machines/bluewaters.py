@@ -71,7 +71,7 @@ class bluewaters(object):
 
     @staticmethod
     def queue(Script):
-        call("cd %s; %s %s"%(os.environ["SCRATCH"],Batch,Script),shell=True)
+        call("cd %s; %s %s"%(os.environ["SCRATCH"],bluewaters.Batch,Script),shell=True)
 
     @staticmethod
     def IsAccelerated():

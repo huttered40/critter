@@ -35,7 +35,6 @@ class bench(object):
                  nodeScaleOperatorList,\
                  ppnScaleOperatorList,\
                  tprScaleOperatorList,\
-		 SubmitToQueue,\
 		 TestList):
         """
         CritterPath - specify full path to Critter repository
@@ -83,8 +82,6 @@ class bench(object):
 
         tprScaleOperatorList - scaling operator to apply to the number of threads per MPI rank (tpr) for each test
 
-        SubmitToQueue - '1' to submit jobs to queue, '0' to not submit to queue
-
         TestList - list of lists
 	              - each inner list holds:
 		          - a list of 'algorithm' instances to be tested against
@@ -120,7 +117,6 @@ class bench(object):
         self.nodeScaleOperatorList=nodeScaleOperatorList
         self.ppnScaleOperatorList=ppnScaleOperatorList
         self.tprScaleOperatorList=tprScaleOperatorList
-        self.SubmitToQueue = SubmitToQueue
         self.TestList = TestList
         dateStr=datetime.datetime.now().strftime('%b-%d-%I%M%p-%G')
         self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.MachineName,roundID)
@@ -139,6 +135,7 @@ class bench(object):
 
         call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
+        call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
 
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.sh"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsStage1File = open("%s/%s/collectInstructionsStage1.sh"%(os.environ["SCRATCH"],self.testName),"a+")
@@ -332,7 +329,7 @@ class bench(object):
                                 if (op == 0):
                                     TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
 				    if not(TupleKey in PortalDict):
-                                        scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNode,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                        scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                         self.MachineType.queue(scriptName)
 				        PortalDict[TupleKey]=1
                                 elif (op == 1):
@@ -356,11 +353,9 @@ class bench(object):
     def queue_submit(self):
         """
         """
-	if (self.SubmitToQueue == 1):
-	    # Create directory to hold all binaries and then move them from ../Tests/testName/bin
-            call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
-	    call("mv ../Tests/%s/bin/* %s/%s/bin"%(self.testName,os.environ["SCRATCH"],self.testName),shell=True)
-            self.portal(0,0,self.NumTests)
+	# Create directory to hold all binaries and then move them from ../Tests/testName/bin
+	call("mv %s/Tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
+        self.portal(0,0,self.numTests)
 
     def build(self):
         """

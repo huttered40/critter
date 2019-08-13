@@ -38,17 +38,16 @@ nodeMaxList=[8]
 ppnMinList=[[32,32,32,32]]
 ppnMaxList=[[64,64,64,64]]
 tprMinList=[[1,1,1,1]]
-tprMaxList=[[2,2,2,2]]
+tprMaxList=[[1,1,1,1]]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[2]
 tprScaleFactorList=[2]
 nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
-SubmitToQueue=0
 Algorithm1 = algorithm("camfs_cacqr2",\
                        [8192,512,0,0,0,1,3],\
-		       [8192,512,0,0,0,2,3],\
+		       [8192,512,0,0,0,8,3],\
 		       [1,1,1,1,1,2,1],\
 		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
@@ -62,7 +61,7 @@ TestList=[Test1]
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
-                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,TestList)
+                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
 Launcher.build()
 Launcher.generate()
-#Launcher.launch()
+Launcher.launch()

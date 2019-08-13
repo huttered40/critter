@@ -45,7 +45,6 @@ tprScaleFactorList=[2]
 nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
-SubmitToQueue=0
 Algorithm1 = algorithm("camfs_cholinv",\
                        [128,1,0,0,0,3],\
 		       [128,2,0,0,0,3],\
@@ -62,7 +61,7 @@ TestList=[Test1]
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
-                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,TestList)
+                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
 Launcher.build()
 Launcher.generate()
 Launcher.launch()
