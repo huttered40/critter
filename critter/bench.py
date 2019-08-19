@@ -169,55 +169,31 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
 
-    """
-    def __WriteMethodDataForCollectingStage1(self):
-        MethodTag=\${1}
-        FileNameBase=\${2}
-        FileName1=\${3}
-        FileName2=\${4}
-        WriteFile=\${5}
+    def __WriteMethodDataForCollectingStage1(self,TestID,AlgTag,FileString):
+        self.CollectInstructionsStage1File.write("0\n")
+        self.CollectInstructionsStage1File.write("%s\n"%(AlgTag))
 
-        echo "echo \"0\"" >> \${WriteFile}
-        echo "echo \"\${MethodTag}\"" >> \${WriteFile}
-        echo "echo \"\${FileName1}\"" >> \${WriteFile}
-        if [ "\${MethodTag}" != "bscf" ];
-            echo "echo \"\${FileName2}\"" >> \${WriteFile}
-        if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-            echo "echo \"\${FileNameBase}_critter\"" >> \${WriteFile}
-        if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-            echo "echo \"\${FileNameBase}_timer\"" >> \${WriteFile}
+        FileExtensions=self.TestList[TestID][2]
+        # Allow for any number of user-defined tests
+	for i in range(len(FileExtensions)):
+            self.CollectInstructionsStage1File.write("%s_%s\n"%(FileString,FileExtensions[i][0]))
 
-    def __WriteMethodDataForCollectingStage2(self):
+    def __WriteMethodDataForCollectingStage2(self,launchID,TestID,AlgTag,PreFile,PostFile):
         # Because 'Pre' (Stage1) collapses the NumLaunchesPerBinary, we do not want to overcount.
-        launchID=\${1}
-        if [ \${launchID} -eq 1 ];
-            MethodTag=\${2}
-            PreFileNameBase=\${3}
-            PreFileName1=\${4}
-            PreFileName2=\${5}
-            PostFileNameBase=\${6}
-            PostFileName1=\${7}
-            PostFileName2=\${8}
-            WriteFile=\${9}
+        if (launchID == 1):
+            self.CollectInstructionsStage1File.write("0\n")
+            self.CollectInstructionsStage1File.write("%s\n"%(AlgTag))
 
-            echo "echo \"0\"" >> \${WriteFile}
-            echo "echo \"\${MethodTag}\"" >> \${WriteFile}
-            echo "echo \"\${PostFileName1}\"" >> \${WriteFile}
-            if [ "\${MethodTag}" != "bscf" ];
-                echo "echo \"\${PostFileName2}\"" >> \${WriteFile}
-            if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-                echo "echo \"\${PostFileNameBase}_critter\"" >> \${WriteFile}
-            if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-                echo "echo \"\${PostFileNameBase}_timer\"" >> \${WriteFile}
-            echo "echo \"\${PreFileName1}\"" >> \${WriteFile}
-            if [ "\${MethodTag}" != "bscf" ];
-                echo "echo \"\${PreFileName2}\"" >> \${WriteFile}
-            if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-                echo "echo \"\${PreFileNameBase}_critter\"" >> \${WriteFile}
-            if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-                echo "echo \"\${PreFileNameBase}_timer\"" >> \${WriteFile}
+            FileExtensions=self.TestList[TestID][2]
+            # Allow for any number of user-defined tests
+	    for i in range(len(FileExtensions)):
+                self.CollectInstructionsStage1File.write("%s_%s\n"%(PreFile,FileExtensions[i][0]))
+            # Allow for any number of user-defined tests
+	    for i in range(len(FileExtensions)):
+                self.CollectInstructionsStage1File.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
 
 
+    """
     def __writePlotFileName(self,..):
         # Performance runs will always run, so no reason for an if-statement here
         Prefix1=""
@@ -269,29 +245,29 @@ class bench(object):
     """
 
     # Functions that write the actual script, depending on machine
-    def launchJobs(self,BinaryPath,launchIndex,node,ppn,tpr,AlgorithmInfo,AlgParameters,fileString,fileExtensions):
+    def launchJobs(self,BinaryPath,launchIndex,TestID,AlgID,node,ppn,tpr,AlgParameters,fileString):
         """
 	"""
+	FileExtensions=self.TestList[TestID][2]
         numProcesses=node*ppn
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
         # Allow for any number of user-defined tests
         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters);
-	for i in range(len(fileExtensions)):
-            MethodString = MethodString + " %s_%s"%(fileString,fileExtensions[i][0])
+	for i in range(len(FileExtensions)):
+            MethodString = MethodString + " %s_%s"%(fileString,FileExtensions[i][0])
 	self.MachineType.writeTest(numProcesses,ppn,tpr,MethodString)
 
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,scaleIndex,launchIndex,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
-        fileString="DataFiles/%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-	          +"".join("_"+str(x) for x in AlgParameters) + "_%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+        BaseString="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+                  +"".join("_"+str(x) for x in AlgParameters) + "_%dlaunch_%dppn_%dtpr"%(launchIndex,ppn,tpr)
+        PostFile=BaseString
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-        #PreFile="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-        #       +"".join("_"+str(x) for x in self.TestList[TestID][0][AlgID].CurrentScaleParameters) + "%dlaunch_%dnodes_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
-        #PostFile="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-        #       +"".join("_"+str(x) for x in self.TestList[TestID][0][AlgID].CurrentStartParameters) + "%dlaunch_%dppn_%dtpr"%(launchIndex,node,ppn,tpr)
+        PreFile=BaseString+"%dnodes"%(node)
+        fileString="DataFiles/"+PreFile
 
         #UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
         #UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
@@ -304,11 +280,10 @@ class bench(object):
             #writePlotFileName ${PostFile} self.PlotInstructionsFile 1
             pass
 
-        #WriteAlgorithmInfoForCollectingStage1 ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics self.CollectInstructionsStage1File
-        #WriteAlgorithmInfoForCollectingStage2 ${launchID} ${tag1} ${PreFile} ${PreFile}_perf ${PreFile}_numerics ${PostFile} ${PostFile}_perf ${PostFile}_numerics self.CollectInstructionsStage2File
-        # Don't pass in 'cubeDim', because this is inferred based on the number of processes, as its just the cube root
-        self.launchJobs(BinaryPath,launchIndex,node,ppn,tpr,self.TestList[TestID][0][AlgID],AlgParameters,PrePath+"/%s"%(fileString),self.TestList[TestID][2])
-        #writePlotFileName fileString self.CollectInstructionsStage1File 0
+        WriteAlgorithmInfoForCollectingStage1(TestID,self.TestList[TestID][0][AlgID].Tag,PreFile)
+        WriteAlgorithmInfoForCollectingStage2(launchID,TestID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.launchJobs(BinaryPath,launchIndex,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
+        #writePlotFileName(fileString,self.CollectInstructionsStage1File,0)
 
 
     def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0):
