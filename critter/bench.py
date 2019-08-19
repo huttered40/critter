@@ -153,9 +153,12 @@ class bench(object):
 	    Count = Count + 1
 	return Count
 
-    def WriteAlgorithmInfoForPlotting(self,TestID,AlgID):
-        for param in self.TestList[TestID][0][AlgID]:
+    def WriteAlgorithmInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
+        for param in AlgParameters:
             self.PlotInstructionsFile.write(str(param)+"\n")
+        self.PlotInstructionsFile.write(str(launchID)+"\n")
+	self.PlotInstructionsFile.write(str(ppn)+"\n")
+	self.PlotInstructionsFile.write(str(tpr)+"\n")
 
     def WriteHeaderForCollection(self,File):
         """
@@ -189,57 +192,20 @@ class bench(object):
 	    for i in range(len(FileExtensions)):
                 self.CollectInstructionsStage2File.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
 
-
-    """
-    def __writePlotFileName(self,..):
+    def writePlotFileName(self,TestID,DataFile,WriteFile,Tag):
         # Performance runs will always run, so no reason for an if-statement here
         Prefix1=""
         Prefix2=""
-        if [ "\${3}" == "1" ];
-            Prefix1="Raw/"
-            Prefix2="Stats/"
-        echo "echo \"\${Prefix1}\${1}_perf.txt\"" >> \${2}
-        if [ "\${3}" == "1" ];
-            echo "echo \"\${Prefix2}\${1}_perf_stats.txt\"" >> \${2}
-  
-        echo "echo \"\${Prefix1}\${1}_numerics.txt\"" >> \${2}
-        if [ "\${3}" == "1" ];
-            echo "echo \"\${Prefix2}\${1}_numerics_stats.txt\"" >> \${2}
+        if (Tag == 1):
+            Prefix1="Raw"
+            Prefix2="Stats"
 
-        if [ "${profType}" == "PC" ] || [ "${profType}" == "PCT" ];
-            echo "echo \"\${1}_critter.txt\"" >> \${2}
-            if [ "\${3}" == "1" ];
-                echo "echo \"\${1}_critter_breakdown.txt\"" >> \${2}
-        if [ "${profType}" == "PT" ] || [ "${profType}" == "PCT" ];
-            echo "echo \"\${1}_timer.txt\"" >> \${2}
-
-
-    # Only for bsqr/rsqr -- only necessary for Performance now. Might want to use Critter later, but not Profiler
-    def __writePlotFileNameScalapackQR(self):
-	Prefix1=""
-        Prefix2=""
-        if [ "\${3}" == "1" ];
-            Prefix1="Raw/"
-            Prefix2="Stats/"
-        echo "echo \"\${Prefix1}\${1}_NoFormQ.txt\"" >> \${2}
-        if [ "\${3}" == "1" ];
-            echo "echo \"\${Prefix2}\${1}_NoFormQ_stats.txt\"" >> \${2}
-        echo "echo \"\${Prefix1}\${1}_FormQ.txt\"" >> \${2}
-        if [ "\${3}" == "1" ];
-            echo "echo \"\${Prefix2}\${1}_FormQ_stats.txt\"" >> \${2}
-
-
-    # Only for bscf -- only necessary for Performance now. Might want to use Critter later, but not Profiler
-    def __writePlotFileNameScalapackCholesky(self):
-	Prefix1=""
-        Prefix2=""
-        if [ "\${3}" == "1" ];
-            Prefix1="Raw/"
-            Prefix2="Stats/"
-        echo "echo \"\${Prefix1}\${1}.txt\"" >> \${2}
-        if [ "\${3}" == "1" ];
-            echo "echo \"\${Prefix2}\${1}_stats.txt\"" >> \${2}
-    """
+        FileExtensions=self.TestList[TestID][2]
+        # Allow for any number of user-defined tests
+	for i in range(len(FileExtensions)):
+            WriteFile.write("%s/%s_%s.txt\n"%(Prefix1,DataFile,FileExtensions[i][0]))
+            if (Tag==1):
+                WriteFile.write("%s/%s_%s_stats.txt\n"%(Prefix2,DataFile,FileExtensions[i][0]))
 
     # Functions that write the actual script, depending on machine
     def launchJobs(self,BinaryPath,launchIndex,TestID,AlgID,node,ppn,tpr,AlgParameters,fileString):
@@ -275,14 +241,14 @@ class bench(object):
         # Plot instructions only need a single output per scaling study
         if (scaleIndex == 0):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            #WriteAlgorithmInfoForPlotting(0,TestID,AlgID,launchID,ppn,tpr)	# Note that NumNodes is not included
-            #writePlotFileName ${PostFile} self.PlotInstructionsFile 1
+            self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
+            self.writePlotFileName(TestID,PostFile,self.PlotInstructionsFile,1)
             pass
 
         self.WriteAlgInfoForCollectingStage1(TestID,self.TestList[TestID][0][AlgID].Tag,PreFile)
         self.WriteAlgInfoForCollectingStage2(launchID,TestID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
-        #writePlotFileName(fileString,self.CollectInstructionsStage1File,0)
+        self.writePlotFileName(TestID,PreFile,self.CollectInstructionsStage1File,0)
 
 
     def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0):
