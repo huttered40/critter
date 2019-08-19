@@ -6,11 +6,11 @@ class camfs(object):
     """
     @staticmethod
     def build(CritterPath,testName):
-        if (os.system("hostname |grep \"porter\"") != ""):
+        if (os.system("hostname |grep \"porter\"") != 256):
             camfsDir="~/hutter2/CAMFS"
-        elif (os.system("hostname |grep \"stampede2\"") != ""):
+        elif (os.system("hostname |grep \"stampede2\"") != 256):
             camfsDir="~/CAMFS"
-        elif (os.system("hostname |grep \"h2o\"") != ""):
+        elif (os.system("hostname |grep \"h2o\"") != 256):
             camfsDir="~/CAMFS"
 
         call("make -C%s/src clean"%(camfsDir),shell=True)

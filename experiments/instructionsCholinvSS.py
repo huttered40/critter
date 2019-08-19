@@ -20,17 +20,17 @@ numMinutes="00"
 numSeconds="00"
 email="hutter2@illinois.edu"
 mpiType="mpi"	# Not specified to critter
-if (os.system("hostname |grep \"porter\"") != ""):
+if (os.system("hostname |grep \"porter\"") != 256):
     if (mpiType == "mpi"):
         minPEcountPerNode=1
         maxPEcountPerNode=16
     elif (mpiType == "ampi"):
         minPEcountPerNode=1
         maxPEcountPerNode=512
-elif (os.system("hostname |grep \"stampede2\"") != ""):
+elif (os.system("hostname |grep \"stampede2\"") != 256):
     minPEcountPerNode=64          # Note: this will need to be changed before launching Critter runs
     maxPEcountPerNode=128
-elif (os.system("hostname |grep \"h2o\"") != ""):
+elif (os.system("hostname |grep \"h2o\"") != 256):
     minPEcountPerNode=16
     maxPEcountPerNode=32
 nodeMinList=[1]
@@ -45,7 +45,6 @@ tprScaleFactorList=[2]
 nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
-SubmitToQueue=0
 Algorithm1 = algorithm("camfs_cholinv",\
                        [128,1,0,0,0,3],\
 		       [128,2,0,0,0,3],\
@@ -62,7 +61,7 @@ TestList=[Test1]
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
-                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,SubmitToQueue,TestList)
+                 nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
 Launcher.build()
 Launcher.generate()
 Launcher.launch()

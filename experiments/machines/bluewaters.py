@@ -63,15 +63,15 @@ class bluewaters(object):
         #fi
 
     @staticmethod
-    def writeTest(numProcesses,ppn,tpr,AlgInputString):
+    def write_test(ScriptFile,numProcesses,ppn,tpr,AlgInputString):
         """
 	"""
 	Str1="aprun -n %d -N %d -d %d " %(numProcesses,ppn,tpr)
-        ScriptFile.write(Str1+AlgInputString)
+        ScriptFile.write(Str1+AlgInputString+"\n")
 
     @staticmethod
     def queue(Script):
-        call("cd %s; %s %s"%(os.environ["SCRATCH"],Batch,Script),shell=True)
+        call("cd %s; %s %s"%(os.environ["SCRATCH"],bluewaters.Batch,Script),shell=True)
 
     @staticmethod
     def IsAccelerated():
