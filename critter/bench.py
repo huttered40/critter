@@ -138,8 +138,7 @@ class bench(object):
         call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
 
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
-        self.CollectInstructionsStage1File = open("%s/%s/collectInstructionsStage1.txt"%(os.environ["SCRATCH"],self.testName),"a+")
-        self.CollectInstructionsStage2File = open("%s/%s/collectInstructionsStage2.txt"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.CollectInstructionsFile = open("%s/%s/collectInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
 
     def GetRangeCount(self,op,File,Start,End,Factor,Operator):
         """
@@ -169,28 +168,17 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
 
-    def WriteAlgInfoForCollectingStage1(self,TestID,AlgTag,FileString):
-        self.CollectInstructionsStage1File.write("0\n")
-        self.CollectInstructionsStage1File.write("%s\n"%(AlgTag))
-
-        FileExtensions=self.TestList[TestID][2]
-        # Allow for any number of user-defined tests
-	for i in range(len(FileExtensions)):
-            self.CollectInstructionsStage1File.write("%s_%s\n"%(FileString,FileExtensions[i][0]))
-
-    def WriteAlgInfoForCollectingStage2(self,launchID,TestID,AlgTag,PreFile,PostFile):
-        # Because 'Pre' (Stage1) collapses the NumLaunchesPerBinary, we do not want to overcount.
+    def WriteAlgInfoForCollecting(self,launchID,TestID,AlgTag,PreFile,PostFile):
         if (launchID == 1):
-            self.CollectInstructionsStage1File.write("0\n")
-            self.CollectInstructionsStage1File.write("%s\n"%(AlgTag))
-
+            self.CollectInstructionsFile.write("0\n")
+            self.CollectInstructionsFile.write("%s\n"%(AlgTag))
             FileExtensions=self.TestList[TestID][2]
+            self.CollectInstructionsFile.write("%d\n"%(len(FileExtensions)))
+
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
-                self.CollectInstructionsStage2File.write("%s_%s\n"%(PreFile,FileExtensions[i][0]))
-            # Allow for any number of user-defined tests
-	    for i in range(len(FileExtensions)):
-                self.CollectInstructionsStage2File.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
+                self.CollectInstructionsFile.write("%s_%s\n"%(PreFile,FileExtensions[i][0]))
+                self.CollectInstructionsFile.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
 
     def writePlotFileName(self,TestID,DataFile,WriteFile,Tag):
         # Performance runs will always run, so no reason for an if-statement here
@@ -245,10 +233,9 @@ class bench(object):
             self.writePlotFileName(TestID,PostFile,self.PlotInstructionsFile,1)
             pass
 
-        self.WriteAlgInfoForCollectingStage1(TestID,self.TestList[TestID][0][AlgID].Tag,PreFile)
-        self.WriteAlgInfoForCollectingStage2(launchID,TestID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.WriteAlgInfoForCollecting(launchID,TestID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
-        self.writePlotFileName(TestID,PreFile,self.CollectInstructionsStage1File,0)
+        #self.writePlotFileName(TestID,PostFile,self.CollectInstructionsFile,0)
 
 
     def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0):
@@ -312,8 +299,7 @@ class bench(object):
 	if (ParameterIndex == self.TestList[TestIndex][0][AlgIndex].NumParameters):
             # Echo for SCAPLOT makefile generator
             BinaryTag=self.TestList[TestIndex][0][AlgIndex].Tag
-            self.CollectInstructionsStage1File.write("%s\n"%(BinaryTag))
-            self.CollectInstructionsStage2File.write("%s\n"%(BinaryTag))
+            self.CollectInstructionsFile.write("%s\n"%(BinaryTag))
             self.PlotInstructionsFile.write("%s\n"%(BinaryTag))
 
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],BinaryTag)
@@ -339,20 +325,13 @@ class bench(object):
     def generate(self):
         """
         """
-        # collectData.sh will always be a single line, just a necessary intermediate step.
-        ## echo "bash $SCRATCH/${testName}/collectInstructionsStage1.sh | bash PackageDataRemoteStage1.sh" > collectData.sh
-
-        # Launch the generated script
-        #bash $SCRATCH/${testName}.sh
-
         self.portal(1,0,self.numTests)
 
         self.PlotInstructionsFile.write("1\n")
 	self.PlotInstructionsFile.write("%s\n"%(self.testNameAllRounds))
 	self.PlotInstructionsFile.write("%d\n"%(self.numTests))
 	self.PlotInstructionsFile.write("%s\n"%(self.MachineType.MachineName))
-        self.WriteHeaderForCollection(self.CollectInstructionsStage1File)
-        self.WriteHeaderForCollection(self.CollectInstructionsStage2File)
+        self.WriteHeaderForCollection(self.CollectInstructionsFile)
 
         for TestIndex in range(0,self.numTests):
             print("\nTest %d"%(TestIndex))
@@ -372,8 +351,7 @@ class bench(object):
                 VariantIndex=0
 		AlgParameterList=list(self.TestList[TestIndex][0][AlgIndex].InputParameterStartRange)
 		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList)
-            self.CollectInstructionsStage1File.write("1\n")
-            self.CollectInstructionsStage2File.write("1\n")
+            self.CollectInstructionsFile.write("1\n")
             self.PlotInstructionsFile.write("1\n")
 
     def launch(self):
