@@ -378,7 +378,7 @@ void reset(){
 }
 
 void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char** InputNames, size_t* Inputs){
-  Stream << "\n" << NumPEs;
+  Stream << NumPEs;
   for (size_t idx = 0; idx < NumInputs; idx++){
     Stream << "\t" << Inputs[idx];
   }
@@ -387,17 +387,20 @@ void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char
   }
 }
 
-void PrintCritterHeader(std::ofstream& Stream, size_t NumInputs){
-  Stream << "\n";
+void PrintHeader(std::ofstream& Stream, size_t NumInputs){
   for (size_t idx = 0; idx < (2*NumInputs+1); idx++){
     if (idx != 0){
       Stream << "\t";
     }
     Stream << "Input";
   }
-  Stream << "\tComputation\tCommunication\tOverlap";
-  for (auto& it : saveCritterInfo){
-    Stream << "\t" << it.first;
+  if (UseCritter){
+    Stream << "\tComputation\tCommunication\tOverlap";
+    for (auto i=0;i<6;i++){
+      for (auto& it : saveCritterInfo){
+       Stream << "\t" << it.first;
+      }
+    }
   }
 }
 
@@ -421,44 +424,38 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
         critter_list[i]->print_crit(Stream,AlgName);
       }
       /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-      PrintCritterHeader(Stream,NumInputs);
+      PrintHeader(Stream,NumInputs);
+      Stream << "\n";
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<0>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<1>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<2>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<3>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<4>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<5>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<6>(it.second);
       }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<7>(it.second);
       }
@@ -468,6 +465,8 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
   }
   else{
     if (IsWorldRoot){
+      PrintHeader(Stream,NumInputs);
+      Stream << "\n";
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto i=0; i<NumData; i++){
         Stream << "\t" << Data[i];
@@ -479,7 +478,6 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
 
 void init(bool _UseCritter, std::string _FileName){
   FileName = std::move(_FileName);
-  // Reason .. is the one corner case where critter-stats output must populate two files instead of one (breakdown is the 2nd)
   StreamName = FileName + ".txt";
   UseCritter = _UseCritter;
 
