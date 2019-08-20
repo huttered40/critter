@@ -431,31 +431,24 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<0>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<1>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<2>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<3>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<4>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<5>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<6>(it.second);
       }
-      //PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<7>(it.second);
       }
