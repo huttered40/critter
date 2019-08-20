@@ -174,10 +174,10 @@ class bench(object):
             self.CollectInstructionsFile.write("%s\n"%(AlgTag))
             FileExtensions=self.TestList[TestID][2]
             self.CollectInstructionsFile.write("%d\n"%(len(FileExtensions)))
+            self.CollectInstructionsFile.write("%d\n"%(1+2*len(self.TestList[TestID][0][AlgID].InputParameterStartRange)))
 
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
-                self.CollectInstructionsFile.write("%d\n"%(1+2*len(self.TestList[TestID][0][AlgID].InputParameterStartRange)))
                 self.CollectInstructionsFile.write("%s_%s\n"%(PreFile,FileExtensions[i][0]))
                 self.CollectInstructionsFile.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
 
