@@ -404,7 +404,7 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
   }
 }
 
-void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData, double* Data){
+void print(bool IsFirstIter, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData, double* Data){
   if (UseCritter){
     volatile double endTimer = MPI_Wtime();
     double timeDiff = endTimer - curComputationTimer;
@@ -423,9 +423,10 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
       for (int i=0; i<NUM_CRITTERS; i++){
         critter_list[i]->print_crit(Stream,AlgName);
       }
-      /*Note: First iteration prints out the column headers for each tracked MPI routine*/
-      PrintHeader(Stream,NumInputs);
-      Stream << "\n";
+      if (IsFirstIter){
+        PrintHeader(Stream,NumInputs);
+        Stream << "\n";
+      }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
@@ -458,8 +459,10 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
   }
   else{
     if (IsWorldRoot){
-      PrintHeader(Stream,NumInputs);
-      Stream << "\n";
+      if (IsFirstIter){
+        PrintHeader(Stream,NumInputs);
+        Stream << "\n";
+      }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
       for (auto i=0; i<NumData; i++){
         Stream << "\t" << Data[i];

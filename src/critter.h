@@ -180,7 +180,7 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
 void init(bool _UseCritter, std::string _FileName);
 void reset();
-void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData = 0, double* Data = nullptr);
+void print(bool IsFirstIter, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData = 0, double* Data = nullptr);
 void finalize();
 }
 
