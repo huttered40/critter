@@ -168,7 +168,7 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
 
-    def WriteAlgInfoForCollecting(self,launchID,TestID,AlgTag,PreFile,PostFile):
+    def WriteAlgInfoForCollecting(self,launchID,TestID,AlgID,AlgTag,PreFile,PostFile):
         if (launchID == 1):
             self.CollectInstructionsFile.write("0\n")
             self.CollectInstructionsFile.write("%s\n"%(AlgTag))
@@ -177,6 +177,7 @@ class bench(object):
 
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
+                self.CollectInstructionsFile.write("%d\n"%(1+2*len(self.TestList[TestID][0][AlgID].InputParameterStartRange)))
                 self.CollectInstructionsFile.write("%s_%s\n"%(PreFile,FileExtensions[i][0]))
                 self.CollectInstructionsFile.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
 
@@ -233,7 +234,7 @@ class bench(object):
             self.writePlotFileName(TestID,PostFile,self.PlotInstructionsFile,1)
             pass
 
-        self.WriteAlgInfoForCollecting(launchID,TestID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.WriteAlgInfoForCollecting(launchID,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
         #self.writePlotFileName(TestID,PostFile,self.CollectInstructionsFile,0)
 
