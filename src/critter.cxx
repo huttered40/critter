@@ -116,7 +116,7 @@ std::map<std::string,std::tuple<double,double,double,double,double,double,double
 std::map<std::string,std::vector<std::string>> AlgCritters;
 std::string StreamName,FileName;
 bool UseCritter;
-std::ofstream Stream,StreamBreakDown;
+std::ofstream Stream;
 bool IsWorldRoot;
 
 void FillAlgCritterList(){
@@ -387,14 +387,6 @@ void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char
   }
 }
 
-void PrintBreakdownHeader(std::ofstream& Stream, size_t NumInputs){
-  Stream << "\n";
-  for (size_t idx = 0; idx < (2*NumInputs+1); idx++){
-    Stream << "Input\t";
-  }
-  Stream << "Computation\tCommunication\tOverlap";
-}
-
 void PrintCritterHeader(std::ofstream& Stream, size_t NumInputs){
   Stream << "\n";
   for (size_t idx = 0; idx < (2*NumInputs+1); idx++){
@@ -403,6 +395,7 @@ void PrintCritterHeader(std::ofstream& Stream, size_t NumInputs){
     }
     Stream << "Input";
   }
+  Stream << "\tComputation\tCommunication\tOverlap";
   for (auto& it : saveCritterInfo){
     Stream << "\t" << it.first;
   }
@@ -423,10 +416,6 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
       totalIdleTime += critter_list[i]->crit_bar_time;
     }
     if (IsWorldRoot){
-      PrintBreakdownHeader(StreamBreakDown,NumInputs);
-      PrintInputs(StreamBreakDown,NumPEs,NumInputs,InputNames,Inputs);
-      StreamBreakDown << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
-
       // Save the critter information before printing
       for (int i=0; i<NUM_CRITTERS; i++){
         critter_list[i]->print_crit(Stream,AlgName);
@@ -434,34 +423,42 @@ void print(std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, co
       /*Note: First iteration prints out the column headers for each tracked MPI routine*/
       PrintCritterHeader(Stream,NumInputs);
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<0>(it.second);
-     }
-     PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<1>(it.second);
       }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<2>(it.second);
       }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<3>(it.second);
       }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<4>(it.second);
       }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<5>(it.second);
       }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<6>(it.second);
       }
       PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << totalCritComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<7>(it.second);
       }
@@ -491,19 +488,12 @@ void init(bool _UseCritter, std::string _FileName){
   if (rank == 0){
     IsWorldRoot = true;
     Stream.open(StreamName.c_str());
-    if (UseCritter){
-      std::string FileNameBreakDown = FileName + "breakdown.txt";
-      StreamBreakDown.open(FileNameBreakDown.c_str());
-    }
   } else {IsWorldRoot=false;}
 }
 
 void finalize(){
   if (IsWorldRoot){
     Stream.close();
-    if (UseCritter){
-      StreamBreakDown.close();
-    }
   }
 }
 

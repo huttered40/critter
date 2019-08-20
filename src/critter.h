@@ -146,7 +146,6 @@ extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,FileName;
 extern bool UseCritter;
 extern std::ofstream Stream;
-extern std::ofstream StreamBreakDown;
 extern bool IsWorldRoot;
 extern double totalCritComputationTime;
 extern double curComputationTimer;
