@@ -122,9 +122,6 @@ class bench(object):
         self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.MachineName,roundID)
         self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.MachineName)
 
-        # TODO: create conditional check to see if Tests/ exists. Its not tracked by git.
-	call("mkdir %s/Tests"%(self.CritterPath),shell=True)
-
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
         call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
@@ -178,8 +175,8 @@ class bench(object):
 
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
-                self.CollectInstructionsFile.write("%s_%s\n"%(PreFile,FileExtensions[i][0]))
-                self.CollectInstructionsFile.write("%s_%s\n"%(PostFile,FileExtensions[i][0]))
+                self.CollectInstructionsFile.write("%s_%s.txt\n"%(PreFile,FileExtensions[i][0]))
+                self.CollectInstructionsFile.write("%s_%s.txt\n"%(PostFile,FileExtensions[i][0]))
 
     def writePlotFileName(self,TestID,DataFile,WriteFile,Tag):
         # Performance runs will always run, so no reason for an if-statement here
@@ -300,7 +297,7 @@ class bench(object):
 	if (ParameterIndex == self.TestList[TestIndex][0][AlgIndex].NumParameters):
             # Echo for SCAPLOT makefile generator
             BinaryTag=self.TestList[TestIndex][0][AlgIndex].Tag
-            self.CollectInstructionsFile.write("%s\n"%(BinaryTag))
+            #self.CollectInstructionsFile.write("%s\n"%(BinaryTag))
             self.PlotInstructionsFile.write("%s\n"%(BinaryTag))
 
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],BinaryTag)
