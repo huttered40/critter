@@ -144,19 +144,20 @@ class bench(object):
 	Count = 0
 	while (Curr <= End):
 	    if (op == 1):
-	        File.write(str(Start)+"\n")
+	        File.write(str(Curr)+"\n")
             Curr = Operator(Curr,Factor)
 	    Count = Count + 1
 	return Count
 
     def WriteAlgorithmInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
+        self.PlotInstructionsFile.write(str(len(AlgParameters)+3)+"\n")
         for param in AlgParameters:
             self.PlotInstructionsFile.write(str(param)+"\n")
         self.PlotInstructionsFile.write(str(launchID)+"\n")
 	self.PlotInstructionsFile.write(str(ppn)+"\n")
 	self.PlotInstructionsFile.write(str(tpr)+"\n")
 
-    def WriteHeaderForCollection(self,File):
+    def WriteHeader(self,File):
         """
         Writes the beginning of collectInstructionsStage1 and collectInstructionsStage2
 	"""
@@ -165,33 +166,18 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
 
-    def WriteAlgInfoForCollecting(self,launchID,TestID,AlgID,AlgTag,PreFile,PostFile):
+    def WriteAlgInfoForCollecting(self,File,launchID,TestID,AlgID,AlgTag,PreFile,PostFile):
         if (launchID == 1):
-            self.CollectInstructionsFile.write("0\n")
-            self.CollectInstructionsFile.write("%s\n"%(AlgTag))
+            File.write("0\n")
+            File.write("%s\n"%(AlgTag))
             FileExtensions=self.TestList[TestID][2]
-            self.CollectInstructionsFile.write("%d\n"%(len(FileExtensions)))
-            self.CollectInstructionsFile.write("%d\n"%(1+2*len(self.TestList[TestID][0][AlgID].InputParameterStartRange)))
+            File.write("%d\n"%(len(FileExtensions)))
+            File.write("%d\n"%(1+2*len(self.TestList[TestID][0][AlgID].InputParameterStartRange)))
 
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
-                self.CollectInstructionsFile.write("%s_%s.txt\n"%(PreFile,FileExtensions[i][0]))
-                self.CollectInstructionsFile.write("%s_%s.txt\n"%(PostFile,FileExtensions[i][0]))
-
-    def writePlotFileName(self,TestID,DataFile,WriteFile,Tag):
-        # Performance runs will always run, so no reason for an if-statement here
-        Prefix1=""
-        Prefix2=""
-        if (Tag == 1):
-            Prefix1="Raw"
-            Prefix2="Stats"
-
-        FileExtensions=self.TestList[TestID][2]
-        # Allow for any number of user-defined tests
-	for i in range(len(FileExtensions)):
-            WriteFile.write("%s/%s_%s.txt\n"%(Prefix1,DataFile,FileExtensions[i][0]))
-            if (Tag==1):
-                WriteFile.write("%s/%s_%s_stats.txt\n"%(Prefix2,DataFile,FileExtensions[i][0]))
+                File.write("%s_%s.txt\n"%(PreFile,FileExtensions[i][0]))
+                File.write("%s_%s.txt\n"%(PostFile,FileExtensions[i][0]))
 
     # Functions that write the actual script, depending on machine
     def launchJobs(self,BinaryPath,launchIndex,TestID,AlgID,node,ppn,tpr,AlgParameters,fileString):
@@ -228,12 +214,11 @@ class bench(object):
         if (scaleIndex == 0):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
-            self.writePlotFileName(TestID,PostFile,self.PlotInstructionsFile,1)
+            self.WriteAlgInfoForCollecting(launchID,self._PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
             pass
 
-        self.WriteAlgInfoForCollecting(launchID,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.WriteAlgInfoForCollecting(launchID,self._CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
-        #self.writePlotFileName(TestID,PostFile,self.CollectInstructionsFile,0)
 
 
     def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0):
@@ -325,18 +310,15 @@ class bench(object):
         """
         self.portal(1,0,self.numTests)
 
-        self.PlotInstructionsFile.write("1\n")
-	self.PlotInstructionsFile.write("%s\n"%(self.testNameAllRounds))
-	self.PlotInstructionsFile.write("%d\n"%(self.numTests))
-	self.PlotInstructionsFile.write("%s\n"%(self.MachineType.MachineName))
-        self.WriteHeaderForCollection(self.CollectInstructionsFile)
+        self.WriteHeader(self.PlotInstructionsFile)
+        self.WriteHeader(self.CollectInstructionsFile)
 
         for TestIndex in range(0,self.numTests):
             print("\nTest %d"%(TestIndex))
 
-            self.PlotInstructionsFile.write("%s"%(self.TestList[TestIndex][1]))
+            self.PlotInstructionsFile.write("%s\n"%(self.TestList[TestIndex][1]))
             NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
-	    self.PlotInstructionsFile.write("%d"%(NodeCount))
+	    self.PlotInstructionsFile.write("%d\n"%(NodeCount))
             self.GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
 
             # Figure out what PlotInstructions needs before fixing below
