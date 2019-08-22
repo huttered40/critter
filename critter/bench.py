@@ -213,8 +213,8 @@ class bench(object):
         # Plot instructions only need a single output per scaling study
         if (scaleIndex == 0):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
             self.WriteAlgInfoForCollecting(launchID,self._PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+            self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
             pass
 
         self.WriteAlgInfoForCollecting(launchID,self._CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
@@ -320,11 +320,6 @@ class bench(object):
             NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
 	    self.PlotInstructionsFile.write("%d\n"%(NodeCount))
             self.GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
-
-            # Figure out what PlotInstructions needs before fixing below
-            #matrixDimM,matrixDimN,numIterations, comes from AlgList
-            #echo "echo \"\${matrixDimM}\"" >> $SCRATCH/${testName}/plotInstructions.sh
-            #echo "echo \"\${matrixDimN}\"" >> $SCRATCH/${testName}/plotInstructions.sh
 
             for AlgIndex in range(len(self.TestList[TestIndex][0])):
                 print("\n  Algorithm %s"%(self.TestList[TestIndex][0][AlgIndex].Tag))
