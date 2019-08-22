@@ -331,4 +331,6 @@ class bench(object):
 
     def launch(self):
         self.queue_submit()
+        self._CollectInstructionsFile.close()
+        self._PlotInstructionsFile.close()
 
