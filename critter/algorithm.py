@@ -14,7 +14,7 @@ class algorithm(object):
 	self.ScaleOperatorList=ScaleOperatorList
         self.IndirectIndexFunc = IndirectIndexFunc
         self.SpecialFunc = SpecialFunc
-        self.NodeStartOffsetList=NodeStartList
+        self.NodeStartOffsetList=NodeStartOffsetList
         self.TagList=[]
 	for i in range(len( self.InputParameterStartRange)):
 	    if (self.InputParameterStartRange[i] < self.InputParameterEndRange[i]):

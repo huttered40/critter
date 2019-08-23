@@ -149,11 +149,11 @@ class bench(object):
 	    Count = Count + 1
 	return Count
 
-    def GetNodeListOffset(TestIndex,StartNodeIndex):
+    def GetNodeListOffset(self,TestIndex,StartNodeIndex):
         cur=self.nodeMinList[TestIndex]
         counter=0
         while (counter < StartNodeIndex):
-            cur = self.nodeScaleOperatorList[TestIndex](cur,self.nodeScaleFactorList[TestIndex]))
+            cur = self.nodeScaleOperatorList[TestIndex](cur,self.nodeScaleFactorList[TestIndex])
             counter+=1
         return cur
 
@@ -175,7 +175,8 @@ class bench(object):
 	    self.PlotInstructionsFile.write(str(ppn)+"\n")
 	    self.PlotInstructionsFile.write(str(tpr)+"\n")
 
-    def WriteAlgInfoForCollecting(self,File,launchID,TestID,AlgID,AlgTag,PreFile,PostFile):
+    def WriteAlgInfoForCollecting(self,launchID,File,TestID,AlgID,AlgTag,PreFile,PostFile):
+        print("launchID - ",launchID)
         if (launchID == 1):
             File.write("0\n")
             File.write("%s\n"%(AlgTag))
@@ -215,19 +216,16 @@ class bench(object):
         PreFile=BaseString+"_%dnodes"%(node)
         fileString="DataFiles/"+PreFile
 
-        #UpdatePlotFile1="${tag1}_${scale}_${matrixDimMorig}_${matrixDimNorig}_${matrixDimKorig}_${cubeDimorig}"
-        #UpdatePlotFile2="${tag1}_${scale}_${matrixDimMorig}__${matrixDimNorig}_${matrixDimKorig}${ppn}_${tpr}"
-
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
         # Plot instructions only need a single output per scaling study
         if (scaleIndex == 0):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            self.WriteAlgInfoForCollecting(launchID,self._PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
             self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
         # Regardless of scaleIndex, we need to record the scaleIndex
-        self._PlotInstructionsFile.write(str(scaleIndex)+"\n")
+        self.PlotInstructionsFile.write(str(scaleIndex)+"\n")
 
-        self.WriteAlgInfoForCollecting(launchID,self._CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
 
 
@@ -237,16 +235,19 @@ class bench(object):
         However, this does not mean that the PPN/TPR counts are the same for each node.
         The same algorithm variant can start at different node counts and thus reach an entirely different collection of node counts with the same NumNodes multiplier
         """
+	SaveAlgParameterList = list(AlgParameterList)
         for LaunchIndex in range(1,self.NumLaunchesPerBinary+1):
             PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
                 for StartNodeIndex in self.TestList[TestIndex][0][AlgIndex].NodeStartOffsetList:
                     curPPN = self.ppnMinList[TestIndex][StartNodeIndex]
                     while (curPPN <= self.ppnMaxList[TestIndex][StartNodeIndex]):
-                        curTPR = self.ppnMinList[TestIndex][StartNodeIndex]
+                        curTPR = self.tprMinList[TestIndex][StartNodeIndex]
                         while (curTPR <= self.tprMaxList[TestIndex][StartNodeIndex]):
 		            scaleIndex=0
-                            curNumNodes=GetNodeListOffset(TestIndex,StartNodeIndex)
+			    # Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
+			    AlgParameterList = list(SaveAlgParameterList)
+                            curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
                             while (curNumNodes <= self.nodeMaxList[TestIndex]):
                                 # Make sure we are in a suitable range
 			        numPEsPerNode=curPPN*curTPR
@@ -267,7 +268,9 @@ class bench(object):
 				            PortalDict[TupleKey]=1
                                     elif (op == 2):
                                         if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
-				        self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+					else:
+					    print("Not good with these params - ", AlgParameterList)
 		                if (op == 2):
                                     self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
                                 scaleIndex=scaleIndex+1
@@ -347,6 +350,6 @@ class bench(object):
 
     def launch(self):
         self.queue_submit()
-        self._CollectInstructionsFile.close()
-        self._PlotInstructionsFile.close()
+        self.CollectInstructionsFile.close()
+        self.PlotInstructionsFile.close()
 
