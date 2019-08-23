@@ -54,7 +54,8 @@ Algorithm1 = algorithm("candmc_bsqr",\
                        lambda x: (1 if (x%4==0) else 0),\
                        lambda InputList,HardwareList: True,\
 		       [[2,1,1,1,1,1,1],[2,2,1,1,2,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
+                       [0])
 File1 = [["perf",("Performance","Residual","Deviation from Orthogonality")]]
 Test1=[[Algorithm1],"Weak Scaling",File1]
 TestList=[Test1]

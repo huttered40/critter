@@ -53,7 +53,8 @@ Algorithm1 = algorithm("camfs_cacqr2",\
                        lambda x: (1 if (x%4==0) else 0),\
                        lambda InputList,HardwareList: ((((HardwareList[1]*HardwareList[2])/(InputList[5]**2))>=InputList[5]) and (InputList[2] <= int(math.log(InputList[5],2)))),\
 		       [[2,1,1,1,1,1,1],[2,2,1,1,1,2,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
+                       [0])
 Test1=[[Algorithm1],"Weak Scaling"]
 AlgorithmList=[Test1]
 

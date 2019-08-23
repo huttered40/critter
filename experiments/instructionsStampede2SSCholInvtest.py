@@ -53,7 +53,8 @@ Algorithm1 = algorithm("camfs_cholinv",\
                        lambda x: 0,\
                        lambda InputList,HardwareList: ((InputList[1]**3 == (HardwareList[1]*HardwareList[2])) and (InputList[3] <= int(math.log(InputList[1])))),\
 		       [[1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
+                       [1])
 File1 = [["critter",()],["perf",("Performance","Residual")]]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]
