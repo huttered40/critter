@@ -168,7 +168,7 @@ class bench(object):
 
     def WriteAlgorithmInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
         if (launchID==1):
-            self.PlotInstructionsFile.write(str(len(AlgParameters)+3)+"\n")
+            self.PlotInstructionsFile.write(str(len(AlgParameters))+"\n")
             for param in AlgParameters:
                 self.PlotInstructionsFile.write(str(param)+"\n")
             self.PlotInstructionsFile.write(str(launchID)+"\n")
