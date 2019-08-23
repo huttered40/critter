@@ -299,8 +299,6 @@ class bench(object):
 	if (ParameterIndex == self.TestList[TestIndex][0][AlgIndex].NumParameters):
             # Echo for SCAPLOT makefile generator
             BinaryTag=self.TestList[TestIndex][0][AlgIndex].Tag
-            #self.CollectInstructionsFile.write("%s\n"%(BinaryTag))
-            self.PlotInstructionsFile.write("%s\n"%(BinaryTag))
 
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],BinaryTag)
             # Below: special case that will hopefully be replaced soon
