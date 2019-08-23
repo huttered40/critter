@@ -176,7 +176,6 @@ class bench(object):
 	    self.PlotInstructionsFile.write(str(tpr)+"\n")
 
     def WriteAlgInfoForCollecting(self,launchID,File,TestID,AlgID,AlgTag,PreFile,PostFile):
-        print("launchID - ",launchID)
         if (launchID == 1):
             File.write("0\n")
             File.write("%s\n"%(AlgTag))
@@ -205,7 +204,7 @@ class bench(object):
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
 
-    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,scaleIndex,launchID,node,ppn,tpr):
+    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,launchID,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
@@ -218,7 +217,7 @@ class bench(object):
 
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
         # Plot instructions only need a single output per scaling study
-        if (scaleIndex == 0):
+        if (IsFirstNode):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
             self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
@@ -245,6 +244,7 @@ class bench(object):
                         curTPR = self.tprMinList[TestIndex][StartNodeIndex]
                         while (curTPR <= self.tprMaxList[TestIndex][StartNodeIndex]):
 		            scaleIndex=0
+                            IsFirstNode=True
 			    # Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
 			    AlgParameterList = list(SaveAlgParameterList)
                             curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
@@ -268,7 +268,8 @@ class bench(object):
 				            PortalDict[TupleKey]=1
                                     elif (op == 2):
                                         if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
-				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+                                            IsFirstNode=False
 					else:
 					    print("Not good with these params - ", AlgParameterList)
 		                if (op == 2):
