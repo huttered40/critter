@@ -323,7 +323,7 @@ void _critter::print_crit(std::ofstream& fptr, std::string name){
   if (this->last_start_time != -1.){
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
-    printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
+    //printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
   }
   if ((this->last_start_time != -1.) || (InAlgCritterList(name,this->name))){
     // Instead of printing, as I did before (see below), I will save to a map and print out at the end of the iteration.
@@ -342,7 +342,7 @@ void _critter::print_crit_avg(std::ofstream& fptr, int numIter){
 
 void _critter::print_local(){
   if (this->last_start_time != -1.){
-    printf("loc%s\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
+    //printf("loc%s\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
     //printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
   }
 }
