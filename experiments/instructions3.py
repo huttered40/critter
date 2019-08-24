@@ -46,9 +46,9 @@ nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 Algorithm1 = algorithm("camfs_cacqr2",\
-                       [16384,16384,0,0,0,1,3],\
-		       [16384,16384,0,0,0,32,3],\
-		       [1,1,1,1,1,2,1],\
+                       [16384,16384,1,0,0,0,3],\
+		       [16384,16384,32,0,0,0,3],\
+		       [1,1,2,1,1,1,1],\
 		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
                        lambda InputList,HardwareList: ((((HardwareList[1]*HardwareList[2])/(InputList[5]**2))>=InputList[5]) and (InputList[2] <= int(math.log(InputList[5])))),\
