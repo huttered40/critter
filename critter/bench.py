@@ -157,6 +157,20 @@ class bench(object):
             counter+=1
         return cur
 
+    def GetTotalValidNodes(self,TestIndex,AlgIndex,AlgParameterList,LaunchIndex,curPPN,curTPR,StartNodeIndex):
+        """
+        """
+        totalScaleCount=0
+        curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
+        while (curNumNodes <= self.nodeMaxList[TestIndex]):
+            # Make sure we are in a suitable range
+	    numPEsPerNode=curPPN*curTPR
+            if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
+                if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
+		    totalScaleCount+=1
+            curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
+        return totalScaleCount
+
     def WriteHeader(self,File):
         """
         Writes the beginning of collectInstructionsStage1 and collectInstructionsStage2
@@ -204,7 +218,7 @@ class bench(object):
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
 
-    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,launchID,node,ppn,tpr):
+    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,launchID,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
@@ -221,6 +235,7 @@ class bench(object):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
             self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
+            self.PlotInstructionsFile.write(str(totalScaleIndex)+"\n")
         # Regardless of scaleIndex, we need to record the scaleIndex
         self.PlotInstructionsFile.write(str(scaleIndex)+"\n")
 
@@ -247,6 +262,8 @@ class bench(object):
                             IsFirstNode=True
 			    # Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
 			    AlgParameterList = list(SaveAlgParameterList)
+                            if (op == 2):
+                                totalScaleIndex = self.GetTotalValidNodes(TestIndex,AlgIndex,AlgParameterList,LaunchIndex,curPPN,curTPR,StartNodeIndex)
                             curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
                             while (curNumNodes <= self.nodeMaxList[TestIndex]):
                                 # Make sure we are in a suitable range
@@ -268,7 +285,7 @@ class bench(object):
 				            PortalDict[TupleKey]=1
                                     elif (op == 2):
                                         if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
-				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                             IsFirstNode=False
 					else:
 					    print("Not good with these params - ", AlgParameterList)
