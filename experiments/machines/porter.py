@@ -8,8 +8,8 @@ class porter(object):
     Batch=""
     AllocationName=""
     MachineName="PORTER"
-    PeakNetworkInjectionRate=None
-    PeakNodePerformance=None
+    PeakNetworkInjectionRate=2.3
+    PeakNodePerformance=10.0
 
     @staticmethod
     def set():

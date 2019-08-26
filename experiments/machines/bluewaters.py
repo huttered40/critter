@@ -10,8 +10,8 @@ class bluewaters(object):
     AccelType="n"
     MachineName="BLUEWATERS"
     AllocationName=""
-    PeakNetworkInjectionRate=None
-    PeakNodePerformance=None
+    PeakNetworkInjectionRate=9.6
+    PeakNodePerformance=313.6
 
     @staticmethod
     def set():

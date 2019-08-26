@@ -8,8 +8,8 @@ class stampede2(object):
     Batch="sbatch --mail-user=hutter2@illinois.edu --mail-type=all"
     AllocationName=""
     MachineName="STAMPEDE2"
-    PeakNetworkInjectionRate=None
-    PeakNodePerformance=None
+    PeakNetworkInjectionRate=12.5
+    PeakNodePerformance=3000.
 
     @staticmethod
     def set():
