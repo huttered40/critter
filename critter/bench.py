@@ -185,7 +185,6 @@ class bench(object):
             self.PlotInstructionsFile.write(str(len(AlgParameters))+"\n")
             for param in AlgParameters:
                 self.PlotInstructionsFile.write(str(param)+"\n")
-            self.PlotInstructionsFile.write(str(launchID)+"\n")
 	    self.PlotInstructionsFile.write(str(ppn)+"\n")
 	    self.PlotInstructionsFile.write(str(tpr)+"\n")
 
@@ -195,7 +194,7 @@ class bench(object):
             File.write("%s\n"%(AlgTag))
             FileExtensions=self.TestList[TestID][2]
             File.write("%d\n"%(len(FileExtensions)))
-            File.write("%d\n"%(1+2*len(self.TestList[TestID][0][AlgID].InputParameterStartRange)))
+            File.write("%d\n"%(1+2*(len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2)))	# '+2' from ppn,tpr
 
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
@@ -211,7 +210,7 @@ class bench(object):
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
         # Allow for any number of user-defined tests
-        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters);
+        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)+" %d %d"%(ppn,tpr);
 	for i in range(len(FileExtensions)):
             MethodString = MethodString + " %s_%s"%(fileString,FileExtensions[i][0])
         scriptFile=open(scriptName,"a+")
