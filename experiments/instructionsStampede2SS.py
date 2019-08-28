@@ -51,7 +51,7 @@ Algorithm1 = algorithm("camfs_cacqr2",\
 		       [1,1,2,1,1,1,1],\
 		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
-                       lambda InputList,HardwareList: ((((HardwareList[1]*HardwareList[2])/(InputList[2]**2))>=InputList[2]) and (InputList[3] <= int(math.log(InputList[2])))),\
+                       lambda InputList,HardwareList: ((((HardwareList[1]*HardwareList[2])/(InputList[2]**2))>=InputList[2]) and (InputList[4] <= int(math.log(InputList[2])))),\
 		       [[1,1,1,1,1,1,1]],\
 		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
                        [0])
