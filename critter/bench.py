@@ -122,6 +122,8 @@ class bench(object):
         self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.MachineName,roundID)
         self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.MachineName)
 
+        self.SavePostFile = "fill later"
+
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
         call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
@@ -231,14 +233,15 @@ class bench(object):
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
         # Plot instructions only need a single output per scaling study
         if (IsFirstNode):
+            self.SavePostFile = PostFile
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,self.SavePostFile)
             self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
             self.PlotInstructionsFile.write(str(totalScaleIndex)+"\n")
         # Regardless of scaleIndex, we need to record the scaleIndex
         self.PlotInstructionsFile.write(str(scaleIndex)+"\n")
 
-        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,self.SavePostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
 
 
