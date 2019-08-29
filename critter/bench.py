@@ -122,7 +122,8 @@ class bench(object):
         self.testName="%s_%s_%s_round%d"%(fileID,dateStr,self.MachineType.MachineName,roundID)
         self.testNameAllRounds="%s_%s"%(fileID,self.MachineType.MachineName)
 
-        self.SavePostFile = "fill later"
+        # These list is necessary for special tracking
+        self.SaveAlgParameters = []
 
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
@@ -163,6 +164,7 @@ class bench(object):
         """
         """
         totalScaleCount=0
+        scaleIndex=0
         curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
         while (curNumNodes <= self.nodeMaxList[TestIndex]):
             # Make sure we are in a suitable range
@@ -171,6 +173,8 @@ class bench(object):
                 if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
 		    totalScaleCount+=1
             curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
+            self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
+            scaleIndex+=1
         return totalScaleCount
 
     def WriteHeader(self,File):
@@ -223,11 +227,13 @@ class bench(object):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
-        BaseString="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+        BaseString1="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
                   +"".join("_"+str(x) for x in AlgParameters) + "_%dlaunch_%dppn_%dtpr"%(launchID,ppn,tpr)
-        PostFile=BaseString
+        BaseString2="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+                  +"".join("_"+str(x) for x in self.SaveAlgParameters) + "_%dlaunch_%dppn_%dtpr"%(launchID,ppn,tpr)
+        PostFile=BaseString2
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-        PreFile=BaseString+"_%dnodes"%(node)
+        PreFile=BaseString1+"_%dnodes"%(node)
         fileString="DataFiles/"+PreFile
 
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
@@ -235,13 +241,13 @@ class bench(object):
         if (IsFirstNode):
             self.SavePostFile = PostFile
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,self.SavePostFile)
-            self.WriteAlgorithmInfoForPlotting(AlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
+            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+            self.WriteAlgorithmInfoForPlotting(self.SaveAlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
             self.PlotInstructionsFile.write(str(totalScaleIndex)+"\n")
         # Regardless of scaleIndex, we need to record the scaleIndex
         self.PlotInstructionsFile.write(str(scaleIndex)+"\n")
 
-        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,self.SavePostFile)
+        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
 
 
@@ -265,7 +271,7 @@ class bench(object):
 			    # Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
 			    AlgParameterList = list(SaveAlgParameterList)
                             if (op == 2):
-                                totalScaleIndex = self.GetTotalValidNodes(TestIndex,AlgIndex,AlgParameterList,LaunchIndex,curPPN,curTPR,StartNodeIndex)
+                                totalScaleIndex = self.GetTotalValidNodes(TestIndex,AlgIndex,list(AlgParameterList),LaunchIndex,curPPN,curTPR,StartNodeIndex)
                             curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
                             while (curNumNodes <= self.nodeMaxList[TestIndex]):
                                 # Make sure we are in a suitable range
@@ -286,6 +292,9 @@ class bench(object):
                                             scriptFile.close()
 				            PortalDict[TupleKey]=1
                                     elif (op == 2):
+                                        # Save special variables if at 1st node count
+                                        if (scaleIndex == 0):
+                                            self.SaveAlgParameters = list(AlgParameterList)
                                         if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
 				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                             IsFirstNode=False
