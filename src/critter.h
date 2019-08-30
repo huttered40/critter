@@ -462,7 +462,7 @@ void finalize();
 #define MPI_Wait(req, stat)\
   do {\
     if (critter::UseCritter){\
-      std::map<MPI_Request, critter*>::iterator it = critter::critter_req.find(*req);\
+      std::map<MPI_Request,critter::_critter*>::iterator it = critter::critter_req.find(*req);\
       if (it == critter::critter_req.end()) *(int*)NULL = 1;\
       assert(it != critter::critter_req.end());\
       PMPI_Wait(req, stat);\
@@ -476,7 +476,7 @@ void finalize();
   do {\
     if (critter::UseCritter){\
       PMPI_Waitany(cnt, reqs, indx, stat);\
-      std::map<MPI_Request, critter*>::iterator it = critter::critter_req.find((reqs)[*(indx)]);\
+      std::map<MPI_Request,critter::_critter*>::iterator it = critter::critter_req.find((reqs)[*(indx)]);\
       if (it != critter::critter_req.end()) { it->second->stop(); critter::critter_req.erase(it);}}\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
