@@ -364,6 +364,14 @@ class bench(object):
 
             self.PlotInstructionsFile.write("%s\n"%(self.TestList[TestIndex][1]))
             self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
+            if (self.TestList[TestIndex][2][0][0] == "critter"):
+                NonCritterIndex=1
+            else:
+                NonCritterIndex=0
+            self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2][NonCritterIndex][1])))
+            for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
+                self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
+
             NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
 	    self.PlotInstructionsFile.write("%d\n"%(NodeCount))
             # Note that although different algorithm variants may have different starting nodes, they will also have different PPN counts,
