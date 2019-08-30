@@ -365,8 +365,10 @@ class bench(object):
             self.PlotInstructionsFile.write("%s\n"%(self.TestList[TestIndex][1]))
             self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
             if (self.TestList[TestIndex][2][0][0] == "critter"):
+                self.PlotInstructionsFile.write("1\n")
                 NonCritterIndex=1
             else:
+                self.PlotInstructionsFile.write("0\n")
                 NonCritterIndex=0
             self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2][NonCritterIndex][1])))
             for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
