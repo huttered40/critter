@@ -9,7 +9,6 @@ class bluewaters(object):
     AllocationName="bahv"
     AccelType="n"
     MachineName="BLUEWATERS"
-    AllocationName=""
     PeakNetworkInjectionRate=9.6
     PeakNodePerformance=313.6
 
@@ -18,8 +17,6 @@ class bluewaters(object):
         """
 	"""
         os.environ["SCRATCH"] = "/scratch/sciteam/hutter"
-        os.environ["MPITYPE"] = "MPI_TYPE"
-        #os.environ["MPITYPE"] = "AMPI_TYPE"
         #read -p "Do you want the Intel Programming Environment (I) or the GNU Programming Environment (G) (choose G if running on GPU): " bwPrgEnv
         bwPrgEnv="G"
         if (bwPrgEnv == "I"):
@@ -31,7 +28,7 @@ class bluewaters(object):
             if (os.environ["PE_ENV"] == "INTEL"):
                 call("module swap PrgEnv-intel PrgEnv-gnu",shell=True)
             elif (os.environ["PE_ENV"] == "CRAY"):
-                call("module swap PrgEnv-cray PrgEnv-gnu",shell=True)
+                call("module swap PrgEnv-cray/5.2.82 PrgEnv-gnu",shell=True)
         os.environ["GPU"] = "NOGPU"
         #if (accelType == "n"):
         #    call("module load cblas",shell=True))
@@ -50,7 +47,7 @@ class bluewaters(object):
         scriptFile.write("#PBS -o %s_%dnodes_%dppn_%dtpr.out\n" %(testName,curNumNodes,curPPN,curTPR))
         scriptFile.write("##PBS -m Ed\n")
         scriptFile.write("#PBS -M hutter2@illinois.edu\n")
-        scriptFile.write("#PBS -A %s\n" %(AllocationName))
+        scriptFile.write("#PBS -A %s\n" %(bluewaters.AllocationName))
         scriptFile.write("#PBS -W umask=0027\n")
         #echo "cd ${PBS_O_WORKDIR}"
         scriptFile.write("#module load craype-hugepages2M  perftools\n")

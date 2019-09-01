@@ -170,7 +170,7 @@ class bench(object):
             # Make sure we are in a suitable range
 	    numPEsPerNode=curPPN*curTPR
             if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
-                if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
+                if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
 		    totalScaleCount+=1
             curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
             self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
@@ -295,7 +295,7 @@ class bench(object):
                                         # Save special variables if at 1st node count
                                         if (scaleIndex == 0):
                                             self.SaveAlgParameters = list(AlgParameterList)
-                                        if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[LaunchIndex,curNumNodes,curPPN,curTPR])):
+                                        if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
 				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                             IsFirstNode=False
 					else:

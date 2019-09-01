@@ -13,6 +13,6 @@ class candmc(object):
         elif (os.system("hostname |grep \"h2o\"") != 256):
             candmcDir="~/CANDMC"
 
-        call("cd %s; make clean; rm config.mk; ./configure; make bench_scala_qr; cd -"%(candmcDir),shell=True)
-        call("mv %s/bin/benchmarks/bench_scala_qr %s/bin/benchmarks/candmc_rsqr"%(candmcDir,candmcDir),shell=True)
-        call("mv %s/bin/benchmarks/candmc_rsqr %s/Tests/%s/bin/"%(candmcDir,CritterPath,testName),shell=True)
+        call("cd %s; make clean; rm config.mk; ./configure; make bench; cd -"%(candmcDir),shell=True)
+        call("mv %s/bin/benchmarks/bench_scala_qr %s/bin/benchmarks/candmc_bench_scala_qr"%(candmcDir,candmcDir),shell=True)
+        call("mv %s/bin/benchmarks/candmc_bench_scala_qr %s/Tests/%s/bin/"%(candmcDir,CritterPath,testName),shell=True)

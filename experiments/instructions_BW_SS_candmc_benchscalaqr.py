@@ -5,38 +5,33 @@ import math
 from operator import (__mul__,__add__,__div__,__sub__)
 from critter import (bench,algorithm)
 
-from machines import (stampede2)
-from libraries import (camfs)
+from machines import (bluewaters)
+from libraries import (candmc)
 
 CritterPath=os.environ["HOME"]+"/critter/"
-MachineType=stampede2
-LibraryTypeList=[camfs]
-fileID="benchQR1"
+MachineType=bluewaters
+LibraryTypeList=[candmc]
+fileID="benchQR"
 roundID=1
 NumLaunchesPerBinary=1
 numTests=1
-numHours="01"
-numMinutes="00"
+numHours="00"
+numMinutes="30"
 numSeconds="00"
 email="hutter2@illinois.edu"
-mpiType="mpi"	# Not specified to critter
 if (os.system("hostname |grep \"porter\"") != 256):
-    if (mpiType == "mpi"):
-        minPEcountPerNode=1
-        maxPEcountPerNode=16
-    elif (mpiType == "ampi"):
-        minPEcountPerNode=1
-        maxPEcountPerNode=512
+    minPEcountPerNode=1
+    maxPEcountPerNode=16
 elif (os.system("hostname |grep \"stampede2\"") != 256):
     minPEcountPerNode=64          # Note: this will need to be changed before launching Critter runs
     maxPEcountPerNode=128
 elif (os.system("hostname |grep \"h2o\"") != 256):
     minPEcountPerNode=16
     maxPEcountPerNode=32
-nodeMinList=[1]
-nodeMaxList=[8]
-ppnMinList=[[32,32,32,32]]
-ppnMaxList=[[64,64,64,64]]
+nodeMinList=[4]
+nodeMaxList=[32]
+ppnMinList=[[16,16,16,16]]
+ppnMaxList=[[32,32,32,32]]
 tprMinList=[[1,1,1,1]]
 tprMaxList=[[4,4,4,4]]
 nodeScaleFactorList=[2]
@@ -45,17 +40,17 @@ tprScaleFactorList=[2]
 nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
-Algorithm1 = algorithm("camfs_cacqr2",\
-                       [8192,512,1,0,0,0,3],\
-		       [8192,512,8,0,0,0,3],\
-		       [1,1,2,1,1,1,1],\
-		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
+Algorithm1 = algorithm("candmc_bench_scala_qr",\
+                       [32768,512,8,1,5,0,0,0],\
+		       [32768,512,16,4,5,0,0,0],\
+		       [1,1,2,2,1,1,1,1],\
+		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
-                       lambda InputList,HardwareList: ((((HardwareList[1]*HardwareList[2])/(InputList[2]**2))>=InputList[2]) and (InputList[3] <= int(math.log(InputList[2])))),\
-		       [[1,1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
+                       lambda InputList,HardwareList: (((InputList[1]/InputList[3])>InputList[2]) and ((InputList[0]/(HardwareList[0]*HardwareList[1]/InputList[3])) >= (InputList[1]/InputList[3]))),\
+		       [[1,1,1,1,1,1,1,1]],\
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
                        [0])
-File1 = [["critter",()],["perf",("Performance","Residual","Deviation from Orthogonality")]]
+File1 = [["perf",["Performance/Node"]]]
 Test1=[[Algorithm1],"Strong Scaling: 8192x512 matrix",File1]
 TestList=[Test1]
 
