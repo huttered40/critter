@@ -2,3 +2,4 @@ critter.egg-info
 *.pyc
 build*
 dist*
+config.mk
