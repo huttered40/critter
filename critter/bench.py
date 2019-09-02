@@ -299,7 +299,7 @@ class bench(object):
 				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                             IsFirstNode=False
 					else:
-					    print("Not good with these params - ", AlgParameterList)
+					    print("Not good with these params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
 		                if (op == 2):
                                     self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
                                 scaleIndex=scaleIndex+1
