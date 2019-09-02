@@ -30,10 +30,10 @@ elif (os.system("hostname |grep \"h2o\"") != 256):
     maxPEcountPerNode=32
 nodeMinList=[1]
 nodeMaxList=[1]
-ppnMinList=[[1]]
-ppnMaxList=[[8]]
-tprMinList=[[1]]
-tprMaxList=[[1]]
+ppnMinList=[1]
+ppnMaxList=[8]
+tprMinList=[1]
+tprMaxList=[1]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[8]
 tprScaleFactorList=[2]
@@ -48,8 +48,7 @@ Algorithm1 = algorithm("camfs_cacqr2",\
                        lambda x: 0,\
                        lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[4] <= int(math.log(InputList[2])))),\
 		       [[1,1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
-                       [0])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = [["critter",[]],["perf",["Performance","Residual","Deviation from Orthogonality"]]]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]

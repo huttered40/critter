@@ -30,10 +30,10 @@ elif (os.system("hostname |grep \"h2o\"") != 256):
     maxPEcountPerNode=32
 nodeMinList=[2]
 nodeMaxList=[32]
-ppnMinList=[[32,16,16,32,16]]
-ppnMaxList=[[32,16,15,32,16]]
-tprMinList=[[1,1,1,1,1]]
-tprMaxList=[[1,1,1,1,1]]
+ppnMinList=[16]
+ppnMaxList=[32]
+tprMinList=[1]
+tprMaxList=[1]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[2]
 tprScaleFactorList=[2]
@@ -48,22 +48,15 @@ Algorithm1 = algorithm("camfs_cholinv",\
                        lambda x: 0,\
                        lambda InputList,HardwareList: ((int(round((HardwareList[0]*HardwareList[1])**(1./3.)))**3 == (HardwareList[0]*HardwareList[1])) and (InputList[3] <= round((HardwareList[0]*HardwareList[1])**(1./3.)))),\
 		       [[1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
-                       [0])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = [["critter",[]],["perf",["Performance","Residual"]]]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]
-
-#debug
-HardwareList=[2,32]
-print(int((HardwareList[0]*HardwareList[1])**(1./3.)))
-print(int(round((HardwareList[0]*HardwareList[1])**(1./3.))))
-print((int((HardwareList[0]*HardwareList[1])**(1./3.))**3 == (HardwareList[0]*HardwareList[1])))
 
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
-#Launcher.build()
+Launcher.build()
 Launcher.generate()
 #Launcher.launch()

@@ -1,7 +1,7 @@
 class algorithm(object):
     """
     """
-    def __init__(self,Tag,ParameterStartRange,ParameterEndRange,ParameterScaleFactor,ParameterScaleOperator,IndirectIndexFunc,SpecialFunc,ScaleFactorList,ScaleOperatorList,NodeStartOffsetList=[0]):
+    def __init__(self,Tag,ParameterStartRange,ParameterEndRange,ParameterScaleFactor,ParameterScaleOperator,IndirectIndexFunc,SpecialFunc,ScaleFactorList,ScaleOperatorList):
         """
 	"""
 	self.Tag=Tag
@@ -14,7 +14,6 @@ class algorithm(object):
 	self.ScaleOperatorList=ScaleOperatorList
         self.IndirectIndexFunc = IndirectIndexFunc
         self.SpecialFunc = SpecialFunc
-        self.NodeStartOffsetList=NodeStartOffsetList
         self.TagList=[]
 	for i in range(len( self.InputParameterStartRange)):
 	    if (self.InputParameterStartRange[i] < self.InputParameterEndRange[i]):

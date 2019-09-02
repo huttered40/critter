@@ -30,10 +30,10 @@ elif (os.system("hostname |grep \"h2o\"") != 256):
     maxPEcountPerNode=32
 nodeMinList=[1]
 nodeMaxList=[64]
-ppnMinList=[[32,32]]
-ppnMaxList=[[64,64]]
-tprMinList=[[1,1]]
-tprMaxList=[[4,4]]
+ppnMinList=[32]
+ppnMaxList=[64]
+tprMinList=[1]
+tprMaxList=[4]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[2]
 tprScaleFactorList=[2]
@@ -42,14 +42,13 @@ ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 Algorithm1 = algorithm("camfs_cholinv",\
                        [1024,1,0,0,0,3],\
-		       [1024,16,0,0,0,3],\
+		       [1024,1,0,0,0,3],\
 		       [1,2,1,1,1,1],\
 		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
-                       lambda InputList,HardwareList: ((InputList[1]**3 == (HardwareList[0]*HardwareList[1])) and (InputList[3] <= int(math.log(InputList[1])))),\
+                       lambda InputList,HardwareList: ((int(round((HardwareList[0]*HardwareList[1])**(1./3.)))**3 == (HardwareList[0]*HardwareList[1])) and (InputList[3] <= round((HardwareList[0]*HardwareList[1])**(1./3.)))),\
 		       [[1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
-                       [1])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = [["critter",[]],["perf",["Performance","Residual"]]]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]

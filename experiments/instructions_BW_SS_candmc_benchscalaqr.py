@@ -30,10 +30,10 @@ elif (os.system("hostname |grep \"h2o\"") != 256):
     maxPEcountPerNode=32
 nodeMinList=[4]
 nodeMaxList=[32]
-ppnMinList=[[16,16,16,16]]
-ppnMaxList=[[32,32,32,32]]
-tprMinList=[[1,1,1,1]]
-tprMaxList=[[4,4,4,4]]
+ppnMinList=[16]
+ppnMaxList=[32]
+tprMinList=[1]
+tprMaxList=[4]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[2]
 tprScaleFactorList=[2]
@@ -48,8 +48,7 @@ Algorithm1 = algorithm("candmc_bench_scala_qr",\
                        lambda x: 0,\
                        lambda InputList,HardwareList: (((InputList[1]/InputList[3])>InputList[2]) and ((InputList[0]/(HardwareList[0]*HardwareList[1]/InputList[3])) >= (InputList[1]/InputList[3]))),\
 		       [[1,1,1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
-                       [0])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = [["perf",["Performance/Node"]]]
 Test1=[[Algorithm1],"Strong Scaling: 8192x512 matrix",File1]
 TestList=[Test1]

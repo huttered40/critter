@@ -30,10 +30,10 @@ elif (os.system("hostname |grep \"h2o\"") != 256):
     maxPEcountPerNode=32
 nodeMinList=[8]
 nodeMaxList=[128]
-ppnMinList=[[32,32,32,32]]
-ppnMaxList=[[64,64,64,64]]
-tprMinList=[[1,1,1,1]]
-tprMaxList=[[2,2,2,2]]
+ppnMinList=[32]
+ppnMaxList=[64]
+tprMinList=[1]
+tprMaxList=[2]
 nodeScaleFactorList=[2]
 ppnScaleFactorList=[2]
 tprScaleFactorList=[2]
@@ -48,8 +48,7 @@ Algorithm1 = algorithm("camfs_cacqr2",\
                        lambda x: (1 if (x%4==0) else 0),\
                        lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[4] <= int(math.log(InputList[2],2)))),\
 		       [[2,1,1,1,1,1,1],[2,2,2,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]],\
-                       [0])
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],[__div__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = [["critter",[]],["perf",["Performance","Residual","Deviation from Orthogonality"]]]
 Test1=[[Algorithm1],"Weak Scaling: 8192x512 initial matrix",File1]
 TestList=[Test1]

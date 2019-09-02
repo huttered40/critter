@@ -66,9 +66,9 @@ class bench(object):
 
         nodeMinList,nodeMaxList - min/max number of nodes for each test
 
-        ppnMinList,ppnMaxList - min/max number of processes-per-node for each node count for each test
+        ppnMinList,ppnMaxList - min/max number of processes-per-node for each test
 
-        tprMinList,tprMaxList - min/max number of threads-per-process for each node count for each test
+        tprMinList,tprMaxList - min/max number of threads-per-process for each test
 
         nodeScaleFactorList - scaling factor to apply to the number of nodes for each test
 
@@ -124,6 +124,7 @@ class bench(object):
 
         # These list is necessary for special tracking
         self.SaveAlgParameters = []
+        self.SaveJobStrDict = {}
 
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
@@ -261,29 +262,32 @@ class bench(object):
         for LaunchIndex in range(1,self.NumLaunchesPerBinary+1):
             PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
-                for StartNodeIndex in self.TestList[TestIndex][0][AlgIndex].NodeStartOffsetList:
-                    curPPN = self.ppnMinList[TestIndex][StartNodeIndex]
-                    while (curPPN <= self.ppnMaxList[TestIndex][StartNodeIndex]):
-                        curTPR = self.tprMinList[TestIndex][StartNodeIndex]
-                        while (curTPR <= self.tprMaxList[TestIndex][StartNodeIndex]):
-		            scaleIndex=0
-                            IsFirstNode=True
-			    # Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
-			    AlgParameterList = list(SaveAlgParameterList)
-                            if (op == 2):
-                                totalScaleIndex = self.GetTotalValidNodes(TestIndex,AlgIndex,list(AlgParameterList),LaunchIndex,curPPN,curTPR,StartNodeIndex)
-                            curNumNodes=self.GetNodeListOffset(TestIndex,StartNodeIndex)
-                            while (curNumNodes <= self.nodeMaxList[TestIndex]):
-                                # Make sure we are in a suitable range
-			        numPEsPerNode=curPPN*curTPR
-                                if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
-                                    if (op == 0):
-                                        TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
-				        if not(TupleKey in PortalDict):
-                                            scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
-                                            self.MachineType.queue(scriptName)
-				            PortalDict[TupleKey]=1
-                                    elif (op == 1):
+                curPPN = self.ppnMinList[TestIndex]
+                while (curPPN <= self.ppnMaxList[TestIndex]):
+                    curTPR = self.tprMinList[TestIndex]
+                    while (curTPR <= self.tprMaxList[TestIndex]):
+		        scaleIndex=0
+                        IsFirstNode=True
+			# Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
+	                AlgParameterList = list(SaveAlgParameterList)
+                        if (op == 2):
+                            totalScaleIndex = self.GetTotalValidNodes(TestIndex,AlgIndex,list(AlgParameterList),LaunchIndex,curPPN,curTPR,0)
+                        curNumNodes=self.GetNodeListOffset(TestIndex,0)
+                        while (curNumNodes <= self.nodeMaxList[TestIndex]):
+                            # Make sure we are in a suitable range
+	                    numPEsPerNode=curPPN*curTPR
+                            if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
+                                if (op == 0):
+                                    TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
+	            	            if not(TupleKey in self.SaveJobStrDict):
+                                        scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
+                                        self.MachineType.queue(scriptName)
+				        PortalDict[TupleKey]=1
+                                elif (op == 2):
+                                    # Save special variables if at 1st node count
+                                    if (scaleIndex == 0):
+                                        self.SaveAlgParameters = list(AlgParameterList)
+                                    if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
                                         TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
 				        if not(TupleKey in PortalDict):
                                             scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
@@ -291,21 +295,17 @@ class bench(object):
                                             self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
                                             scriptFile.close()
 				            PortalDict[TupleKey]=1
-                                    elif (op == 2):
-                                        # Save special variables if at 1st node count
-                                        if (scaleIndex == 0):
-                                            self.SaveAlgParameters = list(AlgParameterList)
-                                        if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
-				            self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
-                                            IsFirstNode=False
-					else:
-					    print("Not good with these params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
-		                if (op == 2):
-                                    self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
-                                scaleIndex=scaleIndex+1
-                                curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
-                            curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
-                        curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
+                                            self.SaveJobStrDict[TupleKey]=1
+			                self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+                                        IsFirstNode=False
+                                    else:
+                                        print("Not good with these params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
+		            if (op == 2):
+                                self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
+                            scaleIndex=scaleIndex+1
+                            curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
+                        curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
+                    curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
 
     def queue_submit(self):
         """
@@ -352,8 +352,6 @@ class bench(object):
     def generate(self):
         """
         """
-        self.portal(1,0,self.numTests)
-
         self.WriteHeader(self.PlotInstructionsFile)
         self.WriteHeader(self.CollectInstructionsFile)
         self.PlotInstructionsFile.write(str(self.MachineType.PeakNodePerformance)+"\n")
