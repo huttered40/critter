@@ -279,7 +279,7 @@ class bench(object):
                             if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
                                 if (op == 0):
                                     TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
-	            	            if not(TupleKey in self.SaveJobStrDict):
+	            	            if (TupleKey in self.SaveJobStrDict):
                                         scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                         self.MachineType.queue(scriptName)
 				        PortalDict[TupleKey]=1
@@ -299,7 +299,7 @@ class bench(object):
 			                self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                         IsFirstNode=False
                                     else:
-                                        print("Not good with these params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
+                                        print("Variant with wrong params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
 		            if (op == 2):
                                 self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
                             scaleIndex=scaleIndex+1

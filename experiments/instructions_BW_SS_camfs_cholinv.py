@@ -59,4 +59,4 @@ Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunc
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
 Launcher.build()
 Launcher.generate()
-#Launcher.launch()
+Launcher.launch()
