@@ -125,6 +125,8 @@ class bench(object):
         # These list is necessary for special tracking
         self.SaveAlgParameters = []
         self.SaveJobStrDict = {}
+        self.NodeCountDict = {}
+        self.ProcessCountDict = {}
 
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
@@ -298,6 +300,9 @@ class bench(object):
                                             self.SaveJobStrDict[TupleKey]=1
 			                self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                         IsFirstNode=False
+                                        # Save the node/process counts supporting valid variants
+                                        self.NodeCountDict[curNumNodes] = 1
+                                        self.ProcessCountDict[curNumNodes*curPPN] = 1
                                     else:
                                         print("Variant with wrong params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
 		            if (op == 2):
@@ -374,12 +379,6 @@ class bench(object):
             for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
                 self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
 
-            NodeCount = self.GetRangeCount(0,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
-	    self.PlotInstructionsFile.write("%d\n"%(NodeCount))
-            # Note that although different algorithm variants may have different starting nodes, they will also have different PPN counts,
-            #     forcing the total PE count to be equal. This matters for plotting because if this were not true, I'd need to print out the node counts for each different variant
-            self.GetRangeCount(1,self.PlotInstructionsFile,self.nodeMinList[TestIndex],self.nodeMaxList[TestIndex],self.ppnScaleFactorList[TestIndex],self.ppnScaleOperatorList[TestIndex])
-
             for AlgIndex in range(len(self.TestList[TestIndex][0])):
                 print("\n  Algorithm %s"%(self.TestList[TestIndex][0][AlgIndex].Tag))
                 VariantIndex=0
@@ -387,6 +386,15 @@ class bench(object):
 		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList)
             self.CollectInstructionsFile.write("1\n")
             self.PlotInstructionsFile.write("1\n")
+
+	    self.PlotInstructionsFile.write("%d\n"%(len(self.NodeCountDict.keys())))
+            for key in sorted(self.NodeCountDict.keys()):
+                self.PlotInstructionsFile.write("%d\n"%(key))
+	    self.PlotInstructionsFile.write("%d\n"%(len(self.ProcessCountDict.keys())))
+            for key in sorted(self.ProcessCountDict.keys()):
+                self.PlotInstructionsFile.write("%d\n"%(key))
+            self.NodeCountDict.clear()
+            self.ProcessCountDict.clear()
 
     def launch(self):
         self.queue_submit()
