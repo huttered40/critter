@@ -226,7 +226,7 @@ class bench(object):
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
 
-    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,launchID,node,ppn,tpr):
+    def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,launchID,node,ppn,tpr):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
@@ -246,15 +246,11 @@ class bench(object):
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
             self.WriteAlgorithmInfoForPlotting(self.SaveAlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
-            self.PlotInstructionsFile.write(str(totalScaleIndex)+"\n")
-        # Regardless of scaleIndex, we need to record the scaleIndex
-        self.PlotInstructionsFile.write(str(scaleIndex)+"\n")
-
         self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
 
 
-    def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0):
+    def portal(self,op,TestStartIndex,TestEndIndex,AlgParameterList=[],AlgIndex=0,BinaryPath=0,ValidNodeList=[],ValidProcessList=[]):
         """
         Note that 'portal' exploits the fact that as we scale, the range of PPN/TPR counts will not change.
         However, this does not mean that the PPN/TPR counts are the same for each node.
@@ -272,8 +268,9 @@ class bench(object):
                         IsFirstNode=True
 			# Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
 	                AlgParameterList = list(SaveAlgParameterList)
-                        if (op == 2):
-                            totalScaleIndex = self.GetTotalValidNodes(TestIndex,AlgIndex,list(AlgParameterList),LaunchIndex,curPPN,curTPR,0)
+                        # Two lines below assume that this algorithm variant will have at least one valid node
+                        ValidNodeList.append([])
+                        ValidProcessList.append([])
                         curNumNodes=self.GetNodeListOffset(TestIndex,0)
                         while (curNumNodes <= self.nodeMaxList[TestIndex]):
                             # Make sure we are in a suitable range
@@ -298,11 +295,13 @@ class bench(object):
                                             scriptFile.close()
 				            PortalDict[TupleKey]=1
                                             self.SaveJobStrDict[TupleKey]=1
-			                self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,totalScaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
+			                self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                         IsFirstNode=False
                                         # Save the node/process counts supporting valid variants
-                                        self.NodeCountDict[curNumNodes] = 1
-                                        self.ProcessCountDict[curNumNodes*curPPN] = 1
+                                        self.NodeCountDict[curNumNodes]=1
+                                        self.ProcessCountDict[curNumNodes*curPPN]=1
+                                        ValidNodeList[-1].append(curNumNodes)
+                                        ValidProcessList[-1].append(curNumNodes*curPPN)
                                     else:
                                         print("Variant with wrong params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
 		            if (op == 2):
@@ -326,7 +325,7 @@ class bench(object):
             # export SPECIAL_SCALA_ARG=REF
             lib.build(self.CritterPath,self.testName)
 
-    def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList):
+    def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList,ValidNodeList,ValidProcessList):
         """
 	"""
         # base case at the last level -- this is when we are sure a valid parameter combination exists
@@ -340,14 +339,14 @@ class bench(object):
                 BinaryPath=BinaryPath + "_GPU"
 
             print("\n    Variant %d"%(VariantIndex))
-            self.portal(2,TestIndex,TestIndex+1,list(AlgParameterList),AlgIndex,BinaryPath)
+            self.portal(2,TestIndex,TestIndex+1,list(AlgParameterList),AlgIndex,BinaryPath,ValidNodeList,ValidProcessList)
 	    return VariantIndex+1
 
         IsValid=1
 	while (IsValid):
 	    if (AlgParameterList[ParameterIndex] == self.TestList[TestIndex][0][AlgIndex].InputParameterEndRange[ParameterIndex]):
 	        IsValid=0
-            VariantIndex = self.cycle(TestIndex,AlgIndex,VariantIndex,ParameterIndex+1,list(AlgParameterList))
+            VariantIndex = self.cycle(TestIndex,AlgIndex,VariantIndex,ParameterIndex+1,list(AlgParameterList),ValidNodeList,ValidProcessList)
             if (IsValid):
 	        AlgParameterList[ParameterIndex] = self.TestList[TestIndex][0][AlgIndex].InputParameterScaleOperator[ParameterIndex](\
                     AlgParameterList[ParameterIndex],self.TestList[TestIndex][0][AlgIndex].InputParameterScaleFactor[ParameterIndex])
@@ -379,20 +378,42 @@ class bench(object):
             for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
                 self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
 
+            # These two lists below will have length equal to the number of valid algorithm variants
+            ValidNodeList=[]
+            ValidProcessList=[]
             for AlgIndex in range(len(self.TestList[TestIndex][0])):
                 print("\n  Algorithm %s"%(self.TestList[TestIndex][0][AlgIndex].Tag))
                 VariantIndex=0
 		AlgParameterList=list(self.TestList[TestIndex][0][AlgIndex].InputParameterStartRange)
-		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList)
+		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList,ValidNodeList,ValidProcessList)
+
+            # Signify end of test info
             self.CollectInstructionsFile.write("1\n")
             self.PlotInstructionsFile.write("1\n")
-
+            # Detail number and names of the valid node counts and process counts
+            count=0
 	    self.PlotInstructionsFile.write("%d\n"%(len(self.NodeCountDict.keys())))
             for key in sorted(self.NodeCountDict.keys()):
+                self.NodeCountDict[key] = count
                 self.PlotInstructionsFile.write("%d\n"%(key))
+                count+=1
 	    self.PlotInstructionsFile.write("%d\n"%(len(self.ProcessCountDict.keys())))
+            count=0
             for key in sorted(self.ProcessCountDict.keys()):
+                self.ProcessCountDict[key] = count
                 self.PlotInstructionsFile.write("%d\n"%(key))
+                count+=1
+            # Detail the nodeScaleIndices and processScaleIndices for each algorithm variant
+            self.PlotInstructionsFile.write("%d\n"%(len(ValidNodeList)))
+            for i in range(len(ValidNodeList)):
+                self.PlotInstructionsFile.write("%d\n"%(len(ValidNodeList[i])))
+                for j in range(len(ValidNodeList[i])):
+                    self.PlotInstructionsFile.write("%d\n"%(self.NodeCountDict[ValidNodeList[i][j]]))
+            self.PlotInstructionsFile.write("%d\n"%(len(ValidProcessList)))
+            for i in range(len(ValidProcessList)):
+                self.PlotInstructionsFile.write("%d\n"%(len(ValidProcessList[i])))
+                for j in range(len(ValidProcessList[i])):
+                    self.PlotInstructionsFile.write("%d\n"%(self.ProcessCountDict[ValidProcessList[i][j]]))
             self.NodeCountDict.clear()
             self.ProcessCountDict.clear()
 
