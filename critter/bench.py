@@ -127,6 +127,7 @@ class bench(object):
         self.SaveJobStrDict = {}
         self.NodeCountDict = {}
         self.ProcessCountDict = {}
+        self.PortalDict = {}
 
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
@@ -258,7 +259,6 @@ class bench(object):
         """
 	SaveAlgParameterList = list(AlgParameterList)
         for LaunchIndex in range(1,self.NumLaunchesPerBinary+1):
-            PortalDict = {}
             for TestIndex in range(TestStartIndex,TestEndIndex):
                 curPPN = self.ppnMinList[TestIndex]
                 while (curPPN <= self.ppnMaxList[TestIndex]):
@@ -281,19 +281,19 @@ class bench(object):
 	            	            if (TupleKey in self.SaveJobStrDict):
                                         scriptName="%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                         self.MachineType.queue(scriptName)
-				        PortalDict[TupleKey]=1
+				        self.PortalDict[TupleKey]=1
                                 elif (op == 2):
                                     # Save special variables if at 1st node count
                                     if (scaleIndex == 0):
                                         self.SaveAlgParameters = list(AlgParameterList)
                                     if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
                                         TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
-				        if not(TupleKey in PortalDict):
+				        if not(TupleKey in self.PortalDict):
                                             scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                             scriptFile=open(scriptName,"a+")
                                             self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
                                             scriptFile.close()
-				            PortalDict[TupleKey]=1
+				            self.PortalDict[TupleKey]=1
                                             self.SaveJobStrDict[TupleKey]=1
 			                self.algorithmDispatch(TestIndex,AlgParameterList,AlgIndex,BinaryPath,IsFirstNode,scaleIndex,LaunchIndex,curNumNodes,curPPN,curTPR)
                                         IsFirstNode=False
@@ -376,6 +376,7 @@ class bench(object):
             # These two lists below will have length equal to the number of valid algorithm variants
             ValidNodeList=[]
             ValidProcessList=[]
+            self.PortalDict = {}
             for AlgIndex in range(len(self.TestList[TestIndex][0])):
                 print("\n  Algorithm %s"%(self.TestList[TestIndex][0][AlgIndex].Tag))
                 VariantIndex=0
