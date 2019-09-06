@@ -322,7 +322,6 @@ class bench(object):
         """
         """
         for lib in self.LibraryTypeList:
-            # export SPECIAL_SCALA_ARG=REF
             lib.build(self.CritterPath,self.testName)
 
     def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList,ValidNodeList,ValidProcessList):
@@ -334,10 +333,6 @@ class bench(object):
             BinaryTag=self.TestList[TestIndex][0][AlgIndex].Tag
 
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],BinaryTag)
-            # Below: special case that will hopefully be replaced soon
-            if (self.MachineType.IsAccelerated()):
-                BinaryPath=BinaryPath + "_GPU"
-
             print("\n    Variant %d"%(VariantIndex))
             self.portal(2,TestIndex,TestIndex+1,list(AlgParameterList),AlgIndex,BinaryPath,ValidNodeList,ValidProcessList)
 	    return VariantIndex+1
