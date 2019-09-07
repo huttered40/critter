@@ -268,9 +268,9 @@ class bench(object):
                         IsFirstNode=True
 			# Must reset 'AlgParameterList' each time to avoid corrupting its elements as they are modified across nodes
 	                AlgParameterList = list(SaveAlgParameterList)
-                        # Two lines below assume that this algorithm variant will have at least one valid node
-                        ValidNodeList.append([])
-                        ValidProcessList.append([])
+                        if (op == 2):
+                            ValidNodeList.append([])
+                            ValidProcessList.append([])
                         curNumNodes=self.GetNodeListOffset(TestIndex,0)
                         while (curNumNodes <= self.nodeMaxList[TestIndex]):
                             # Make sure we are in a suitable range
@@ -308,6 +308,10 @@ class bench(object):
                                 self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
                             scaleIndex=scaleIndex+1
                             curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
+		        if (op == 2):
+                            if (ValidNodeList[-1] == []):
+                                del ValidNodeList[-1]
+                                del ValidProcessList[-1]
                         curTPR=self.tprScaleOperatorList[TestIndex](curTPR,self.tprScaleFactorList[TestIndex])
                     curPPN=self.ppnScaleOperatorList[TestIndex](curPPN,self.ppnScaleFactorList[TestIndex])
 
