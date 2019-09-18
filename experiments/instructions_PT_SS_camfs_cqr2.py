@@ -49,7 +49,7 @@ Algorithm1 = algorithm("camfs_cacqr2",\
                        lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[4] <= int(math.log(InputList[2])))),\
 		       [[1,1,1,1,1,1,1]],\
 		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
-File1 = [["critter",[]],["perf",["Performance","Residual","Deviation from Orthogonality"]]]
+File1 = [["critter",[]]]#,["perf",["Performance","Residual","Deviation from Orthogonality"]]]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]
 

@@ -17,31 +17,28 @@ namespace critter{
 class _critter {
   public: 
     /* \brief number of bytes max(sent,recv'ed) for each call made locally */
-    double my_bytes;
+    std::vector<double> my_bytes;
     /* \brief duration of communication time for each call made locally */
-    double my_comm_time;
+    std::vector<double> my_comm_time;
     /* \brief duration of idle time for each call made locally */
-    double my_bar_time;
+    std::vector<double> my_bar_time;
     /* \brief number of bytes max(sent,recv'ed) for each call made along the critical path */
-    double crit_bytes;
+    std::vector<double> crit_bytes;
     /* \brief duration of communication time for each call made along the critical path */
-    double crit_comm_time;
+    std::vector<double> crit_comm_time;
     /* \brief number of bytes max(sent,recv'ed) for each call made along the critical path */
-    double crit_bar_time;
+    std::vector<double> crit_bar_time;
 
     /* \brief comm cost #messages term*/
-    double crit_msg;
+    std::vector<double> crit_msg;
     /* \brief comm cost #words term */
-    double crit_wrd;
+    std::vector<double> crit_wrd;
     /* \brief name of collective */
     std::string name;
 
      /* \brief duration of computation time for each call made locally,
  *        Used to save the local computation time between _critter methods, so that we can synchronize it after communication */
-    double my_comp_time;
-
-    /* Running sums in order to calculate averages */
-    double my_bytesSum, my_comm_timeSum, my_bar_timeSum, crit_bytesSum, crit_comm_timeSum, crit_bar_timeSum, crit_msgSum, crit_wrdSum;
+    std::vector<double> my_comp_time;
 
     /* \brief function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func;
@@ -129,14 +126,6 @@ class _critter {
      */
     void init();
 
-    /**
-     * \brief common initialization of variables ultimately used to find the average of each critter routine
-     */
-    void initSums();
-/*
-  private:
-    void init();
-*/
 };
 #define NUM_CRITTERS 17
 
@@ -147,11 +136,10 @@ extern std::string StreamName,FileName;
 extern bool UseCritter;
 extern std::ofstream Stream;
 extern bool IsWorldRoot;
-extern double totalCritComputationTime;
 extern double curComputationTimer;
+extern double totalComputationTime;
 extern double totalOverlapTime;			// Updated at each BSP step
 extern double totalCommunicationTime;
-extern double totalIdleTime;
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 extern std::map<std::string,std::vector<std::string>> AlgCritters;
@@ -178,36 +166,56 @@ void FillAlgCritterList();
 bool InAlgCritterList(std::string AlgName, std::string CritterName);
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
-void init(bool _UseCritter, std::string _FileName);
 void reset();
-void print(bool IsFirstIter, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData = 0, double* Data = nullptr);
-void finalize();
+void print(size_t NumData = 0, double* Data = nullptr);
 }
 
-/*
-#define MPI_Finalize()\
-   do {\
-    assert(critter_req.size() == 0);\
-    int myrank; MPI_Comm_rank(MPI_COMM_WORLD, &myrank);\
-    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);\
-    if (myrank == 0) {\
-    }\
-    for (int i=0; i<NUM_CRITTERS; i++){\
-      if (myrank == 0) {\
-        critter_list[i]->print_crit();\
-      }\
-    } PMPI_Finalize();\
-  } while (0)
-*/
-
-#define MPI_Barrier(cm)\
+#define MPI_Init(int* argc, char*** argv)\
   do {\
-    if (critter::UseCritter){\
-      critter::MPI_Barrier_critter.start(0, MPI_CHAR, cm);\
-      PMPI_Barrier(cm);\
-      critter::MPI_Barrier_critter.stop();}\
+     PMPI_Init(argc,argv);\
+     FileName = std::move(std::string(*argv[*argc-1]);\
+     StreamName = FileName + ".txt";\
+     UseCritter = 1;\
+     int rank;\
+     MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
+     if (rank == 0){\
+       IsWorldRoot = true;\
+       Stream.open(StreamName.c_str());\
+     } else {IsWorldRoot=false;}\
+    critter::reset();
+  } while (0)
+
+#define MPI_Init_thread(int *argc, char ***argv, int required, int *provided)\
+  do{\
+     PMPI_Init_thread(argc,argv,required,provided);\
+     FileName = std::move(std::string(*argv[*argc-1]);\
+     StreamName = FileName + ".txt";\
+     UseCritter = 1;\
+     int rank;\
+     MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
+     if (rank == 0){\
+       IsWorldRoot = true;\
+       Stream.open(StreamName.c_str());\
+     } else {IsWorldRoot=false;}\
+    critter::reset();
+   } while (0)
+
+#define MPI_Finalize()\
+  do {\
+    critter::print();\
+    if (IsWorldRoot){\
+      Stream.close();\
+    }\
+  } while (0)
+
+#define mpi_barrier(cm)\
+  do {\
+    if (critter::usecritter){\
+      critter::mpi_barrier_critter.start(0, mpi_char, cm);\
+      pmpi_barrier(cm);\
+      critter::mpi_barrier_critter.stop();}\
     else{\
-      PMPI_Barrier(cm);\
+      pmpi_barrier(cm);\
     }\
   } while (0)
 
@@ -406,7 +414,7 @@ void finalize();
       std::vector<double> localVec(3);\
       localVec[0] = localCompTime; localVec[1] = localCommTime; localVec[2] = localTotalTime;\
       PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, comm1);\
-      critter::totalCritComputationTime += critterVec[0];\
+      critter::totalComputationTime += critterVec[0];\
       critter::totalCommunicationTime += critterVec[1];\
       critter::totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);\
       critter::curComputationTimer = MPI_Wtime();}\

@@ -204,7 +204,7 @@ class bench(object):
             File.write("%s\n"%(AlgTag))
             FileExtensions=self.TestList[TestID][2]
             File.write("%d\n"%(len(FileExtensions)))
-            File.write("%d\n"%(1+2*(len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2)))	# '+2' from ppn,tpr
+            File.write("%d\n"%(1+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+2' from ppn,tpr
 
             # Allow for any number of user-defined tests
 	    for i in range(len(FileExtensions)):
@@ -220,9 +220,10 @@ class bench(object):
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
         # Allow for any number of user-defined tests
-        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)+" %d %d"%(ppn,tpr);
-	for i in range(len(FileExtensions)):
-            MethodString = MethodString + " %s_%s"%(fileString,FileExtensions[i][0])
+        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
+        #TODO: In future, only one string will be used, so be careful here. This loop (although fine for now), will no longer be needed.
+        for i in range(len(FileExtensions)):
+            MethodString = MethodString + " %s\\%s"%(fileString,FileExtensions[i][0])
         scriptFile=open(scriptName,"a+")
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
@@ -231,13 +232,13 @@ class bench(object):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
-        BaseString1="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-                  +"".join("_"+str(x) for x in AlgParameters) + "_%dlaunch_%dppn_%dtpr"%(launchID,ppn,tpr)
-        BaseString2="%s_%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-                  +"".join("_"+str(x) for x in self.SaveAlgParameters) + "_%dlaunch_%dppn_%dtpr"%(launchID,ppn,tpr)
+        BaseString1="%s\\%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+                  +"".join("\\"+str(x) for x in AlgParameters) + "\\%dlaunch\\%dppn\\%dtpr"%(launchID,ppn,tpr)
+        BaseString2="%s\\%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+                  +"".join("\\"+str(x) for x in self.SaveAlgParameters) + "\\%dlaunch\\%dppn\\%dtpr"%(launchID,ppn,tpr)
         PostFile=BaseString2
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-        PreFile=BaseString1+"_%dnodes"%(node)
+        PreFile=BaseString1+"\\%dnodes"%(node)
         fileString="DataFiles/"+PreFile
 
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
