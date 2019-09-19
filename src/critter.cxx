@@ -328,19 +328,6 @@ void compute_all_avg_crit_updates(){
   }
 }
 
-void reset(){
-  assert(critter_req.size() == 0);
-  FillAlgCritterList();
-  for (int i=0; i<NUM_CRITTERS; i++){
-    critter_list[i]->init();
-  }
-  totalComputationTime=0;
-  totalCommunicationTime=0;
-  totalOverlapTime=0;
-  /*Initiate new timer*/
-  curComputationTimer=MPI_Wtime();
-}
-
 void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, size_t* Inputs){
   Stream << NumPEs;
   for (size_t idx = 0; idx < NumInputs; idx++){
@@ -433,4 +420,22 @@ void print(size_t NumData, double* Data){
     }
   }
 }
+
+void start(){
+  assert(critter_req.size() == 0);
+  FillAlgCritterList();
+  for (int i=0; i<NUM_CRITTERS; i++){
+    critter_list[i]->init();
+  }
+  totalComputationTime=0;
+  totalCommunicationTime=0;
+  totalOverlapTime=0;
+  /*Initiate new timer*/
+  curComputationTimer=MPI_Wtime();
 }
+
+void stop(){
+  assert(critter_req.size() == 0);
+  record();	.. record will be used internally. print can be used by user.
+}
+};

@@ -166,8 +166,10 @@ void FillAlgCritterList();
 bool InAlgCritterList(std::string AlgName, std::string CritterName);
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
-void reset();
+void record(size_t NumData = 0, double* Data = nullptr);
 void print(size_t NumData = 0, double* Data = nullptr);
+void start();
+void stop();
 }
 
 #define MPI_Init(int* argc, char*** argv)\
@@ -182,7 +184,6 @@ void print(size_t NumData = 0, double* Data = nullptr);
        IsWorldRoot = true;\
        Stream.open(StreamName.c_str());\
      } else {IsWorldRoot=false;}\
-    critter::reset();
   } while (0)
 
 #define MPI_Init_thread(int *argc, char ***argv, int required, int *provided)\
@@ -197,12 +198,10 @@ void print(size_t NumData = 0, double* Data = nullptr);
        IsWorldRoot = true;\
        Stream.open(StreamName.c_str());\
      } else {IsWorldRoot=false;}\
-    critter::reset();
    } while (0)
 
 #define MPI_Finalize()\
   do {\
-    critter::print();\
     if (IsWorldRoot){\
       Stream.close();\
     }\
