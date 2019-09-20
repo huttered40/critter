@@ -17,28 +17,35 @@ namespace critter{
 class _critter {
   public: 
     /* \brief number of bytes max(sent,recv'ed) for each call made locally */
-    std::vector<double> my_bytes;
+    double my_bytes;
     /* \brief duration of communication time for each call made locally */
-    std::vector<double> my_comm_time;
+    double my_comm_time;
     /* \brief duration of idle time for each call made locally */
-    std::vector<double> my_bar_time;
-    /* \brief number of bytes max(sent,recv'ed) for each call made along the critical path */
-    std::vector<double> crit_bytes;
-    /* \brief duration of communication time for each call made along the critical path */
-    std::vector<double> crit_comm_time;
-    /* \brief number of bytes max(sent,recv'ed) for each call made along the critical path */
-    std::vector<double> crit_bar_time;
+    double my_bar_time;
+    /* \brief duration of communication time for each call made locally */
+    double my_msg;
+    /* \brief duration of idle time for each call made locally */
+    double my_wrd;
 
+    /* \brief number of bytes max(sent,recv'ed) for each call made along the critical path */
+    double crit_bytes;
+    /* \brief duration of communication time for each call made along the critical path */
+    double crit_comm_time;
+    /* \brief number of bytes max(sent,recv'ed) for each call made along the critical path */
+    double crit_bar_time;
     /* \brief comm cost #messages term*/
-    std::vector<double> crit_msg;
+    double crit_msg;
     /* \brief comm cost #words term */
-    std::vector<double> crit_wrd;
+    double crit_wrd;
     /* \brief name of collective */
     std::string name;
 
-     /* \brief duration of computation time for each call made locally,
- *        Used to save the local computation time between _critter methods, so that we can synchronize it after communication */
-    std::vector<double> my_comp_time;
+    /* \brief duration of computation time for each call made locally,
+     *   Used to save the local computation time between _critter methods, so that we can synchronize it after communication */
+    double save_comp_time;
+
+    /* Running sums in order to calculate averages */
+    //double my_bytesSum, my_comm_timeSum, my_bar_timeSum, crit_bytesSum, crit_comm_timeSum, crit_bar_timeSum, crit_msg_Sum, crit_wrd_Sum;
 
     /* \brief function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func;
@@ -96,7 +103,8 @@ class _critter {
      * \param[in] nbe_pe neighbor processor (only used for p2p routines)
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      */
-    void compute_max_crit(MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void get_crit_data(double* Container);
+    void set_crit_data(double* Container);
 
     void compute_avg_crit_update();
     
@@ -127,19 +135,18 @@ class _critter {
     void init();
 
 };
-#define NUM_CRITTERS 17
+//#define NUM_CRITTERS 17
+constexpr auto NumCritters=18;
 
-extern _critter * critter_list[NUM_CRITTERS];
+extern _critter * critter_list[NumCritters];
 /* \brief request/critter dictionary for asynchronous messages */
 extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,FileName;
 extern bool UseCritter;
 extern std::ofstream Stream;
 extern bool IsWorldRoot;
-extern double curComputationTimer;
-extern double totalComputationTime;
-extern double totalOverlapTime;			// Updated at each BSP step
-extern double totalCommunicationTime;
+extern double ComputationTimer;
+extern double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 extern std::map<std::string,std::vector<std::string>> AlgCritters;
@@ -161,6 +168,7 @@ extern _critter MPI_Barrier_critter,
          MPI_Isend_critter, 
          MPI_Irecv_critter, 
          MPI_Sendrecv_critter, 
+         MPI_Comm_split_critter, 
          MPI_Sendrecv_replace_critter; 
 void FillAlgCritterList();
 bool InAlgCritterList(std::string AlgName, std::string CritterName);
@@ -205,6 +213,12 @@ void stop();
     if (IsWorldRoot){\
       Stream.close();\
     }\
+    .. not sure if I want to leave the stuff below, especially in light of critter::start and critter::stop\
+    for (int i=0; i<NumCritters; i++){\
+      if (myrank == 0) {\
+        critter_list[i]->print_crit();\
+      }\
+    } PMPI_Finalize();\
   } while (0)
 
 #define mpi_barrier(cm)\
@@ -400,27 +414,18 @@ void stop();
     }\
   } while (0)
 
-#define MPI_Comm_split(comm1, arg2, arg3, comm2)\
+/*
+#define MPI_Comm_split(comm1, arg2, arg3, cm)\
   do {\
     if (critter::UseCritter){\
-      volatile double curTime = MPI_Wtime();\
-      double localCompTime = curTime - critter::curComputationTimer;\
-      curTime = MPI_Wtime();\
-      PMPI_Comm_split(comm1, arg2, arg3, comm2);\
-      double localCommTime = MPI_Wtime() - curTime;\
-      double localTotalTime = localCompTime + localCommTime;\
-      std::vector<double> critterVec(3);\
-      std::vector<double> localVec(3);\
-      localVec[0] = localCompTime; localVec[1] = localCommTime; localVec[2] = localTotalTime;\
-      PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, comm1);\
-      critter::totalComputationTime += critterVec[0];\
-      critter::totalCommunicationTime += critterVec[1];\
-      critter::totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);\
-      critter::curComputationTimer = MPI_Wtime();}\
+      critter::MPI_Comm_split_critter.start(0, MPI_CHAR, *cm);\
+      PMPI_Comm_split(comm1, arg2, arg3, cm);\
+      critter::MPI_Comm_split_critter.stop();}\
     else{\
-      PMPI_Comm_split(comm1, arg2, arg3, comm2);\
+      PMPI_Comm_split(comm1, arg2, arg3, cm);\
     }\
   } while (0)
+*/
 
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\

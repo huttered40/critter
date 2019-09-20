@@ -80,13 +80,17 @@ _critter MPI_Barrier_critter("MPI_Barrier",
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
+        MPI_Comm_split_critter("MPI_Comm_split",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),0); 
+                          }), 
         MPI_Sendrecv_replace_critter("MPI_Sendrecv_replace",
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }); 
+                          });
 
 
-_critter * critter_list[NUM_CRITTERS] = {
+_critter * critter_list[NumCritters] = {
         &MPI_Barrier_critter,
         &MPI_Bcast_critter,
         &MPI_Reduce_critter,
@@ -103,13 +107,12 @@ _critter * critter_list[NUM_CRITTERS] = {
         &MPI_Irecv_critter,
         &MPI_Isend_critter,
         &MPI_Sendrecv_critter,
+        &MPI_Comm_split_critter,
         &MPI_Sendrecv_replace_critter };
 std::map<MPI_Request, _critter*> critter_req;
 
-double curComputationTimer;
-double totalComputationTime;
-double totalOverlapTime;			// Updated at each BSP step
-double totalCommunicationTime;
+double ComputationTimer;
+double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::map<std::string,std::vector<std::string>> AlgCritters;
@@ -129,15 +132,32 @@ bool InAlgCritterList(std::string AlgName, std::string CritterName){
 
 void _critter::init(){
   this->last_start_time = -1.;
-  this->my_bytes.clear();
-  this->my_comm_time.clear();
-  this->my_bar_time.clear();
-  this->crit_bytes.clear();
-  this->crit_comm_time.clear();
-  this->crit_bar_time.clear();
-  this->crit_msg.clear();
-  this->crit_wrd.clear();
-  this->my_comp_time.clear();
+  this->my_bytes        = 0.;
+  this->my_comm_time    = 0.;
+  this->my_bar_time     = 0.;
+  this->my_msg     = 0.;
+  this->my_wrd     = 0.;
+  this->crit_bytes      = 0.;
+  this->crit_comm_time  = 0.;
+  this->crit_bar_time   = 0.;
+  this->crit_msg        = 0.;
+  this->crit_wrd        = 0.;
+  this->save_comp_time   = 0.;
+}
+
+void _critter::initSums(){
+/*
+  this->my_bytesSum        = 0.;
+  this->my_comm_timeSum    = 0.;
+  this->my_bar_timeSum     = 0.;
+  this->my_msg_Sum    = 0.;
+  this->my_wrd_Sum     = 0.;
+  this->crit_bytesSum      = 0.;
+  this->crit_comm_timeSum  = 0.;
+  this->crit_bar_timeSum   = 0.;
+  this->crit_msgSum        = 0.;
+  this->crit_wrdSum        = 0.;
+*/
 }
 
 _critter::_critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
@@ -160,7 +180,7 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
-  this->my_comp_time.push_back(curTime - curComputationTimer);
+  this->save_comp_time = curTime - ComputationTimer;
 
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
@@ -173,8 +193,10 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   int p;
   MPI_Comm_size(cm, &p);
   std::pair<double,double> dcost = cost_func(nbytes, p);
-  this->crit_msg.push_back(dcost.first);
-  this->crit_wrd.push_bacl(dcost.second);
+  this->crit_msg += dcost.first;
+  this->crit_wrd += dcost.second;
+  this->my_msg += dcost.first;
+  this->my_wrd += dcost.second;
 
   volatile double init_time = MPI_Wtime();
   if (!is_async){
@@ -193,72 +215,41 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   this->my_bar_time.push_back(localBarrierTime);
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
+
+  CritterCostMetrics[0] += nbytes;
+  CritterCostMetrics[2] += localBarrierTime;
+  CritterCostMetrics[3] += dcost.second;
+  CritterCostMetrics[4] += dcost.first;
 }
 
 void _critter::stop(){
   double dt = MPI_Wtime() - this->last_start_time;
   this->my_comm_time += dt;
+  CritterCostMetrics[1] += dt;
   this->crit_comm_time += dt;	// Will get updated after an AllReduce to find the current critical path
   this->last_start_time = MPI_Wtime();
+  CritterCostMetrics[5] += this->save_comp_time;
+  CritterCostMetrics[6] += this->save_comp_time+dt;
   compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
-
-  // In order to get true overlap, I need to do another MPI_Allreduce using my_barrier_time, my_comm_time, and my_comp_time
-  std::vector<double> critterVec(3);
-  std::vector<double> localVec(3);
-  localVec[0] = this->my_comp_time; localVec[1] = this->my_comm_time; localVec[2] = this->my_comp_time + this->my_comm_time;
-
-  if (this->last_nbr_pe == -1)
-    PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, this->last_cm);
-  else {
-    PMPI_Sendrecv(&localVec[0], 3, MPI_DOUBLE, this->last_nbr_pe, 123213, &critterVec[0], 3, MPI_DOUBLE, this->last_nbr_pe, 123213, this->last_cm, MPI_STATUS_IGNORE);
-    for (int i=0; i<3; i++){
-      critterVec[i] = std::max(localVec[i], critterVec[i]);
-    }
-    if (this->last_nbr_pe2 != -1 && this->last_nbr_pe2 != this->last_nbr_pe){
-      PMPI_Sendrecv(&localVec[0], 3, MPI_DOUBLE, this->last_nbr_pe2, 123214, &critterVec[0], 3, MPI_DOUBLE, this->last_nbr_pe2, 123214, this->last_cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<3; i++){
-        critterVec[i] = std::max(localVec[i], critterVec[i]);
-      }
-    }
-  }
-
-  totalComputationTime += critterVec[0];
-  // totalCritCommunicationTime does not need to be tracked here, since I calculate it somewhere else. Doing so here would create double-counting
-  totalOverlapTime += (critterVec[0] + critterVec[1] - critterVec[2]);
-
   // Just for sanity, lets have all processors start at same place
   PMPI_Barrier(MPI_COMM_WORLD);
-  curComputationTimer = MPI_Wtime();		// reset this again
-  .. why not reset last_comp_time memebr variable, instead of using a global variabe? We might be able to track these better in buckets doing this.
+  ComputationTimer = MPI_Wtime();		// reset this again
 }
 
-void _critter::compute_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  double old_cs[5];
-  double new_cs[5];
-  old_cs[0] = this->crit_bytes;
-  old_cs[1] = this->crit_comm_time;
-  old_cs[2] = this->crit_bar_time;
-  old_cs[3] = this->crit_msg;
-  old_cs[4] = this->crit_wrd;
-  if (nbr_pe == -1)
-    PMPI_Allreduce(old_cs, new_cs, 5, MPI_DOUBLE, MPI_MAX, cm);
-  else {
-    PMPI_Sendrecv(&old_cs, 5, MPI_DOUBLE, nbr_pe, 123213, &new_cs, 5, MPI_DOUBLE, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
-    for (int i=0; i<5; i++){
-      new_cs[i] = std::max(old_cs[i], new_cs[i]);
-    }
-    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(&new_cs, 5, MPI_DOUBLE, nbr_pe2, 123214, &old_cs, 5, MPI_DOUBLE, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<5; i++){
-        new_cs[i] = std::max(old_cs[i], new_cs[i]);
-      }
-    }
-  }
-  this->crit_bytes     = new_cs[0];
-  this->crit_comm_time = new_cs[1];
-  this->crit_bar_time  = new_cs[2];
-  this->crit_msg       = new_cs[3];
-  this->crit_wrd       = new_cs[4];
+void _critter::get_crit_data(double* Container){
+  Container[0] = this->crit_bytes;
+  Container[1] = this->crit_comm_time;
+  Container[2] = this->crit_bar_time;
+  Container[3] = this->crit_msg;
+  Container[4] = this->crit_wrd;
+}
+
+void _critter::set_crit_data(double* Container){
+  this->crit_bytes     = Container[0];
+  this->crit_comm_time = Container[1];
+  this->crit_bar_time  = Container[2];
+  this->crit_msg       = Container[3];
+  this->crit_wrd       = Container[4];
 }
 
 void _critter::compute_avg_crit_update(){
@@ -300,9 +291,11 @@ void _critter::print_crit(std::ofstream& fptr, std::string name){
 }
 
 void _critter::print_crit_avg(std::ofstream& fptr, int numIter){
+/*
   if (this->last_start_time != -1.){
     fptr << this->name << "\t" << this->crit_bytesSum/numIter << "\t" << this->crit_comm_timeSum/numIter << "\t" << this->crit_bar_timeSum/numIter << "\t" << this->crit_msgSum/numIter << "\t" << this->crit_wrdSum/numIter << std::endl;
   }
+*/
 }
 
 void _critter::print_local(){
@@ -317,18 +310,61 @@ std::pair<double,double> _critter::get_crit_cost(){
 }
 
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  for (int i=0; i<NUM_CRITTERS; i++){
-    critter_list[i]->compute_max_crit(cm, nbr_pe, nbr_pe2);
+  constexpr auto NumCritMetrics = 5*NumCritters+7;
+  double old_cs[NumCritMetrics];
+  double new_cs[NumCritMetrics];
+  for (int i=0; i<7; i++){
+    old_cs[i] = CritterCostMetrics[i];
+  }
+  for (int i=0; i<NumCritters; i++){
+    critter_list[i]->get_crit_data(&old_cs[5*i+7]);
+  }
+  if (nbr_pe == -1)
+    PMPI_Allreduce(old_cs, new_cs, NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
+  else {
+    PMPI_Sendrecv(&old_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, &new_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    for (int i=0; i<5; i++){
+      new_cs[i] = std::max(old_cs[i], new_cs[i]);
+    }
+    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+      PMPI_Sendrecv(&new_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, &old_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<5; i++){
+        new_cs[i] = std::max(old_cs[i], new_cs[i]);
+      }
+    }
+  }
+  for (int i=0; i<7; i++){
+    CritterCostMetrics[i] = new_cs[i];
+  }
+  for (int i=0; i<NumCritters; i++){
+    critter_list[i]->set_crit_data(&new_cs[5*i+7]);
   }
 }
 
 void compute_all_avg_crit_updates(){
-  for (int i=0; i<NUM_CRITTERS; i++){
+  for (int i=0; i<NumCritters; i++){
     critter_list[i]->compute_avg_crit_update();
   }
 }
 
-void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, size_t* Inputs){
+void reset(){
+  assert(critter_req.size() == 0);
+  FillAlgCritterList();
+  for (int i=0; i<NumCritters; i++){
+    critter_list[i]->init();
+  }
+  CritterCostMetrics[0]=0.;
+  CritterCostMetrics[1]=0.;
+  CritterCostMetrics[2]=0.;
+  CritterCostMetrics[3]=0.;
+  CritterCostMetrics[4]=0.;
+  CritterCostMetrics[5]=0.;
+  CritterCostMetrics[6]=0.;
+  /*Initiate new timer*/
+  ComputationTimer=MPI_Wtime();
+}
+
+void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char** InputNames, size_t* Inputs){
   Stream << NumPEs;
   for (size_t idx = 0; idx < NumInputs; idx++){
     Stream << "\t" << Inputs[idx];
@@ -343,7 +379,7 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
     Stream << "Input";
   }
   if (UseCritter){
-    Stream << "\tComputation\tCommunication\tOverlap";
+    Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";
     for (auto i=0;i<6;i++){
       for (auto& it : saveCritterInfo){
        Stream << "\t" << it.first;
@@ -352,34 +388,29 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
   }
 }
 
-void print(size_t NumData, double* Data){
-
+void print(bool IsFirstIter, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData, double* Data){
+  assert(critter_req.size() == 0);
   .. will need to derive Inputs from FileName, via parsing it and saving it to string
-
   .. we need to find NumIter in the string, and then use that to divide into each critter's array of information.
-
-  int NumPEs; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
   if (UseCritter){
     volatile double endTimer = MPI_Wtime();
-    double timeDiff = endTimer - curComputationTimer;
-    double maxCurTime;
-    PMPI_Allreduce(&timeDiff, &maxCurTime, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-    assert(critter_req.size() == 0);
-    totalComputationTime += maxCurTime;
+    double timeDiff = endTimer - ComputationTimer;
+    CritterCostMetrics[5]+=timeDiff;
     compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
     compute_all_avg_crit_updates();
-    for (int i=0; i<NUM_CRITTERS; i++){
-      totalCommunicationTime += critter_list[i]->crit_comm_time;
-    }
     if (IsWorldRoot){
       // Save the critter information before printing
-      for (int i=0; i<NUM_CRITTERS; i++){
-        critter_list[i]->print_crit(Stream);
+      for (int i=0; i<NumCritters; i++){
+        critter_list[i]->print_crit(Stream,AlgName);
       }
-      PrintHeader(Stream,NumInputs);
-      Stream << "\n";
-      PrintInputs(Stream,NumPEs,NumInputs,Inputs);
-      Stream << "\t" << totalComputationTime << "\t" << totalCommunicationTime << "\t" << totalOverlapTime;
+      if (IsFirstIter){
+        PrintHeader(Stream,NumInputs);
+        Stream << "\n";
+      }
+      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+      Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
+      Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
+      Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
       for (auto& it : saveCritterInfo){
         Stream << "\t" << std::get<0>(it.second);
       }
