@@ -145,7 +145,7 @@ class _critter {
 */
 };
 //#define NUM_CRITTERS 17
-constexpr auto NumCritters=17;
+constexpr auto NumCritters=18;
 
 extern _critter * critter_list[NumCritters];
 /* \brief request/critter dictionary for asynchronous messages */
@@ -177,6 +177,7 @@ extern _critter MPI_Barrier_critter,
          MPI_Isend_critter, 
          MPI_Irecv_critter, 
          MPI_Sendrecv_critter, 
+         MPI_Comm_split_critter, 
          MPI_Sendrecv_replace_critter; 
 void FillAlgCritterList();
 bool InAlgCritterList(std::string AlgName, std::string CritterName);
@@ -397,27 +398,18 @@ void finalize();
     }\
   } while (0)
 
-#define MPI_Comm_split(comm1, arg2, arg3, comm2)\
+/*
+#define MPI_Comm_split(comm1, arg2, arg3, cm)\
   do {\
     if (critter::UseCritter){\
-      volatile double curTime = MPI_Wtime();\
-      double localCompTime = curTime - critter::ComputationTimer;\
-      curTime = MPI_Wtime();\
-      PMPI_Comm_split(comm1, arg2, arg3, comm2);\
-      double localCommTime = MPI_Wtime() - curTime;\
-      double localTotalTime = localCompTime + localCommTime;\
-      std::vector<double> critterVec(3);\
-      std::vector<double> localVec(3);\
-      localVec[0] = localCompTime; localVec[1] = localCommTime; localVec[2] = localTotalTime;\
-      PMPI_Allreduce(&localVec[0], &critterVec[0], 3, MPI_DOUBLE, MPI_MAX, comm1);\
-      critter::CritterCostMetrics[5] += critterVec[0];\
-      critter::CritterCostMetrics[1] += critterVec[1];\
-      critter::CritterCostMetrics[6] += (critterVec[0] + critterVec[1] - critterVec[2]);\
-      critter::ComputationTimer = MPI_Wtime();}\
+      critter::MPI_Comm_split_critter.start(0, MPI_CHAR, *cm);\
+      PMPI_Comm_split(comm1, arg2, arg3, cm);\
+      critter::MPI_Comm_split_critter.stop();}\
     else{\
-      PMPI_Comm_split(comm1, arg2, arg3, comm2);\
+      PMPI_Comm_split(comm1, arg2, arg3, cm);\
     }\
   } while (0)
+*/
 
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\

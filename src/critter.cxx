@@ -80,10 +80,14 @@ _critter MPI_Barrier_critter("MPI_Barrier",
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
+        MPI_Comm_split_critter("MPI_Comm_split",
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),0); 
+                          }), 
         MPI_Sendrecv_replace_critter("MPI_Sendrecv_replace",
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }); 
+                          });
 
 
 _critter * critter_list[NumCritters] = {
@@ -103,6 +107,7 @@ _critter * critter_list[NumCritters] = {
         &MPI_Irecv_critter,
         &MPI_Isend_critter,
         &MPI_Sendrecv_critter,
+        &MPI_Comm_split_critter,
         &MPI_Sendrecv_replace_critter };
 std::map<MPI_Request, _critter*> critter_req;
 
