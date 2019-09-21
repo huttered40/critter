@@ -141,7 +141,6 @@ class bench(object):
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
 
-        call("export CRITTER_STATUS=ON",shell=True)
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsFile = open("%s/%s/collectInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
 

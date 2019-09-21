@@ -441,7 +441,6 @@ void record(StreamType& Stream){
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<7>(it.second);
     }
-    Stream << "\n";
     saveCritterInfo.clear();
   }
 }
@@ -451,13 +450,9 @@ void print(size_t NumData, double* Data){
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
   if (IsWorldRoot){
     auto Inputs = parse_file_string();
-    if (flag) {PrintHeader(Stream,Inputs.size());} else {PrintHeader(std::cout,Inputs.size());}
-    if (flag) {Stream << "\n";} else {std::cout << "\n";}
-    if (flag) {PrintInputs(Stream,NumPEs,Inputs);} else {PrintInputs(std::cout,NumPEs,Inputs);}
     for (auto i=0; i<NumData; i++){
       if (flag) {Stream << "\t" << Data[i];} else {std::cout << "\t" << Data[i];}
     }
-    if (flag) {Stream << "\n";} else {std::cout << "\n";}
   }
 }
 
@@ -466,6 +461,9 @@ void start(){
   track=true;
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->init();
+  }
+  if (!IsFirstIter){
+    if (flag) {Stream << "\n";} else {std::cout << "\n";}
   }
   CritterCostMetrics[0]=0.;
   CritterCostMetrics[1]=0.;
