@@ -180,40 +180,40 @@ void stop();
 #define MPI_Init(argc, argv)\
   do {\
      PMPI_Init(argc,argv);\
-     FileName = std::move(std::string(*argv[*argc-1]);\
-     StreamName = FileName + ".txt";\
-     UseCritter = 1;\
-     IsFirstIter = true;\
+     critter::FileName = std::move(std::string(*argv[*argc-1]);\
+     critter::StreamName = critter::FileName + ".txt";\
+     critter::UseCritter = 1;\
+     critter::IsFirstIter = true;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
-       IsWorldRoot = true;\
-       Stream.open(StreamName.c_str());\
-     } else {IsWorldRoot=false;}\
+       critter::IsWorldRoot = true;\
+       critter::Stream.open(critter::StreamName.c_str());\
+     } else {critter::IsWorldRoot=false;}\
   } while (0)
 
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
      PMPI_Init_thread(argc,argv,required,provided);\
-     FileName = std::move(std::string(*argv[*argc-1]);\
-     StreamName = FileName + ".txt";\
-     UseCritter = 1;\
-     IsFirstIter = true;\
+     critter::FileName = std::move(std::string(*argv[*argc-1]));\
+     critter::StreamName = critter::FileName + ".txt";\
+     critter::UseCritter = 1;\
+     critter::IsFirstIter = true;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
-       IsWorldRoot = true;\
-       Stream.open(StreamName.c_str());\
-     } else {IsWorldRoot=false;}\
+       critter::IsWorldRoot = true;\
+       critter::Stream.open(critter::StreamName.c_str());\
+     } else {critter::IsWorldRoot=false;}\
    } while (0)
 
 #define MPI_Finalize()\
   do {\
-    if (IsWorldRoot){\
-      Stream.close();\
+    if (critter::IsWorldRoot){\
+      critter::Stream.close();\
     }\
-    } PMPI_Finalize();\
-  } while (0)
+    PMPI_Finalize();\
+    } while (0)
 
 #define mpi_barrier(cm)\
   do {\
