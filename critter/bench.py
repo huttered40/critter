@@ -202,28 +202,20 @@ class bench(object):
         if (launchID == 1):
             File.write("0\n")
             File.write("%s\n"%(AlgTag))
-            FileExtensions=self.TestList[TestID][2]
-            File.write("%d\n"%(len(FileExtensions)))
-            File.write("%d\n"%(1+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+2' from ppn,tpr
-
-            # Allow for any number of user-defined tests
-	    for i in range(len(FileExtensions)):
-                File.write("%s_%s.txt\n"%(PreFile,FileExtensions[i][0]))
-                File.write("%s_%s.txt\n"%(PostFile,FileExtensions[i][0]))
+            File.write("%d\n"%(3+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+5' numPEs,testID,launchID,ppn,tpr,(node?)
+            File.write("%s+critter.txt\n"%(PreFile))
+            File.write("%s+critter.txt\n"%(PostFile))
 
     # Functions that write the actual script, depending on machine
     def launchJobs(self,BinaryPath,launchIndex,TestID,AlgID,node,ppn,tpr,AlgParameters,fileString):
         """
 	"""
-	FileExtensions=self.TestList[TestID][2]
         numProcesses=node*ppn
         scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,launchIndex,node,ppn,tpr,self.MachineType.BatchFileExtension)
 
         # Allow for any number of user-defined tests
         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
-        #TODO: In future, only one string will be used, so be careful here. This loop (although fine for now), will no longer be needed.
-        for i in range(len(FileExtensions)):
-            MethodString = MethodString + " %s+%s"%(fileString,FileExtensions[i][0])
+        MethodString = MethodString + " %s+critter"%(fileString)
         scriptFile=open(scriptName,"a+")
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
@@ -366,18 +358,11 @@ class bench(object):
 
             self.PlotInstructionsFile.write("%s\n"%(self.TestList[TestIndex][1]))
             self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
-            if (self.TestList[TestIndex][2][0][0] == "critter"):
-                self.PlotInstructionsFile.write("1\n")
-                self.CollectInstructionsFile.write("1\n")
-                NonCritterIndex=1
-            else:
-                self.PlotInstructionsFile.write("0\n")
-                self.CollectInstructionsFile.write("0\n")
-                NonCritterIndex=0
-            # Note: below line replaced this temporarily: self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2][NonCritterIndex][1])))
-            self.PlotInstructionsFile.write("0\n")
-            #for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
-            #    self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
+            self.PlotInstructionsFile.write("1\n")
+            self.CollectInstructionsFile.write("1\n")
+            self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
+            for ColumnHeader in self.TestList[TestIndex][2]:
+                self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
 
             # These two lists below will have length equal to the number of valid algorithm variants
             ValidNodeList=[]

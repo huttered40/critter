@@ -58,7 +58,7 @@ Algorithm2 = algorithm("candmc_bench_hh_recon",\
                        lambda InputList,HardwareList: ((InputList[0]%(HardwareList[0]*HardwareList[1])==0) and ((InputList[0]/(HardwareList[0]*HardwareList[1]))>= InputList[1])),\
 		       [[1,1,1]],\
 		       [[__mul__,__mul__,__mul__]])
-File1 = [["critter",[]]]#,["perf",["Performance","Residual","Deviation from Orthogonality"]]]
+File1 = ["Performance","Residual","Deviation from Orthogonality"]
 Test1=[[Algorithm1,Algorithm2],"Strong Scaling: 65536x128 matrix",File1]
 TestList=[Test1]
 
