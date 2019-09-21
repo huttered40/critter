@@ -265,7 +265,7 @@ void _critter::compute_avg_crit_update(){
   this->my_bar_time  = new_cs[2] / WorldSize;
 }
 
-void _critter::print_crit(std::ofstream& fptr){
+void _critter::print_crit(){
   if (this->last_start_time != -1.){
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
@@ -280,7 +280,7 @@ void _critter::print_crit(std::ofstream& fptr){
   }
 }
 
-void _critter::print_crit_avg(std::ofstream& fptr, int numIter){
+void _critter::print_crit_avg(int numIter){
 /*
   if (this->last_start_time != -1.){
     fptr << this->name << "\t" << this->crit_bytesSum/numIter << "\t" << this->crit_comm_timeSum/numIter << "\t" << this->crit_bar_timeSum/numIter << "\t" << this->crit_msgSum/numIter << "\t" << this->crit_wrdSum/numIter << std::endl;
@@ -371,14 +371,16 @@ void reset(){
   ComputationTimer=MPI_Wtime();
 }
 
-void PrintInputs(std::ofstream& Stream, int NumPEs, std::vector<std::string>& Inputs){
+template<typename StreamType>
+void PrintInputs(StreamType& Stream, int NumPEs, std::vector<std::string>& Inputs){
   Stream << NumPEs;
   for (auto InputStr : Inputs){
     Stream << "\t" << InputStr;
   }
 }
 
-void PrintHeader(std::ofstream& Stream, size_t NumInputs){
+template<typename StreamType>
+void PrintHeader(StreamType& Stream, size_t NumInputs){
   for (size_t idx = 0; idx < (NumInputs+1); idx++){
     if (idx != 0){
       Stream << "\t";
@@ -395,7 +397,8 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
   //}
 }
 
-void record(){
+template<typename StreamType>
+void record(StreamType& Stream){
   assert(critter_req.size() == 0);
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
   CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
@@ -405,13 +408,13 @@ void record(){
     auto Inputs = parse_file_string();
     // Save the critter information before printing
     for (int i=0; i<NumCritters; i++){
-      critter_list[i]->print_crit(Stream);
+      critter_list[i]->print_crit();
     }
     if (IsFirstIter){
-      PrintHeader(Stream,Inputs.size());
+      if (flag) {PrintHeader(Stream,Inputs.size());} else {PrintHeader(std::cout,Inputs.size());}
       Stream << "\n";
     }
-    PrintInputs(Stream,NumPEs,Inputs);
+    if (flag) {PrintInputs(Stream,NumPEs,Inputs);} else {PrintInputs(std::cout,NumPEs,Inputs);}
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
     Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
@@ -449,13 +452,13 @@ void print(size_t NumData, double* Data){
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
   if (IsWorldRoot){
     auto Inputs = parse_file_string();
-    PrintHeader(Stream,Inputs.size());
-    Stream << "\n";
-    PrintInputs(Stream,NumPEs,Inputs);
+    if (flag) {PrintHeader(Stream,Inputs.size());} else {PrintHeader(std::cout,Inputs.size());}
+    if (flag) {Stream << "\n";} else {std::cout << "\n";}
+    if (flag) {PrintInputs(Stream,NumPEs,Inputs);} else {PrintInputs(std::cout,NumPEs,Inputs);}
     for (auto i=0; i<NumData; i++){
-      Stream << "\t" << Data[i];
+      if (flag) {Stream << "\t" << Data[i];} else {std::cout << "\t" << Data[i];}
     }
-    Stream << "\n";
+    if (flag) {Stream << "\n";} else {std::cout << "\n";}
   }
 }
 
@@ -477,7 +480,7 @@ void start(){
 
 void stop(){
   assert(critter_req.size() == 0);
-  record();
+  if (flag) {record(Stream);} else {record(std::cout);}
   IsFirstIter = false;\
 }
 };

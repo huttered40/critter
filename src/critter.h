@@ -111,12 +111,12 @@ class _critter {
     /**
      * \brief prints timer data for critical path measurements
      */
-    void print_crit(std::ofstream& ptr);
+    void print_crit();
 
     /**
      * \brief prints averaged timer data over all 'numIter' iterations for critical path measurements
      */
-    void print_crit_avg(std::ofstream& fptr, int numIter);
+    void print_crit_avg(int numIter);
 
     /**
      * \brief prints timer data for local measurements
@@ -193,7 +193,10 @@ void stop();
        critter::IsWorldRoot = true;\
      } else {critter::IsWorldRoot=false;}\
      if (critter::flag == 1){\
-       critter::Stream.open(critter::StreamName.c_str());\
+       if (rank==0){\
+         critter::Stream.open(critter::StreamName.c_str());\
+       }\
+     } else{\
      }\
   } while (0)
 
@@ -216,6 +219,7 @@ void stop();
        if (rank==0){\
          critter::Stream.open(critter::StreamName.c_str());\
        }\
+     } else{\
      }\
    } while (0)
 
