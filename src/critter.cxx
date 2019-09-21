@@ -112,7 +112,7 @@ _critter * critter_list[NumCritters] = {
 std::map<MPI_Request, _critter*> critter_req;
 
 double ComputationTimer;
-double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
+std::array<double,6> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::string StreamName,FileName;
@@ -465,13 +465,9 @@ void start(){
   if (!IsFirstIter){
     if (flag) {Stream << "\n";} else {std::cout << "\n";}
   }
-  CritterCostMetrics[0]=0.;
-  CritterCostMetrics[1]=0.;
-  CritterCostMetrics[2]=0.;
-  CritterCostMetrics[3]=0.;
-  CritterCostMetrics[4]=0.;
-  CritterCostMetrics[5]=0.;
-  CritterCostMetrics[6]=0.;
+  for (auto i=0; i<CritterCostMetrics.size(); i++){
+    CritterCostMetrics[i]=0.;
+  }
   /*Initiate new timer*/
   ComputationTimer=MPI_Wtime();
 }
@@ -481,5 +477,8 @@ void stop(){
   if (flag) {record(Stream);} else {record(std::cout);}
   IsFirstIter = false;\
   track=false;
+  for (auto i=0; i<CritterCostMetrics.size(); i++){
+    CritterCostMetrics[i]=0.;
+  }
 }
 };

@@ -145,7 +145,7 @@ extern std::string StreamName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot;
 extern std::ofstream Stream;
 extern double ComputationTimer;
-extern double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
+extern std::array<double,6> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 extern std::map<std::string,std::vector<std::string>> AlgCritters;
@@ -232,14 +232,14 @@ void stop();
     PMPI_Finalize();\
     } while (0)
 
-#define mpi_barrier(cm)\
+#define MPI_Barrier(cm)\
   do {\
-    if (critter::usecritter){\
-      critter::mpi_barrier_critter.start(0, mpi_char, cm);\
-      pmpi_barrier(cm);\
-      critter::mpi_barrier_critter.stop();}\
+    if (critter::track){\
+      critter::MPI_Barrier_critter.start(0, MPI_CHAR, cm);\
+      PMPI_Barrier(cm);\
+      critter::MPI_Barrier_critter.stop();}\
     else{\
-      pmpi_barrier(cm);\
+      PMPI_Barrier(cm);\
     }\
   } while (0)
 
