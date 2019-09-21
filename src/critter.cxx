@@ -115,11 +115,10 @@ double ComputationTimer;
 double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
-std::map<std::string,std::vector<std::string>> AlgCritters;
 std::string StreamName,FileName;
 bool UseCritter;
 std::ofstream Stream;
-bool IsWorldRoot;
+bool IsWorldRoot,IsFirstIter;
 
 void _critter::init(){
   this->last_start_time = -1.;
@@ -136,8 +135,8 @@ void _critter::init(){
   this->save_comp_time   = 0.;
 }
 
-void _critter::initSums(){
 /*
+void _critter::initSums(){
   this->my_bytesSum        = 0.;
   this->my_comm_timeSum    = 0.;
   this->my_bar_timeSum     = 0.;
@@ -148,8 +147,8 @@ void _critter::initSums(){
   this->crit_bar_timeSum   = 0.;
   this->crit_msgSum        = 0.;
   this->crit_wrdSum        = 0.;
-*/
 }
+*/
 
 _critter::_critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
               cost_func_){
@@ -179,8 +178,8 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   int el_size;
   MPI_Type_size(t, &el_size);
   int64_t nbytes = el_size * nelem;
-  this->my_bytes.push_back(nbytes);
-  this->crit_bytes.push_back(nbytes);
+  this->my_bytes+=nbytes;
+  this->crit_bytes+=nbytes;
   int p;
   MPI_Comm_size(cm, &p);
   std::pair<double,double> dcost = cost_func(nbytes, p);
@@ -202,8 +201,8 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   this->last_start_time = MPI_Wtime();
   double localBarrierTime = this->last_start_time - init_time;
   // crit_bar_time is a process-local data value for now, will get crittered after the communication routine is over.
-  this->crit_bar_time.push_back(localBarrierTime);	// Will get updated after an AllReduce to find the current critical path
-  this->my_bar_time.push_back(localBarrierTime);
+  this->crit_bar_time+=localBarrierTime;	// Will get updated after an AllReduce to find the current critical path
+  this->my_bar_time+=localBarrierTime;
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
 
@@ -300,6 +299,24 @@ std::pair<double,double> _critter::get_crit_cost(){
   return std::pair<double,double>(crit_msg, crit_wrd); 
 }
 
+std::vector<std::string> parse_file_string(){
+  std::vector<std::string> Inputs;
+  auto prev=0;
+  auto First=false;
+  for (auto i=0; i<FileName.size(); i++){
+    if (FileName[i]=='\\'){
+      if (!First){
+        Inputs.emplace_back(FileName.substr(prev,i-prev));
+      }
+      else{
+        First=true;
+	prev=i+1;
+      }
+    }
+  }
+  return Inputs;
+}
+
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   constexpr auto NumCritMetrics = 5*NumCritters+7;
   double old_cs[NumCritMetrics];
@@ -354,10 +371,10 @@ void reset(){
   ComputationTimer=MPI_Wtime();
 }
 
-void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, size_t* Inputs){
+void PrintInputs(std::ofstream& Stream, int NumPEs, std::vector<std::string>& Inputs){
   Stream << NumPEs;
-  for (size_t idx = 0; idx < NumInputs; idx++){
-    Stream << "\t" << Inputs[idx];
+  for (auto InputStr : Inputs){
+    Stream << "\t" << InputStr;
   }
 }
 
@@ -378,11 +395,11 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
   }
 }
 
-void record(bool IsFirstIter, int NumPEs){
+void record(){
   assert(critter_req.size() == 0);
-  .. will need to derive Inputs from FileName, via parsing it and saving it to string
-  .. we need to find NumIter in the string, and then use that to divide into each critter's array of information.
-  CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer)
+  auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
+  auto Inputs = parse_file_string();
+  CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
   compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
   compute_all_avg_crit_updates();
   if (IsWorldRoot){
@@ -391,10 +408,10 @@ void record(bool IsFirstIter, int NumPEs){
       critter_list[i]->print_crit(Stream);
     }
     if (IsFirstIter){
-      PrintHeader(Stream,NumInputs);
+      PrintHeader(Stream,Inputs.size());
       Stream << "\n";
     }
-    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+    PrintInputs(Stream,NumPEs,Inputs);
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
     Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
@@ -427,14 +444,14 @@ void record(bool IsFirstIter, int NumPEs){
   }
 }
 
-void print(bool IsFirstIter, int NumPEs, size_t NumData, double* Data){
+void print(size_t NumData, double* Data){
   assert(critter_req.size() == 0);
-  .. will need to derive Inputs from FileName, via parsing it and saving it to string
-  .. we need to find NumIter in the string, and then use that to divide into each critter's array of information.
+  auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
+  auto Inputs = parse_file_string();
   if (IsWorldRoot){
-    PrintHeader(Stream,NumInputs);
+    PrintHeader(Stream,Inputs.size());
     Stream << "\n";
-    PrintInputs(Stream,NumPEs,NumInputs,Inputs);
+    PrintInputs(Stream,NumPEs,Inputs);
     for (auto i=0; i<NumData; i++){
       Stream << "\t" << Data[i];
     }
@@ -444,7 +461,7 @@ void print(bool IsFirstIter, int NumPEs, size_t NumData, double* Data){
 
 void start(){
   assert(critter_req.size() == 0);
-  for (int i=0; i<NUM_CRITTERS; i++){
+  for (int i=0; i<NumCritters; i++){
     critter_list[i]->init();
   }
   CritterCostMetrics[0]=0.;
@@ -455,11 +472,12 @@ void start(){
   CritterCostMetrics[5]=0.;
   CritterCostMetrics[6]=0.;
   /*Initiate new timer*/
-  curComputationTimer=MPI_Wtime();
+  ComputationTimer=MPI_Wtime();
 }
 
 void stop(){
   assert(critter_req.size() == 0);
-  record();	.. record will be used internally. print can be used by user.
+  record();
+  IsFirstIter = false;\
 }
 };

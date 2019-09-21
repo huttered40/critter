@@ -111,7 +111,7 @@ class _critter {
     /**
      * \brief prints timer data for critical path measurements
      */
-    void print_crit(std::ofstream& ptr, std::string name);
+    void print_crit(std::ofstream& ptr);
 
     /**
      * \brief prints averaged timer data over all 'numIter' iterations for critical path measurements
@@ -142,7 +142,7 @@ extern _critter * critter_list[NumCritters];
 /* \brief request/critter dictionary for asynchronous messages */
 extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,FileName;
-extern bool UseCritter;
+extern bool UseCritter,IsFirstIter;
 extern std::ofstream Stream;
 extern bool IsWorldRoot;
 extern double ComputationTimer;
@@ -170,22 +170,20 @@ extern _critter MPI_Barrier_critter,
          MPI_Sendrecv_critter, 
          MPI_Comm_split_critter, 
          MPI_Sendrecv_replace_critter; 
-void FillAlgCritterList();
-bool InAlgCritterList(std::string AlgName, std::string CritterName);
 void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg_crit_updates();
-void record(size_t NumData = 0, double* Data = nullptr);
-void print(size_t NumData = 0, double* Data = nullptr);
+void print(size_t NumData, double* Data);
 void start();
 void stop();
 }
 
-#define MPI_Init(int* argc, char*** argv)\
+#define MPI_Init(argc, argv)\
   do {\
      PMPI_Init(argc,argv);\
      FileName = std::move(std::string(*argv[*argc-1]);\
      StreamName = FileName + ".txt";\
      UseCritter = 1;\
+     IsFirstIter = true;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
@@ -194,12 +192,13 @@ void stop();
      } else {IsWorldRoot=false;}\
   } while (0)
 
-#define MPI_Init_thread(int *argc, char ***argv, int required, int *provided)\
+#define MPI_Init_thread(argc, argv, required, provided)\
   do{\
      PMPI_Init_thread(argc,argv,required,provided);\
      FileName = std::move(std::string(*argv[*argc-1]);\
      StreamName = FileName + ".txt";\
      UseCritter = 1;\
+     IsFirstIter = true;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
