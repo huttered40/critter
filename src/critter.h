@@ -184,7 +184,7 @@ void stop();
      critter::StreamName="";\
      if (std::getenv("CRITTER_STATUS") != NULL){\
        critter::flag = 1;\
-       critter::FileName = std::move(std::string(*argv[*argc-1]);\
+       critter::FileName = std::move(std::string(*argv[*argc-1]));\
        critter::StreamName = critter::FileName + ".txt";\
      }\
      critter::IsFirstIter = true;\
@@ -210,7 +210,7 @@ void stop();
      critter::StreamName="";\
      if (std::getenv("CRITTER_STATUS") != NULL){\
        critter::flag = 1;\
-       critter::FileName = std::move(std::string(*argv[*argc-1]);\
+       critter::FileName = std::move(std::string(*argv[*argc-1]));\
        critter::StreamName = critter::FileName + ".txt";\
      }\
      critter::IsFirstIter = true;\

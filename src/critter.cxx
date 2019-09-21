@@ -386,23 +386,17 @@ void PrintHeader(StreamType& Stream, size_t NumInputs){
     }
     Stream << "Input";
   }
-  //if (flag){
-    Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";
-    for (auto i=0;i<6;i++){
-      for (auto& it : saveCritterInfo){
-       Stream << "\t" << it.first;
-      }
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";
+  for (auto i=0;i<6;i++){
+    for (auto& it : saveCritterInfo){
+     Stream << "\t" << it.first;
     }
-  //}
+  }
 }
 
-template<typename StreamType>
-void record(StreamType& Stream){
+void record(std::ofstream& Stream){
   assert(critter_req.size() == 0);
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
-  CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
-  compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
-  compute_all_avg_crit_updates();
   if (IsWorldRoot){
     auto Inputs = parse_file_string();
     // Save the critter information before printing
@@ -410,10 +404,10 @@ void record(StreamType& Stream){
       critter_list[i]->print_crit();
     }
     if (IsFirstIter){
-      if (flag) {PrintHeader(Stream,Inputs.size());} else {PrintHeader(std::cout,Inputs.size());}
+      PrintHeader(Stream,Inputs.size());
       Stream << "\n";
     }
-    if (flag) {PrintInputs(Stream,NumPEs,Inputs);} else {PrintInputs(std::cout,NumPEs,Inputs);}
+    PrintInputs(Stream,NumPEs,Inputs);
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
     Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
@@ -441,7 +435,35 @@ void record(StreamType& Stream){
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<7>(it.second);
     }
-    saveCritterInfo.clear();
+  }
+}
+
+void record(std::ostream& Stream){
+  assert(critter_req.size() == 0);
+  auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
+  if (IsWorldRoot){
+    // Save the critter information before printing
+    for (int i=0; i<NumCritters; i++){
+      critter_list[i]->print_crit();
+    }
+    if (IsFirstIter){
+      Stream << "NumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\n";
+    }
+    Stream << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
+    Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
+    Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\n\n";
+    Stream << "NumBytes\tCommunicationTime\tIdleTime\tEstimatedSynchronizationCost\tEstimatedCommunicationCost\n";
+    for (auto& it : saveCritterInfo){
+      Stream << it.first;
+      Stream << "\t" << std::get<0>(it.second);
+      Stream << "\t" << std::get<1>(it.second);
+      Stream << "\t" << std::get<2>(it.second);
+      Stream << "\t" << std::get<3>(it.second);
+      Stream << "\t" << std::get<4>(it.second);
+      Stream << "\t" << std::get<5>(it.second);
+      Stream << "\t" << std::get<6>(it.second);
+      Stream << "\t" << std::get<7>(it.second) << "\n";
+    }
   }
 }
 
@@ -479,9 +501,13 @@ void start(){
 
 void stop(){
   assert(critter_req.size() == 0);
+  CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
+  compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
+  compute_all_avg_crit_updates();
   if (flag) {record(Stream);} else {record(std::cout);}
   IsFirstIter = false;\
   track=false;
+  saveCritterInfo.clear();
   for (auto i=0; i<CritterCostMetrics.size(); i++){
     CritterCostMetrics[i]=0.;
   }
