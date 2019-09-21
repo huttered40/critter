@@ -116,9 +116,8 @@ double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynch
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::string StreamName,FileName;
-bool flag;
 std::ofstream Stream;
-bool IsWorldRoot,IsFirstIter;
+bool track,flag,IsWorldRoot,IsFirstIter;
 
 void _critter::init(){
   this->last_start_time = -1.;
@@ -464,6 +463,7 @@ void print(size_t NumData, double* Data){
 
 void start(){
   assert(critter_req.size() == 0);
+  track=true;
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->init();
   }
@@ -482,5 +482,6 @@ void stop(){
   assert(critter_req.size() == 0);
   if (flag) {record(Stream);} else {record(std::cout);}
   IsFirstIter = false;\
+  track=false;
 }
 };

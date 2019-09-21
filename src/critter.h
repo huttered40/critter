@@ -142,9 +142,8 @@ extern _critter * critter_list[NumCritters];
 /* \brief request/critter dictionary for asynchronous messages */
 extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,FileName;
-extern bool flag,IsFirstIter;
+extern bool track,flag,IsFirstIter,IsWorldRoot;
 extern std::ofstream Stream;
-extern bool IsWorldRoot;
 extern double ComputationTimer;
 extern double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
@@ -246,7 +245,7 @@ void stop();
 
 #define MPI_Bcast(buf, nelem, t, root, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Bcast_critter.start(nelem, t, cm);\
       PMPI_Bcast(buf, nelem, t, root, cm);\
       critter::MPI_Bcast_critter.stop();}\
@@ -257,7 +256,7 @@ void stop();
 
 #define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Allreduce_critter.start(nelem, t, cm);\
       PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);\
       critter::MPI_Allreduce_critter.stop();}\
@@ -268,7 +267,7 @@ void stop();
 
 #define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Reduce_critter.start(nelem, t, cm);\
       PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);\
       critter::MPI_Reduce_critter.stop();}\
@@ -279,7 +278,7 @@ void stop();
 
 #define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st); critter::MPI_Scatter_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
       PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
       critter::MPI_Scatter_critter.stop();}\
@@ -290,7 +289,7 @@ void stop();
 
 #define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st);\
       int pSize; MPI_Comm_size(cm, &pSize);\
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
@@ -304,7 +303,7 @@ void stop();
 
 #define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st);\
       int pSize; MPI_Comm_size(cm, &pSize);\
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
@@ -318,7 +317,7 @@ void stop();
 
 #define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       int64_t tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
@@ -332,7 +331,7 @@ void stop();
 
 #define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st); critter::MPI_Alltoall_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
       PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);\
       critter::MPI_Alltoall_critter.stop();}\
@@ -343,7 +342,7 @@ void stop();
 
 #define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st);\
       int64_t tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
@@ -359,7 +358,7 @@ void stop();
 
 #define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st);\
       int64_t tot_recv=0;\
       int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
@@ -374,7 +373,7 @@ void stop();
 
 #define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st);\
       int64_t tot_send=0;\
       int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
@@ -389,7 +388,7 @@ void stop();
 
 #define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(rt==st);\
       int64_t tot_send=0, tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
@@ -405,7 +404,7 @@ void stop();
 
 #define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       assert(st == rt);\
       critter::MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
@@ -417,7 +416,7 @@ void stop();
 
 #define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status)\
     do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Sendrecv_replace_critter.start(scnt, st, cm, dest, src);\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
       critter::MPI_Sendrecv_replace_critter.stop();}\
@@ -429,7 +428,7 @@ void stop();
 /*
 #define MPI_Comm_split(comm1, arg2, arg3, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Comm_split_critter.start(0, MPI_CHAR, *cm);\
       PMPI_Comm_split(comm1, arg2, arg3, cm);\
       critter::MPI_Comm_split_critter.stop();}\
@@ -441,7 +440,7 @@ void stop();
 
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Send_critter.start(nelem, t, cm, dest);\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
       critter::MPI_Send_critter.stop();}\
@@ -452,7 +451,7 @@ void stop();
 
 #define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Recv_critter.start(nelem, t, cm, src);\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
       critter::MPI_Recv_critter.stop();}\
@@ -463,7 +462,7 @@ void stop();
 
 #define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
       critter::critter_req[*req] = &critter::MPI_Irecv_critter;}\
@@ -474,7 +473,7 @@ void stop();
 
 #define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       critter::MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
       critter::critter_req[*req] = &critter::MPI_Isend_critter;}\
@@ -485,7 +484,7 @@ void stop();
 
 #define MPI_Wait(req, stat)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       std::map<MPI_Request,critter::_critter*>::iterator it = critter::critter_req.find(*req);\
       if (it == critter::critter_req.end()) *(int*)NULL = 1;\
       assert(it != critter::critter_req.end());\
@@ -498,7 +497,7 @@ void stop();
 
 #define MPI_Waitany(cnt, reqs, indx, stat)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       PMPI_Waitany(cnt, reqs, indx, stat);\
       std::map<MPI_Request,critter::_critter*>::iterator it = critter::critter_req.find((reqs)[*(indx)]);\
       if (it != critter::critter_req.end()) { it->second->stop(); critter::critter_req.erase(it);}}\
@@ -509,7 +508,7 @@ void stop();
 
 #define MPI_Waitall(cnt, reqs, stats)\
   do {\
-    if (critter::flag){\
+    if (critter::track){\
       int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat;}}\
     else{\
       PMPI_Waitall(cnt, reqs, stats)\
