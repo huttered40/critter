@@ -141,7 +141,7 @@ class bench(object):
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
 
-        os.environ["CRITTER_STATUS"] = "ON"
+        call("export CRITTER_STATUS=ON",shell=True)
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsFile = open("%s/%s/collectInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
 
@@ -224,7 +224,7 @@ class bench(object):
         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
         #TODO: In future, only one string will be used, so be careful here. This loop (although fine for now), will no longer be needed.
         for i in range(len(FileExtensions)):
-            MethodString = MethodString + " %s\\%s"%(fileString,FileExtensions[i][0])
+            MethodString = MethodString + " %s+%s"%(fileString,FileExtensions[i][0])
         scriptFile=open(scriptName,"a+")
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()

@@ -180,11 +180,11 @@ void stop();
 #define MPI_Init(argc, argv)\
   do {\
      PMPI_Init(argc,argv);\
-     critter::FileName = std::move(std::string(*argv[*argc-1]);\
-     critter::StreamName = critter::FileName + ".txt";\
      critter::flag = 0;\
      if (std::getenv("CRITTER_STATUS") != NULL){\
        critter::flag = 1;\
+       critter::FileName = std::move(std::string(*argv[*argc-1]);\
+       critter::StreamName = critter::FileName + ".txt";\
      }\
      critter::IsFirstIter = true;\
      int rank;\
@@ -213,14 +213,18 @@ void stop();
        critter::IsWorldRoot = true;\
      } else {critter::IsWorldRoot=false;}\
      if (critter::flag == 1){\
-       critter::Stream.open(critter::StreamName.c_str());\
+       if (rank==0){\
+         critter::Stream.open(critter::StreamName.c_str());\
+       }\
      }\
    } while (0)
 
 #define MPI_Finalize()\
   do {\
     if (critter::IsWorldRoot){\
-      critter::Stream.close();\
+      if (critter::flag == 1){\
+        critter::Stream.close();\
+      }\
     }\
     PMPI_Finalize();\
     } while (0)
