@@ -180,6 +180,8 @@ void stop();
   do {\
      PMPI_Init(argc,argv);\
      critter::flag = 0;\
+     critter::FileName="";\
+     critter::StreamName="";\
      if (std::getenv("CRITTER_STATUS") != NULL){\
        critter::flag = 1;\
        critter::FileName = std::move(std::string(*argv[*argc-1]);\
@@ -203,11 +205,13 @@ void stop();
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
      PMPI_Init_thread(argc,argv,required,provided);\
-     critter::FileName = std::move(std::string(*argv[*argc-1]));\
-     critter::StreamName = critter::FileName + ".txt";\
      critter::flag = 0;\
+     critter::FileName="";\
+     critter::StreamName="";\
      if (std::getenv("CRITTER_STATUS") != NULL){\
        critter::flag = 1;\
+       critter::FileName = std::move(std::string(*argv[*argc-1]);\
+       critter::StreamName = critter::FileName + ".txt";\
      }\
      critter::IsFirstIter = true;\
      critter::NeedNewLine = false;\
