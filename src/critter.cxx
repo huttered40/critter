@@ -121,15 +121,6 @@ bool UseCritter;
 std::ofstream Stream;
 bool IsWorldRoot;
 
-bool InAlgCritterList(std::string AlgName, std::string CritterName){
-  for (auto Critter : AlgCritters[AlgName]){
-    if (CritterName == Critter){
-      return true;
-    }
-  }
-  return false;
-}
-
 void _critter::init(){
   this->last_start_time = -1.;
   this->my_bytes        = 0.;
@@ -275,7 +266,7 @@ void _critter::compute_avg_crit_update(){
   this->my_bar_time  = new_cs[2] / WorldSize;
 }
 
-void _critter::print_crit(std::ofstream& fptr, std::string name){
+void _critter::print_crit(std::ofstream& fptr){
   if (this->last_start_time != -1.){
     // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
     // Only needed when writing to the file that gnuplot will then read.
@@ -349,7 +340,6 @@ void compute_all_avg_crit_updates(){
 
 void reset(){
   assert(critter_req.size() == 0);
-  FillAlgCritterList();
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->init();
   }
@@ -364,7 +354,7 @@ void reset(){
   ComputationTimer=MPI_Wtime();
 }
 
-void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, const char** InputNames, size_t* Inputs){
+void PrintInputs(std::ofstream& Stream, int NumPEs, size_t NumInputs, size_t* Inputs){
   Stream << NumPEs;
   for (size_t idx = 0; idx < NumInputs; idx++){
     Stream << "\t" << Inputs[idx];
@@ -388,79 +378,82 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
   }
 }
 
-void print(bool IsFirstIter, std::string AlgName, int NumPEs, size_t NumInputs, size_t* Inputs, const char** InputNames, size_t NumData, double* Data){
+void record(bool IsFirstIter, int NumPEs){
   assert(critter_req.size() == 0);
   .. will need to derive Inputs from FileName, via parsing it and saving it to string
   .. we need to find NumIter in the string, and then use that to divide into each critter's array of information.
-  if (UseCritter){
-    volatile double endTimer = MPI_Wtime();
-    double timeDiff = endTimer - ComputationTimer;
-    CritterCostMetrics[5]+=timeDiff;
-    compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
-    compute_all_avg_crit_updates();
-    if (IsWorldRoot){
-      // Save the critter information before printing
-      for (int i=0; i<NumCritters; i++){
-        critter_list[i]->print_crit(Stream,AlgName);
-      }
-      if (IsFirstIter){
-        PrintHeader(Stream,NumInputs);
-        Stream << "\n";
-      }
-      PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
-      Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
-      Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
-      Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<0>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<1>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<2>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<3>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<4>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<5>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<6>(it.second);
-      }
-      for (auto& it : saveCritterInfo){
-        Stream << "\t" << std::get<7>(it.second);
-      }
-      Stream << "\n";
-      saveCritterInfo.clear();
+  CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer)
+  compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
+  compute_all_avg_crit_updates();
+  if (IsWorldRoot){
+    // Save the critter information before printing
+    for (int i=0; i<NumCritters; i++){
+      critter_list[i]->print_crit(Stream);
     }
-  }
-  else{
-    if (IsWorldRoot){
+    if (IsFirstIter){
       PrintHeader(Stream,NumInputs);
       Stream << "\n";
-      PrintInputs(Stream,NumPEs,NumInputs,Inputs);
-      for (auto i=0; i<NumData; i++){
-        Stream << "\t" << Data[i];
-      }
-      Stream << "\n";
     }
+    PrintInputs(Stream,NumPEs,NumInputs,InputNames,Inputs);
+    Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
+    Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
+    Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<0>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<1>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<2>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<3>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<4>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<5>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<6>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<7>(it.second);
+    }
+    Stream << "\n";
+    saveCritterInfo.clear();
+  }
+}
+
+void print(bool IsFirstIter, int NumPEs, size_t NumData, double* Data){
+  assert(critter_req.size() == 0);
+  .. will need to derive Inputs from FileName, via parsing it and saving it to string
+  .. we need to find NumIter in the string, and then use that to divide into each critter's array of information.
+  if (IsWorldRoot){
+    PrintHeader(Stream,NumInputs);
+    Stream << "\n";
+    PrintInputs(Stream,NumPEs,NumInputs,Inputs);
+    for (auto i=0; i<NumData; i++){
+      Stream << "\t" << Data[i];
+    }
+    Stream << "\n";
   }
 }
 
 void start(){
   assert(critter_req.size() == 0);
-  FillAlgCritterList();
   for (int i=0; i<NUM_CRITTERS; i++){
     critter_list[i]->init();
   }
-  totalComputationTime=0;
-  totalCommunicationTime=0;
-  totalOverlapTime=0;
+  CritterCostMetrics[0]=0.;
+  CritterCostMetrics[1]=0.;
+  CritterCostMetrics[2]=0.;
+  CritterCostMetrics[3]=0.;
+  CritterCostMetrics[4]=0.;
+  CritterCostMetrics[5]=0.;
+  CritterCostMetrics[6]=0.;
   /*Initiate new timer*/
   curComputationTimer=MPI_Wtime();
 }

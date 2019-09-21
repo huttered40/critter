@@ -213,11 +213,6 @@ void stop();
     if (IsWorldRoot){\
       Stream.close();\
     }\
-    .. not sure if I want to leave the stuff below, especially in light of critter::start and critter::stop\
-    for (int i=0; i<NumCritters; i++){\
-      if (myrank == 0) {\
-        critter_list[i]->print_crit();\
-      }\
     } PMPI_Finalize();\
   } while (0)
 
