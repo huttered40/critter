@@ -141,6 +141,7 @@ class bench(object):
         call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
 
+        os.environ["CRITTER_STATUS"] = "ON"
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsFile = open("%s/%s/collectInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
 
@@ -232,13 +233,13 @@ class bench(object):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
-        BaseString1="%s\\%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-                  +"".join("\\"+str(x) for x in AlgParameters) + "\\%dlaunch\\%dppn\\%dtpr"%(launchID,ppn,tpr)
-        BaseString2="%s\\%dtest"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-                  +"".join("\\"+str(x) for x in self.SaveAlgParameters) + "\\%dlaunch\\%dppn\\%dtpr"%(launchID,ppn,tpr)
+        BaseString1="%s+%d"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+                  +"".join("+"+str(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
+        BaseString2="%s+%d"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+                  +"".join("+"+str(x) for x in self.SaveAlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
         PostFile=BaseString2
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
-        PreFile=BaseString1+"\\%dnodes"%(node)
+        PreFile=BaseString1+"+%d"%(node)
         fileString="DataFiles/"+PreFile
 
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
@@ -374,9 +375,10 @@ class bench(object):
                 self.PlotInstructionsFile.write("0\n")
                 self.CollectInstructionsFile.write("0\n")
                 NonCritterIndex=0
-            self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2][NonCritterIndex][1])))
-            for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
-                self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
+            # Note: below line replaced this temporarily: self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2][NonCritterIndex][1])))
+            self.PlotInstructionsFile.write("0\n")
+            #for ColumnHeader in self.TestList[TestIndex][2][NonCritterIndex][1]:
+            #    self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
 
             # These two lists below will have length equal to the number of valid algorithm variants
             ValidNodeList=[]

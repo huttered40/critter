@@ -116,7 +116,7 @@ double CritterCostMetrics[6];	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynch
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::string StreamName,FileName;
-bool UseCritter;
+bool flag;
 std::ofstream Stream;
 bool IsWorldRoot,IsFirstIter;
 
@@ -304,14 +304,14 @@ std::vector<std::string> parse_file_string(){
   auto prev=0;
   auto First=false;
   for (auto i=0; i<FileName.size(); i++){
-    if (FileName[i]=='\\'){
-      if (!First){
+    if (FileName[i]=='+'){
+      if (First){
         Inputs.emplace_back(FileName.substr(prev,i-prev));
       }
       else{
         First=true;
-	prev=i+1;
       }
+      prev=i+1;
     }
   }
   return Inputs;
@@ -385,24 +385,24 @@ void PrintHeader(std::ofstream& Stream, size_t NumInputs){
     }
     Stream << "Input";
   }
-  if (UseCritter){
+  //if (flag){
     Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";
     for (auto i=0;i<6;i++){
       for (auto& it : saveCritterInfo){
        Stream << "\t" << it.first;
       }
     }
-  }
+  //}
 }
 
 void record(){
   assert(critter_req.size() == 0);
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
-  auto Inputs = parse_file_string();
   CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
   compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
   compute_all_avg_crit_updates();
   if (IsWorldRoot){
+    auto Inputs = parse_file_string();
     // Save the critter information before printing
     for (int i=0; i<NumCritters; i++){
       critter_list[i]->print_crit(Stream);
@@ -447,8 +447,8 @@ void record(){
 void print(size_t NumData, double* Data){
   assert(critter_req.size() == 0);
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
-  auto Inputs = parse_file_string();
   if (IsWorldRoot){
+    auto Inputs = parse_file_string();
     PrintHeader(Stream,Inputs.size());
     Stream << "\n";
     PrintInputs(Stream,NumPEs,Inputs);
