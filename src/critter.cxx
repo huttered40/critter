@@ -117,7 +117,7 @@ std::array<double,6> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCo
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::string StreamName,FileName;
 std::ofstream Stream;
-bool track,flag,IsWorldRoot,IsFirstIter;
+bool track,flag,IsWorldRoot,IsFirstIter,NeedNewLine;
 
 void _critter::init(){
   this->last_start_time = -1.;
@@ -447,6 +447,10 @@ void record(StreamType& Stream){
 
 void print(size_t NumData, double* Data){
   assert(critter_req.size() == 0);
+  if (NeedNewLine){
+    if (flag) {Stream << "\n";} else {std::cout << "\n";}
+    NeedNewLine=false;
+  }
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
   if (IsWorldRoot){
     auto Inputs = parse_file_string();
@@ -454,6 +458,7 @@ void print(size_t NumData, double* Data){
       if (flag) {Stream << "\t" << Data[i];} else {std::cout << "\t" << Data[i];}
     }
   }
+  NeedNewLine=true;
 }
 
 void start(){
@@ -480,5 +485,6 @@ void stop(){
   for (auto i=0; i<CritterCostMetrics.size(); i++){
     CritterCostMetrics[i]=0.;
   }
+  NeedNewLine=false;
 }
 };

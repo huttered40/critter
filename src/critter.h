@@ -142,7 +142,7 @@ extern _critter * critter_list[NumCritters];
 /* \brief request/critter dictionary for asynchronous messages */
 extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,FileName;
-extern bool track,flag,IsFirstIter,IsWorldRoot;
+extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream;
 extern double ComputationTimer;
 extern std::array<double,6> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
@@ -186,6 +186,7 @@ void stop();
        critter::StreamName = critter::FileName + ".txt";\
      }\
      critter::IsFirstIter = true;\
+     critter::NeedNewLine = false;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
@@ -209,6 +210,7 @@ void stop();
        critter::flag = 1;\
      }\
      critter::IsFirstIter = true;\
+     critter::NeedNewLine = false;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
