@@ -16,6 +16,9 @@ namespace critter{
 
 class _critter {
   public: 
+    /* \brief name of collective */
+    std::string name;
+
     /* \brief number of bytes max(sent,recv'ed) for each call made locally */
     double my_bytes;
     /* \brief duration of communication time for each call made locally */
@@ -37,15 +40,10 @@ class _critter {
     double crit_msg;
     /* \brief comm cost #words term */
     double crit_wrd;
-    /* \brief name of collective */
-    std::string name;
 
     /* \brief duration of computation time for each call made locally,
      *   Used to save the local computation time between _critter methods, so that we can synchronize it after communication */
     double save_comp_time;
-
-    /* Running sums in order to calculate averages */
-    //double my_bytesSum, my_comm_timeSum, my_bar_timeSum, crit_bytesSum, crit_comm_timeSum, crit_bar_timeSum, crit_msg_Sum, crit_wrd_Sum;
 
     /* \brief function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func;
@@ -105,23 +103,15 @@ class _critter {
      */
     void get_crit_data(double* Container);
     void set_crit_data(double* Container);
+    void get_avg_data(double* Container);
+    void set_avg_data(double* Container);
 
-    void compute_avg_crit_update();
+    void compute_avg_update();
     
     /**
-     * \brief prints timer data for critical path measurements
+     * \brief appends timer data for critical path and average measurements to a global array
      */
-    void print_crit();
-
-    /**
-     * \brief prints averaged timer data over all 'numIter' iterations for critical path measurements
-     */
-    void print_crit_avg(int numIter);
-
-    /**
-     * \brief prints timer data for local measurements
-     */
-    void print_local();
+    void save_crit();
 
     /**
      * \brief evaluates communication cost model as specifed by cost_func
@@ -145,9 +135,9 @@ extern std::string StreamName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream;
 extern double ComputationTimer;
-extern std::array<double,6> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
+extern std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
-extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
+extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
 extern std::map<std::string,std::vector<std::string>> AlgCritters;
 extern _critter MPI_Barrier_critter, 
          MPI_Bcast_critter, 
@@ -169,8 +159,8 @@ extern _critter MPI_Barrier_critter,
          MPI_Sendrecv_critter, 
          MPI_Comm_split_critter, 
          MPI_Sendrecv_replace_critter; 
-void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
-void compute_all_avg_crit_updates();
+void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
+void compute_all_avg(MPI_Comm cm);
 void print(size_t NumData, double* Data);
 void start();
 void stop();

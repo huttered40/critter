@@ -112,9 +112,9 @@ _critter * critter_list[NumCritters] = {
 std::map<MPI_Request, _critter*> critter_req;
 
 double ComputationTimer;
-std::array<double,6> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
+std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
-std::map<std::string,std::tuple<double,double,double,double,double,double,double,double>> saveCritterInfo;
+std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::string StreamName,FileName;
 std::ofstream Stream;
 bool track,flag,IsWorldRoot,IsFirstIter,NeedNewLine;
@@ -133,21 +133,6 @@ void _critter::init(){
   this->crit_wrd        = 0.;
   this->save_comp_time   = 0.;
 }
-
-/*
-void _critter::initSums(){
-  this->my_bytesSum        = 0.;
-  this->my_comm_timeSum    = 0.;
-  this->my_bar_timeSum     = 0.;
-  this->my_msg_Sum    = 0.;
-  this->my_wrd_Sum     = 0.;
-  this->crit_bytesSum      = 0.;
-  this->crit_comm_timeSum  = 0.;
-  this->crit_bar_timeSum   = 0.;
-  this->crit_msgSum        = 0.;
-  this->crit_wrdSum        = 0.;
-}
-*/
 
 _critter::_critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
               cost_func_){
@@ -209,17 +194,24 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterCostMetrics[2] += localBarrierTime;
   CritterCostMetrics[3] += dcost.second;
   CritterCostMetrics[4] += dcost.first;
+  CritterCostMetrics[7] += nbytes;
+  CritterCostMetrics[9] += localBarrierTime;
+  CritterCostMetrics[10] += dcost.second;
+  CritterCostMetrics[11] += dcost.first;
 }
 
 void _critter::stop(){
   double dt = MPI_Wtime() - this->last_start_time;
   this->my_comm_time += dt;
-  CritterCostMetrics[1] += dt;
   this->crit_comm_time += dt;	// Will get updated after an AllReduce to find the current critical path
+  CritterCostMetrics[1] += dt;
+  CritterCostMetrics[8] += dt;
   this->last_start_time = MPI_Wtime();
   CritterCostMetrics[5] += this->save_comp_time;
   CritterCostMetrics[6] += this->save_comp_time+dt;
-  compute_all_max_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  CritterCostMetrics[12] += this->save_comp_time;
+  CritterCostMetrics[13] += this->save_comp_time+dt;
+  compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   // Just for sanity, lets have all processors start at same place
   PMPI_Barrier(MPI_COMM_WORLD);
   ComputationTimer = MPI_Wtime();		// reset this again
@@ -241,56 +233,26 @@ void _critter::set_crit_data(double* Container){
   this->crit_wrd       = Container[4];
 }
 
-void _critter::compute_avg_crit_update(){
-  /*
-  // Contribute to running totals
-  this->crit_bytesSum += this->crit_bytes;
-  this->crit_comm_timeSum += this->crit_comm_time;
-  this->crit_bar_timeSum += this->crit_bar_time;
-  this->crit_msgSum += this->crit_msg;
-  this->crit_wrdSum += this->crit_wrd;
-  */
-  // New meaning to this method: Compute the average of my_bytes, my_comm_time, and my_bar_time over all processes. Store them in same variables
-  int WorldSize;
-  MPI_Comm_size(MPI_COMM_WORLD, &WorldSize);
-  double old_cs[3];
-  double new_cs[3];
-  old_cs[0] = this->my_bytes;
-  old_cs[1] = this->my_comm_time;
-  old_cs[2] = this->my_bar_time;
-  PMPI_Allreduce(old_cs, new_cs, 3, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  this->my_bytes     = new_cs[0] / WorldSize;
-  this->my_comm_time = new_cs[1] / WorldSize;
-  this->my_bar_time  = new_cs[2] / WorldSize;
+void _critter::get_avg_data(double* Container){
+  Container[0] = this->my_bytes;
+  Container[1] = this->my_comm_time;
+  Container[2] = this->my_bar_time;
+  Container[3] = this->my_msg;
+  Container[4] = this->my_wrd;
 }
 
-void _critter::print_crit(){
+void _critter::set_avg_data(double* Container){
+  this->my_bytes     = Container[0];
+  this->my_comm_time = Container[1];
+  this->my_bar_time  = Container[2];
+  this->my_msg       = Container[3];
+  this->my_wrd       = Container[4];
+}
+
+void _critter::save_crit(){
   if (this->last_start_time != -1.){
-    // No real reason to add an iteration number column to the first print statement, as that will be in order in the file its written to.
-    // Only needed when writing to the file that gnuplot will then read.
-    //printf("%s\t %1.3E\t %1.3E\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd);
-  }
-  if ((this->last_start_time != -1.)){// || (InAlgCritterList(name,this->name))){
-    // Instead of printing, as I did before (see below), I will save to a map and print out at the end of the iteration.
-    //fptr << this->name << "\t" << this->crit_bytes << "\t" << this->crit_comm_time << "\t" << this->crit_bar_time << "\t" << this->crit_msg << "\t" << this->crit_wrd << std::endl;
-    // Note: the last 3 variables (this->my_*) have been AllReduced and averaged already. They are giving the average.
     saveCritterInfo[this->name] = std::make_tuple(this->crit_bytes, this->crit_comm_time, this->crit_bar_time, this->crit_msg, this->crit_wrd,
-                                                  this->my_bytes,this->my_comm_time,this->my_bar_time);
-  }
-}
-
-void _critter::print_crit_avg(int numIter){
-/*
-  if (this->last_start_time != -1.){
-    fptr << this->name << "\t" << this->crit_bytesSum/numIter << "\t" << this->crit_comm_timeSum/numIter << "\t" << this->crit_bar_timeSum/numIter << "\t" << this->crit_msgSum/numIter << "\t" << this->crit_wrdSum/numIter << std::endl;
-  }
-*/
-}
-
-void _critter::print_local(){
-  if (this->last_start_time != -1.){
-    //printf("loc%s\t %1.3E\t %1.3E\t %1.3E\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
-    //printf("Critter %s: local_bytes %1.3E local_comm_time %lf local_bar_time %lf\n", this->name, this->my_bytes, this->my_comm_time, this->my_bar_time);
+                                                  this->my_bytes,this->my_comm_time,this->my_bar_time, this->my_msg, this->my_wrd);
   }
 }
 
@@ -316,7 +278,7 @@ std::vector<std::string> parse_file_string(){
   return Inputs;
 }
 
-void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   constexpr auto NumCritMetrics = 5*NumCritters+7;
   double old_cs[NumCritMetrics];
   double new_cs[NumCritMetrics];
@@ -348,26 +310,25 @@ void compute_all_max_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   }
 }
 
-void compute_all_avg_crit_updates(){
-  for (int i=0; i<NumCritters; i++){
-    critter_list[i]->compute_avg_crit_update();
+void compute_all_avg(MPI_Comm cm){
+  int CommSize; MPI_Comm_size(cm,&CommSize);
+  constexpr auto NumCritMetrics = 5*NumCritters+7;
+  double old_cs[NumCritMetrics];
+  double new_cs[NumCritMetrics];
+  for (int i=0; i<7; i++){
+    old_cs[i] = CritterCostMetrics[7+i];
   }
-}
-
-void reset(){
-  assert(critter_req.size() == 0);
   for (int i=0; i<NumCritters; i++){
-    critter_list[i]->init();
+    critter_list[i]->get_avg_data(&old_cs[5*i+7]);
   }
-  CritterCostMetrics[0]=0.;
-  CritterCostMetrics[1]=0.;
-  CritterCostMetrics[2]=0.;
-  CritterCostMetrics[3]=0.;
-  CritterCostMetrics[4]=0.;
-  CritterCostMetrics[5]=0.;
-  CritterCostMetrics[6]=0.;
-  /*Initiate new timer*/
-  ComputationTimer=MPI_Wtime();
+  PMPI_Allreduce(old_cs, new_cs, NumCritMetrics, MPI_DOUBLE, MPI_SUM, cm);
+  for (int i=0; i<7; i++){
+    CritterCostMetrics[7+i] = new_cs[i] / CommSize;
+  }
+  for (int i=0; i<NumCritters; i++){
+    new_cs[5*i+7] /= CommSize;
+    critter_list[i]->set_avg_data(&new_cs[5*i+7]);
+  }
 }
 
 template<typename StreamType>
@@ -386,8 +347,9 @@ void PrintHeader(StreamType& Stream, size_t NumInputs){
     }
     Stream << "Input";
   }
-  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";
-  for (auto i=0;i<6;i++){
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";// critical path
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";// average (per-process)
+  for (auto i=0;i<10;i++){
     for (auto& it : saveCritterInfo){
      Stream << "\t" << it.first;
     }
@@ -401,7 +363,7 @@ void record(std::ofstream& Stream){
     auto Inputs = parse_file_string();
     // Save the critter information before printing
     for (int i=0; i<NumCritters; i++){
-      critter_list[i]->print_crit();
+      critter_list[i]->save_crit();
     }
     if (IsFirstIter){
       PrintHeader(Stream,Inputs.size());
@@ -411,6 +373,9 @@ void record(std::ofstream& Stream){
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
     Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
+    Stream << "\t" << CritterCostMetrics[7] << "\t" << CritterCostMetrics[8] << "\t" << CritterCostMetrics[9];
+    Stream << "\t" << CritterCostMetrics[10] << "\t" << CritterCostMetrics[11] << "\t" << CritterCostMetrics[12];
+    Stream << "\t" << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13];
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<0>(it.second);
     }
@@ -435,6 +400,12 @@ void record(std::ofstream& Stream){
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<7>(it.second);
     }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<8>(it.second);
+    }
+    for (auto& it : saveCritterInfo){
+      Stream << "\t" << std::get<9>(it.second);
+    }
   }
 }
 
@@ -444,15 +415,24 @@ void record(std::ostream& Stream){
   if (IsWorldRoot){
     // Save the critter information before printing
     for (int i=0; i<NumCritters; i++){
-      critter_list[i]->print_crit();
+      critter_list[i]->save_crit();
     }
     if (IsFirstIter){
-      Stream << "NumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\n";
+      Stream << "Critical path costs\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\n";
     }
-    Stream << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
+    Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
     Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\n\n";
-    Stream << "NumBytes\tCommunicationTime\tIdleTime\tEstimatedSynchronizationCost\tEstimatedCommunicationCost\n";
+    Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedSynchronizationCost\tEstimatedCommunicationCost\n";
+
+    if (IsFirstIter){
+      Stream << "Average per-process costs\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\n";
+    }
+    Stream << "\t" << CritterCostMetrics[7] << "\t" << CritterCostMetrics[8] << "\t" << CritterCostMetrics[9];
+    Stream << "\t" << CritterCostMetrics[10] << "\t" << CritterCostMetrics[11] << "\t" << CritterCostMetrics[12];
+    Stream << "\t" << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13] << "\n\n";
+
+    Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedSynchronizationCost\tEstimatedCommunicationCost\n";
     for (auto& it : saveCritterInfo){
       Stream << it.first;
       Stream << "\t" << std::get<0>(it.second);
@@ -462,7 +442,9 @@ void record(std::ostream& Stream){
       Stream << "\t" << std::get<4>(it.second);
       Stream << "\t" << std::get<5>(it.second);
       Stream << "\t" << std::get<6>(it.second);
-      Stream << "\t" << std::get<7>(it.second) << "\n";
+      Stream << "\t" << std::get<7>(it.second);
+      Stream << "\t" << std::get<8>(it.second);
+      Stream << "\t" << std::get<9>(it.second) << "\n";
     }
   }
 }
@@ -504,8 +486,9 @@ void start(){
 void stop(){
   assert(critter_req.size() == 0);
   CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
-  compute_all_max_crit(MPI_COMM_WORLD,-1,-1);
-  compute_all_avg_crit_updates();
+  CritterCostMetrics[12]+=(MPI_Wtime()-ComputationTimer);
+  compute_all_crit(MPI_COMM_WORLD,-1,-1);
+  compute_all_avg(MPI_COMM_WORLD);
   if (flag) {record(Stream);} else {record(std::cout);}
   IsFirstIter = false;\
   track=false;
