@@ -202,7 +202,7 @@ class bench(object):
         if (launchID == 1):
             File.write("0\n")
             File.write("%s\n"%(AlgTag))
-            File.write("%d\n"%(3+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+5' numPEs,testID,launchID,ppn,tpr,(node?)
+            File.write("%d\n"%(4+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+5' numPEs,testID,launchID,ppn,tpr,(node?)
             File.write("%s+critter.txt\n"%(PreFile))
             File.write("%s+critter.txt\n"%(PostFile))
 
