@@ -358,9 +358,6 @@ class bench(object):
 
             self.PlotInstructionsFile.write("%s\n"%(self.TestList[TestIndex][1]))
             self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
-            self.PlotInstructionsFile.write("1\n")
-            self.CollectInstructionsFile.write("1\n")
-            self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
             for ColumnHeader in self.TestList[TestIndex][2]:
                 self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
 
