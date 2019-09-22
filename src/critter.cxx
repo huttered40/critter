@@ -489,8 +489,10 @@ void start(){
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->init();
   }
-  if (!IsFirstIter){
-    if (flag) {Stream << "\n";} else {std::cout << "\n";}
+  if (IsWorldRoot){
+    if (!IsFirstIter){
+      if (flag) {Stream << "\n";} else {std::cout << "\n";}
+    }
   }
   for (auto i=0; i<CritterCostMetrics.size(); i++){
     CritterCostMetrics[i]=0.;
