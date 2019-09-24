@@ -5,6 +5,7 @@
 #include "mpi.h"
 #include <fstream>
 #include <iostream>
+#include "iomanip"
 #include <vector>
 #include <stdint.h>
 #include <functional>
@@ -104,7 +105,7 @@ class _critter {
     void get_crit_data(double* Container);
     void set_crit_data(double* Container);
     void get_avg_data(double* Container);
-    void set_avg_data(double* Container);
+    void set_avg_data(double* Container, int CommSize);
 
     void compute_avg_update();
     

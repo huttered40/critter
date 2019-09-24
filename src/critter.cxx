@@ -241,12 +241,12 @@ void _critter::get_avg_data(double* Container){
   Container[4] = this->my_wrd;
 }
 
-void _critter::set_avg_data(double* Container){
-  this->my_bytes     = Container[0];
-  this->my_comm_time = Container[1];
-  this->my_bar_time  = Container[2];
-  this->my_msg       = Container[3];
-  this->my_wrd       = Container[4];
+void _critter::set_avg_data(double* Container, int CommSize){
+  this->my_bytes     = Container[0]/CommSize;
+  this->my_comm_time = Container[1]/CommSize;
+  this->my_bar_time  = Container[2]/CommSize;
+  this->my_msg       = Container[3]/CommSize;
+  this->my_wrd       = Container[4]/CommSize;
 }
 
 void _critter::save_crit(){
@@ -326,8 +326,7 @@ void compute_all_avg(MPI_Comm cm){
     CritterCostMetrics[7+i] = new_cs[i] / CommSize;
   }
   for (int i=0; i<NumCritters; i++){
-    new_cs[5*i+7] /= CommSize;
-    critter_list[i]->set_avg_data(&new_cs[5*i+7]);
+    critter_list[i]->set_avg_data(&new_cs[5*i+7],CommSize);
   }
 }
 
@@ -417,37 +416,73 @@ void record(std::ostream& Stream){
     for (int i=0; i<NumCritters; i++){
       critter_list[i]->save_crit();
     }
-    if (IsFirstIter){
-      Stream << "Critical path:\t\t\tNumBytes\t\t\tCommTime\t\t\tIdleTime\t\t\tEstCommCost\t\t\tEstSynchCost\t\t\tCompTime\t\t\tOverlapTime\n";
-    }
-    Stream << "\t\t\t" << CritterCostMetrics[0] << "\t\t\t" << CritterCostMetrics[1] << "\t\t\t" << CritterCostMetrics[2];
-    Stream << "\t\t\t" << CritterCostMetrics[3] << "\t\t\t" << CritterCostMetrics[4] << "\t\t\t" << CritterCostMetrics[5];
-    Stream << "\t\t\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\n\n";
+    Stream << "\n\n";
+    Stream << std::left << std::setw(25) << "Critical path:";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "IdleTime";
+    Stream << std::left << std::setw(25) << "EstCommCost";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "CompTime";
+    Stream << std::left << std::setw(25) << "OverlapTime";
+    Stream << "\n";
+    Stream << std::left << std::setw(25) << "                  ";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[0];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[1];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[2];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[3];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[4];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[5];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\n\n";
 
-    if (IsFirstIter){
-      Stream << "Avg (per-process):\t\t\tNumBytes\t\t\tCommTime\t\t\tIdleTime\t\t\tEstCommCost\t\t\tEstSynchCost\t\t\tCompTime\t\t\tOverlapTime\n";
-    }
-    Stream << "\t\t\t" << CritterCostMetrics[7] << "\t\t\t" << CritterCostMetrics[8] << "\t\t\t" << CritterCostMetrics[9];
-    Stream << "\t\t\t" << CritterCostMetrics[10] << "\t\t\t" << CritterCostMetrics[11] << "\t\t\t" << CritterCostMetrics[12];
-    Stream << "\t\t\t" << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13] << "\n\n";
+    Stream << std::left << std::setw(25) << "Avg (per-process):";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "IdleTime";
+    Stream << std::left << std::setw(25) << "EstCommCost";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "CompTime";
+    Stream << std::left << std::setw(25) << "OverlapTime";
+    Stream << "\n";
+    Stream << std::left << std::setw(25) << "                  ";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[7];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[8];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[9];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[10];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[11];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[12];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13] << "\n\n";
 
-    Stream << "Critical path:\t\t\tNumBytes\t\t\tCommTime\t\t\tIdleTime\t\t\tEstSynchCost\t\t\tEstCommCost\n";
+    Stream << std::left << std::setw(25) << "Critical path:";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "IdleTime";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "EstCommCost";
     for (auto& it : saveCritterInfo){
-      Stream << it.first;
-      Stream << "\t\t\t" << std::get<0>(it.second);
-      Stream << "\t\t\t" << std::get<1>(it.second);
-      Stream << "\t\t\t" << std::get<2>(it.second);
-      Stream << "\t\t\t" << std::get<3>(it.second);
-      Stream << "\t\t\t" << std::get<4>(it.second) << "\n\n";
+      Stream << "\n";
+      Stream << std::left << std::setw(25) << it.first;
+      Stream << std::left << std::setw(25) << std::get<0>(it.second);
+      Stream << std::left << std::setw(25) << std::get<1>(it.second);
+      Stream << std::left << std::setw(25) << std::get<2>(it.second);
+      Stream << std::left << std::setw(25) << std::get<3>(it.second);
+      Stream << std::left << std::setw(25) << std::get<4>(it.second);
     }
-    Stream << "Avg (per-process):\t\t\tNumBytes\t\t\tCommTime\t\t\tIdleTime\t\t\tEstSynchCost\t\t\tEstCommCost\n";
+    Stream << "\n\n";
+    Stream << std::left << std::setw(25) << "Avg (per-process):";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "IdleTime";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "EstCommCost";
     for (auto& it : saveCritterInfo){
-      Stream << it.first;
-      Stream << "\t\t\t" << std::get<5>(it.second);
-      Stream << "\t\t\t" << std::get<6>(it.second);
-      Stream << "\t\t\t" << std::get<7>(it.second);
-      Stream << "\t\t\t" << std::get<8>(it.second);
-      Stream << "\t\t\t" << std::get<9>(it.second) << "\n\n";
+      Stream << "\n";
+      Stream << std::left << std::setw(25) << it.first;
+      Stream << std::left << std::setw(25) << std::get<5>(it.second);
+      Stream << std::left << std::setw(25) << std::get<6>(it.second);
+      Stream << std::left << std::setw(25) << std::get<7>(it.second);
+      Stream << std::left << std::setw(25) << std::get<8>(it.second);
+      Stream << std::left << std::setw(25) << std::get<9>(it.second);
     }
   }
 }
