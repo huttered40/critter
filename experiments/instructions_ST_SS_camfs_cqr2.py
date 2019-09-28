@@ -34,16 +34,16 @@ nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 Algorithm1 = algorithm("camfs_cacqr2",\
-                       [65536,4096,2,0,0,0,3],\
-		       [65536,4096,16,0,0,0,3],\
-		       [1,1,2,1,1,1,1],\
-		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
+                       [524288,2048,1,0,3],\
+		       [524288,2048,8,0,3],\
+		       [1,1,2,1,1],\
+		       [__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
-                       lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[4] <= int(math.log(InputList[2])))),\
-		       [[1,1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
+                       lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[3] <= int(math.log(InputList[2])))),\
+		       [[1,1,1,1,1]],\
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = ["Performance","Residual","Deviation from Orthogonality"]
-Test1=[[Algorithm1],"Strong Scaling: 65536x4096 matrix",File1]
+Test1=[[Algorithm1],"Strong Scaling: 524288x2048 matrix",File1]
 TestList=[Test1]
 
 Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\

@@ -34,14 +34,14 @@ nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 Algorithm1 = algorithm("camfs_cacqr2",\
-                       [512,64,1,0,0,0,3],\
-		       [512,64,2,0,0,0,3],\
-		       [1,1,2,1,1,1,1],\
-		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
+                       [512,64,1,0,3],\
+		       [512,64,2,0,3],\
+		       [1,1,2,1,1],\
+		       [__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
-                       lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[4] <= int(math.log(InputList[2])))),\
-		       [[1,1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
+                       lambda InputList,HardwareList: ((((HardwareList[0]*HardwareList[1])/(InputList[2]**2))>=InputList[2]) and (InputList[3] <= int(math.log(InputList[2])))),\
+		       [[1,1,1,1,1]],\
+		       [[__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = ["Performance","Residual","Deviation from Orthogonality"]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]

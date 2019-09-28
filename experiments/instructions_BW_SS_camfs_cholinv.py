@@ -34,14 +34,14 @@ nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 Algorithm1 = algorithm("camfs_cholinv",\
-                       [1024,1,0,0,0,3],\
-		       [1024,1,0,0,0,3],\
-		       [1,2,1,1,1,1],\
-		       [__mul__,__mul__,__mul__,__mul__,__mul__,__mul__],\
+                       [1024,1,0,3],\
+		       [1024,1,0,3],\
+		       [1,2,1,1],\
+		       [__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
-                       lambda InputList,HardwareList: ((int(round((HardwareList[0]*HardwareList[1])**(1./3.)))**3 == (HardwareList[0]*HardwareList[1])) and (InputList[3] <= round((HardwareList[0]*HardwareList[1])**(1./3.)))),\
-		       [[1,1,1,1,1,1]],\
-		       [[__mul__,__mul__,__mul__,__mul__,__mul__,__mul__]])
+                       lambda InputList,HardwareList: ((int(round((HardwareList[0]*HardwareList[1])**(1./3.)))**3 == (HardwareList[0]*HardwareList[1])) and (InputList[2] <= round((HardwareList[0]*HardwareList[1])**(1./3.)))),\
+		       [[1,1,1,1]],\
+		       [[__mul__,__mul__,__mul__,__mul__]])
 File1 = ["Performance","Residual"]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]
