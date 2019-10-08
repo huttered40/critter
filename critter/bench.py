@@ -133,6 +133,8 @@ class bench(object):
 	#   before being moved to SCRATCH
         call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
         call("mkdir %s/Tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
+        # Copy all binaries in bin/ into test folder's bin
+        call("cp %s/bin/* %s/Tests/%s/bin/"%(self.CritterPath,self.CritterPath,self.testName),shell=True)
 
         self.MachineType.set()
         os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin"%(self.testName)
@@ -315,12 +317,6 @@ class bench(object):
 	call("mv %s/Tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
         self.portal(0,0,self.numTests)
 
-    def build(self):
-        """
-        """
-        for lib in self.LibraryTypeList:
-            lib.build(self.CritterPath,self.testName)
-
     def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList,ValidNodeList,ValidProcessList):
         """
 	"""
@@ -348,6 +344,7 @@ class bench(object):
     def generate(self):
         """
         """
+
         self.WriteHeader(self.PlotInstructionsFile)
         self.WriteHeader(self.CollectInstructionsFile)
         self.PlotInstructionsFile.write(str(self.MachineType.PeakNodePerformance)+"\n")

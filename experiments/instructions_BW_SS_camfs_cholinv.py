@@ -50,6 +50,5 @@ Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunc
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
-Launcher.build()
 Launcher.generate()
 Launcher.launch()
