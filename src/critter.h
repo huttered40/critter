@@ -14,7 +14,7 @@
 #include <assert.h>
 
 namespace critter{
-
+namespace internal{
 class _critter {
   public: 
     /* \brief name of collective */
@@ -162,6 +162,7 @@ extern _critter MPI_Barrier_critter,
          MPI_Sendrecv_replace_critter; 
 void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg(MPI_Comm cm);
+}
 void print(size_t NumData, double* Data);
 void start();
 void stop();
@@ -170,24 +171,24 @@ void stop();
 #define MPI_Init(argc, argv)\
   do {\
      PMPI_Init(argc,argv);\
-     critter::flag = 0;\
-     critter::FileName="";\
-     critter::StreamName="";\
+     critter::internal::flag = 0;\
+     critter::internal::FileName="";\
+     critter::internal::StreamName="";\
      if (std::getenv("CRITTER_STATUS") != NULL){\
-       critter::flag = 1;\
-       critter::FileName = std::move(std::string(*argv[*argc-1]));\
-       critter::StreamName = critter::FileName + ".txt";\
+       critter::internal::flag = 1;\
+       critter::internal::FileName = std::move(std::string(*argv[*argc-1]));\
+       critter::internal::StreamName = critter::internal::FileName + ".txt";\
      }\
-     critter::IsFirstIter = true;\
-     critter::NeedNewLine = false;\
+     critter::internal::IsFirstIter = true;\
+     critter::internal::NeedNewLine = false;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
-       critter::IsWorldRoot = true;\
-     } else {critter::IsWorldRoot=false;}\
-     if (critter::flag == 1){\
+       critter::internal::IsWorldRoot = true;\
+     } else {critter::internal::IsWorldRoot=false;}\
+     if (critter::internal::flag == 1){\
        if (rank==0){\
-         critter::Stream.open(critter::StreamName.c_str());\
+         critter::internal::Stream.open(critter::internal::StreamName.c_str());\
        }\
      } else{\
      }\
@@ -196,24 +197,24 @@ void stop();
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
      PMPI_Init_thread(argc,argv,required,provided);\
-     critter::flag = 0;\
-     critter::FileName="";\
-     critter::StreamName="";\
+     critter::internal::flag = 0;\
+     critter::internal::FileName="";\
+     critter::internal::StreamName="";\
      if (std::getenv("CRITTER_STATUS") != NULL){\
-       critter::flag = 1;\
-       critter::FileName = std::move(std::string(*argv[*argc-1]));\
-       critter::StreamName = critter::FileName + ".txt";\
+       critter::internal::flag = 1;\
+       critter::internal::FileName = std::move(std::string(*argv[*argc-1]));\
+       critter::internal::StreamName = critter::internal::FileName + ".txt";\
      }\
-     critter::IsFirstIter = true;\
-     critter::NeedNewLine = false;\
+     critter::internal::IsFirstIter = true;\
+     critter::internal::NeedNewLine = false;\
      int rank;\
      MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
      if (rank == 0){\
-       critter::IsWorldRoot = true;\
-     } else {critter::IsWorldRoot=false;}\
-     if (critter::flag == 1){\
+       critter::internal::IsWorldRoot = true;\
+     } else {critter::internal::IsWorldRoot=false;}\
+     if (critter::internal::flag == 1){\
        if (rank==0){\
-         critter::Stream.open(critter::StreamName.c_str());\
+         critter::internal::Stream.open(critter::internal::StreamName.c_str());\
        }\
      } else{\
      }\
@@ -221,9 +222,9 @@ void stop();
 
 #define MPI_Finalize()\
   do {\
-    if (critter::IsWorldRoot){\
-      if (critter::flag == 1){\
-        critter::Stream.close();\
+    if (critter::internal::IsWorldRoot){\
+      if (critter::internal::flag == 1){\
+        critter::internal::Stream.close();\
       }\
     }\
     PMPI_Finalize();\
@@ -231,10 +232,10 @@ void stop();
 
 #define MPI_Barrier(cm)\
   do {\
-    if (critter::track){\
-      critter::MPI_Barrier_critter.start(0, MPI_CHAR, cm);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Barrier_critter.start(0, MPI_CHAR, cm);\
       PMPI_Barrier(cm);\
-      critter::MPI_Barrier_critter.stop();}\
+      critter::internal::MPI_Barrier_critter.stop();}\
     else{\
       PMPI_Barrier(cm);\
     }\
@@ -242,10 +243,10 @@ void stop();
 
 #define MPI_Bcast(buf, nelem, t, root, cm)\
   do {\
-    if (critter::track){\
-      critter::MPI_Bcast_critter.start(nelem, t, cm);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Bcast_critter.start(nelem, t, cm);\
       PMPI_Bcast(buf, nelem, t, root, cm);\
-      critter::MPI_Bcast_critter.stop();}\
+      critter::internal::MPI_Bcast_critter.stop();}\
     else{\
       PMPI_Bcast(buf, nelem, t, root, cm);\
     }\
@@ -253,10 +254,10 @@ void stop();
 
 #define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)\
   do {\
-    if (critter::track){\
-      critter::MPI_Allreduce_critter.start(nelem, t, cm);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Allreduce_critter.start(nelem, t, cm);\
       PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);\
-      critter::MPI_Allreduce_critter.stop();}\
+      critter::internal::MPI_Allreduce_critter.stop();}\
     else{\
       PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);\
     }\
@@ -264,10 +265,10 @@ void stop();
 
 #define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm)\
   do {\
-    if (critter::track){\
-      critter::MPI_Reduce_critter.start(nelem, t, cm);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Reduce_critter.start(nelem, t, cm);\
       PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);\
-      critter::MPI_Reduce_critter.stop();}\
+      critter::internal::MPI_Reduce_critter.stop();}\
     else{\
       PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);\
     }\
@@ -275,10 +276,10 @@ void stop();
 
 #define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::track){\
-      assert(rt==st); critter::MPI_Scatter_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    if (critter::internal::track){\
+      assert(rt==st); critter::internal::MPI_Scatter_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
       PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
-      critter::MPI_Scatter_critter.stop();}\
+      critter::internal::MPI_Scatter_critter.stop();}\
     else{\
       PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
     }\
@@ -286,13 +287,13 @@ void stop();
 
 #define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(rt==st);\
       int pSize; MPI_Comm_size(cm, &pSize);\
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
-      critter::MPI_Gather_critter.start(recvBufferSize, st, cm);\
+      critter::internal::MPI_Gather_critter.start(recvBufferSize, st, cm);\
       PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
-      critter::MPI_Gather_critter.stop();}\
+      critter::internal::MPI_Gather_critter.stop();}\
     else{\
       PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
     }\
@@ -300,13 +301,13 @@ void stop();
 
 #define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(rt==st);\
       int pSize; MPI_Comm_size(cm, &pSize);\
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
-      critter::MPI_Allgather_critter.start(recvBufferSize, st, cm);\
+      critter::internal::MPI_Allgather_critter.start(recvBufferSize, st, cm);\
       PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);\
-      critter::MPI_Allgather_critter.stop();}\
+      critter::internal::MPI_Allgather_critter.stop();}\
     else{\
       PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);\
     }\
@@ -314,13 +315,13 @@ void stop();
 
 #define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       int64_t tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
-      critter::MPI_Reduce_scatter_critter.start(tot_recv, t, cm);\
+      critter::internal::MPI_Reduce_scatter_critter.start(tot_recv, t, cm);\
       PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);\
-      critter::MPI_Reduce_scatter_critter.stop();}\
+      critter::internal::MPI_Reduce_scatter_critter.stop();}\
     else{\
       PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);\
     }\
@@ -328,10 +329,10 @@ void stop();
 
 #define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
-    if (critter::track){\
-      assert(rt==st); critter::MPI_Alltoall_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    if (critter::internal::track){\
+      assert(rt==st); critter::internal::MPI_Alltoall_critter.start(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
       PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);\
-      critter::MPI_Alltoall_critter.stop();}\
+      critter::internal::MPI_Alltoall_critter.stop();}\
     else{\
       PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);\
     }\
@@ -339,14 +340,14 @@ void stop();
 
 #define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(rt==st);\
       int64_t tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
-      critter::MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);\
+      critter::internal::MPI_Allgatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);\
       PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\
-      critter::MPI_Allgatherv_critter.stop();}\
+      critter::internal::MPI_Allgatherv_critter.stop();}\
     else{\
       PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\
     }\
@@ -355,14 +356,14 @@ void stop();
 
 #define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(rt==st);\
       int64_t tot_recv=0;\
       int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
       if (r == root) for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; }\
-      critter::MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);\
+      critter::internal::MPI_Gatherv_critter.start(std::max((int64_t)scount,tot_recv), st, cm);\
       PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);\
-      critter::MPI_Gatherv_critter.stop();}\
+      critter::internal::MPI_Gatherv_critter.stop();}\
     else{\
       PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);\
     }\
@@ -370,14 +371,14 @@ void stop();
 
 #define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(rt==st);\
       int64_t tot_send=0;\
       int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
       if (r == root) for (int i=0; i<p; i++){ tot_send += ((int*)scounts)[i]; } \
-      critter::MPI_Scatterv_critter.start(std::max(tot_send,(int64_t)rcount), st, cm);\
+      critter::internal::MPI_Scatterv_critter.start(std::max(tot_send,(int64_t)rcount), st, cm);\
       PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm);\
-      critter::MPI_Scatterv_critter.stop();}\
+      critter::internal::MPI_Scatterv_critter.stop();}\
     else{\
       PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm);\
     }\
@@ -385,14 +386,14 @@ void stop();
 
 #define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(rt==st);\
       int64_t tot_send=0, tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
       for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }\
-      critter::MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);\
+      critter::internal::MPI_Alltoallv_critter.start(std::max(tot_send,tot_recv), st, cm);\
       PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);\
-      critter::MPI_Alltoallv_critter.stop();}\
+      critter::internal::MPI_Alltoallv_critter.stop();}\
     else{\
       PMPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm);\
     }\
@@ -401,11 +402,11 @@ void stop();
 
 #define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       assert(st == rt);\
-      critter::MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);\
+      critter::internal::MPI_Sendrecv_critter.start(std::max(scnt,rcnt), st, cm, dest, src);\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
-      critter::MPI_Sendrecv_critter.stop();}\
+      critter::internal::MPI_Sendrecv_critter.stop();}\
     else{\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
     }\
@@ -413,10 +414,10 @@ void stop();
 
 #define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status)\
     do {\
-    if (critter::track){\
-      critter::MPI_Sendrecv_replace_critter.start(scnt, st, cm, dest, src);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Sendrecv_replace_critter.start(scnt, st, cm, dest, src);\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
-      critter::MPI_Sendrecv_replace_critter.stop();}\
+      critter::internal::MPI_Sendrecv_replace_critter.stop();}\
     else{\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
     }\
@@ -425,10 +426,10 @@ void stop();
 /*
 #define MPI_Comm_split(comm1, arg2, arg3, cm)\
   do {\
-    if (critter::track){\
-      critter::MPI_Comm_split_critter.start(0, MPI_CHAR, *cm);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Comm_split_critter.start(0, MPI_CHAR, *cm);\
       PMPI_Comm_split(comm1, arg2, arg3, cm);\
-      critter::MPI_Comm_split_critter.stop();}\
+      critter::internal::MPI_Comm_split_critter.stop();}\
     else{\
       PMPI_Comm_split(comm1, arg2, arg3, cm);\
     }\
@@ -437,10 +438,10 @@ void stop();
 
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
-    if (critter::track){\
-      critter::MPI_Send_critter.start(nelem, t, cm, dest);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Send_critter.start(nelem, t, cm, dest);\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
-      critter::MPI_Send_critter.stop();}\
+      critter::internal::MPI_Send_critter.stop();}\
     else{\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
     }\
@@ -448,10 +449,10 @@ void stop();
 
 #define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
   do {\
-    if (critter::track){\
-      critter::MPI_Recv_critter.start(nelem, t, cm, src);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Recv_critter.start(nelem, t, cm, src);\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
-      critter::MPI_Recv_critter.stop();}\
+      critter::internal::MPI_Recv_critter.stop();}\
     else{\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
     }\
@@ -459,10 +460,10 @@ void stop();
 
 #define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
   do {\
-    if (critter::track){\
-      critter::MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-      critter::critter_req[*req] = &critter::MPI_Irecv_critter;}\
+      critter::internal::critter_req[*req] = &critter::internal::MPI_Irecv_critter;}\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
     }\
@@ -470,10 +471,10 @@ void stop();
 
 #define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
   do {\
-    if (critter::track){\
-      critter::MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);\
+    if (critter::internal::track){\
+      critter::internal::MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::critter_req[*req] = &critter::MPI_Isend_critter;}\
+      critter::internal::critter_req[*req] = &critter::internal::MPI_Isend_critter;}\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
     }\
@@ -481,12 +482,12 @@ void stop();
 
 #define MPI_Wait(req, stat)\
   do {\
-    if (critter::track){\
-      std::map<MPI_Request,critter::_critter*>::iterator it = critter::critter_req.find(*req);\
-      if (it == critter::critter_req.end()) *(int*)NULL = 1;\
-      assert(it != critter::critter_req.end());\
+    if (critter::internal::track){\
+      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
+      if (it == critter::internal::critter_req.end()) *(int*)NULL = 1;\
+      assert(it != critter::internal::critter_req.end());\
       PMPI_Wait(req, stat);\
-      it->second->stop(); critter::critter_req.erase(it);}\
+      it->second->stop(); critter::internal::critter_req.erase(it);}\
     else{\
       PMPI_Wait(req, stat);\
     }\
@@ -494,10 +495,10 @@ void stop();
 
 #define MPI_Waitany(cnt, reqs, indx, stat)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       PMPI_Waitany(cnt, reqs, indx, stat);\
-      std::map<MPI_Request,critter::_critter*>::iterator it = critter::critter_req.find((reqs)[*(indx)]);\
-      if (it != critter::critter_req.end()) { it->second->stop(); critter::critter_req.erase(it);}}\
+      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find((reqs)[*(indx)]);\
+      if (it != critter::internal::critter_req.end()) { it->second->stop(); critter::internal::critter_req.erase(it);}}\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
     }\
@@ -505,7 +506,7 @@ void stop();
 
 #define MPI_Waitall(cnt, reqs, stats)\
   do {\
-    if (critter::track){\
+    if (critter::internal::track){\
       int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat;}}\
     else{\
       PMPI_Waitall(cnt, reqs, stats)\

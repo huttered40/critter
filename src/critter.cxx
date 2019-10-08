@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 namespace critter{
+namespace internal{
 
 _critter MPI_Barrier_critter("MPI_Barrier", 
                           [](int64_t n, int p){
@@ -486,54 +487,55 @@ void record(std::ostream& Stream){
     }
   }
 }
+};
 
 void print(size_t NumData, double* Data){
-  assert(critter_req.size() == 0);
-  if (NeedNewLine){
-    if (flag) {Stream << "\n";} else {std::cout << "\n";}
-    NeedNewLine=false;
+  assert(internal::critter_req.size() == 0);
+  if (internal::NeedNewLine){
+    if (internal::flag) {internal::Stream << "\n";} else {std::cout << "\n";}
+    internal::NeedNewLine=false;
   }
   auto NumPEs=0; MPI_Comm_size(MPI_COMM_WORLD,&NumPEs);
-  if (IsWorldRoot){
-    auto Inputs = parse_file_string();
+  if (internal::IsWorldRoot){
+    auto Inputs = internal::parse_file_string();
     for (auto i=0; i<NumData; i++){
-      if (flag) {Stream << "\t" << Data[i];} else {std::cout << "\t" << Data[i];}
+      if (internal::flag) {internal::Stream << "\t" << Data[i];} else {std::cout << "\t" << Data[i];}
     }
   }
-  NeedNewLine=true;
+  internal::NeedNewLine=true;
 }
 
 void start(){
-  assert(critter_req.size() == 0);
-  track=true;
-  for (int i=0; i<NumCritters; i++){
-    critter_list[i]->init();
+  assert(internal::critter_req.size() == 0);
+  internal::track=true;
+  for (int i=0; i<internal::NumCritters; i++){
+    internal::critter_list[i]->init();
   }
-  if (IsWorldRoot){
-    if (!IsFirstIter){
-      if (flag) {Stream << "\n";} else {std::cout << "\n";}
+  if (internal::IsWorldRoot){
+    if (!internal::IsFirstIter){
+      if (internal::flag) {internal::Stream << "\n";} else {std::cout << "\n";}
     }
   }
-  for (auto i=0; i<CritterCostMetrics.size(); i++){
-    CritterCostMetrics[i]=0.;
+  for (auto i=0; i<internal::CritterCostMetrics.size(); i++){
+    internal::CritterCostMetrics[i]=0.;
   }
   /*Initiate new timer*/
-  ComputationTimer=MPI_Wtime();
+  internal::ComputationTimer=MPI_Wtime();
 }
 
 void stop(){
-  assert(critter_req.size() == 0);
-  CritterCostMetrics[5]+=(MPI_Wtime()-ComputationTimer);
-  CritterCostMetrics[12]+=(MPI_Wtime()-ComputationTimer);
-  compute_all_crit(MPI_COMM_WORLD,-1,-1);
-  compute_all_avg(MPI_COMM_WORLD);
-  if (flag) {record(Stream);} else {record(std::cout);}
-  IsFirstIter = false;\
-  track=false;
-  saveCritterInfo.clear();
-  for (auto i=0; i<CritterCostMetrics.size(); i++){
-    CritterCostMetrics[i]=0.;
+  assert(internal::critter_req.size() == 0);
+  internal::CritterCostMetrics[5]+=(MPI_Wtime()-internal::ComputationTimer);
+  internal::CritterCostMetrics[12]+=(MPI_Wtime()-internal::ComputationTimer);
+  internal::compute_all_crit(MPI_COMM_WORLD,-1,-1);
+  internal::compute_all_avg(MPI_COMM_WORLD);
+  if (internal::flag) {internal::record(internal::Stream);} else {internal::record(std::cout);}
+  internal::IsFirstIter = false;\
+  internal::track=false;
+  internal::saveCritterInfo.clear();
+  for (auto i=0; i<internal::CritterCostMetrics.size(); i++){
+    internal::CritterCostMetrics[i]=0.;
   }
-  NeedNewLine=false;
+  internal::NeedNewLine=false;
 }
 };
