@@ -1,4 +1,4 @@
-#include "../critter.h"
+#include "../src/critter.h"
 #include <random>
 
 int main(int argc, char ** argv){
@@ -23,7 +23,7 @@ int main(int argc, char ** argv){
       } else{
         partner-=(pcount>>1);
       }
-      MPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
+      PMPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
       MPI_Comm_free(&sub_comm);
       pcount*=2;
     }
