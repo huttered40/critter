@@ -16,7 +16,14 @@ int main(int argc, char ** argv){
     while (pcount<p){
       MPI_Comm sub_comm;
       MPI_Comm_split(MPI_COMM_WORLD, rank<pcount, rank, &sub_comm);
-      MPI_Bcast(buf, msg_size, MPI_DOUBLE, pcount-1, sub_comm);
+      MPI_Status st;
+      int partner=0;
+      if (rank < (pcount>>1)){
+        partner+=(pcount>>1);
+      } else{
+        partner-=(pcount>>1);
+      }
+      MPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
       MPI_Comm_free(&sub_comm);
       pcount*=2;
     }
