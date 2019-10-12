@@ -140,7 +140,7 @@ class bench(object):
         os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin"%(self.testName)
 
         call("mkdir %s/%s/"%(os.environ["SCRATCH"],self.testName),shell=True)
-        call("mkdir %s/%s/DataFiles/"%(os.environ["SCRATCH"],self.testName),shell=True)
+        call("mkdir %s/%s/data/"%(os.environ["SCRATCH"],self.testName),shell=True)
         call("mkdir %s/%s/bin"%(os.environ["SCRATCH"],self.testName),shell=True)
 
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
@@ -233,7 +233,7 @@ class bench(object):
         PostFile=BaseString2
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
         PreFile=BaseString1+"+%d"%(node)
-        fileString="DataFiles/"+PreFile
+        fileString="data/"+PreFile
 
 	PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
         # Plot instructions only need a single output per scaling study
