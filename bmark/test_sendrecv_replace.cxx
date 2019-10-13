@@ -23,7 +23,7 @@ int main(int argc, char ** argv){
       } else{
         partner-=(pcount>>1);
       }
-      PMPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
+      MPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
       MPI_Comm_free(&sub_comm);
       pcount*=2;
     }
