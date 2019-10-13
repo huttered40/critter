@@ -23,7 +23,9 @@ int main(int argc, char ** argv){
       } else{
         partner-=(pcount>>1);
       }
+      critter::start();
       MPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
+      critter::stop();
       MPI_Comm_free(&sub_comm);
       pcount*=2;
     }
