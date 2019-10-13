@@ -222,6 +222,15 @@ class bench(object):
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
 
+    def write_benchmark(scriptFile,BinaryPath,nodes,ppn,tpr):
+        """
+	"""
+	# For now, we want to test 5 MPI routines (see below)
+	for tag in ["test_bcast","test_reduce","test_allreduce","test_allgather","test_sendrecv_replace"]:
+            BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag)
+	    MethodString=BinaryPath+" %s/%s/data/%s"%(ios.environ["SCRATCH"],self.testName,tag)
+	    self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
+
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,launchID,node,ppn,tpr):
         """
 	"""
@@ -287,6 +296,7 @@ class bench(object):
                                             scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                             scriptFile=open(scriptName,"a+")
                                             self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
+                                            self.write_benchmark(scriptFile,BinaryPath,curNumNodes,curPPN,curTPR)
                                             scriptFile.close()
 				            self.PortalDict[TupleKey]=1
                                             self.SaveJobStrDict[TupleKey]=1
@@ -313,8 +323,9 @@ class bench(object):
     def queue_submit(self):
         """
         """
-	# Create directory to hold all binaries and then move them from ../Tests/testName/bin
-	call("mv %s/Tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
+	# Build the micro benchmarks and move all binaries from ../Tests/testName/bin
+        call("cd %s; make"%(self.CritterPath),shell=True)
+        call("mv %s/Tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
         self.portal(0,0,self.numTests)
 
     def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList,ValidNodeList,ValidProcessList):
