@@ -222,13 +222,13 @@ class bench(object):
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
 
-    def write_benchmark(scriptFile,BinaryPath,nodes,ppn,tpr):
+    def write_benchmark(self,scriptFile,BinaryPath,nodes,ppn,tpr):
         """
 	"""
 	# For now, we want to test 5 MPI routines (see below)
 	for tag in ["test_bcast","test_reduce","test_allreduce","test_allgather","test_sendrecv_replace"]:
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag)
-	    MethodString=BinaryPath+" %s/%s/data/%s"%(ios.environ["SCRATCH"],self.testName,tag)
+	    MethodString=BinaryPath+" %s/%s/data/%s"%(os.environ["SCRATCH"],self.testName,tag)
 	    self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
 
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,launchID,node,ppn,tpr):
