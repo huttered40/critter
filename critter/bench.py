@@ -324,7 +324,7 @@ class bench(object):
         """
         """
 	# Build the micro benchmarks and move all binaries from ../Tests/testName/bin
-        call("cd %s; make"%(self.CritterPath),shell=True)
+        call("cd %s; make test"%(self.CritterPath),shell=True)
         call("mv %s/Tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
         self.portal(0,0,self.numTests)
 
