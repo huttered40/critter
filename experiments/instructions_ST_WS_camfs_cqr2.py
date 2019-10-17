@@ -11,7 +11,7 @@ from libraries import (camfs)
 CritterPath=os.environ["HOME"]+"/critter/"
 MachineType=stampede2
 LibraryTypeList=[camfs]
-UseCritterViz=1
+CritterVizInfo=[1,1,1048576,4,16,4]
 fileID="benchQRWS"
 roundID=1
 NumLaunchesPerBinary=1
@@ -47,7 +47,7 @@ File1 = ["Performance","Residual","Deviation from Orthogonality"]
 Test1=[[Algorithm1],"Weak Scaling: 8192x512 initial matrix",File1]
 TestList=[Test1]
 
-Launcher = bench(CritterPath,MachineType,LibraryTypeList,UseCritterViz,fileID,roundID,NumLaunchesPerBinary,\
+Launcher = bench(CritterPath,MachineType,LibraryTypeList,CritterVizInfo,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)

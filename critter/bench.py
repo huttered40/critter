@@ -13,7 +13,7 @@ class bench(object):
                  CritterPath,\
 		 MachineType,\
 		 LibraryTypeList,\
-		 UseCritterViz,\
+		 CritterVizInfo,\
 		 fileID,\
 		 roundID,\
 		 NumLaunchesPerBinary,\
@@ -46,8 +46,13 @@ class bench(object):
 
         LibraryTypeList - list of types specified in ../experiments/libraries/
 
-        UseCritterViz - use scaplot visualization tool to plot and predict data
-                      - if `=0`, output will be written to output file (.o), otherwise data files will be populated
+        CritterVizInfo - list that gives info as how to how use scaplot visualization tool to plot and predict data
+                       - [0] - Use CritterViz or not (1,0). If `=0`, output will be written to output file (.o), otherwise data files will be populated
+                       - [1] - Min message size for benchmarking the MPI collectives
+                       - [2] - Max message size for benchmarking the MPI collectives
+                       - [3] - Jump factor for message size for benchmarking the MPI collectives
+                       - [4] - Min subcommunicator size for benchmarking the MPI collectives
+                       - [5] - Jump factor for subcommunicator size for benchmarking the MPI collectives
 
         fileID - base name of the directory inside which all data/scripts will be stored
                - will appear inside the SCRATCH directory
@@ -99,7 +104,14 @@ class bench(object):
         self.CritterPath = CritterPath
         self.MachineType = MachineType
         self.LibraryTypeList = LibraryTypeList
-        self.UseCritterViz = UseCritterViz
+        self.UseCritterViz = CritterVizInfo[0]
+        if (self.UseCritterViz):
+            self.MinMessageSize = CritterVizInfo[1]
+            self.MaxMessageSize = CritterVizInfo[2]
+            self.MessageJumpSize = CritterVizInfo[3]
+            self.MinProcessSize = CritterVizInfo[4]
+            # Note: no MaxProcessSize because this is dependent on the (node,ppn,tpr)
+            self.ProcessJumpSize = CritterVizInfo[5]
         self.fileID = fileID
         self.roundID = roundID
         self.NumLaunchesPerBinary = NumLaunchesPerBinary
@@ -157,6 +169,7 @@ class bench(object):
 
         self.PlotInstructionsFile = open("%s/%s/plotInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
         self.CollectInstructionsFile = open("%s/%s/collectInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
+        self.BenchInstructionsFile = open("%s/%s/benchInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
 
     def GetRangeCount(self,op,File,Start,End,Factor,Operator):
         """
@@ -204,7 +217,7 @@ class bench(object):
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
 
-    def WriteAlgorithmInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
+    def WriteAlgInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
         if (launchID==1):
             self.PlotInstructionsFile.write(str(len(AlgParameters))+"\n")
             for param in AlgParameters:
@@ -219,6 +232,12 @@ class bench(object):
             File.write("%d\n"%(4+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+5' numPEs,testID,launchID,ppn,tpr,(node?)
             File.write("%s+critter.txt\n"%(PreFile))
             File.write("%s+critter.txt\n"%(PostFile))
+
+    def WriteAlgInfoForBenchmarking(self,launchID,File,AlgTag,PreFile,PostFile):
+        if (launchID == 1):
+            File.write("%s\n"%(AlgTag))
+            File.write("%s.txt\n"%(PreFile))
+            File.write("%s.txt\n"%(PostFile))
 
     # Functions that write the actual script, depending on machine
     def launchJobs(self,BinaryPath,launchIndex,TestID,AlgID,node,ppn,tpr,AlgParameters,fileString):
@@ -238,10 +257,52 @@ class bench(object):
         """
 	"""
 	# For now, we want to test 5 MPI routines (see below)
-	for tag in ["test_bcast","test_reduce","test_allreduce","test_allgather","test_sendrecv_replace"]:
-            BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag)
-	    MethodString=BinaryPath+" %s/%s/data/%s"%(os.environ["SCRATCH"]+"+%d+%d+%d+%d"%(launchID,nodes,ppn,tpr),self.testName,tag)
-	    self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
+	for tag in [("test_bcast",0)]:#,("test_reduce",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
+            BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag[0])
+            if (tag[1] == 0):	# routines whose message size does not depend on process count
+                msg_size=self.MinMessageSize
+                while (msg_size <= self.MaxMessageSize):
+                    pcount=self.MinProcessSize;
+                    while (pcount<=(nodes*ppn)):
+                        AlgParameters=[msg_size,pcount]
+                        # Set up the file string that will store the local benchmarking results
+                        BaseString1="%s"%(tag[0])\
+                            +"".join("+"+str(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
+                        BaseString2="%s"%(tag[0])\
+                            + "+%d+%d+%d"%(launchID,ppn,tpr)
+                        PostFile=BaseString2
+                        # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
+                        PreFile=BaseString1+"+%d"%(nodes)
+	                PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
+                        fileString=PrePath+"/data/"+PreFile
+                        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
+                        MethodString = MethodString + " %s"%(fileString)
+                        self.WriteAlgInfoForBenchmarking(launchID,self.BenchInstructionsFile,tag[0],PreFile,PostFile)
+	                self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
+                        pcount*=self.ProcessJumpSize;
+                    msg_size*=self.MessageJumpSize
+            else:
+                pcount=self.MinProcessSize;
+                while (pcount<=(nodes*ppn)):
+                    msg_size=self.MinMessageSize*pcount
+                    while (msg_size <= self.MaxMessageSize):
+                        AlgParameters=[msg_size,pcount]
+                        # Set up the file string that will store the local benchmarking results
+                        BaseString1="%s"%(tag[0])\
+                            +"".join("+"+str(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
+                        BaseString2="%s"%(tag[0])\
+                            +"".join("+"+str(x) for x in self.SaveAlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
+                        PostFile=BaseString2
+                        # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
+                        PreFile=BaseString1+"+%d"%(nodes)
+	                PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
+                        fileString=PrePath+"/data/"+PreFile
+                        MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
+                        MethodString = MethodString + " %s"%(fileString)
+                        self.WriteAlgInfoForBenchmarking(launchID,self.BenchInstructionsFile,tag[0],PreFile,PostFile)
+	                self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
+                        msg_size*=self.MessageJumpSize
+                    pcount*=self.ProcessJumpSize;
 
     def algorithmDispatch(self,TestID,AlgParameters,AlgID,BinaryPath,IsFirstNode,scaleIndex,launchID,node,ppn,tpr):
         """
@@ -262,7 +323,7 @@ class bench(object):
             self.SavePostFile = PostFile
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
             self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
-            self.WriteAlgorithmInfoForPlotting(self.SaveAlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
+            self.WriteAlgInfoForPlotting(self.SaveAlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
         self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
 
