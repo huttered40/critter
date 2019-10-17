@@ -15,9 +15,10 @@ int main(int argc, char ** argv){
   }*/
   MPI_Comm sub_comm;
   MPI_Comm_split(MPI_COMM_WORLD, rank<sub_comm_size, rank, &sub_comm);
+  int root = sub_comm_size-1;
   for (auto i=0; i<3; i++){
     critter::start();
-    MPI_Reduce(MPI_IN_PLACE, buf, msg_size, MPI_DOUBLE, MPI_SUM, sub_comm_size-1, sub_comm);
+    MPI_Reduce((root==rank) ? MPI_IN_PLACE : buf, buf, msg_size, MPI_DOUBLE, MPI_SUM, root, sub_comm);
     critter::stop();
   }
   MPI_Comm_free(&sub_comm);
