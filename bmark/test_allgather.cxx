@@ -17,7 +17,7 @@ int main(int argc, char ** argv){
       MPI_Comm sub_comm;
       MPI_Comm_split(MPI_COMM_WORLD, rank<pcount, rank, &sub_comm);
       critter::start();
-      MPI_Allgather(buf, msg_size, MPI_DOUBLE, MPI_IN_PLACE, msg_size, MPI_DOUBLE, sub_comm);
+      MPI_Allgather(MPI_IN_PLACE, msg_size, MPI_DOUBLE, buf, msg_size, MPI_DOUBLE, sub_comm);
       critter::stop();
       MPI_Comm_free(&sub_comm);
       pcount*=2;
