@@ -11,18 +11,19 @@ from libraries import (camfs)
 CritterPath=os.environ["HOME"]+"/critter/"
 MachineType=stampede2
 LibraryTypeList=[camfs]
+UseCritterViz=0
 fileID="commcost_vs_ppn"
 roundID=1
 NumLaunchesPerBinary=1
 numTests=1
-numHours="04"
-numMinutes="00"
+numHours="00"
+numMinutes="30"
 numSeconds="00"
 email="hutter2@illinois.edu"
 minPEcountPerNode=64          # Note: this will need to be changed before launching Critter runs
 maxPEcountPerNode=64
-nodeMinList=[32]
-nodeMaxList=[256]
+nodeMinList=[8]
+nodeMaxList=[64]
 ppnMinList=[1]
 ppnMaxList=[64]
 tprMinList=[1]
@@ -34,8 +35,8 @@ nodeScaleOperatorList=[__mul__]
 ppnScaleOperatorList=[__mul__]
 tprScaleOperatorList=[__mul__]
 Algorithm1 = algorithm("camfs_cacqr2",\
-                       [524288,2048,1,0,3],\
-		       [524288,2048,4,0,3],\
+                       [16384,2048,1,0,3],\
+		       [16384,2048,8,0,3],\
 		       [1,1,2,1,1],\
 		       [__mul__,__mul__,__mul__,__mul__,__mul__],\
                        lambda x: 0,\
@@ -43,12 +44,12 @@ Algorithm1 = algorithm("camfs_cacqr2",\
 		       [[1,1,1,1,1]],\
 		       [[__mul__,__mul__,__mul__,__mul__,__mul__]])
 File1 = ["Performance","Residual","Deviation from Orthogonality"]
-Test1=[[Algorithm1],"Strong Scaling: 524288x2048 matrix",File1]
+Test1=[[Algorithm1],"Strong Scaling: 16384x2048 matrix",File1]
 TestList=[Test1]
 
-Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
+Launcher = bench(CritterPath,MachineType,LibraryTypeList,UseCritterViz,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
 Launcher.generate()
-Launcher.launch()
+#Launcher.launch()

@@ -174,7 +174,7 @@ void stop();
      critter::internal::flag = 0;\
      critter::internal::FileName="";\
      critter::internal::StreamName="";\
-     if (std::getenv("CRITTER_STATUS") != NULL){\
+     if (std::getenv("CRITTER_VIZ") != NULL){\
        critter::internal::flag = 1;\
        critter::internal::FileName = std::move(std::string(*argv[*argc-1]));\
        critter::internal::StreamName = critter::internal::FileName + ".txt";\
@@ -200,7 +200,7 @@ void stop();
      critter::internal::flag = 0;\
      critter::internal::FileName="";\
      critter::internal::StreamName="";\
-     if (std::getenv("CRITTER_STATUS") != NULL){\
+     if (std::getenv("CRITTER_VIZ") != NULL){\
        critter::internal::flag = 1;\
        critter::internal::FileName = std::move(std::string(*argv[*argc-1]));\
        critter::internal::StreamName = critter::internal::FileName + ".txt";\

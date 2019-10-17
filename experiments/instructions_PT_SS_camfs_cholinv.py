@@ -11,6 +11,7 @@ from libraries import (camfs)
 CritterPath=os.environ["HOME"]+"/hutter2/ExternalLibraries/critter"
 MachineType=porter
 LibraryTypeList=[camfs]
+UseCritterViz=1
 fileID="benchCF1"
 roundID=1
 NumLaunchesPerBinary=1
@@ -46,7 +47,7 @@ File1 = ["Performance","Residual"]
 Test1=[[Algorithm1],"Strong Scaling",File1]
 TestList=[Test1]
 
-Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
+Launcher = bench(CritterPath,MachineType,LibraryTypeList,UseCritterViz,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)

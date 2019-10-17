@@ -1,4 +1,4 @@
-import os
+import os,sys
 from subprocess import call
 import datetime
 
@@ -13,6 +13,7 @@ class bench(object):
                  CritterPath,\
 		 MachineType,\
 		 LibraryTypeList,\
+		 UseCritterViz,\
 		 fileID,\
 		 roundID,\
 		 NumLaunchesPerBinary,\
@@ -44,6 +45,9 @@ class bench(object):
         MachineType - machine type specified in ../experiments/machines/
 
         LibraryTypeList - list of types specified in ../experiments/libraries/
+
+        UseCritterViz - use scaplot visualization tool to plot and predict data
+                      - if `=0`, output will be written to output file (.o), otherwise data files will be populated
 
         fileID - base name of the directory inside which all data/scripts will be stored
                - will appear inside the SCRATCH directory
@@ -95,6 +99,7 @@ class bench(object):
         self.CritterPath = CritterPath
         self.MachineType = MachineType
         self.LibraryTypeList = LibraryTypeList
+        self.UseCritterViz = UseCritterViz
         self.fileID = fileID
         self.roundID = roundID
         self.NumLaunchesPerBinary = NumLaunchesPerBinary
@@ -133,8 +138,13 @@ class bench(object):
 	#   before being moved to SCRATCH
         call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
         call("mkdir %s/Tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
-	# Build the micro benchmarks and move all binaries from ../Tests/testName/bin
-        call("cd %s; make test"%(self.CritterPath),shell=True)
+        if (self.UseCritterViz):
+	    # First check if the user correctly set the corresponding environment variable. (It cannot be set inside this script!)
+            if ("CRITTER_VIZ" not in os.environ.keys()):#os.environ["CRITTER_VIZ"]==""):
+                print("User must set the environment variable `CRITTER_VIZ`=`ON`")
+                sys.exit(0)
+            # Build the micro benchmarks and move all binaries from ../Tests/testName/bin
+            call("cd %s; make test"%(self.CritterPath),shell=True)
         # Copy all binaries in bin/ into test folder's bin
         call("cp %s/bin/* %s/Tests/%s/bin/"%(self.CritterPath,self.CritterPath,self.testName),shell=True)
 
@@ -298,7 +308,8 @@ class bench(object):
                                             scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                             scriptFile=open(scriptName,"a+")
                                             self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
-                                            self.write_benchmark(scriptFile,BinaryPath,LaunchIndex,curNumNodes,curPPN,curTPR)
+                                            if (self.UseCritterViz):
+                                                self.write_benchmark(scriptFile,BinaryPath,LaunchIndex,curNumNodes,curPPN,curTPR)
                                             scriptFile.close()
 				            self.PortalDict[TupleKey]=1
                                             self.SaveJobStrDict[TupleKey]=1

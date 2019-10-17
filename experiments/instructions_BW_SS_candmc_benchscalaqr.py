@@ -11,6 +11,7 @@ from libraries import (candmc)
 CritterPath=os.environ["HOME"]+"/critter/"
 MachineType=bluewaters
 LibraryTypeList=[candmc]
+UseCritterViz=1
 fileID="benchQR"
 roundID=1
 NumLaunchesPerBinary=1
@@ -46,7 +47,7 @@ File1 = ["Performance/Node"]
 Test1=[[Algorithm1],"Strong Scaling: 8192x512 matrix",File1]
 TestList=[Test1]
 
-Launcher = bench(CritterPath,MachineType,LibraryTypeList,fileID,roundID,NumLaunchesPerBinary,\
+Launcher = bench(CritterPath,MachineType,LibraryTypeList,UseCritterViz,fileID,roundID,NumLaunchesPerBinary,\
                  numTests,numHours,numMinutes,numSeconds,email,minPEcountPerNode,maxPEcountPerNode,\
 		 nodeMinList,nodeMaxList,ppnMinList,ppnMaxList,tprMinList,tprMaxList,nodeScaleFactorList,ppnScaleFactorList,tprScaleFactorList,\
                  nodeScaleOperatorList,ppnScaleOperatorList,tprScaleOperatorList,TestList)
