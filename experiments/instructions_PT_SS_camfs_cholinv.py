@@ -8,10 +8,10 @@ from critter import (bench,algorithm)
 from machines import (porter)
 from libraries import (camfs)
 
-CritterPath=os.environ["HOME"]+"/hutter2/ExternalLibraries/critter"
+CritterPath=os.environ["HOME"]+"/hutter2/critter"
 MachineType=porter
 LibraryTypeList=[camfs]
-CritterVizInfo=[1,1,1048576,4,16,4]
+CritterVizInfo=[0,1,1048576,4,16,4]
 fileID="benchCF1"
 roundID=1
 NumLaunchesPerBinary=1

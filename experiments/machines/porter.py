@@ -15,7 +15,7 @@ class porter(object):
     def set():
         """
 	"""
-        os.environ["SCRATCH"] = os.environ["HOME"]+"/hutter2/ExternalLibraries/critter/Tests"
+        os.environ["SCRATCH"] = os.environ["HOME"]+"/hutter2/critter/Tests"
 
     @staticmethod
     def script(scriptFile,testName,curNumNodes,curPPN,curTPR,numPEsPerNode,numHours,numMinutes,numSeconds):
