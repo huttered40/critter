@@ -1,4 +1,4 @@
-include config.mk
+include config/config_porter.mk
 
 all: lib/libcritter.a
 
