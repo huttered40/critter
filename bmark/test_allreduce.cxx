@@ -14,7 +14,7 @@ int main(int argc, char ** argv){
     buf[j] = drand48();
   }*/
   MPI_Comm sub_comm;
-  MPI_Comm_split(MPI_COMM_WORLD, rank<sub_comm_size, rank, &sub_comm);
+  MPI_Comm_split(MPI_COMM_WORLD, rank/sub_comm_size, rank, &sub_comm);
   for (auto i=0; i<3; i++){
     critter::start();
     MPI_Allreduce(MPI_IN_PLACE, buf, msg_size, MPI_DOUBLE, MPI_SUM, sub_comm);

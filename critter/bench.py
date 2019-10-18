@@ -257,7 +257,7 @@ class bench(object):
         """
 	"""
 	# For now, we want to test 5 MPI routines (see below)
-	for tag in [("test_bcast",0)]:#,("test_reduce",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
+	for tag in [("test_reduce",0)]:#,("test_bcast",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag[0])
             if (tag[1] == 0):	# routines whose message size does not depend on process count
                 msg_size=self.MinMessageSize
