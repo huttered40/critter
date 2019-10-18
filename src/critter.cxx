@@ -117,8 +117,8 @@ std::vector<std::vector<int_double_double>> CritterPaths(7);
 std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
-std::string StreamName,FileName;
-std::ofstream Stream;
+std::string StreamName,StreamTrackName,FileName;
+std::ofstream Stream,StreamTrack;
 bool track,flag,IsWorldRoot,IsFirstIter,NeedNewLine;
 
 void _critter::init(){
@@ -317,81 +317,83 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     critter_list[i]->set_crit_data(&new_cs[5*i+7]);
   }
 
-  // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
-  int rank; MPI_Comm_rank(cm,&rank);
-  double_int old_cp[7];
-  double_int new_cp[7];
-  int root_array[7];
-  for (int i=0; i<7; i++){
-    old_cp[i].first = CritterCostMetrics[i];
-    old_cp[i].second = rank;
-  }
-  if (nbr_pe == -1)
-    PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-  else {
-    PMPI_Sendrecv(&old_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
-    for (int i=0; i<5; i++){
-      new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-      if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
+  if (internal::flag){
+    // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
+    int rank; MPI_Comm_rank(cm,&rank);
+    double_int old_cp[7];
+    double_int new_cp[7];
+    int root_array[7];
+    for (int i=0; i<7; i++){
+      old_cp[i].first = CritterCostMetrics[i];
+      old_cp[i].second = rank;
     }
-    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(&new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+    if (nbr_pe == -1)
+      PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    else {
+      PMPI_Sendrecv(&old_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
       for (int i=0; i<5; i++){
         new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
+        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
+      }
+      if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+        PMPI_Sendrecv(&new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+        for (int i=0; i<5; i++){
+          new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
+          if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
+        }
       }
     }
-  }
-  for (int i=0; i<7; i++){
-    CritterCostMetrics[i] = new_cp[i].first;
-    root_array[i] = new_cp[i].second;
-  }
-  int crit_path_size_array[7];
-  for (int i=0; i<7; i++){
-    if (rank==root_array[i]){
-      crit_path_size_array[i] = CritterPaths[i].size();
-    } else{ crit_path_size_array[i]=0; }
-  }
-  // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
-  // set up new vectors to handle whats about to come
-  PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_SUM,cm);
-  int crit_length=0;
-  for (int i=0; i<7; i++){
-    crit_length+=crit_path_size_array[i];
-  }
-  std::vector<int_double_double> crit_buffer(crit_length);
-  int offset=0;
-  for (int i=0; i<7; i++){
-    if (rank==root_array[i]){
-      assert(CritterPaths[i].size() == crit_path_size_array[i]);
-      for (auto j=0; j<crit_path_size_array[i]; j++){
-        crit_buffer[offset+j] = CritterPaths[i][j];
-      }
-    } else{
-      for (auto j=0; j<crit_path_size_array[i]; j++){
-        crit_buffer[offset+j] = int_double_double(0,0.,0.);
-      }
+    for (int i=0; i<7; i++){
+      CritterCostMetrics[i] = new_cp[i].first;
+      root_array[i] = new_cp[i].second;
     }
-    offset+=crit_path_size_array[i];
-  }
-  std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
-  MPI_Datatype MPI_INT_DOUBLE_DOUBLE;
-  block[0] = 1;
-  block[1] = 2;
-  disp[0] = 0;
-  disp[1] = sizeof(int);
-  type[0] = MPI_INT;
-  type[1] = MPI_DOUBLE;
-  MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_DOUBLE_DOUBLE);
-  PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_DOUBLE_DOUBLE,MPI_SUM,cm);
-  // now copy into 7 different buffers and change their lengths (via some resize)
-  offset=0;
-  for (int i=0; i<7; i++){
-    CritterPaths[i].resize(crit_path_size_array[i]);
-    for (int j=0; j<crit_path_size_array[i]; j++){
-      CritterPaths[i][j] = crit_buffer[offset+j];
+    int crit_path_size_array[7];
+    for (int i=0; i<7; i++){
+      if (rank==root_array[i]){
+        crit_path_size_array[i] = CritterPaths[i].size();
+      } else{ crit_path_size_array[i]=0; }
     }
-    offset+=crit_path_size_array[i];
+    // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
+    // set up new vectors to handle whats about to come
+    PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_SUM,cm);
+    int crit_length=0;
+    for (int i=0; i<7; i++){
+      crit_length+=crit_path_size_array[i];
+    }
+    std::vector<int_double_double> crit_buffer(crit_length);
+    int offset=0;
+    for (int i=0; i<7; i++){
+      if (rank==root_array[i]){
+        assert(CritterPaths[i].size() == crit_path_size_array[i]);
+        for (auto j=0; j<crit_path_size_array[i]; j++){
+          crit_buffer[offset+j] = CritterPaths[i][j];
+        }
+      } else{
+        for (auto j=0; j<crit_path_size_array[i]; j++){
+          crit_buffer[offset+j] = int_double_double(0,0.,0.);
+        }
+      }
+      offset+=crit_path_size_array[i];
+    }
+    std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
+    MPI_Datatype MPI_INT_DOUBLE_DOUBLE;
+    block[0] = 1;
+    block[1] = 2;
+    disp[0] = 0;
+    disp[1] = sizeof(int);
+    type[0] = MPI_INT;
+    type[1] = MPI_DOUBLE;
+    MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_DOUBLE_DOUBLE);
+    PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_DOUBLE_DOUBLE,MPI_SUM,cm);
+    // now copy into 7 different buffers and change their lengths (via some resize)
+    offset=0;
+    for (int i=0; i<7; i++){
+      CritterPaths[i].resize(crit_path_size_array[i]);
+      for (int j=0; j<crit_path_size_array[i]; j++){
+        CritterPaths[i][j] = crit_buffer[offset+j];
+      }
+      offset+=crit_path_size_array[i];
+    }
   }
 }
 
@@ -489,6 +491,13 @@ void record(std::ofstream& Stream){
     }
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<9>(it.second);
+    }
+
+    for (auto i=0; i<CritterPaths.size(); i++){
+      for (auto j=0; j<CritterPaths[i].size(); j++){
+        StreamTrack << CritterPaths[i][j].first << " " << CritterPaths[i][j].second << " " << CritterPaths[i][j].third << std::endl;
+      }
+      StreamTrack << "0\n";
     }
   }
 }

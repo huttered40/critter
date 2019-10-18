@@ -146,9 +146,9 @@ struct int_double_double{
 
 /* \brief request/critter dictionary for asynchronous messages */
 extern std::map<MPI_Request,_critter*> critter_req;
-extern std::string StreamName,FileName;
+extern std::string StreamName,StreamTrackName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
-extern std::ofstream Stream;
+extern std::ofstream Stream,StreamTrack;
 extern double ComputationTimer;
 extern std::vector<std::vector<int_double_double>> CritterPaths;
 extern std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
@@ -193,6 +193,7 @@ void stop();
        critter::internal::flag = 1;\
        critter::internal::FileName = std::move(std::string(*argv[*argc-1]));\
        critter::internal::StreamName = critter::internal::FileName + ".txt";\
+       critter::internal::StreamTrackName = critter::internal::FileName + "track.txt";\
      }\
      critter::internal::IsFirstIter = true;\
      critter::internal::NeedNewLine = false;\
@@ -204,6 +205,7 @@ void stop();
      if (critter::internal::flag == 1){\
        if (rank==0){\
          critter::internal::Stream.open(critter::internal::StreamName.c_str());\
+         critter::internal::StreamTrack.open(critter::internal::StreamTrackName.c_str());\
        }\
      } else{\
      }\
