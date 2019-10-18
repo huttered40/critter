@@ -14,8 +14,8 @@ int main(int argc, char ** argv){
     buf[j] = drand48();
   }*/
   MPI_Comm sub_comm;
-  MPI_Comm_split(MPI_COMM_WORLD, rank<sub_comm_size, rank, &sub_comm);
-  int root = sub_comm_size-1;
+  MPI_Comm_split(MPI_COMM_WORLD, rank/sub_comm_size, rank, &sub_comm);
+  int root = 0;
   for (auto i=0; i<3; i++){
     critter::start();
     MPI_Bcast(buf, msg_size, MPI_DOUBLE, root, sub_comm);

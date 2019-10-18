@@ -14,10 +14,10 @@ int main(int argc, char ** argv){
     buf[j] = drand48();
   }*/
   MPI_Comm sub_comm;
-  MPI_Comm_split(MPI_COMM_WORLD, rank<sub_comm_size, rank, &sub_comm);
+  MPI_Comm_split(MPI_COMM_WORLD, rank/sub_comm_size, rank, &sub_comm);
   MPI_Status st;
-  int partner=0;
-  if (rank < (sub_comm_size>>1)){
+  int partner=rank%sub_comm_size;
+  if ((rank%sub_comm_size) < (sub_comm_size>>1)){
     partner+=(sub_comm_size>>1);
   } else{
     partner-=(sub_comm_size>>1);
