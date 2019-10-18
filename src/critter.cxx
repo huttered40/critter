@@ -8,84 +8,84 @@
 namespace critter{
 namespace internal{
 
-_critter MPI_Barrier_critter("MPI_Barrier", 
+_critter MPI_Barrier_critter("MPI_Barrier",0, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),0.); 
                           }), 
-        MPI_Bcast_critter("MPI_Bcast", 
+        MPI_Bcast_critter("MPI_Bcast",1,
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
                           }), 
 
-        MPI_Reduce_critter("MPI_Reduce", 
+        MPI_Reduce_critter("MPI_Reduce",2, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
                           }), 
-        MPI_Allreduce_critter("MPI_Allreduce",
+        MPI_Allreduce_critter("MPI_Allreduce",3,
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
                           }), 
-        MPI_Gather_critter("MPI_Gather",
+        MPI_Gather_critter("MPI_Gather",4,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Gatherv_critter("MPI_Gatherv",
+        MPI_Gatherv_critter("MPI_Gatherv",5,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Allgather_critter("MPI_Allgather",
+        MPI_Allgather_critter("MPI_Allgather",6,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Allgatherv_critter("MPI_Allgatherv",
+        MPI_Allgatherv_critter("MPI_Allgatherv",7,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Scatter_critter("MPI_Scatter",
+        MPI_Scatter_critter("MPI_Scatter",8,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Scatterv_critter("MPI_Scatterv",
+        MPI_Scatterv_critter("MPI_Scatterv",9,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Reduce_scatter_critter("MPI_Reduce_scatter",
+        MPI_Reduce_scatter_critter("MPI_Reduce_scatter",10,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
                           }), 
-        MPI_Alltoall_critter("MPI_Alltoall",
+        MPI_Alltoall_critter("MPI_Alltoall",11,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
                           }), 
-        MPI_Alltoallv_critter("MPI_Alltoallv",
+        MPI_Alltoallv_critter("MPI_Alltoallv",12,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
                           }), 
-        MPI_Send_critter("MPI_Send",
+        MPI_Send_critter("MPI_Send",13,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
-        MPI_Recv_critter("MPI_Recv",
+        MPI_Recv_critter("MPI_Recv",14,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
-        MPI_Isend_critter("MPI_Isend",
+        MPI_Isend_critter("MPI_Isend",15,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
-        MPI_Irecv_critter("MPI_Irecv",
+        MPI_Irecv_critter("MPI_Irecv",16,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
-        MPI_Sendrecv_critter("MPI_Sendrecv",
+        MPI_Sendrecv_critter("MPI_Sendrecv",17,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           }), 
-        MPI_Comm_split_critter("MPI_Comm_split",
+        MPI_Comm_split_critter("MPI_Comm_split",18,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),0); 
                           }), 
-        MPI_Sendrecv_replace_critter("MPI_Sendrecv_replace",
+        MPI_Sendrecv_replace_critter("MPI_Sendrecv_replace",19,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
                           });
@@ -113,6 +113,7 @@ _critter * critter_list[NumCritters] = {
 std::map<MPI_Request, _critter*> critter_req;
 
 double ComputationTimer;
+std::vector<std::vector<int_double_double>> CritterPaths(7);
 std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
@@ -135,16 +136,18 @@ void _critter::init(){
   this->save_comp_time   = 0.;
 }
 
-_critter::_critter(std::string name_, std::function< std::pair<double,double>(int64_t,int) > 
+_critter::_critter(std::string name_, int tag, std::function< std::pair<double,double>(int64_t,int) > 
               cost_func_){
   this->cost_func = cost_func_;
   this->name = std::move(name_);
+  this->tag = tag;
   this->init();
 }
 
 _critter::_critter(_critter const & t){
   this->cost_func = t.cost_func;
   this->name = t.name;
+  this->tag = t.tag;
   this->init();
 }
 
@@ -199,6 +202,15 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterCostMetrics[9] += localBarrierTime;
   CritterCostMetrics[10] += dcost.second;
   CritterCostMetrics[11] += dcost.first;
+
+  // Mark the local synchronization point before exchanging with its neighbors in the communicator
+  CritterPaths[0].emplace_back(int_double_double(this->tag,nbytes,p));
+  CritterPaths[1].emplace_back(int_double_double(this->tag,nbytes,p));
+  CritterPaths[2].emplace_back(int_double_double(this->tag,nbytes,p));
+  CritterPaths[3].emplace_back(int_double_double(this->tag,nbytes,p));
+  CritterPaths[4].emplace_back(int_double_double(this->tag,nbytes,p));
+  CritterPaths[5].emplace_back(int_double_double(this->tag,nbytes,p));
+  CritterPaths[6].emplace_back(int_double_double(this->tag,nbytes,p));
 }
 
 void _critter::stop(){
@@ -280,14 +292,12 @@ std::vector<std::string> parse_file_string(){
 }
 
 void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  constexpr auto NumCritMetrics = 5*NumCritters+7;
+  // First exchange the tracked routine critical path data
+  constexpr auto NumCritMetrics = 5*NumCritters;
   double old_cs[NumCritMetrics];
   double new_cs[NumCritMetrics];
-  for (int i=0; i<7; i++){
-    old_cs[i] = CritterCostMetrics[i];
-  }
   for (int i=0; i<NumCritters; i++){
-    critter_list[i]->get_crit_data(&old_cs[5*i+7]);
+    critter_list[i]->get_crit_data(&old_cs[5*i]);
   }
   if (nbr_pe == -1)
     PMPI_Allreduce(old_cs, new_cs, NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
@@ -303,11 +313,85 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
       }
     }
   }
-  for (int i=0; i<7; i++){
-    CritterCostMetrics[i] = new_cs[i];
-  }
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->set_crit_data(&new_cs[5*i+7]);
+  }
+
+  // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
+  int rank; MPI_Comm_rank(cm,&rank);
+  double_int old_cp[7];
+  double_int new_cp[7];
+  int root_array[7];
+  for (int i=0; i<7; i++){
+    old_cp[i].first = CritterCostMetrics[i];
+    old_cp[i].second = rank;
+  }
+  if (nbr_pe == -1)
+    PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+  else {
+    PMPI_Sendrecv(&old_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    for (int i=0; i<5; i++){
+      new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
+      if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
+    }
+    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+      PMPI_Sendrecv(&new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<5; i++){
+        new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
+        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
+      }
+    }
+  }
+  for (int i=0; i<7; i++){
+    CritterCostMetrics[i] = new_cp[i].first;
+    root_array[i] = new_cp[i].second;
+  }
+  int crit_path_size_array[7];
+  for (int i=0; i<7; i++){
+    if (rank==root_array[i]){
+      crit_path_size_array[i] = CritterPaths[i].size();
+    } else{ crit_path_size_array[i]=0; }
+  }
+  // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
+  // set up new vectors to handle whats about to come
+  PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_SUM,cm);
+  int crit_length=0;
+  for (int i=0; i<7; i++){
+    crit_length+=crit_path_size_array[i];
+  }
+  std::vector<int_double_double> crit_buffer(crit_length);
+  int offset=0;
+  for (int i=0; i<7; i++){
+    if (rank==root_array[i]){
+      assert(CritterPaths[i].size() == crit_path_size_array[i]);
+      for (auto j=0; j<crit_path_size_array[i]; j++){
+        crit_buffer[offset+j] = CritterPaths[i][j];
+      }
+    } else{
+      for (auto j=0; j<crit_path_size_array[i]; j++){
+        crit_buffer[offset+j] = int_double_double(0,0.,0.);
+      }
+    }
+    offset+=crit_path_size_array[i];
+  }
+  std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
+  MPI_Datatype MPI_INT_DOUBLE_DOUBLE;
+  block[0] = 1;
+  block[1] = 2;
+  disp[0] = 0;
+  disp[1] = sizeof(int);
+  type[0] = MPI_INT;
+  type[1] = MPI_DOUBLE;
+  MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_DOUBLE_DOUBLE);
+  PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_DOUBLE_DOUBLE,MPI_SUM,cm);
+  // now copy into 7 different buffers and change their lengths (via some resize)
+  offset=0;
+  for (int i=0; i<7; i++){
+    CritterPaths[i].resize(crit_path_size_array[i]);
+    for (int j=0; j<crit_path_size_array[i]; j++){
+      CritterPaths[i][j] = crit_buffer[offset+j];
+    }
+    offset+=crit_path_size_array[i];
   }
 }
 

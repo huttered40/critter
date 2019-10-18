@@ -19,6 +19,8 @@ class _critter {
   public: 
     /* \brief name of collective */
     std::string name;
+    /* \brief integer tag of collective */
+    int tag;
 
     /* \brief number of bytes max(sent,recv'ed) for each call made locally */
     double my_bytes;
@@ -63,7 +65,7 @@ class _critter {
      * \param[in] name symbol name of MPI routine
      * \param[in] function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) 
      */
-    _critter(std::string name,
+    _critter(std::string name, int tag,
             std::function< std::pair<double,double>(int64_t,int) > 
               cost_func = [](int64_t n, int p){ 
                 return std::pair<double,double>(1.,n); 
@@ -130,12 +132,25 @@ class _critter {
 constexpr auto NumCritters=18;
 
 extern _critter * critter_list[NumCritters];
+
+struct double_int{
+  double_int(){first=0; second=0;}
+  double_int(double one, int two){first=one; second=two;}
+  double first; int second;
+};
+struct int_double_double{
+  int_double_double(){first=0; second=0; third=0;}
+  int_double_double(int one, double two, double three){first=one; second=two; third=three;}
+  int first; double second; double third;
+};
+
 /* \brief request/critter dictionary for asynchronous messages */
 extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream;
 extern double ComputationTimer;
+extern std::vector<std::vector<int_double_double>> CritterPaths;
 extern std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
