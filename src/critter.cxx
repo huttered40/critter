@@ -8,6 +8,16 @@
 namespace critter{
 namespace internal{
 
+void add_critter_path_data(int_double_double* in, int_double_double* inout, int* len, MPI_Datatype* dtype){
+  int_double_double* invec = in;
+  int_double_double* inoutvec = inout;
+  for (int i=0; i<*len; i++){
+    inoutvec[i].first += invec[i].first;
+    inoutvec[i].second += invec[i].second;
+    inoutvec[i].third += invec[i].third;
+  }
+}
+
 _critter MPI_Barrier_critter("MPI_Barrier",0, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),0.); 
@@ -384,7 +394,10 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     type[0] = MPI_INT;
     type[1] = MPI_DOUBLE;
     MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_DOUBLE_DOUBLE);
-    PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_DOUBLE_DOUBLE,MPI_SUM,cm);
+    MPI_Type_commit(&MPI_INT_DOUBLE_DOUBLE);
+    MPI_Op op; MPI_Op_create((MPI_User_function*) add_critter_path_data,1,&op);
+    PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_DOUBLE_DOUBLE,op,cm);
+    MPI_Op_free(&op);
     // now copy into 7 different buffers and change their lengths (via some resize)
     offset=0;
     for (int i=0; i<7; i++){
@@ -630,5 +643,8 @@ void stop(){
     internal::CritterCostMetrics[i]=0.;
   }
   internal::NeedNewLine=false;
+  for (auto i=0; i<internal::CritterPaths.size(); i++){
+    internal::CritterPaths[i].clear();
+  }
 }
 };

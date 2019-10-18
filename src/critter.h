@@ -221,6 +221,7 @@ void stop();
        critter::internal::flag = 1;\
        critter::internal::FileName = std::move(std::string(*argv[*argc-1]));\
        critter::internal::StreamName = critter::internal::FileName + ".txt";\
+       critter::internal::StreamTrackName = critter::internal::FileName + "track.txt";\
      }\
      critter::internal::IsFirstIter = true;\
      critter::internal::NeedNewLine = false;\
@@ -232,6 +233,7 @@ void stop();
      if (critter::internal::flag == 1){\
        if (rank==0){\
          critter::internal::Stream.open(critter::internal::StreamName.c_str());\
+         critter::internal::StreamTrack.open(critter::internal::StreamTrackName.c_str());\
        }\
      } else{\
      }\
