@@ -47,7 +47,7 @@ class bench(object):
         LibraryTypeList - list of types specified in ../experiments/libraries/
 
         CritterVizInfo - list that gives info as how to how use scaplot visualization tool to plot and predict data
-                       - [0] - Use CritterViz or not (1,0). If `=0`, output will be written to output file (.o), otherwise data files will be populated
+                       - [0] - Use CritterViz (generate micro benchmarks)(2), Output to file(1), or output to standard output(0)
                        - [1] - Min message size for benchmarking the MPI collectives
                        - [2] - Max message size for benchmarking the MPI collectives
                        - [3] - Jump factor for message size for benchmarking the MPI collectives
@@ -105,7 +105,7 @@ class bench(object):
         self.MachineType = MachineType
         self.LibraryTypeList = LibraryTypeList
         self.UseCritterViz = CritterVizInfo[0]
-        if (self.UseCritterViz):
+        if (self.UseCritterViz>0):
             self.MinMessageSize = CritterVizInfo[1]
             self.MaxMessageSize = CritterVizInfo[2]
             self.MessageJumpSize = CritterVizInfo[3]
@@ -150,13 +150,14 @@ class bench(object):
 	#   before being moved to SCRATCH
         call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
         call("mkdir %s/Tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
-        if (self.UseCritterViz):
+        if (self.UseCritterViz>0):
 	    # First check if the user correctly set the corresponding environment variable. (It cannot be set inside this script!)
             if ("CRITTER_VIZ" not in os.environ.keys()):#os.environ["CRITTER_VIZ"]==""):
                 print("User must set the environment variable `CRITTER_VIZ`=`ON`")
                 sys.exit(0)
-            # Build the micro benchmarks and move all binaries from ../Tests/testName/bin
-            call("cd %s; make test"%(self.CritterPath),shell=True)
+            if (self.UseCritterViz>1):
+                # Build the micro benchmarks and move all binaries from ../Tests/testName/bin
+                call("cd %s; make test"%(self.CritterPath),shell=True)
         # Copy all binaries in bin/ into test folder's bin
         call("cp %s/bin/* %s/Tests/%s/bin/"%(self.CritterPath,self.CritterPath,self.testName),shell=True)
 
@@ -257,7 +258,7 @@ class bench(object):
         """
 	"""
 	# For now, we want to test 5 MPI routines (see below)
-	for tag in [("test_reduce",0)]:#,("test_bcast",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
+	for tag in [("test_bcast",0),("test_reduce",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag[0])
             if (tag[1] == 0):	# routines whose message size does not depend on process count
                 msg_size=self.MinMessageSize
@@ -369,7 +370,7 @@ class bench(object):
                                             scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
                                             scriptFile=open(scriptName,"a+")
                                             self.MachineType.script(scriptFile,self.testName,curNumNodes,curPPN,curTPR,numPEsPerNode,self.numHours,self.numMinutes,self.numSeconds)
-                                            if (self.UseCritterViz):
+                                            if (self.UseCritterViz==2):
                                                 self.write_benchmark(scriptFile,BinaryPath,LaunchIndex,curNumNodes,curPPN,curTPR)
                                             scriptFile.close()
 				            self.PortalDict[TupleKey]=1
