@@ -201,8 +201,6 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   // crit_bar_time is a process-local data value for now, will get crittered after the communication routine is over.
   this->crit_bar_time+=localBarrierTime;	// Will get updated after an AllReduce to find the current critical path
   this->my_bar_time+=localBarrierTime;
-  // start timer for communication routine
-  this->last_start_time = MPI_Wtime();
 
   CritterCostMetrics[0] += nbytes;
   CritterCostMetrics[2] += localBarrierTime;
@@ -221,6 +219,8 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterPaths[4].emplace_back(int_double_double(this->tag,nbytes,p));
   CritterPaths[5].emplace_back(int_double_double(this->tag,nbytes,p));
   CritterPaths[6].emplace_back(int_double_double(this->tag,nbytes,p));
+  // start timer for communication routine
+  this->last_start_time = MPI_Wtime();
 }
 
 void _critter::stop(){
@@ -229,14 +229,14 @@ void _critter::stop(){
   this->crit_comm_time += dt;	// Will get updated after an AllReduce to find the current critical path
   CritterCostMetrics[1] += dt;
   CritterCostMetrics[8] += dt;
-  this->last_start_time = MPI_Wtime();
   CritterCostMetrics[5] += this->save_comp_time;
   CritterCostMetrics[6] += this->save_comp_time+dt;
   CritterCostMetrics[12] += this->save_comp_time;
   CritterCostMetrics[13] += this->save_comp_time+dt;
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   // Just for sanity, lets have all processors start at same place
-  PMPI_Barrier(MPI_COMM_WORLD);
+  PMPI_Barrier(this->last_cm);
+  this->last_start_time = MPI_Wtime();
   ComputationTimer = MPI_Wtime();		// reset this again
 }
 
@@ -365,7 +365,7 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     }
     // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
     // set up new vectors to handle whats about to come
-    PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_SUM,cm);
+    PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_MAX,cm);
     int crit_length=0;
     for (int i=0; i<7; i++){
       crit_length+=crit_path_size_array[i];
