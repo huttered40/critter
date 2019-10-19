@@ -8,13 +8,13 @@
 namespace critter{
 namespace internal{
 
-void add_critter_path_data(int_double_double* in, int_double_double* inout, int* len, MPI_Datatype* dtype){
-  int_double_double* invec = in;
-  int_double_double* inoutvec = inout;
+void add_critter_path_data(int_int_double* in, int_int_double* inout, int* len, MPI_Datatype* dtype){
+  int_int_double* invec = in;
+  int_int_double* inoutvec = inout;
   for (int i=0; i<*len; i++){
-    inoutvec[i].first += invec[i].first;
-    inoutvec[i].second += invec[i].second;
-    inoutvec[i].third += invec[i].third;
+    inoutvec[i].first = std::max(inoutvec[i].first,invec[i].first);
+    inoutvec[i].second = std::max(inoutvec[i].second,invec[i].second);
+    inoutvec[i].third = std::max(inoutvec[i].third,invec[i].third);
   }
 }
 
@@ -123,7 +123,7 @@ _critter * critter_list[NumCritters] = {
 std::map<MPI_Request, _critter*> critter_req;
 
 double ComputationTimer;
-std::vector<std::vector<int_double_double>> CritterPaths(7);
+std::vector<std::vector<int_int_double>> CritterPaths(7);
 std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
@@ -212,13 +212,14 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterCostMetrics[11] += dcost.first;
 
   // Mark the local synchronization point before exchanging with its neighbors in the communicator
-  CritterPaths[0].emplace_back(int_double_double(this->tag,nbytes,p));
-  CritterPaths[1].emplace_back(int_double_double(this->tag,nbytes,p));
-  CritterPaths[2].emplace_back(int_double_double(this->tag,nbytes,p));
-  CritterPaths[3].emplace_back(int_double_double(this->tag,nbytes,p));
-  CritterPaths[4].emplace_back(int_double_double(this->tag,nbytes,p));
-  CritterPaths[5].emplace_back(int_double_double(this->tag,nbytes,p));
-  CritterPaths[6].emplace_back(int_double_double(this->tag,nbytes,p));
+  assert(p>0);
+  CritterPaths[0].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[1].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[2].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[3].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[4].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[5].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
 }
@@ -234,7 +235,6 @@ void _critter::stop(){
   CritterCostMetrics[12] += this->save_comp_time;
   CritterCostMetrics[13] += this->save_comp_time+dt;
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
-  // Just for sanity, lets have all processors start at same place
   PMPI_Barrier(this->last_cm);
   this->last_start_time = MPI_Wtime();
   ComputationTimer = MPI_Wtime();		// reset this again
@@ -324,7 +324,7 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     }
   }
   for (int i=0; i<NumCritters; i++){
-    critter_list[i]->set_crit_data(&new_cs[5*i+7]);
+    critter_list[i]->set_crit_data(&new_cs[5*i]);
   }
 
   if (internal::flag){
@@ -333,6 +333,7 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     double_int old_cp[7];
     double_int new_cp[7];
     int root_array[7];
+    int crit_path_size_array[7];
     for (int i=0; i<7; i++){
       old_cp[i].first = CritterCostMetrics[i];
       old_cp[i].second = rank;
@@ -357,7 +358,6 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
       CritterCostMetrics[i] = new_cp[i].first;
       root_array[i] = new_cp[i].second;
     }
-    int crit_path_size_array[7];
     for (int i=0; i<7; i++){
       if (rank==root_array[i]){
         crit_path_size_array[i] = CritterPaths[i].size();
@@ -370,7 +370,7 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     for (int i=0; i<7; i++){
       crit_length+=crit_path_size_array[i];
     }
-    std::vector<int_double_double> crit_buffer(crit_length);
+    std::vector<int_int_double> crit_buffer(crit_length);
     int offset=0;
     for (int i=0; i<7; i++){
       if (rank==root_array[i]){
@@ -380,23 +380,23 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
         }
       } else{
         for (auto j=0; j<crit_path_size_array[i]; j++){
-          crit_buffer[offset+j] = int_double_double(0,0.,0.);
+          crit_buffer[offset+j] = int_int_double(0,0,0.);
         }
       }
       offset+=crit_path_size_array[i];
     }
     std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
-    MPI_Datatype MPI_INT_DOUBLE_DOUBLE;
-    block[0] = 1;
-    block[1] = 2;
+    MPI_Datatype MPI_INT_INT_DOUBLE;
+    block[0] = 2;
+    block[1] = 1;
     disp[0] = 0;
-    disp[1] = sizeof(int);
+    disp[1] = 2*sizeof(int);
     type[0] = MPI_INT;
     type[1] = MPI_DOUBLE;
-    MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_DOUBLE_DOUBLE);
-    MPI_Type_commit(&MPI_INT_DOUBLE_DOUBLE);
+    MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_INT_DOUBLE);
+    MPI_Type_commit(&MPI_INT_INT_DOUBLE);
     MPI_Op op; MPI_Op_create((MPI_User_function*) add_critter_path_data,1,&op);
-    PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_DOUBLE_DOUBLE,op,cm);
+    PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_INT_DOUBLE,op,cm);
     MPI_Op_free(&op);
     // now copy into 7 different buffers and change their lengths (via some resize)
     offset=0;

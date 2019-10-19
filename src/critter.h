@@ -138,10 +138,10 @@ struct double_int{
   double_int(double one, int two){first=one; second=two;}
   double first; int second;
 };
-struct int_double_double{
-  int_double_double(){first=0; second=0; third=0;}
-  int_double_double(int one, double two, double three){first=one; second=two; third=three;}
-  int first; double second; double third;
+struct int_int_double{
+  int_int_double(){first=0; second=0; third=0;}
+  int_int_double(int one, int two, double three){first=one; second=two; third=three;}
+  int first; int second; double third;
 };
 
 /* \brief request/critter dictionary for asynchronous messages */
@@ -150,7 +150,7 @@ extern std::string StreamName,StreamTrackName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream,StreamTrack;
 extern double ComputationTimer;
-extern std::vector<std::vector<int_double_double>> CritterPaths;
+extern std::vector<std::vector<int_int_double>> CritterPaths;
 extern std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
