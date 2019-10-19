@@ -128,10 +128,9 @@ class _critter {
     void init();
 
 };
-//#define NUM_CRITTERS 17
-constexpr auto NumCritters=18;
+constexpr auto NumCritters=19;
 
-extern _critter * critter_list[NumCritters];
+extern _critter* critter_list[NumCritters];
 
 struct double_int{
   double_int(){first=0; second=0;}
@@ -173,7 +172,6 @@ extern _critter MPI_Barrier_critter,
          MPI_Isend_critter, 
          MPI_Irecv_critter, 
          MPI_Sendrecv_critter, 
-         MPI_Comm_split_critter, 
          MPI_Sendrecv_replace_critter; 
 void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg(MPI_Comm cm);
@@ -441,19 +439,6 @@ void stop();
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
     }\
   } while (0)
-
-/*
-#define MPI_Comm_split(comm1, arg2, arg3, cm)\
-  do {\
-    if (critter::internal::track){\
-      critter::internal::MPI_Comm_split_critter.start(0, MPI_CHAR, *cm);\
-      PMPI_Comm_split(comm1, arg2, arg3, cm);\
-      critter::internal::MPI_Comm_split_critter.stop();}\
-    else{\
-      PMPI_Comm_split(comm1, arg2, arg3, cm);\
-    }\
-  } while (0)
-*/
 
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
