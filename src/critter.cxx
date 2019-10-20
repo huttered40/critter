@@ -443,8 +443,8 @@ void PrintHeader(StreamType& Stream, size_t NumInputs){
     }
     Stream << "Input";
   }
-  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";// critical path
-  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime";// average (per-process)
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\tRunTime";// critical path
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\tRunTime";// average (per-process)
   for (auto i=0;i<10;i++){
     for (auto& it : saveCritterInfo){
      Stream << "\t" << it.first;
@@ -468,10 +468,10 @@ void record(std::ofstream& Stream){
     PrintInputs(Stream,NumPEs,Inputs);
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
-    Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
+    Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\t" << CritterCostMetrics[6];
     Stream << "\t" << CritterCostMetrics[7] << "\t" << CritterCostMetrics[8] << "\t" << CritterCostMetrics[9];
     Stream << "\t" << CritterCostMetrics[10] << "\t" << CritterCostMetrics[11] << "\t" << CritterCostMetrics[12];
-    Stream << "\t" << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13];
+    Stream << "\t" << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13] << "\t" << CritterCostMetrics[13];
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<0>(it.second);
     }
@@ -529,6 +529,7 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << "EstSynchCost";
     Stream << std::left << std::setw(25) << "CompTime";
     Stream << std::left << std::setw(25) << "OverlapTime";
+    Stream << std::left << std::setw(25) << "RunTime";
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
     Stream << std::left << std::setw(25) << CritterCostMetrics[0];
@@ -537,7 +538,8 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << CritterCostMetrics[3];
     Stream << std::left << std::setw(25) << CritterCostMetrics[4];
     Stream << std::left << std::setw(25) << CritterCostMetrics[5];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\n\n";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[6] << "\n\n";
 
     Stream << std::left << std::setw(25) << "Avg (per-process):";
     Stream << std::left << std::setw(25) << "NumBytes";
@@ -547,6 +549,7 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << "EstSynchCost";
     Stream << std::left << std::setw(25) << "CompTime";
     Stream << std::left << std::setw(25) << "OverlapTime";
+    Stream << std::left << std::setw(25) << "RunTime";
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
     Stream << std::left << std::setw(25) << CritterCostMetrics[7];
@@ -555,7 +558,8 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << CritterCostMetrics[10];
     Stream << std::left << std::setw(25) << CritterCostMetrics[11];
     Stream << std::left << std::setw(25) << CritterCostMetrics[12];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13] << "\n\n";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[8]+CritterCostMetrics[12]-CritterCostMetrics[13];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[13] << "\n\n";
 
     Stream << std::left << std::setw(25) << "Critical path:";
     Stream << std::left << std::setw(25) << "NumBytes";
@@ -628,8 +632,9 @@ void start(){
 
 void stop(){
   assert(internal::critter_req.size() == 0);
-  internal::CritterCostMetrics[5]+=(MPI_Wtime()-internal::ComputationTimer);
-  internal::CritterCostMetrics[12]+=(MPI_Wtime()-internal::ComputationTimer);
+  auto last_time = MPI_Wtime();
+  internal::CritterCostMetrics[5]+=(last_time-internal::ComputationTimer);
+  internal::CritterCostMetrics[12]+=(last_time-internal::ComputationTimer);
   internal::compute_all_crit(MPI_COMM_WORLD,-1,-1);
   internal::compute_all_avg(MPI_COMM_WORLD);
   if (internal::flag) {internal::record(internal::Stream);} else {internal::record(std::cout);}
