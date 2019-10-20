@@ -9,6 +9,7 @@ Welcome! If you are looking for a lightweight tool to both analyze and predict t
 5. estimated synchronization cost
 6. overlap time
 7. computation time
+8. total runtime
 
 `critter` also counts the first five metrics above for each tracked MPI routine (see table below).
 
