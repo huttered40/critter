@@ -184,6 +184,7 @@ void stop();
 #define MPI_Init(argc, argv)\
   do {\
      PMPI_Init(argc,argv);\
+     critter::internal::track=0;\
      critter::internal::flag = 0;\
      critter::internal::FileName="";\
      critter::internal::StreamName="";\
@@ -212,6 +213,7 @@ void stop();
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
      PMPI_Init_thread(argc,argv,required,provided);\
+     critter::internal::track=0;\
      critter::internal::flag = 0;\
      critter::internal::FileName="";\
      critter::internal::StreamName="";\
@@ -513,7 +515,8 @@ void stop();
     if (critter::internal::track){\
       int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat;}}\
     else{\
-      PMPI_Waitall(cnt, reqs, stats)\
+      PMPI_Waitall(cnt, reqs, stats);\
     }\
   } while (0)
+
 #endif
