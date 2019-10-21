@@ -148,18 +148,18 @@ class bench(object):
 
         # I think these directories serve mainly as a intermediate place to put the binaries
 	#   before being moved to SCRATCH
-        call("mkdir %s/Tests/%s"%(self.CritterPath,self.testName),shell=True)
-        call("mkdir %s/Tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
+        call("mkdir %s/tests/%s"%(self.CritterPath,self.testName),shell=True)
+        call("mkdir %s/tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
         if (self.UseCritterViz>0):
 	    # First check if the user correctly set the corresponding environment variable. (It cannot be set inside this script!)
             if ("CRITTER_VIZ" not in os.environ.keys()):#os.environ["CRITTER_VIZ"]==""):
                 print("User must set the environment variable `CRITTER_VIZ`=`ON`")
                 sys.exit(0)
             if (self.UseCritterViz>1):
-                # Build the micro benchmarks and move all binaries from ../Tests/testName/bin
+                # Build the micro benchmarks and move all binaries from ../tests/testName/bin
                 call("cd %s; make test"%(self.CritterPath),shell=True)
         # Copy all binaries in bin/ into test folder's bin
-        call("cp %s/bin/* %s/Tests/%s/bin/"%(self.CritterPath,self.CritterPath,self.testName),shell=True)
+        call("cp %s/bin/* %s/tests/%s/bin/"%(self.CritterPath,self.CritterPath,self.testName),shell=True)
 
         self.MachineType.set()
         os.environ["BINARYPATH"] = os.environ["SCRATCH"] + "/%s/bin"%(self.testName)
@@ -398,7 +398,7 @@ class bench(object):
     def queue_submit(self):
         """
         """
-        call("mv %s/Tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
+        call("mv %s/tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
         self.portal(0,0,self.numTests)
 
     def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList,ValidNodeList,ValidProcessList):
