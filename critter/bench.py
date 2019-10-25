@@ -249,8 +249,8 @@ class bench(object):
 
         # Allow for any number of user-defined tests
         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
-        MethodString = MethodString + " %s+critter"%(fileString)
         scriptFile=open(scriptName,"a+")
+        scriptFile.write("export CRITTER_VIZ_FILE=%s+critter\n"%(fileString))
 	self.MachineType.write_test(scriptFile,numProcesses,ppn,tpr,MethodString)
         scriptFile.close()
 
