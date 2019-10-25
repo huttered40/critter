@@ -23,7 +23,7 @@ Using both the micro-benchmarks and the tracked critical path, `critter` can re-
 See the lists below for an accurate depiction of our current support.
 
 ## Build and use instructions
-`configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library file `./lib/libcritter.a`. Include `critter.h` in all files that use MPI in your application, remove all `include mpi.h`, and link to `./lib/libcritter.a`. Make sure you run `export CRITTER_VIZ=ON` before building your application for levels 2 and 3 support.
+`configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library file `./lib/libcritter.a`. Include `critter.h` in all files that use MPI in your application, remove all `include mpi.h`, and link to `./lib/libcritter.a`. Make sure to run `export CRITTER_VIZ=ON` before building your application for levels 2 and 3 support.
 
 `critter` provides three routines to the user: `critter::start()`, `critter::stop()`, and `critter::print(int size, double* data)`. The first two create the window within which all MPI routines are intercepted and tracked. The latter is optional and is provided to allow the user to include diagnostic data for the test, including information such as residual or raw performance.
 
