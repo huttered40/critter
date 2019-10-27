@@ -108,6 +108,7 @@ class bench(object):
             self.MinProcessSize = CritterVizInfo[4]
             # Note: no MaxProcessSize because this is dependent on the (node,ppn,tpr)
             self.ProcessJumpSize = CritterVizInfo[5]
+            self.num_iter = CritterVizInfo[6]
         self.fileID = fileID
         self.roundID = roundID
         self.NumLaunchesPerBinary = NumLaunchesPerBinary
@@ -254,14 +255,14 @@ class bench(object):
         """
 	"""
 	# For now, we want to test 5 MPI routines (see below)
-	for tag in [("test_bcast",0),("test_reduce",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
+	for tag in [("test_send_recv",0),("test_sendrecv",0),("test_bcast",0),("test_reduce",0),("test_allreduce",0),("test_allgather",1),("test_sendrecv_replace",0)]:
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],tag[0])
             if (tag[1] == 0):	# routines whose message size does not depend on process count
                 msg_size=self.MinMessageSize
                 while (msg_size <= self.MaxMessageSize):
                     pcount=self.MinProcessSize;
                     while (pcount<=(nodes*ppn)):
-                        AlgParameters=[msg_size,pcount]
+                        AlgParameters=[msg_size,pcount,self.num_iter]
                         # Set up the file string that will store the local benchmarking results
                         BaseString1="%s"%(tag[0])\
                             +"".join("+"+str(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
@@ -273,8 +274,8 @@ class bench(object):
 	                PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
                         fileString=PrePath+"/data/"+PreFile
                         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
-                        MethodString = MethodString + " %s"%(fileString)
                         self.WriteAlgInfoForBenchmarking(launchID,self.BenchInstructionsFile,tag[0],PreFile,PostFile)
+                        scriptFile.write("export CRITTER_VIZ_FILE=%s\n"%(fileString))
 	                self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
                         pcount*=self.ProcessJumpSize;
                     msg_size*=self.MessageJumpSize
@@ -283,7 +284,7 @@ class bench(object):
                 while (pcount<=(nodes*ppn)):
                     msg_size=self.MinMessageSize*pcount
                     while (msg_size <= self.MaxMessageSize):
-                        AlgParameters=[msg_size,pcount]
+                        AlgParameters=[msg_size,pcount,self.num_iter]
                         # Set up the file string that will store the local benchmarking results
                         BaseString1="%s"%(tag[0])\
                             +"".join("+"+str(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
@@ -295,8 +296,8 @@ class bench(object):
 	                PrePath="%s/%s"%(os.environ["SCRATCH"],self.testName)
                         fileString=PrePath+"/data/"+PreFile
                         MethodString = BinaryPath+"".join(" "+str(x) for x in AlgParameters)#+" %d %d"%(ppn,tpr);
-                        MethodString = MethodString + " %s"%(fileString)
                         self.WriteAlgInfoForBenchmarking(launchID,self.BenchInstructionsFile,tag[0],PreFile,PostFile)
+                        scriptFile.write("export CRITTER_VIZ_FILE=%s\n"%(fileString))
 	                self.MachineType.write_test(scriptFile,nodes*ppn,ppn,tpr,MethodString)
                         msg_size*=self.MessageJumpSize
                     pcount*=self.ProcessJumpSize;

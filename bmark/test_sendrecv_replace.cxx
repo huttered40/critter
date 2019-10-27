@@ -4,6 +4,7 @@
 int main(int argc, char ** argv){
   size_t msg_size = atoi(argv[1]);
   size_t sub_comm_size = atoi(argv[2]);
+  size_t num_iter = atoi(argv[3]);
   MPI_Init(&argc, &argv);
   int rank, p;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -22,7 +23,7 @@ int main(int argc, char ** argv){
   } else{
     partner-=(sub_comm_size>>1);
   }
-  for (auto i=0; i<3; i++){
+  for (auto i=0; i<num_iter; i++){
     critter::start();
     MPI_Sendrecv_replace(buf, msg_size, MPI_DOUBLE, partner, 0, partner, 0, sub_comm, &st);
     critter::stop();

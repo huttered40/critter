@@ -4,6 +4,7 @@
 int main(int argc, char ** argv){
   size_t msg_size = atoi(argv[1]);
   size_t sub_comm_size = atoi(argv[2]);
+  size_t num_iter = atoi(argv[3]);
   MPI_Init(&argc, &argv);
   int rank, p;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -15,7 +16,7 @@ int main(int argc, char ** argv){
   }*/
   MPI_Comm sub_comm;
   MPI_Comm_split(MPI_COMM_WORLD, rank/sub_comm_size, rank, &sub_comm);
-  for (auto i=0; i<3; i++){
+  for (auto i=0; i<num_iter; i++){
     critter::start();
     MPI_Allgather(MPI_IN_PLACE, msg_size/sub_comm_size, MPI_DOUBLE, buf, msg_size/sub_comm_size, MPI_DOUBLE, sub_comm);
     critter::stop();
