@@ -12,7 +12,6 @@ class bench(object):
     def __init__(self,\
                  CritterPath,\
 		 MachineType,\
-		 LibraryTypeList,\
 		 CritterVizInfo,\
 		 fileID,\
 		 roundID,\
@@ -43,8 +42,6 @@ class bench(object):
                     - specified as a string
 
         MachineType - machine type specified in ../experiments/machines/
-
-        LibraryTypeList - list of types specified in ../experiments/libraries/
 
         CritterVizInfo - list that gives info as how to how use scaplot visualization tool to plot and predict data
                        - [0] - Use CritterViz (generate micro benchmarks)(2), Output to file(1), or output to standard output(0)
@@ -103,7 +100,6 @@ class bench(object):
         """
         self.CritterPath = CritterPath
         self.MachineType = MachineType
-        self.LibraryTypeList = LibraryTypeList
         self.UseCritterViz = CritterVizInfo[0]
         if (self.UseCritterViz>0):
             self.MinMessageSize = CritterVizInfo[1]
