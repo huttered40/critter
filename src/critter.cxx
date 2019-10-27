@@ -119,7 +119,7 @@ _critter * critter_list[NumCritters] = {
         &MPI_Sendrecv_replace_critter };
 std::map<MPI_Request, _critter*> critter_req;
 
-double ComputationTimer;
+double ComputationTimer,OverlapTimer;
 std::vector<std::vector<int_int_double>> CritterPaths(8);
 std::array<double,16> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime,RunTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
@@ -160,7 +160,7 @@ _critter::_critter(_critter const & t){
 
 _critter::~_critter(){}
 
-void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2, bool is_async){
+void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical-path yet or that will screw up calculation of overlap!
@@ -185,14 +185,12 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
 
   volatile double init_time = MPI_Wtime();
   // If routine is asynchronous (MPI_Isend/MPI_Irecv), no need to wait for other processes
-  if (!is_async){
-    if (nbr_pe == -1)
-      PMPI_Barrier(cm);
-    else {
-      double sbuf, rbuf;
-      sbuf = 0.;
-      PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
-    }
+  if (nbr_pe == -1)
+    PMPI_Barrier(cm);
+  else {
+    double sbuf, rbuf;
+    sbuf = 0.;
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
   }
   this->last_start_time = MPI_Wtime();
   double localBarrierTime = this->last_start_time - init_time;
@@ -216,7 +214,7 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterPaths[3].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[4].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[5].emplace_back(int_int_double(this->tag,p,nbytes));
-  CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
+  .. CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[7].emplace_back(int_int_double(this->tag,p,nbytes));
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
@@ -229,7 +227,7 @@ void _critter::stop(){
   CritterCostMetrics[1] += dt;
   CritterCostMetrics[9] += dt;
   CritterCostMetrics[5] += this->save_comp_time;
-  CritterCostMetrics[6] += this->save_comp_time+dt;
+  CritterCostMetrics[6] += 0;
   CritterCostMetrics[7] += this->save_comp_time+dt;
   CritterCostMetrics[15] += this->save_comp_time+dt;
   CritterCostMetrics[13] += this->save_comp_time;
@@ -238,6 +236,56 @@ void _critter::stop(){
   PMPI_Barrier(this->last_cm);
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
+}
+
+void _critter::istart1(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+  //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
+  
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical-path yet or that will screw up calculation of overlap!
+  volatile double curTime = MPI_Wtime();
+  this->save_comp_time = curTime - ComputationTimer;
+
+  this->last_cm = cm;
+  this->last_nbr_pe = nbr_pe;
+  this->last_nbr_pe2 = nbr_pe2;
+  int el_size;
+  MPI_Type_size(t, &el_size);
+  int64_t nbytes = el_size * nelem;
+  int p;
+  MPI_Comm_size(cm, &p);
+  this->last_nbytes = nbytes;
+  this->last_p = p;
+
+  // Asynchronous routines (MPI_Isend/MPI_Irecv) don't need to wait for other processes
+  // There is thus no notion of barrier/idle time with overlapping communication
+  // start timer for communication routine
+  this->last_start_time = MPI_Wtime();
+}
+
+void _critter::istop1(MPI_Request* req){
+  double dt = MPI_Wtime() - this->last_start_time;
+  critter_req[*req] = std::pair(this,dt);
+  .. do not write yet to any of the CritterCostMetrics.. ..wait should we even call the start above?
+  this->last_start_time = MPI_Wtime();
+  ComputationTimer = this->last_start_time;
+  if (there is no existing requests){
+    OverlapTimer = this->last_start_time;
+  }
+
+  .. what about getting crit/avg paths of CompTimer at least? This shouldn't wait on the blocking Wait routine
+  .. on 2nd thought, im scared to do any communication while other stuff is being overlapped, as it can corrupt the measures
+  ..   in ways that can't corrupt blocking commuication. I guess maybe the process can't do any work in background anyway, so its not making progress in computation?
+  ..   what about overlapping communications?
+}
+
+void _critter::istart2(){
+      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
+      assert(it != critter::internal::critter_req.end());\
+}
+
+void _critter::istop2(MPI_Request* req){
+      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
+      assert(it != critter::internal::critter_req.end());\
 }
 
 void _critter::get_crit_data(double* Container){
@@ -471,10 +519,10 @@ void record(std::ofstream& Stream){
     PrintInputs(Stream,NumPEs,Inputs);
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
-    Stream << "\t" << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6] << "\t" << CritterCostMetrics[7];
+    Stream << "\t" << CritterCostMetrics[6] << "\t" << CritterCostMetrics[7];
     Stream << "\t" << CritterCostMetrics[8] << "\t" << CritterCostMetrics[9] << "\t" << CritterCostMetrics[10];
     Stream << "\t" << CritterCostMetrics[11] << "\t" << CritterCostMetrics[12] << "\t" << CritterCostMetrics[13];
-    Stream << "\t" << CritterCostMetrics[9]+CritterCostMetrics[13]-CritterCostMetrics[14] << "\t" << CritterCostMetrics[15];
+    Stream << "\t" << CritterCostMetrics[14] << "\t" << CritterCostMetrics[15];
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<0>(it.second);
     }
@@ -541,7 +589,7 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << CritterCostMetrics[3];
     Stream << std::left << std::setw(25) << CritterCostMetrics[4];
     Stream << std::left << std::setw(25) << CritterCostMetrics[5];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[1]+CritterCostMetrics[5]-CritterCostMetrics[6];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[6];
     Stream << std::left << std::setw(25) << CritterCostMetrics[7] << "\n\n";
 
     Stream << std::left << std::setw(25) << "Avg (per-process):";
@@ -561,7 +609,7 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << CritterCostMetrics[11];
     Stream << std::left << std::setw(25) << CritterCostMetrics[12];
     Stream << std::left << std::setw(25) << CritterCostMetrics[13];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[9]+CritterCostMetrics[13]-CritterCostMetrics[14];
+    Stream << std::left << std::setw(25) << CritterCostMetrics[14];
     Stream << std::left << std::setw(25) << CritterCostMetrics[15] << "\n\n";
 
     Stream << std::left << std::setw(25) << "Critical path:";

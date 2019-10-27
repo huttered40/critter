@@ -99,6 +99,16 @@ class _critter {
     void stop();
 
     /**
+     * \brief (re)-starts timer for nonblocking MPI call as the request is being finalized (via some MPI_Wait variant)
+     */
+    void istart();
+
+    /**
+     * \brief stop timer for nonblocking communication
+     */
+    void istop(MPI_Request& req);
+
+    /**
      * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution
      * \param[in] cm communicator over which we want to get the maximum cost
      * \param[in] nbe_pe neighbor processor (only used for p2p routines)
@@ -148,7 +158,7 @@ extern std::map<MPI_Request,_critter*> critter_req;
 extern std::string StreamName,StreamTrackName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream,StreamTrack;
-extern double ComputationTimer;
+extern double ComputationTimer,OverlapTimer;
 extern std::vector<std::vector<int_int_double>> CritterPaths;
 extern std::array<double,16> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime,RunTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
@@ -467,9 +477,9 @@ void stop();
 #define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
   do {\
     if (critter::internal::track){\
-      critter::internal::MPI_Irecv_critter.start(nelem, t, cm, src, -1, 1);\
+      critter::internal::MPI_Irecv_critter.istart1(nelem, t, cm, src, -1, 1);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-      critter::internal::critter_req[*req] = &critter::internal::MPI_Irecv_critter;}\
+      critter::internal::MPI_Irecv_critter.istop1(req);\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
     }\
@@ -478,9 +488,9 @@ void stop();
 #define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
   do {\
     if (critter::internal::track){\
-      critter::internal::MPI_Isend_critter.start(nelem, t, cm, dest, -1, 1);\
+      critter::internal::MPI_Isend_critter.istart1(nelem, t, cm, dest, -1, 1);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::internal::critter_req[*req] = &critter::internal::MPI_Isend_critter;}\
+      critter::internal::MPI_Isend_critter.istop1(req);\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
     }\
@@ -489,11 +499,9 @@ void stop();
 #define MPI_Wait(req, stat)\
   do {\
     if (critter::internal::track){\
-      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
-      if (it == critter::internal::critter_req.end()) *(int*)NULL = 1;\
-      assert(it != critter::internal::critter_req.end());\
+      it->second->istart2(req);\
       PMPI_Wait(req, stat);\
-      it->second->stop(); critter::internal::critter_req.erase(it);}\
+      it->second->istop2();}\
     else{\
       PMPI_Wait(req, stat);\
     }\
@@ -501,6 +509,7 @@ void stop();
 
 #define MPI_Waitany(cnt, reqs, indx, stat)\
   do {\
+    assert(0);\
     if (critter::internal::track){\
       PMPI_Waitany(cnt, reqs, indx, stat);\
       std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find((reqs)[*(indx)]);\
@@ -512,6 +521,7 @@ void stop();
 
 #define MPI_Waitall(cnt, reqs, stats)\
   do {\
+    assert(0);\
     if (critter::internal::track){\
       int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat;}}\
     else{\
