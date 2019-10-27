@@ -62,9 +62,9 @@ Large-scale tests can be expensive, and if you are using `critter`'s levels 2/3 
 | MPI_Reduce_Scatter      |   yes       |   no       |   no            |
 | MPI_Alltoall            |   yes       |   no       |   no            |
 | MPI_Alltoallv           |   yes       |   no       |   no            |
-| MPI_Send           |   yes       |   no       |   no            |
-| MPI_Recv           |   yes       |   no       |   no            |
+| MPI_Send           |   yes       |   no       |   yes            |
+| MPI_Recv           |   yes       |   no       |   yes            |
 | MPI_Isend           |   yes       |   no       |   no            |
 | MPI_Irecv           |   yes       |   no       |   no            |
-| MPI_Sendrecv           |   yes       |   no       |   no            |
+| MPI_Sendrecv           |   yes       |   no       |   yes            |
 | MPI_Sendrecv_replace           |   yes       |   yes       |   yes            |
