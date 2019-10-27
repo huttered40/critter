@@ -2,7 +2,7 @@ include config/config.mk
 
 all: lib/libcritter.a
 
-test: bin/test_bcast bin/test_bcast bin/test_reduce bin/test_allreduce bin/test_allgather bin/test_sendrecv_replace
+test: bin/test_bcast bin/test_bcast bin/test_reduce bin/test_allreduce bin/test_allgather bin/test_sendrecv_replace bin/test_send_recv bin/test_sendrecv
 
 lib/libcritter.a: obj/critter.o
 	ar -crs lib/libcritter.a obj/critter.o
@@ -20,6 +20,10 @@ bin/test_allgather: lib/libcritter.a bmark/test_allgather.cxx
 	$(CXX) bmark/test_allgather.cxx -o bin/test_allgather $(CXXFLAGS) -L./lib -lcritter $(LDFLAGS)
 bin/test_sendrecv_replace: lib/libcritter.a bmark/test_sendrecv_replace.cxx
 	$(CXX) bmark/test_sendrecv_replace.cxx -o bin/test_sendrecv_replace $(CXXFLAGS) -L./lib -lcritter $(LDFLAGS)
+bin/test_send_recv: lib/libcritter.a bmark/test_send_recv.cxx
+	$(CXX) bmark/test_send_recv.cxx -o bin/test_send_recv $(CXXFLAGS) -L./lib -lcritter $(LDFLAGS)
+bin/test_sendrecv: lib/libcritter.a bmark/test_sendrecv.cxx
+	$(CXX) bmark/test_sendrecv.cxx -o bin/test_sendrecv $(CXXFLAGS) -L./lib -lcritter $(LDFLAGS)
 
 clean:
-	rm -f obj/critter.o lib/libcritter.a bin/test_bcast bin/test_reduce bin/test_allreduce bin/test_allgather bin/test_sendrecv_replace
+	rm -f obj/critter.o lib/libcritter.a bin/test_bcast bin/test_reduce bin/test_allreduce bin/test_allgather bin/test_sendrecv_replace bin/test_send_recv bin/test_sendrecv
