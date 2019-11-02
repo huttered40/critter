@@ -490,7 +490,6 @@ void stop();
   do {\
     if (critter::internal::track){\
       std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
-      if (it == critter::internal::critter_req.end()) *(int*)NULL = 1;\
       assert(it != critter::internal::critter_req.end());\
       PMPI_Wait(req, stat);\
       it->second->stop(); critter::internal::critter_req.erase(it);}\
@@ -502,9 +501,12 @@ void stop();
 #define MPI_Waitany(cnt, reqs, indx, stat)\
   do {\
     if (critter::internal::track){\
+      MPI_Request* pt = (MPI_Request*)malloc(cnt*sizeof(MPI_Request));\
+      for (int i=0;i<cnt;i++){pt[i]=(reqs)[i];}\
       PMPI_Waitany(cnt, reqs, indx, stat);\
-      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find((reqs)[*(indx)]);\
-      if (it != critter::internal::critter_req.end()) { it->second->stop(); critter::internal::critter_req.erase(it);}}\
+      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(pt[*indx]);\
+      if (it != critter::internal::critter_req.end()) {it->second->stop(); critter::internal::critter_req.erase(it);}\
+      free(pt);}\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
     }\
