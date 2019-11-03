@@ -118,6 +118,7 @@ _critter * critter_list[NumCritters] = {
         &MPI_Sendrecv_critter,
         &MPI_Sendrecv_replace_critter };
 std::map<MPI_Request, std::tuple<_critter*,double,MPI_Comm,int,int,int64_t,int,double>> critter_req;
+std::vector<std::pair<MPI_Request,typename std::map<MPI_Request,std::tuple<_critter*,double,MPI_Comm,int,int,int64_t,int,double>>::iterator>> request_save;
 
 double ComputationTimer,OverlapTimer;
 std::vector<std::vector<int_int_double>> CritterPaths(8);
