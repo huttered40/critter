@@ -143,10 +143,6 @@ class bench(object):
         self.ProcessCountDict = {}
         self.PortalDict = {}
 
-        # I think these directories serve mainly as a intermediate place to put the binaries
-	#   before being moved to SCRATCH
-        call("mkdir %s/tests/%s"%(self.CritterPath,self.testName),shell=True)
-        call("mkdir %s/tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
         if (self.UseCritterViz>0):
 	    # First check if the user correctly set the corresponding environment variable. (It cannot be set inside this script!)
             if ("CRITTER_VIZ" not in os.environ.keys()):#os.environ["CRITTER_VIZ"]==""):
@@ -155,6 +151,10 @@ class bench(object):
             if (self.UseCritterViz>1):
                 # Build the micro benchmarks and move all binaries from ../tests/testName/bin
                 call("cd %s; make test"%(self.CritterPath),shell=True)
+        # I think these directories serve mainly as a intermediate place to put the binaries
+	#   before being moved to SCRATCH
+        call("mkdir %s/tests/%s"%(self.CritterPath,self.testName),shell=True)
+        call("mkdir %s/tests/%s/bin"%(self.CritterPath,self.testName),shell=True)
         # Copy all binaries in bin/ into test folder's bin
         call("cp %s/bin/* %s/tests/%s/bin/"%(self.CritterPath,self.CritterPath,self.testName),shell=True)
 
