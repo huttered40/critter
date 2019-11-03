@@ -117,7 +117,7 @@ _critter * critter_list[NumCritters] = {
         &MPI_Isend_critter,
         &MPI_Sendrecv_critter,
         &MPI_Sendrecv_replace_critter };
-std::map<MPI_Request, _critter*> critter_req;
+std::map<MPI_Request, std::tuple<_critter*,double,MPI_Comm,int,int,int64_t,int,double>> critter_req;
 
 double ComputationTimer,OverlapTimer;
 std::vector<std::vector<int_int_double>> CritterPaths(8);
@@ -178,6 +178,8 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   int p;
   MPI_Comm_size(cm, &p);
   std::pair<double,double> dcost = cost_func(nbytes, p);
+  this->last_nbytes = nbytes;
+  this->last_p = p;
   this->crit_msg += dcost.first;
   this->crit_wrd += dcost.second;
   this->my_msg += dcost.first;
@@ -214,7 +216,7 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterPaths[3].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[4].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[5].emplace_back(int_int_double(this->tag,p,nbytes));
-  .. CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[7].emplace_back(int_int_double(this->tag,p,nbytes));
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
@@ -229,16 +231,16 @@ void _critter::stop(){
   CritterCostMetrics[5] += this->save_comp_time;
   CritterCostMetrics[6] += 0;
   CritterCostMetrics[7] += this->save_comp_time+dt;
-  CritterCostMetrics[15] += this->save_comp_time+dt;
   CritterCostMetrics[13] += this->save_comp_time;
-  CritterCostMetrics[14] += this->save_comp_time+dt;
+  CritterCostMetrics[14] += 0;
+  CritterCostMetrics[15] += this->save_comp_time+dt;
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   PMPI_Barrier(this->last_cm);
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
 }
 
-void _critter::istart1(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void _critter::istart(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical-path yet or that will screw up calculation of overlap!
@@ -264,28 +266,62 @@ void _critter::istart1(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, i
 
 void _critter::istop1(MPI_Request* req){
   double dt = MPI_Wtime() - this->last_start_time;
-  critter_req[*req] = std::pair(this,dt);
-  .. do not write yet to any of the CritterCostMetrics.. ..wait should we even call the start above?
+  critter_req[*req] = std::make_tuple(this,dt,this->last_cm,this->last_nbr_pe,this->last_nbr_pe2,this->last_nbytes,this->last_p,this->save_comp_time);
+  // do not write yet to any of the CritterCostMetrics
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
-  if (there is no existing requests){
+  if (critter_req.size() == 0){
     OverlapTimer = this->last_start_time;
   }
-
-  .. what about getting crit/avg paths of CompTimer at least? This shouldn't wait on the blocking Wait routine
-  .. on 2nd thought, im scared to do any communication while other stuff is being overlapped, as it can corrupt the measures
-  ..   in ways that can't corrupt blocking commuication. I guess maybe the process can't do any work in background anyway, so its not making progress in computation?
-  ..   what about overlapping communications?
+  // Note: overlapping progress w/r/t other requests won't be corrupted
+  //       because for nonblocking communication we do not block to propogate critical path info.
 }
 
-void _critter::istart2(){
-      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
-      assert(it != critter::internal::critter_req.end());\
-}
-
-void _critter::istop2(MPI_Request* req){
-      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find(*req);\
-      assert(it != critter::internal::critter_req.end());\
+void _critter::istop2(MPI_Request req){
+  assert(critter_req.find(req) != critter_req.end());
+  this->last_cm = std::get<2>(critter_req[req]);
+  this->last_nbr_pe = std::get<3>(critter_req[req]);
+  this->last_nbr_pe2 = std::get<4>(critter_req[req]);
+  double dt = std::get<1>(critter_req[req]);
+  double save_comp_time = std::get<7>(critter_req[req]);
+  int64_t nbytes = std::get<5>(critter_req[req]);
+  int p = std::get<6>(critter_req[req]);
+  this->my_comm_time += dt;
+  this->crit_comm_time += dt;
+  this->my_bytes+=nbytes;
+  this->crit_bytes+=nbytes;
+  std::pair<double,double> dcost = cost_func(nbytes, p);
+  this->crit_msg += dcost.first;
+  this->crit_wrd += dcost.second;
+  this->my_msg += dcost.first;
+  this->my_wrd += dcost.second;
+  CritterCostMetrics[0] += nbytes;
+  CritterCostMetrics[1] += dt;
+  CritterCostMetrics[2] += 0;
+  CritterCostMetrics[3] += dcost.second;
+  CritterCostMetrics[4] += dcost.first;
+  CritterCostMetrics[5] += save_comp_time;
+  CritterCostMetrics[6] += 0;// Overlap timer should be used here
+  CritterCostMetrics[7] += save_comp_time+dt;
+  CritterCostMetrics[8] += nbytes;
+  CritterCostMetrics[9] += dt;
+  CritterCostMetrics[10] += 0;
+  CritterCostMetrics[11] += dcost.second;
+  CritterCostMetrics[12] += dcost.first;
+  CritterCostMetrics[13] += save_comp_time;
+  CritterCostMetrics[14] += 0;// Overlap timer should be used here
+  CritterCostMetrics[15] += save_comp_time+dt;
+  CritterPaths[0].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[1].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[2].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[3].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[4].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[5].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
+  CritterPaths[7].emplace_back(int_int_double(this->tag,p,nbytes));
+  compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  this->last_start_time = MPI_Wtime();
+  ComputationTimer = this->last_start_time;
 }
 
 void _critter::get_crit_data(double* Container){
@@ -361,12 +397,12 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     PMPI_Allreduce(old_cs, new_cs, NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
   else {
     PMPI_Sendrecv(&old_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, &new_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
-    for (int i=0; i<5; i++){
+    for (int i=0; i<NumCritMetrics; i++){
       new_cs[i] = std::max(old_cs[i], new_cs[i]);
     }
     if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
       PMPI_Sendrecv(&new_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, &old_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<5; i++){
+      for (int i=0; i<NumCritMetrics; i++){
         new_cs[i] = std::max(old_cs[i], new_cs[i]);
       }
     }
@@ -390,13 +426,13 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
       PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
     else {
       PMPI_Sendrecv(&old_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<5; i++){
+      for (int i=0; i<8; i++){
         new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
         if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
       }
       if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
         PMPI_Sendrecv(&new_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
-        for (int i=0; i<5; i++){
+        for (int i=0; i<8; i++){
           new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
           if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
         }
@@ -406,6 +442,7 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
       CritterCostMetrics[i] = new_cp[i].first;
       root_array[i] = new_cp[i].second;
     }
+    /* TODO: Fix later: notice that the MPI routines below use the communicator, but with send/recv, this is the wrong thing to do
     for (int i=0; i<8; i++){
       if (rank==root_array[i]){
         crit_path_size_array[i] = CritterPaths[i].size();
@@ -454,7 +491,7 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
         CritterPaths[i][j] = crit_buffer[offset+j];
       }
       offset+=crit_path_size_array[i];
-    }
+    }*/
   }
 }
 
@@ -679,6 +716,7 @@ void start(){
   }
   /*Initiate new timer*/
   internal::ComputationTimer=MPI_Wtime();
+  internal::OverlapTimer=0.;
 }
 
 void stop(){

@@ -9,6 +9,7 @@
 #include <vector>
 #include <stdint.h>
 #include <functional>
+#include <tuple>
 #include <map>
 #include <cmath>
 #include <assert.h>
@@ -59,6 +60,10 @@ class _critter {
     int last_nbr_pe;
     /* \brief nbr_pe2 with which start() was last called */
     int last_nbr_pe2;
+    /* \brief helper for nonblocking comm */
+    int64_t last_nbytes;
+    /* \brief helper for nonblocking comm */
+    int last_p;
 
     /**
      * \brief timer constructor, initializes vars
@@ -91,7 +96,7 @@ class _critter {
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start(int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1, bool is_async=false);
+    void start(int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
 
     /**
      * \brief stop timer, record time (use last_*, ensure last_start_time != -1., set last_start_time to -1), performs barrier over last cm
@@ -101,12 +106,17 @@ class _critter {
     /**
      * \brief (re)-starts timer for nonblocking MPI call as the request is being finalized (via some MPI_Wait variant)
      */
-    void istart();
+    void istart(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2);
 
     /**
      * \brief stop timer for nonblocking communication
      */
-    void istop(MPI_Request& req);
+    void istop1(MPI_Request* req);
+
+    /**
+     * \brief stop timer for blocking communication to close nonblocking comm requests
+     */
+    void istop2(MPI_Request req);
 
     /**
      * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution
@@ -154,7 +164,7 @@ struct int_int_double{
 };
 
 /* \brief request/critter dictionary for asynchronous messages */
-extern std::map<MPI_Request,_critter*> critter_req;
+extern std::map<MPI_Request,std::tuple<_critter*,double,MPI_Comm,int,int,int64_t,int,double>> critter_req;
 extern std::string StreamName,StreamTrackName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream,StreamTrack;
@@ -477,9 +487,9 @@ void stop();
 #define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
   do {\
     if (critter::internal::track){\
-      critter::internal::MPI_Irecv_critter.istart1(nelem, t, cm, src, -1, 1);\
+      critter::internal::MPI_Irecv_critter.istart(nelem, t, cm, src, -1);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-      critter::internal::MPI_Irecv_critter.istop1(req);\
+      critter::internal::MPI_Irecv_critter.istop1(req);}\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
     }\
@@ -488,9 +498,9 @@ void stop();
 #define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
   do {\
     if (critter::internal::track){\
-      critter::internal::MPI_Isend_critter.istart1(nelem, t, cm, dest, -1, 1);\
+      critter::internal::MPI_Isend_critter.istart(nelem, t, cm, dest, -1);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::internal::MPI_Isend_critter.istop1(req);\
+      critter::internal::MPI_Isend_critter.istop1(req);}\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
     }\
@@ -499,9 +509,15 @@ void stop();
 #define MPI_Wait(req, stat)\
   do {\
     if (critter::internal::track){\
-      it->second->istart2(req);\
+      volatile double curTime = MPI_Wtime(); double save_comp_time = curTime - critter::internal::ComputationTimer;\
+      auto it = critter::internal::critter_req.find(*req);\
+      assert(it != critter::internal::critter_req.end());\
+      MPI_Request req_idx = *req;\
+      volatile double last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
-      it->second->istop2();}\
+      curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
+      std::get<1>(it->second)+=save_comm_time; std::get<7>(it->second)+=save_comp_time;\
+      std::get<0>(it->second)->istop2(req_idx);}\
     else{\
       PMPI_Wait(req, stat);\
     }\
@@ -509,11 +525,15 @@ void stop();
 
 #define MPI_Waitany(cnt, reqs, indx, stat)\
   do {\
-    assert(0);\
     if (critter::internal::track){\
+      volatile double curTime = MPI_Wtime(); double save_comp_time = curTime - critter::internal::ComputationTimer;\
+      std::vector<MPI_Request> pt(cnt); for (int i=0;i<cnt;i++){pt[i]=(reqs)[i];}\
+      volatile double last_start_time = MPI_Wtime();\
       PMPI_Waitany(cnt, reqs, indx, stat);\
-      std::map<MPI_Request,critter::internal::_critter*>::iterator it = critter::internal::critter_req.find((reqs)[*(indx)]);\
-      if (it != critter::internal::critter_req.end()) { it->second->stop(); critter::internal::critter_req.erase(it);}}\
+      curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
+      auto it = critter::internal::critter_req.find(pt[*indx]);\
+      if (it != critter::internal::critter_req.end()) {std::get<1>(it->second)+=save_comm_time; std::get<7>(it->second)+=save_comp_time;}\
+      critter::internal::ComputationTimer = MPI_Wtime();}\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
     }\
@@ -521,9 +541,17 @@ void stop();
 
 #define MPI_Waitall(cnt, reqs, stats)\
   do {\
-    assert(0);\
     if (critter::internal::track){\
-      int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat;}}\
+      std::vector<MPI_Request> pt(cnt);\
+      for (int i=0;i<cnt;i++){pt[i]=(reqs)[i];}\
+      int __indx; MPI_Status __stat; for (int i=0; i<cnt; i++){ MPI_Waitany(cnt, reqs, &__indx, &__stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[__indx] = __stat;}\
+      std::vector<decltype(critter::internal::critter_req.begin())> save_request_ids;\
+      for (auto it=critter::internal::critter_req.begin(); it != critter::internal::critter_req.end(); it++){\
+        for (int i=0; i<cnt; i++){\
+          if (it->first==pt[i]) {std::get<0>(it->second)->istop2(it->first); save_request_ids.push_back(it); break;}}\
+      for (int i=0; i<save_request_ids.size(); i++){\
+        if (critter::internal::critter_req.find(save_request_ids[i]->first) != critter::internal::critter_req.end()){\
+          critter::internal::critter_req.erase(save_request_ids[i]);}}}}\
     else{\
       PMPI_Waitall(cnt, reqs, stats);\
     }\
