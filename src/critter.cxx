@@ -681,6 +681,7 @@ void record(std::ostream& Stream){
       Stream << std::left << std::setw(25) << std::get<8>(it.second);
       Stream << std::left << std::setw(25) << std::get<9>(it.second);
     }
+    Stream << "\n";
   }
 }
 };
