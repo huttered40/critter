@@ -412,37 +412,37 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     critter_list[i]->set_crit_data(&new_cs[5*i]);
   }
 
-  if (internal::flag){
-    // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
-    int rank; MPI_Comm_rank(cm,&rank);
-    double_int old_cp[8];
-    double_int new_cp[8];
-    int root_array[8];
-    int crit_path_size_array[8];
+  // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
+  int rank; MPI_Comm_rank(cm,&rank);
+  double_int old_cp[8];
+  double_int new_cp[8];
+  int root_array[8];
+  int crit_path_size_array[8];
+  for (int i=0; i<8; i++){
+    old_cp[i].first = CritterCostMetrics[i];
+    old_cp[i].second = rank;
+  }
+  if (nbr_pe == -1)
+    PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+  else {
+    PMPI_Sendrecv(&old_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
     for (int i=0; i<8; i++){
-      old_cp[i].first = CritterCostMetrics[i];
-      old_cp[i].second = rank;
+      new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
+      if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
     }
-    if (nbr_pe == -1)
-      PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-    else {
-      PMPI_Sendrecv(&old_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+      PMPI_Sendrecv(&new_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
       for (int i=0; i<8; i++){
         new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
-      }
-      if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-        PMPI_Sendrecv(&new_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
-        for (int i=0; i<8; i++){
-          new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-          if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
-        }
+        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
       }
     }
-    for (int i=0; i<8; i++){
-      CritterCostMetrics[i] = new_cp[i].first;
-      root_array[i] = new_cp[i].second;
-    }
+  }
+  for (int i=0; i<8; i++){
+    CritterCostMetrics[i] = new_cp[i].first;
+    root_array[i] = new_cp[i].second;
+  }
+  if (internal::flag){
     /* TODO: Fix later: notice that the MPI routines below use the communicator, but with send/recv, this is the wrong thing to do
     for (int i=0; i<8; i++){
       if (rank==root_array[i]){
