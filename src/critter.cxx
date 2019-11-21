@@ -128,6 +128,12 @@ std::map<std::string,std::tuple<double,double,double,double,double,double,double
 std::string StreamName,StreamTrackName,FileName;
 std::ofstream Stream,StreamTrack;
 bool track,flag,IsWorldRoot,IsFirstIter,NeedNewLine;
+double old_cs[5*NumCritters];
+double new_cs[5*NumCritters];
+double_int old_cp[8];
+double_int new_cp[8];
+int root_array[8];
+int crit_path_size_array[8];
 
 void _critter::init(){
   this->last_start_time = -1.;
@@ -235,6 +241,13 @@ void _critter::stop(){
   CritterCostMetrics[13] += this->save_comp_time;
   CritterCostMetrics[14] += 0;
   CritterCostMetrics[15] += this->save_comp_time+dt;
+/*
+  if (this->name != "MPI_Bcast"){
+    compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  }else{
+    compute_all_crit_bcast(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
+  }
+*/
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   PMPI_Barrier(this->last_cm);
   this->last_start_time = MPI_Wtime();
@@ -386,11 +399,35 @@ std::vector<std::string> parse_file_string(){
   return Inputs;
 }
 
+void compute_all_crit_bcast(MPI_Comm cm, int nbr_pe, int nbr_pe2){
+  int rank; MPI_Comm_rank(cm,&rank);
+
+  // First exchange the tracked routine critical path data
+  constexpr auto NumCritMetrics = 5*NumCritters;
+  for (int i=0; i<NumCritters; i++){
+    critter_list[i]->get_crit_data(&old_cs[5*i]);
+  }
+  PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
+  //PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_MAX, MPI_COMM_SELF);
+  for (int i=0; i<NumCritters; i++){
+    critter_list[i]->set_crit_data(&new_cs[5*i]);
+  }
+
+  // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
+  for (int i=0; i<8; i++){
+    old_cp[i].first = CritterCostMetrics[i];
+    old_cp[i].second = rank;
+  }
+  PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+  //PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_SELF);
+  for (int i=0; i<8; i++){
+    CritterCostMetrics[i] = new_cp[i].first;
+    root_array[i] = new_cp[i].second;
+  }
+}
 void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   // First exchange the tracked routine critical path data
   constexpr auto NumCritMetrics = 5*NumCritters;
-  double old_cs[NumCritMetrics];
-  double new_cs[NumCritMetrics];
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->get_crit_data(&old_cs[5*i]);
   }
@@ -414,10 +451,6 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 
   // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
   int rank; MPI_Comm_rank(cm,&rank);
-  double_int old_cp[8];
-  double_int new_cp[8];
-  int root_array[8];
-  int crit_path_size_array[8];
   for (int i=0; i<8; i++){
     old_cp[i].first = CritterCostMetrics[i];
     old_cp[i].second = rank;

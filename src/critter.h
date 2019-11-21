@@ -176,6 +176,12 @@ extern std::array<double,16> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,E
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
 extern std::map<std::string,std::vector<std::string>> AlgCritters;
+extern double old_cs[5*NumCritters];
+extern double new_cs[5*NumCritters];
+extern double_int old_cp[8];
+extern double_int new_cp[8];
+extern int root_array[8];
+extern  int crit_path_size_array[8];
 extern _critter MPI_Barrier_critter, 
          MPI_Bcast_critter, 
          MPI_Reduce_critter, 
@@ -196,6 +202,7 @@ extern _critter MPI_Barrier_critter,
          MPI_Sendrecv_critter, 
          MPI_Sendrecv_replace_critter; 
 void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
+void compute_all_crit_bcast(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg(MPI_Comm cm);
 }
 void print(size_t NumData, double* Data);
@@ -287,7 +294,8 @@ void stop();
     if (critter::internal::track){\
       critter::internal::MPI_Bcast_critter.start(nelem, t, cm);\
       PMPI_Bcast(buf, nelem, t, root, cm);\
-      critter::internal::MPI_Bcast_critter.stop();}\
+      critter::internal::MPI_Bcast_critter.stop();\
+    }\
     else{\
       PMPI_Bcast(buf, nelem, t, root, cm);\
     }\
