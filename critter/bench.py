@@ -169,6 +169,16 @@ class bench(object):
         self.CollectInstructionsFile = open("%s/%s/collectInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
         self.BenchInstructionsFile = open("%s/%s/benchInstructions.txt"%(os.environ["SCRATCH"],self.testName),"a+")
 
+    def stringify(self,x):
+        """
+        fixes a file-error when negative integers are casted into string characters that cannot be specified when opening files
+        expects an integer (for now)
+        """
+        if (x<0):
+            return "-"+str((-1)*x)
+        else:
+            return str(x)
+
     def GetRangeCount(self,op,File,Start,End,Factor,Operator):
         """
 	"""
@@ -219,7 +229,7 @@ class bench(object):
         if (launchID==1):
             self.PlotInstructionsFile.write(str(len(AlgParameters))+"\n")
             for param in AlgParameters:
-                self.PlotInstructionsFile.write(str(param)+"\n")
+                self.PlotInstructionsFile.write(self.stringify(param)+"\n")
 	    self.PlotInstructionsFile.write(str(ppn)+"\n")
 	    self.PlotInstructionsFile.write(str(tpr)+"\n")
 
@@ -307,9 +317,9 @@ class bench(object):
 	"""
         # Set up the file string that will store the local benchmarking results
         BaseString1="%s+%d"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-                  +"".join("+"+str(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
+                  +"".join("+"+self.stringify(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
         BaseString2="%s+%d"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
-                  +"".join("+"+str(x) for x in self.SaveAlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
+                  +"".join("+"+self.stringify(x) for x in self.SaveAlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
         PostFile=BaseString2
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
         PreFile=BaseString1+"+%d"%(node)
