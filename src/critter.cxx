@@ -199,7 +199,7 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   else {
     double sbuf, rbuf;
     sbuf = 0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, nbr_pe2, 1232137, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, nbr_pe, 1232137, cm, MPI_STATUS_IGNORE);
   }
   this->last_start_time = MPI_Wtime();
   double localBarrierTime = this->last_start_time - init_time;
@@ -249,7 +249,9 @@ void _critter::stop(){
   }
 */
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
-  PMPI_Barrier(this->last_cm);
+  if (this->last_nbr_pe == -1){
+    PMPI_Barrier(this->last_cm);
+  }
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
 }
@@ -432,14 +434,14 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     critter_list[i]->get_crit_data(&old_cs[5*i]);
   }
   if (nbr_pe == -1)
-    PMPI_Allreduce(old_cs, new_cs, NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
+    PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
   else {
-    PMPI_Sendrecv(&old_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, &new_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&old_cs[0], NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, &new_cs[0], NumCritMetrics, MPI_DOUBLE, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
     for (int i=0; i<NumCritMetrics; i++){
       new_cs[i] = std::max(old_cs[i], new_cs[i]);
     }
     if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(&new_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, &old_cs, NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(&new_cs[0], NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, &old_cs[0], NumCritMetrics, MPI_DOUBLE, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
       for (int i=0; i<NumCritMetrics; i++){
         new_cs[i] = std::max(old_cs[i], new_cs[i]);
       }
@@ -458,13 +460,13 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   if (nbr_pe == -1)
     PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
   else {
-    PMPI_Sendrecv(&old_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, &new_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(old_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, new_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
     for (int i=0; i<8; i++){
       new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
       if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
     }
     if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(&new_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, &old_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(new_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, old_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
       for (int i=0; i<8; i++){
         new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
         if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
@@ -531,21 +533,23 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 
 void compute_all_avg(MPI_Comm cm){
   int CommSize; MPI_Comm_size(cm,&CommSize);
-  constexpr auto NumCritMetrics = 5*NumCritters+8;
-  double old_cs[NumCritMetrics];
-  double new_cs[NumCritMetrics];
+  constexpr auto NumCritMetrics = 5*NumCritters;
+  int rank; MPI_Comm_rank(cm,&rank);
   for (int i=0; i<8; i++){
-    old_cs[i] = CritterCostMetrics[8+i];
+    old_cp[i].first = CritterCostMetrics[8+i];
+    old_cp[i].second = rank;
   }
   for (int i=0; i<NumCritters; i++){
-    critter_list[i]->get_avg_data(&old_cs[5*i+8]);
+    critter_list[i]->get_avg_data(&old_cs[5*i]);
   }
-  PMPI_Allreduce(old_cs, new_cs, NumCritMetrics, MPI_DOUBLE, MPI_SUM, cm);
+  PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_SUM, cm);
+  PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
   for (int i=0; i<8; i++){
-    CritterCostMetrics[8+i] = new_cs[i] / CommSize;
+    CritterCostMetrics[8+i] = new_cp[i].first/CommSize;
+    root_array[i] = new_cp[i].second;
   }
   for (int i=0; i<NumCritters; i++){
-    critter_list[i]->set_avg_data(&new_cs[5*i+8],CommSize);
+    critter_list[i]->set_avg_data(&new_cs[5*i],CommSize);
   }
 }
 
