@@ -762,7 +762,9 @@ void stop(){
   assert(internal::critter_req.size() == 0);
   auto last_time = MPI_Wtime();
   internal::CritterCostMetrics[5]+=(last_time-internal::ComputationTimer);
+  internal::CritterCostMetrics[7]+=(last_time-internal::ComputationTimer);
   internal::CritterCostMetrics[13]+=(last_time-internal::ComputationTimer);
+  internal::CritterCostMetrics[15]+=(last_time-internal::ComputationTimer);
   internal::compute_all_crit(MPI_COMM_WORLD,-1,-1);
   internal::compute_all_avg(MPI_COMM_WORLD);
   if (internal::flag) {internal::record(internal::Stream);} else {internal::record(std::cout);}
