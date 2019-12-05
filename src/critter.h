@@ -520,14 +520,15 @@ void stop();
   do {\
     if (critter::internal::track){\
       volatile double curTime = MPI_Wtime(); double save_comp_time = curTime - critter::internal::ComputationTimer;\
-      auto it = critter::internal::critter_req.find(*req);\
-      assert(it != critter::internal::critter_req.end());\
       MPI_Request req_idx = *req;\
+      auto it = critter::internal::critter_req.find(req_idx);\
+      assert(it != critter::internal::critter_req.end());\
       volatile double last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
       curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
       std::get<1>(it->second)+=save_comm_time; std::get<7>(it->second)+=save_comp_time;\
-      std::get<0>(it->second)->istop2(req_idx);}\
+      std::get<0>(it->second)->istop2(req_idx);\
+      critter::internal::critter_req.erase(req_idx);}\
     else{\
       PMPI_Wait(req, stat);\
     }\

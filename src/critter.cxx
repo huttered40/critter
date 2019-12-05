@@ -193,7 +193,6 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   this->my_wrd += dcost.second;
 
   volatile double init_time = MPI_Wtime();
-  // If routine is asynchronous (MPI_Isend/MPI_Irecv), no need to wait for other processes
   if (nbr_pe == -1)
     PMPI_Barrier(cm);
   else {
@@ -251,6 +250,10 @@ void _critter::stop(){
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   if (this->last_nbr_pe == -1){
     PMPI_Barrier(this->last_cm);
+  } else {
+    double sbuf, rbuf;
+    sbuf = 0.;
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, this->last_nbr_pe, 1232137, &rbuf, 1, MPI_DOUBLE, this->last_nbr_pe, 1232137, this->last_cm, MPI_STATUS_IGNORE);
   }
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
