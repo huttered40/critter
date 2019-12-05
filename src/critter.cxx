@@ -120,9 +120,9 @@ _critter * critter_list[NumCritters] = {
 std::map<MPI_Request, std::tuple<_critter*,double,MPI_Comm,int,int,int64_t,int,double>> critter_req;
 std::vector<std::pair<MPI_Request,typename std::map<MPI_Request,std::tuple<_critter*,double,MPI_Comm,int,int,int64_t,int,double>>::iterator>> request_save;
 
-double ComputationTimer,OverlapTimer;
-std::vector<std::vector<int_int_double>> CritterPaths(8);
-std::array<double,16> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime,RunTime
+double ComputationTimer;
+std::vector<std::vector<int_int_double>> CritterPaths(7);
+std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
 std::string StreamName,StreamTrackName,FileName;
@@ -130,10 +130,10 @@ std::ofstream Stream,StreamTrack;
 bool track,flag,IsWorldRoot,IsFirstIter,NeedNewLine;
 double old_cs[5*NumCritters];
 double new_cs[5*NumCritters];
-double_int old_cp[8];
-double_int new_cp[8];
-int root_array[8];
-int crit_path_size_array[8];
+double_int old_cp[7];
+double_int new_cp[7];
+int root_array[7];
+int crit_path_size_array[7];
 
 void _critter::init(){
   this->last_start_time = -1.;
@@ -158,7 +158,7 @@ _critter::_critter(std::string name_, int tag, std::function< std::pair<double,d
   this->init();
 }
 
-_critter::_critter(_critter const & t){
+_critter::_critter(_critter const& t){
   this->cost_func = t.cost_func;
   this->name = t.name;
   this->tag = t.tag;
@@ -210,10 +210,10 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterCostMetrics[2] += localBarrierTime;
   CritterCostMetrics[3] += dcost.second;
   CritterCostMetrics[4] += dcost.first;
-  CritterCostMetrics[8] += nbytes;
-  CritterCostMetrics[10] += localBarrierTime;
-  CritterCostMetrics[11] += dcost.second;
-  CritterCostMetrics[12] += dcost.first;
+  CritterCostMetrics[7] += nbytes;
+  CritterCostMetrics[9] += localBarrierTime;
+  CritterCostMetrics[10] += dcost.second;
+  CritterCostMetrics[11] += dcost.first;
 
   // Mark the local synchronization point before exchanging with its neighbors in the communicator
   CritterPaths[0].emplace_back(int_int_double(this->tag,p,nbytes));
@@ -223,7 +223,6 @@ void _critter::start(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int
   CritterPaths[4].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[5].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
-  CritterPaths[7].emplace_back(int_int_double(this->tag,p,nbytes));
   // start timer for communication routine
   this->last_start_time = MPI_Wtime();
 }
@@ -233,20 +232,11 @@ void _critter::stop(){
   this->my_comm_time += dt;
   this->crit_comm_time += dt;	// Will get updated after an AllReduce to find the current critical path
   CritterCostMetrics[1] += dt;
-  CritterCostMetrics[9] += dt;
+  CritterCostMetrics[8] += dt;
   CritterCostMetrics[5] += this->save_comp_time;
-  CritterCostMetrics[6] += 0;
-  CritterCostMetrics[7] += this->save_comp_time+dt;
-  CritterCostMetrics[13] += this->save_comp_time;
-  CritterCostMetrics[14] += 0;
-  CritterCostMetrics[15] += this->save_comp_time+dt;
-/*
-  if (this->name != "MPI_Bcast"){
-    compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
-  }else{
-    compute_all_crit_bcast(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
-  }
-*/
+  CritterCostMetrics[6] += this->save_comp_time+dt;
+  CritterCostMetrics[12] += this->save_comp_time;
+  CritterCostMetrics[13] += this->save_comp_time+dt;
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   if (this->last_nbr_pe == -1){
     PMPI_Barrier(this->last_cm);
@@ -289,9 +279,6 @@ void _critter::istop1(MPI_Request* req){
   // do not write yet to any of the CritterCostMetrics
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
-  if (critter_req.size() == 0){
-    OverlapTimer = this->last_start_time;
-  }
   // Note: overlapping progress w/r/t other requests won't be corrupted
   //       because for nonblocking communication we do not block to propogate critical path info.
 }
@@ -316,20 +303,16 @@ void _critter::istop2(MPI_Request req){
   this->my_wrd += dcost.second;
   CritterCostMetrics[0] += nbytes;
   CritterCostMetrics[1] += dt;
-  CritterCostMetrics[2] += 0;
   CritterCostMetrics[3] += dcost.second;
   CritterCostMetrics[4] += dcost.first;
   CritterCostMetrics[5] += save_comp_time;
-  CritterCostMetrics[6] += 0;// Overlap timer should be used here
-  CritterCostMetrics[7] += save_comp_time+dt;
-  CritterCostMetrics[8] += nbytes;
-  CritterCostMetrics[9] += dt;
-  CritterCostMetrics[10] += 0;
-  CritterCostMetrics[11] += dcost.second;
-  CritterCostMetrics[12] += dcost.first;
-  CritterCostMetrics[13] += save_comp_time;
-  CritterCostMetrics[14] += 0;// Overlap timer should be used here
-  CritterCostMetrics[15] += save_comp_time+dt;
+  CritterCostMetrics[6] += save_comp_time+dt;
+  CritterCostMetrics[7] += nbytes;
+  CritterCostMetrics[8] += dt;
+  CritterCostMetrics[10] += dcost.second;
+  CritterCostMetrics[11] += dcost.first;
+  CritterCostMetrics[12] += save_comp_time;
+  CritterCostMetrics[13] += save_comp_time+dt;
   CritterPaths[0].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[1].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[2].emplace_back(int_int_double(this->tag,p,nbytes));
@@ -337,7 +320,6 @@ void _critter::istop2(MPI_Request req){
   CritterPaths[4].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[5].emplace_back(int_int_double(this->tag,p,nbytes));
   CritterPaths[6].emplace_back(int_int_double(this->tag,p,nbytes));
-  CritterPaths[7].emplace_back(int_int_double(this->tag,p,nbytes));
   compute_all_crit(this->last_cm, this->last_nbr_pe, this->last_nbr_pe2);
   this->last_start_time = MPI_Wtime();
   ComputationTimer = this->last_start_time;
@@ -404,32 +386,6 @@ std::vector<std::string> parse_file_string(){
   return Inputs;
 }
 
-void compute_all_crit_bcast(MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  int rank; MPI_Comm_rank(cm,&rank);
-
-  // First exchange the tracked routine critical path data
-  constexpr auto NumCritMetrics = 5*NumCritters;
-  for (int i=0; i<NumCritters; i++){
-    critter_list[i]->get_crit_data(&old_cs[5*i]);
-  }
-  PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_MAX, cm);
-  //PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_MAX, MPI_COMM_SELF);
-  for (int i=0; i<NumCritters; i++){
-    critter_list[i]->set_crit_data(&new_cs[5*i]);
-  }
-
-  // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
-  for (int i=0; i<8; i++){
-    old_cp[i].first = CritterCostMetrics[i];
-    old_cp[i].second = rank;
-  }
-  PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-  //PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_SELF);
-  for (int i=0; i<8; i++){
-    CritterCostMetrics[i] = new_cp[i].first;
-    root_array[i] = new_cp[i].second;
-  }
-}
 void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   // First exchange the tracked routine critical path data
   constexpr auto NumCritMetrics = 5*NumCritters;
@@ -456,47 +412,47 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 
   // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
   int rank; MPI_Comm_rank(cm,&rank);
-  for (int i=0; i<8; i++){
+  for (int i=0; i<7; i++){
     old_cp[i].first = CritterCostMetrics[i];
     old_cp[i].second = rank;
   }
   if (nbr_pe == -1)
-    PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
   else {
-    PMPI_Sendrecv(old_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, new_cp, 8, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
-    for (int i=0; i<8; i++){
+    PMPI_Sendrecv(old_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, new_cp, 7, MPI_DOUBLE_INT, nbr_pe, 123213, cm, MPI_STATUS_IGNORE);
+    for (int i=0; i<7; i++){
       new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
       if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
     }
     if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(new_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, old_cp, 8, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<8; i++){
+      PMPI_Sendrecv(new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, 123214, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<7; i++){
         new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
         if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
       }
     }
   }
-  for (int i=0; i<8; i++){
+  for (int i=0; i<7; i++){
     CritterCostMetrics[i] = new_cp[i].first;
     root_array[i] = new_cp[i].second;
   }
   if (internal::flag){
     /* TODO: Fix later: notice that the MPI routines below use the communicator, but with send/recv, this is the wrong thing to do
-    for (int i=0; i<8; i++){
+    for (int i=0; i<7; i++){
       if (rank==root_array[i]){
         crit_path_size_array[i] = CritterPaths[i].size();
       } else{ crit_path_size_array[i]=0; }
     }
     // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
     // set up new vectors to handle whats about to come
-    PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],8,MPI_INT,MPI_MAX,cm);
+    PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_MAX,cm);
     int crit_length=0;
-    for (int i=0; i<8; i++){
+    for (int i=0; i<7; i++){
       crit_length+=crit_path_size_array[i];
     }
     std::vector<int_int_double> crit_buffer(crit_length);
     int offset=0;
-    for (int i=0; i<8; i++){
+    for (int i=0; i<7; i++){
       if (rank==root_array[i]){
         assert(CritterPaths[i].size() == crit_path_size_array[i]);
         for (auto j=0; j<crit_path_size_array[i]; j++){
@@ -522,9 +478,9 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     MPI_Op op; MPI_Op_create((MPI_User_function*) add_critter_path_data,1,&op);
     PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_INT_DOUBLE,op,cm);
     MPI_Op_free(&op);
-    // now copy into 8 different buffers and change their lengths (via some resize)
+    // now copy into 7 different buffers and change their lengths (via some resize)
     offset=0;
-    for (int i=0; i<8; i++){
+    for (int i=0; i<7; i++){
       CritterPaths[i].resize(crit_path_size_array[i]);
       for (int j=0; j<crit_path_size_array[i]; j++){
         CritterPaths[i][j] = crit_buffer[offset+j];
@@ -538,17 +494,17 @@ void compute_all_avg(MPI_Comm cm){
   int CommSize; MPI_Comm_size(cm,&CommSize);
   constexpr auto NumCritMetrics = 5*NumCritters;
   int rank; MPI_Comm_rank(cm,&rank);
-  for (int i=0; i<8; i++){
-    old_cp[i].first = CritterCostMetrics[8+i];
+  for (int i=0; i<7; i++){
+    old_cp[i].first = CritterCostMetrics[7+i];
     old_cp[i].second = rank;
   }
   for (int i=0; i<NumCritters; i++){
     critter_list[i]->get_avg_data(&old_cs[5*i]);
   }
   PMPI_Allreduce(&old_cs[0], &new_cs[0], NumCritMetrics, MPI_DOUBLE, MPI_SUM, cm);
-  PMPI_Allreduce(old_cp, new_cp, 8, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-  for (int i=0; i<8; i++){
-    CritterCostMetrics[8+i] = new_cp[i].first/CommSize;
+  PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+  for (int i=0; i<7; i++){
+    CritterCostMetrics[7+i] = new_cp[i].first/CommSize;
     root_array[i] = new_cp[i].second;
   }
   for (int i=0; i<NumCritters; i++){
@@ -572,8 +528,8 @@ void PrintHeader(StreamType& Stream, size_t NumInputs){
     }
     Stream << "Input";
   }
-  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\tRunTime";// critical path
-  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tOverlapPotentalTime\tRunTime";// average (per-process)
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// critical path
+  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// average (per-process)
   for (auto i=0;i<10;i++){
     for (auto& it : saveCritterInfo){
      Stream << "\t" << it.first;
@@ -597,10 +553,10 @@ void record(std::ofstream& Stream){
     PrintInputs(Stream,NumPEs,Inputs);
     Stream << "\t" << CritterCostMetrics[0] << "\t" << CritterCostMetrics[1] << "\t" << CritterCostMetrics[2];
     Stream << "\t" << CritterCostMetrics[3] << "\t" << CritterCostMetrics[4] << "\t" << CritterCostMetrics[5];
-    Stream << "\t" << CritterCostMetrics[6] << "\t" << CritterCostMetrics[7];
-    Stream << "\t" << CritterCostMetrics[8] << "\t" << CritterCostMetrics[9] << "\t" << CritterCostMetrics[10];
-    Stream << "\t" << CritterCostMetrics[11] << "\t" << CritterCostMetrics[12] << "\t" << CritterCostMetrics[13];
-    Stream << "\t" << CritterCostMetrics[14] << "\t" << CritterCostMetrics[15];
+    Stream << "\t" << CritterCostMetrics[6];
+    Stream << "\t" << CritterCostMetrics[7] << "\t" << CritterCostMetrics[8] << "\t" << CritterCostMetrics[9];
+    Stream << "\t" << CritterCostMetrics[10] << "\t" << CritterCostMetrics[11] << "\t" << CritterCostMetrics[12];
+    Stream << "\t" << CritterCostMetrics[13];
     for (auto& it : saveCritterInfo){
       Stream << "\t" << std::get<0>(it.second);
     }
@@ -657,7 +613,6 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << "EstCommCost";
     Stream << std::left << std::setw(25) << "EstSynchCost";
     Stream << std::left << std::setw(25) << "CompTime";
-    Stream << std::left << std::setw(25) << "OverlapTime";
     Stream << std::left << std::setw(25) << "RunTime";
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
@@ -667,8 +622,7 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << CritterCostMetrics[3];
     Stream << std::left << std::setw(25) << CritterCostMetrics[4];
     Stream << std::left << std::setw(25) << CritterCostMetrics[5];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[6];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[7] << "\n\n";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[6] << "\n\n";
 
     Stream << std::left << std::setw(25) << "Avg (per-process):";
     Stream << std::left << std::setw(25) << "NumBytes";
@@ -677,18 +631,16 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << "EstCommCost";
     Stream << std::left << std::setw(25) << "EstSynchCost";
     Stream << std::left << std::setw(25) << "CompTime";
-    Stream << std::left << std::setw(25) << "OverlapTime";
     Stream << std::left << std::setw(25) << "RunTime";
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[7];
     Stream << std::left << std::setw(25) << CritterCostMetrics[8];
     Stream << std::left << std::setw(25) << CritterCostMetrics[9];
     Stream << std::left << std::setw(25) << CritterCostMetrics[10];
     Stream << std::left << std::setw(25) << CritterCostMetrics[11];
     Stream << std::left << std::setw(25) << CritterCostMetrics[12];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[13];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[14];
-    Stream << std::left << std::setw(25) << CritterCostMetrics[15] << "\n\n";
+    Stream << std::left << std::setw(25) << CritterCostMetrics[13] << "\n\n";
 
     Stream << std::left << std::setw(25) << "Critical path:";
     Stream << std::left << std::setw(25) << "NumBytes";
@@ -758,16 +710,15 @@ void start(){
   }
   /*Initiate new timer*/
   internal::ComputationTimer=MPI_Wtime();
-  internal::OverlapTimer=0.;
 }
 
 void stop(){
   assert(internal::critter_req.size() == 0);
   auto last_time = MPI_Wtime();
   internal::CritterCostMetrics[5]+=(last_time-internal::ComputationTimer);
-  internal::CritterCostMetrics[7]+=(last_time-internal::ComputationTimer);
+  internal::CritterCostMetrics[6]+=(last_time-internal::ComputationTimer);
+  internal::CritterCostMetrics[12]+=(last_time-internal::ComputationTimer);
   internal::CritterCostMetrics[13]+=(last_time-internal::ComputationTimer);
-  internal::CritterCostMetrics[15]+=(last_time-internal::ComputationTimer);
   internal::compute_all_crit(MPI_COMM_WORLD,-1,-1);
   internal::compute_all_avg(MPI_COMM_WORLD);
   if (internal::flag) {internal::record(internal::Stream);} else {internal::record(std::cout);}

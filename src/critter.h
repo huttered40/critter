@@ -16,6 +16,11 @@
 #include <assert.h>
 
 namespace critter{
+
+void print(size_t NumData, double* Data);
+void start();
+void stop();
+
 namespace internal{
 class _critter {
   public: 
@@ -170,18 +175,18 @@ extern std::vector<std::pair<MPI_Request,typename std::map<MPI_Request,std::tupl
 extern std::string StreamName,StreamTrackName,FileName;
 extern bool track,flag,IsFirstIter,IsWorldRoot,NeedNewLine;
 extern std::ofstream Stream,StreamTrack;
-extern double ComputationTimer,OverlapTimer;
+extern double ComputationTimer;
 extern std::vector<std::vector<int_int_double>> CritterPaths;
-extern std::array<double,16> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,OverlapTime,RunTime
+extern std::array<double,14> CritterCostMetrics;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> saveCritterInfo;
 extern std::map<std::string,std::vector<std::string>> AlgCritters;
 extern double old_cs[5*NumCritters];
 extern double new_cs[5*NumCritters];
-extern double_int old_cp[8];
-extern double_int new_cp[8];
-extern int root_array[8];
-extern  int crit_path_size_array[8];
+extern double_int old_cp[7];
+extern double_int new_cp[7];
+extern int root_array[7];
+extern int crit_path_size_array[7];
 extern _critter MPI_Barrier_critter, 
          MPI_Bcast_critter, 
          MPI_Reduce_critter, 
@@ -205,9 +210,6 @@ void compute_all_crit(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_crit_bcast(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_all_avg(MPI_Comm cm);
 }
-void print(size_t NumData, double* Data);
-void start();
-void stop();
 }
 
 #define MPI_Init(argc, argv)\
