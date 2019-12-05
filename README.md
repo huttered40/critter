@@ -8,8 +8,7 @@ Welcome! If you are looking for a lightweight tool to both analyze and predict t
 4. estimated communication cost
 5. estimated synchronization cost
 6. overlap time
-7. computation time
-8. total runtime
+7. total runtime
 
 `critter` also counts the first five metrics above for each tracked MPI routine (see table below).
 
@@ -45,6 +44,13 @@ Large-scale tests can be expensive, and if you are using `critter`'s levels 2/3 
 4. due to scaplot assumptions, users can only specify node counts that range in a multiplicative manner
 5. don't have any `'+'` characters in the file path to `critter`, nor in any of the arguments. `critter` uses this character to parse file strings
 6. make sure your binaries are not named `test_allreduce` or similar for other benchmarks
+7. make sure any communication requiring a tag doesn't use a tag of the same value as critter' internal tag critter::internal::tag. If there is a conflict, simply modify critter's internal tag and rebuild instead of modifying your source code.
+
+## Design decisions
+Critter will never assume a communication protocol more limiting than what is specified in the MPI Standard to propogate critical paths. As such, it will never break the semantics of your parallel program and limit forward progress in tracking critical paths. If and only if the MPI implementation performs a communication protocol more limiting than is necessary (i.e. requiring synchronous handshake between processes calling MPI_Send and MPI_Receive), it may report an erroneous critical path measure.
+1. Critter assumes any blocking collective routine performs a synchronization at the start, and thereby does not force a limiting communication protocol in order to propogate the critical paths before the collective routine takes place. It allows processes to jump back into the user code without further synchronization once the collective routine completes.
+2. Critter assumes that in any asynchronous p2p communication, the sender does not wait on the receiver, and thus need not accumulate the receiver's critical path information.
+3. In any p2p communication, Critter forces the sender to send another message containing its critical path information. This message will use the same communication protocol. For example, if critter intercepts MPI_Isend, the sender will use another MPI_Isend to propogate its critical path information to the receiver, thus keeping the communication protocol at nonblocking.
 
 ## Current support
 |     MPI routine         |   tracked   |   tested   |    benchmarks   |     
@@ -62,6 +68,18 @@ Large-scale tests can be expensive, and if you are using `critter`'s levels 2/3 
 | MPI_Reduce_Scatter      |   yes       |   no       |   no            |
 | MPI_Alltoall            |   yes       |   no       |   no            |
 | MPI_Alltoallv           |   yes       |   no       |   no            |
+| MPI_Ibcast               |   no       |   no      |   no           |
+| MPI_Ireduce              |   no       |   no      |   no           |
+| MPI_Iallreduce           |   no       |   no      |   no           |
+| MPI_Igather              |   no       |   no       |   no            |
+| MPI_Igatherv              |   no       |   no       |   no            |
+| MPI_Iallgather           |   no       |   no      |   no           |
+| MPI_Iallgatherv           |   no       |   no      |   no           |
+| MPI_Iscatter             |   no       |   no       |   no            |
+| MPI_Iscatterv             |   no       |   no       |   no            |
+| MPI_Ireduce_Scatter      |   no       |   no       |   no            |
+| MPI_Ialltoall            |   no       |   no       |   no            |
+| MPI_Ialltoallv           |   no       |   no       |   no            |
 | MPI_Send           |   yes       |   no       |   yes            |
 | MPI_Recv           |   yes       |   no       |   yes            |
 | MPI_Isend           |   yes       |   no       |   no            |
