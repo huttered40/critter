@@ -131,6 +131,8 @@ double old_cs[5*list_size];
 double new_cs[5*list_size];
 double_int old_cp[7];
 double_int new_cp[7];
+double old_vp[7];
+double new_vp[7];
 int root_array[7];
 int crit_path_size_array[7];
 
@@ -327,7 +329,6 @@ void tracker::stop_block(bool is_sender){
 }
 
 void tracker::start_nonblock(MPI_Request request, bool is_sender, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
@@ -352,10 +353,10 @@ void tracker::start_nonblock(MPI_Request request, bool is_sender, int64_t nelem,
   if (is_sender){
     data[0]=this->critical_path_bytes; data[1]=this->critical_path_comm_time; data[2]=this->critical_path_msg; data[3]=this->critical_path_wrd;
     data[4]=costs[0]; data[5]=costs[1]; data[6]=costs[3]; data[7]=costs[4]; data[8]=costs[5]; data[9]=costs[6];
-    PMPI_Isend(&data[0],10,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&internal_request);
+    PMPI_Isend(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
   }
   else{
-    PMPI_Irecv(&data[0],10,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&internal_request);
+    PMPI_Irecv(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
   }
   internal_comm_info[request] = std::make_pair(internal_request,is_sender);
   internal_comm_message[request] = data;
@@ -466,7 +467,7 @@ void tracker::set_volume_data(double* container){
 
 void tracker::set_costs(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if (this->last_start_time != -1.){
+  if (this->critical_path_bytes != 0.){
     save_info[this->name] = std::make_tuple(this->critical_path_bytes, this->critical_path_comm_time, this->critical_path_bar_time, this->critical_path_msg, this->critical_path_wrd,
                                             this->volume_bytes,        this->volume_comm_time,        this->volume_bar_time,        this->volume_msg,        this->volume_wrd);
   }
@@ -600,17 +601,15 @@ void compute_volume_path(MPI_Comm cm){
   constexpr auto num_costs = 5*list_size;
   int rank; MPI_Comm_rank(cm,&rank);
   for (int i=0; i<7; i++){
-    old_cp[i].first = costs[7+i];
-    old_cp[i].second = rank;
+    old_vp[i] = costs[7+i];
   }
   for (int i=0; i<list_size; i++){
     list[i]->get_my_data(&old_cs[5*i]);
   }
   PMPI_Allreduce(&old_cs[0], &new_cs[0], num_costs, MPI_DOUBLE, MPI_SUM, cm);
-  PMPI_Allreduce(&old_cp[0], &new_cp[0], 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+  PMPI_Allreduce(&old_vp[0], &new_vp[0], 7, MPI_DOUBLE, MPI_SUM, cm);
   for (int i=0; i<7; i++){
-    costs[7+i] = new_cp[i].first;
-    root_array[i] = new_cp[i].second;
+    costs[7+i] = new_vp[i];
   }
   for (int i=0; i<list_size; i++){
     list[i]->set_volume_data(&new_cs[5*i]);

@@ -254,6 +254,8 @@ extern double old_cs[5*list_size];
 extern double new_cs[5*list_size];
 extern double_int old_cp[7];
 extern double_int new_cp[7];
+extern double old_vp[7];
+extern double new_vp[7];
 extern int root_array[7];
 extern int crit_path_size_array[7];
 
