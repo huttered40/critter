@@ -47,42 +47,42 @@ Large-scale tests can be expensive, and if you are using `critter`'s levels 2/3 
 7. make sure any communication requiring a tag doesn't use a tag of the same value as critter' internal tag critter::internal::tag. If there is a conflict, simply modify critter's internal tag and rebuild instead of modifying your source code.
 
 ## Design decisions
-Critter will never assume a communication protocol more limiting than what is specified in the MPI Standard to propogate critical paths. As such, it will never break the semantics of your parallel program and limit forward progress in tracking critical paths. If and only if the MPI implementation performs a communication protocol more limiting than is necessary (i.e. requiring synchronous handshake between processes calling MPI_Send and MPI_Receive), it may report an erroneous critical path measure.
-1. Critter assumes any blocking collective routine performs a synchronization at the start, and thereby does not force a limiting communication protocol in order to propogate the critical paths before the collective routine takes place. It allows processes to jump back into the user code without further synchronization once the collective routine completes.
-2. Critter assumes that in any asynchronous p2p communication, the sender does not wait on the receiver, and thus need not accumulate the receiver's critical path information.
-3. In any p2p communication, Critter forces the sender to send another message containing its critical path information. This message will use the same communication protocol. For example, if critter intercepts MPI_Isend, the sender will use another MPI_Isend to propogate its critical path information to the receiver, thus keeping the communication protocol at nonblocking.
+Critter will never assume a communication protocol more limiting than what is specified in the MPI Standard to propogate critical paths. As such, it will never break the semantics of your parallel program and limit its forward progress. If and only if the MPI implementation performs a communication protocol more limiting than is necessary (i.e. requiring synchronous handshake between processes calling MPI_Send and MPI_Receive), it may report an erroneous critical path measure.
+1. Critter assumes any blocking collective communication or synchronous p2p communication performs a synchronization at the start, and thereby does not force a limiting communication protocol in using a blocking collective or synchronous p2p routine to propogate the critical paths before the intercepted routine takes place. It allows processes to jump back into the user code without further synchronization once the intercepted collective routine completes, and therefore does not synchronize for the limiting costs of the intercepted routine.
+2. Critter assumes that in any asynchronous p2p communication (including nonblocking and blocking protocols), the sender does not wait on the receiver, and thus needs not accumulate the receiver's critical path information. Unlike critter's support for synchronous protocol, if the intercepted communication is blocking, the receiver will update its critical path after the intercepted routine completes, thus taking into account the limiting costs of the intercepted routine into the propogated critical paths. If the MPI implementation requires a handshake between sender and receiver in a blocking p2p communication routine, critter will accurately 
+3. All nonblocking communication routines, including p2p and collectives, use nonblocking communication to propogate critical paths. The sending process sends a nonblocking message to the receiver after posting its intercepted routine, to be completed directly after the completion of the intercepted routine. The receiver will also post a nonblocking message to retrieve the sender's critical path information, and will compare that against its critical path data after the intercepted routine completes. Such critical path propogation will not use stale sending-process data, as the receiver is not dependent on the sender until exactly when the intercepted routine completion takes place.
 
 ## Current support
 |     MPI routine         |   tracked   |   tested   |    benchmarks   |     
 | ----------------------- | ----------- | ---------- | --------------- |
-| MPI_Barrier             |   yes       |   no       |   no            |
-| MPI_Bcast               |   yes       |   yes      |   yes           |
-| MPI_Reduce              |   yes       |   yes      |   yes           |
-| MPI_Allreduce           |   yes       |   yes      |   yes           |
-| MPI_Gather              |   yes       |   no       |   no            |
-| MPI_Gatherv              |   yes       |   no       |   no            |
-| MPI_Allgather           |   yes       |   yes      |   yes           |
-| MPI_Allgatherv           |   yes       |   no      |   no           |
-| MPI_Scatter             |   yes       |   no       |   no            |
-| MPI_Scatterv             |   yes       |   no       |   no            |
-| MPI_Reduce_Scatter      |   yes       |   no       |   no            |
-| MPI_Alltoall            |   yes       |   no       |   no            |
-| MPI_Alltoallv           |   yes       |   no       |   no            |
-| MPI_Ibcast               |   no       |   no      |   no           |
-| MPI_Ireduce              |   no       |   no      |   no           |
-| MPI_Iallreduce           |   no       |   no      |   no           |
-| MPI_Igather              |   no       |   no       |   no            |
-| MPI_Igatherv              |   no       |   no       |   no            |
-| MPI_Iallgather           |   no       |   no      |   no           |
-| MPI_Iallgatherv           |   no       |   no      |   no           |
-| MPI_Iscatter             |   no       |   no       |   no            |
-| MPI_Iscatterv             |   no       |   no       |   no            |
-| MPI_Ireduce_Scatter      |   no       |   no       |   no            |
-| MPI_Ialltoall            |   no       |   no       |   no            |
-| MPI_Ialltoallv           |   no       |   no       |   no            |
-| MPI_Send           |   yes       |   no       |   yes            |
-| MPI_Recv           |   yes       |   no       |   yes            |
-| MPI_Isend           |   yes       |   no       |   no            |
-| MPI_Irecv           |   yes       |   no       |   no            |
-| MPI_Sendrecv           |   yes       |   no       |   yes            |
-| MPI_Sendrecv_replace           |   yes       |   yes       |   yes            |
+| MPI_Barrier              |   yes       |   yes       |   no            |
+| MPI_Bcast                |   yes       |   yes      |   yes           |
+| MPI_Reduce               |   yes       |   yes      |   yes           |
+| MPI_Allreduce            |   yes       |   yes      |   yes           |
+| MPI_Gather               |   yes       |   yes       |   no            |
+| MPI_Gatherv              |   yes       |   yes       |   no            |
+| MPI_Allgather            |   yes       |   yes      |   yes           |
+| MPI_Allgatherv           |   yes       |   yes      |   no           |
+| MPI_Scatter              |   yes       |   yes       |   no            |
+| MPI_Scatterv             |   yes       |   yes       |   no            |
+| MPI_Reduce_Scatter       |   yes       |   yes       |   no            |
+| MPI_Alltoall             |   yes       |   yes       |   no            |
+| MPI_Alltoallv            |   yes       |   yes       |   no            |
+| MPI_Ibcast               |   yes       |   yno      |   no           |
+| MPI_Ireduce              |   yes       |   no      |   no           |
+| MPI_Iallreduce           |   yes       |   no      |   no           |
+| MPI_Igather              |   yes       |   no       |   no            |
+| MPI_Igatherv             |   yes       |   no       |   no            |
+| MPI_Iallgather           |   yes       |   no      |   no           |
+| MPI_Iallgatherv          |   yes       |   no      |   no           |
+| MPI_Iscatter             |   yes       |   no       |   no            |
+| MPI_Iscatterv            |   yes       |   no       |   no            |
+| MPI_Ireduce_Scatter      |   yes       |   no       |   no            |
+| MPI_Ialltoall            |   yes       |   no       |   no            |
+| MPI_Ialltoallv           |   yes       |   no       |   no            |
+| MPI_Send                 |   yes       |   yes       |   yes            |
+| MPI_Recv                 |   yes       |   yes       |   yes            |
+| MPI_Isend                |   yes       |   yes       |   no            |
+| MPI_Irecv                |   yes       |   yes       |   no            |
+| MPI_Sendrecv             |   yes       |   yes       |   yes            |
+| MPI_Sendrecv_replace     |   yes       |   yes       |   yes            |
