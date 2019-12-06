@@ -553,7 +553,8 @@ extern int crit_path_size_array[7];
       assert(tag != critter::internal::internal_tag);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
       critter::internal::_MPI_Irecv.start_nonblock(*req,false,nelem, t, cm, src);\
-      critter::internal::computation_time = MPI_Wtime();\
+      critter::internal::computation_timer = MPI_Wtime();\
+    }\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
     }\
@@ -565,7 +566,8 @@ extern int crit_path_size_array[7];
       assert(tag != critter::internal::internal_tag);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
       critter::internal::_MPI_Isend.start_nonblock(*req,true,nelem, t, cm, dest);\
-      critter::internal::computation_time = MPI_Wtime();\
+      critter::internal::computation_timer = MPI_Wtime();\
+    }\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
     }\
@@ -582,6 +584,7 @@ extern int crit_path_size_array[7];
       PMPI_Wait(req, stat);\
       curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
       comm_track_it->second->stop_nonblock(request, save_comp_time, save_comm_time);\
+    }\
     else{\
       PMPI_Wait(req, stat);\
     }\
@@ -599,6 +602,7 @@ extern int crit_path_size_array[7];
       auto comm_track_it = critter::internal::internal_comm_track.find(request);\
       assert(comm_track_it != critter::internal::internal_comm_track.end());\
       comm_track_it->second->stop_nonblock(request, save_comp_time, save_comm_time);\
+    }\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
     }\

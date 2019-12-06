@@ -118,10 +118,10 @@ std::ofstream stream/*, stream_track*/;
 bool track,flag,is_world_root,is_first_iter,need_new_line;
 
 double computation_timer;
-extern std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
-extern std::map<MPI_Request,double*> internal_comm_message;
-extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
-extern std::map<MPI_Request,tracker*> internal_comm_track;
+std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
+std::map<MPI_Request,double*> internal_comm_message;
+std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
+std::map<MPI_Request,tracker*> internal_comm_track;
 //std::vector<std::vector<int_int_double>> critical_paths(7);
 std::array<double,14> costs;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
