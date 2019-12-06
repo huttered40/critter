@@ -328,7 +328,7 @@ void tracker::stop_block(bool is_sender){
   computation_timer = this->last_start_time;
 }
 
-void tracker::start_nonblock(MPI_Request request, bool is_sender, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void tracker::start_nonblock(MPI_Request* request, bool is_sender, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
@@ -342,7 +342,6 @@ void tracker::start_nonblock(MPI_Request request, bool is_sender, int64_t nelem,
   MPI_Type_size(t, &el_size);
   int64_t nbytes = el_size * nelem;
   MPI_Comm_size(cm, &p);
-  std::pair<double,double> dcost = cost_func(nbytes, p);
 
   // Nonblocking communication to propogate the critical_pathical path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
   // Unlike blocking protocol, Receiver does not need sender's critical_pathical path information to include the contribution from this current routine
@@ -358,17 +357,18 @@ void tracker::start_nonblock(MPI_Request request, bool is_sender, int64_t nelem,
   else{
     PMPI_Irecv(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
   }
-  internal_comm_info[request] = std::make_pair(internal_request,is_sender);
-  internal_comm_message[request] = data;
-  internal_comm_data[request] = std::make_pair((double)nbytes,(double)p);
-  internal_comm_track[request] = this;
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  internal_comm_info[*request] = std::make_pair(internal_request,is_sender);
+  internal_comm_message[*request] = data;
+  internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
+  internal_comm_track[*request] = this;
 }
 
-void tracker::stop_nonblock(MPI_Request request, double comp_time, double comm_time){
-  auto comm_info_it = internal_comm_info.find(request);\
-  auto comm_message_it = internal_comm_message.find(request);\
-  auto comm_data_it = internal_comm_data.find(request);\
-  auto comm_track_it = internal_comm_track.find(request);\
+void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_time){
+  auto comm_info_it = internal_comm_info.find(*request);\
+  auto comm_message_it = internal_comm_message.find(*request);\
+  auto comm_data_it = internal_comm_data.find(*request);\
+  auto comm_track_it = internal_comm_track.find(*request);\
   assert(comm_info_it != internal_comm_info.end());\
   assert(comm_message_it != internal_comm_message.end());\
   assert(comm_data_it != internal_comm_data.end());\
@@ -415,11 +415,11 @@ void tracker::stop_nonblock(MPI_Request request, double comp_time, double comm_t
   costs[12] += comp_time;
   costs[13] += comp_time+comm_time;
 
-  internal_comm_info.erase(request);
+  internal_comm_info.erase(*request);
   free(comm_message_it->second);
-  internal_comm_message.erase(request);
-  internal_comm_data.erase(request);
-  internal_comm_track.erase(request);
+  internal_comm_message.erase(*request);
+  internal_comm_data.erase(*request);
+  internal_comm_track.erase(*request);
 
   this->last_start_time = MPI_Wtime();
   computation_timer = this->last_start_time;

@@ -140,7 +140,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_nonblock(MPI_Request request, bool is_sender, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_nonblock(MPI_Request* request, bool is_sender, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
 
     /**
      * \brief completes interception of synchronous communication protocol
@@ -156,7 +156,7 @@ class tracker{
     /**
      * \brief completes interception of nonblocking communication protocol
      */
-    void stop_nonblock(MPI_Request request, double comp_time, double comm_time);
+    void stop_nonblock(MPI_Request* request, double comp_time, double comm_time);
 
     /**
      * \brief (re)-starts timer for nonblocking MPI call as the request is being finalized (via some MPI_Wait variant)
@@ -531,7 +531,8 @@ extern int crit_path_size_array[7];
       assert(tag != critter::internal::internal_tag);\
       critter::internal::_MPI_Send.start_block(nelem, t, cm, dest);\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
-      critter::internal::_MPI_Send.stop_block(true);}\
+      critter::internal::_MPI_Send.stop_block(true);\
+    }\
     else{\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
     }\
@@ -543,7 +544,8 @@ extern int crit_path_size_array[7];
       assert(tag != critter::internal::internal_tag);\
       critter::internal::_MPI_Recv.start_block(nelem, t, cm, src);\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
-      critter::internal::_MPI_Recv.stop_block(false);}\
+      critter::internal::_MPI_Recv.stop_block(false);\
+    }\
     else{\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
     }\
@@ -554,7 +556,7 @@ extern int crit_path_size_array[7];
     if (critter::internal::track){\
       assert(tag != critter::internal::internal_tag);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-      critter::internal::_MPI_Irecv.start_nonblock(*req,false,nelem, t, cm, src);\
+      critter::internal::_MPI_Irecv.start_nonblock(req, false, nelem, t, cm, src);\
       critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
@@ -567,7 +569,7 @@ extern int crit_path_size_array[7];
     if (critter::internal::track){\
       assert(tag != critter::internal::internal_tag);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::internal::_MPI_Isend.start_nonblock(*req,true,nelem, t, cm, dest);\
+      critter::internal::_MPI_Isend.start_nonblock(req, true, nelem, t, cm, dest);\
       critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
@@ -579,13 +581,12 @@ extern int crit_path_size_array[7];
   do {\
     if (critter::internal::track){\
       volatile double curTime = MPI_Wtime(); double save_comp_time = curTime - critter::internal::computation_timer;\
-      MPI_Request request = *req;\
-      auto comm_track_it = critter::internal::internal_comm_track.find(request);\
+      auto comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(comm_track_it != critter::internal::internal_comm_track.end());\
       volatile double last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
       curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
-      comm_track_it->second->stop_nonblock(request, save_comp_time, save_comm_time);\
+      comm_track_it->second->stop_nonblock(req, save_comp_time, save_comm_time);\
     }\
     else{\
       PMPI_Wait(req, stat);\
@@ -602,8 +603,9 @@ extern int crit_path_size_array[7];
       curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
       MPI_Request request = pt[*indx];\
       auto comm_track_it = critter::internal::internal_comm_track.find(request);\
+      int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
       assert(comm_track_it != critter::internal::internal_comm_track.end());\
-      comm_track_it->second->stop_nonblock(request, save_comp_time, save_comm_time);\
+      comm_track_it->second->stop_nonblock(&request, save_comp_time, save_comm_time);\
     }\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
