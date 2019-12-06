@@ -186,10 +186,10 @@ std::array<double,14> costs;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchC
 // Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
 std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> save_info;
 
-double old_cs[5*list_size];
-double new_cs[5*list_size];
-double_int old_cp[7];
-double_int new_cp[7];
+double old_cs[5*list_size+7];
+double new_cs[5*list_size+7];
+//double_int old_cp[7];
+//double_int new_cp[7];
 double old_vp[7];
 double new_vp[7];
 int root_array[7];
@@ -339,6 +339,7 @@ void tracker::start_block(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe
   this->last_start_time = MPI_Wtime();
 }
 
+// Used only for p2p communication. All blocking collectives use sychronous protocol
 void tracker::stop_block(bool is_sender){
   double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
   std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
@@ -366,20 +367,26 @@ void tracker::stop_block(bool is_sender){
   costs[13] += this->save_comp_time+dt;		// update local runtime
 
   // Sender sends critical_pathical path data to receiver. Receiver updates its critical_pathical path information.
-  std::vector<double> data(10);
+  constexpr auto num_costs = 5*list_size+7;
   if (is_sender){
-    data[0]=this->critical_path_bytes; data[1]=this->critical_path_comm_time; data[2]=this->critical_path_msg; data[3]=this->critical_path_wrd;
-    data[4]=costs[0]; data[5]=costs[1]; data[6]=costs[3]; data[7]=costs[4]; data[8]=costs[5]; data[9]=costs[6];
-    PMPI_Send(&data[0],10,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm);
+    for (int i=0; i<7; i++){
+      old_cs[i] = costs[i];
+    }
+    for (int i=0; i<list_size; i++){
+      list[i]->get_critical_path_data(&old_cs[5*i+7]);
+    }
+    PMPI_Send(&old_cs[0],num_costs,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm);
     // Sender needs not wait for handshake with receiver, can continue back into user code
   }
   else{
     MPI_Status st;
-    PMPI_Recv(&data[0],10,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&st);
-    this->critical_path_bytes=std::max(data[0],this->critical_path_bytes); this->critical_path_comm_time=std::max(data[1],this->critical_path_comm_time);
-    this->critical_path_msg=std::max(data[2],this->critical_path_msg); this->critical_path_wrd=std::max(data[3],this->critical_path_wrd);
-    costs[0]=std::max(data[4],costs[0]); costs[1]=std::max(data[5],costs[1]); costs[3]=std::max(data[6],costs[3]);
-    costs[4]=std::max(data[7],costs[4]); costs[5]=std::max(data[8],costs[5]); costs[6]=std::max(data[9],costs[6]);
+    PMPI_Recv(&new_cs[0],num_costs,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&st);
+    for (int i=0; i<7; i++){
+      costs[i] = std::max(new_cs[i],costs[i]);
+    }
+    for (int i=0; i<list_size; i++){
+      list[i]->update_critical_path_data(&new_cs[5*i+7]);
+    }
   }
 
   // Prepare to leave interception and re-enter user code
@@ -387,6 +394,7 @@ void tracker::stop_block(bool is_sender){
   computation_timer = this->last_start_time;
 }
 
+// Called by both nonblocking p2p and nonblocking collectives
 void tracker::start_nonblock(MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int nbr_pe, int nbr_pe2){
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
@@ -405,21 +413,30 @@ void tracker::start_nonblock(MPI_Request* request, int64_t nelem, MPI_Datatype t
   // Nonblocking communication to propogate the critical_pathical path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
   // Unlike blocking protocol, Receiver does not need sender's critical_pathical path information to include the contribution from this current routine
   MPI_Request internal_request;
-  double* data = (double*)malloc(sizeof(double)*10);
+  constexpr auto num_costs = 5*list_size+7;
+  double* data = (double*)malloc(sizeof(double)*num_costs);
   // Save local data instead of immediately adding it to critical_pathical path, because this communication is not technically completed yet,
   //   and I do not want to corrupt critical_pathical path propogation in future communication that may occur before this nonblocking communication completes.
   if (nbr_pe == -1){
-    data[0]=this->critical_path_bytes; data[1]=this->critical_path_comm_time; data[2]=this->critical_path_msg; data[3]=this->critical_path_wrd;
-    data[4]=costs[0]; data[5]=costs[1]; data[6]=costs[3]; data[7]=costs[4]; data[8]=costs[5]; data[9]=costs[6];
-    PMPI_Iallreduce(MPI_IN_PLACE,&data[0],10,MPI_DOUBLE,MPI_MAX,cm,&internal_request);
+    for (int i=0; i<7; i++){
+      data[i] = costs[i];
+    }
+    for (int i=0; i<list_size; i++){
+      list[i]->get_critical_path_data(&data[5*i+7]);
+    }
+    PMPI_Iallreduce(MPI_IN_PLACE,&data[0],num_costs,MPI_DOUBLE,MPI_MAX,cm,&internal_request);
   } else{
     if (is_sender){
-      data[0]=this->critical_path_bytes; data[1]=this->critical_path_comm_time; data[2]=this->critical_path_msg; data[3]=this->critical_path_wrd;
-      data[4]=costs[0]; data[5]=costs[1]; data[6]=costs[3]; data[7]=costs[4]; data[8]=costs[5]; data[9]=costs[6];
-      PMPI_Isend(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+      for (int i=0; i<7; i++){
+        data[i] = costs[i];
+      }
+      for (int i=0; i<list_size; i++){
+        list[i]->get_critical_path_data(&data[5*i+7]);
+      }
+      PMPI_Isend(&data[0],num_costs,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
     }
     else{
-      PMPI_Irecv(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+      PMPI_Irecv(&data[0],num_costs,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
     }
   }
   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -452,10 +469,12 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   MPI_Status st;
   PMPI_Wait(&internal_request,&st);
   if (!is_sender){
-    this->critical_path_bytes=std::max(data[0],this->critical_path_bytes); this->critical_path_comm_time=std::max(data[1],this->critical_path_comm_time);
-    this->critical_path_msg=std::max(data[2],this->critical_path_msg); this->critical_path_wrd=std::max(data[3],this->critical_path_wrd);
-    costs[0]=std::max(data[4],costs[0]); costs[1]=std::max(data[5],costs[1]); costs[3]=std::max(data[6],costs[3]);
-    costs[4]=std::max(data[7],costs[4]); costs[5]=std::max(data[8],costs[5]); costs[6]=std::max(data[9],costs[6]);
+    for (int i=0; i<7; i++){
+      costs[i] = std::max(data[i],costs[i]);
+    }
+    for (int i=0; i<list_size; i++){
+      list[i]->update_critical_path_data(&data[5*i+7]);
+    }
   }
   // Both sender and receiver will now update its critical_pathical path with the data from the communication
   std::pair<double,double> dcost = cost_func(nbytes, p);
@@ -514,6 +533,14 @@ void tracker::set_critical_path_data(double* container){
   this->critical_path_wrd       = container[4];
 }
 
+void tracker::update_critical_path_data(double* container){
+  this->critical_path_bytes     = std::max(container[0],this->critical_path_bytes);
+  this->critical_path_comm_time = std::max(container[1],this->critical_path_comm_time);
+  this->critical_path_bar_time  = std::max(container[2],this->critical_path_bar_time);
+  this->critical_path_msg       = std::max(container[3],this->critical_path_msg);
+  this->critical_path_wrd       = std::max(container[4],this->critical_path_wrd);
+}
+
 void tracker::get_volume_data(double* container){
   container[0] = this->volume_bytes;
   container[1] = this->volume_comm_time;
@@ -559,9 +586,12 @@ std::vector<std::string> parse_file_string(){
 // Only used with synchronous communication protocol
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   // First exchange the tracked routine critical path data
-  constexpr auto num_costs = 5*list_size;
+  constexpr auto num_costs = 5*list_size+7;
+  for (int i=0; i<7; i++){
+    old_cs[i] = costs[i];
+  }
   for (int i=0; i<list_size; i++){
-    list[i]->get_critical_path_data(&old_cs[5*i]);
+    list[i]->get_critical_path_data(&old_cs[5*i+7]);
   }
   if (nbr_pe == -1)
     PMPI_Allreduce(&old_cs[0], &new_cs[0], num_costs, MPI_DOUBLE, MPI_MAX, cm);
@@ -577,10 +607,13 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
       }
     }
   }
-  for (int i=0; i<list_size; i++){
-    list[i]->set_critical_path_data(&new_cs[5*i]);
+  for (int i=0; i<7; i++){
+    costs[i] = new_cs[i];
   }
-
+  for (int i=0; i<list_size; i++){
+    list[i]->set_critical_path_data(&new_cs[5*i+7]);
+  }
+/*
   // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
   int rank; MPI_Comm_rank(cm,&rank);
   for (int i=0; i<7; i++){
@@ -608,7 +641,6 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     root_array[i] = new_cp[i].second;
   }
   if (internal::flag){
-    /* TODO: Fix later: notice that the MPI routines below use the communicator, but with send/recv, this is the wrong thing to do
     for (int i=0; i<7; i++){
       if (rank==root_array[i]){
         crit_path_size_array[i] = CritterPaths[i].size();
@@ -657,8 +689,9 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
         CritterPaths[i][j] = crit_buffer[offset+j];
       }
       offset+=crit_path_size_array[i];
-    }*/
+    }
   }
+*/
 }
 
 // Note: this function should be called once per start/stop, else it will double count

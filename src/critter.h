@@ -182,6 +182,7 @@ class tracker{
     void get_my_data(double* container);
     void get_critical_path_data(double* container);
     void set_critical_path_data(double* container);
+    void update_critical_path_data(double* container);
     void get_volume_data(double* container);
     void set_volume_data(double* container);
 
@@ -262,10 +263,10 @@ extern std::map<MPI_Request,tracker*> internal_comm_track;
 extern std::array<double,14> costs;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
 extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> save_info;
 
-extern double old_cs[5*list_size];
-extern double new_cs[5*list_size];
-extern double_int old_cp[7];
-extern double_int new_cp[7];
+extern double old_cs[5*list_size+7];
+extern double new_cs[5*list_size+7];
+//extern double_int old_cp[7];
+//extern double_int new_cp[7];
 extern double old_vp[7];
 extern double new_vp[7];
 extern int root_array[7];
@@ -748,10 +749,12 @@ extern int crit_path_size_array[7];
       volatile double curTime = MPI_Wtime(); double save_comp_time = curTime - critter::internal::computation_timer;\
       auto comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(comm_track_it != critter::internal::internal_comm_track.end());\
+      auto comm_info_it = critter::internal::internal_comm_info.find(*req);\
+      MPI_Request save_request = comm_info_it->first;\
       volatile double last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
       curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
-      comm_track_it->second->stop_nonblock(req, save_comp_time, save_comm_time);\
+      comm_track_it->second->stop_nonblock(&save_request, save_comp_time, save_comm_time);\
     }\
     else{\
       PMPI_Wait(req, stat);\
