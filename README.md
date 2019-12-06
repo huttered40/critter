@@ -7,7 +7,7 @@ Welcome! If you are looking for a lightweight tool to both analyze and predict t
 3. idle time
 4. estimated communication cost
 5. estimated synchronization cost
-6. overlap time
+6. computation time
 7. total runtime
 
 `critter` also counts the first five metrics above for each tracked MPI routine (see table below).
