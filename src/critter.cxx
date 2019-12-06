@@ -16,79 +16,126 @@ void add_critical_path_data(int_int_double* in, int_int_double* inout, int* len,
 tracker _MPI_Barrier("MPI_Barrier",0, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),0.); 
-                          }), 
+                          }),
         _MPI_Bcast("MPI_Bcast",1,
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
-                          }), 
-
+                          }),
         _MPI_Reduce("MPI_Reduce",2, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
-                          }), 
+                          }),
         _MPI_Allreduce("MPI_Allreduce",3,
                           [](int64_t n, int p){
                             return std::pair<double,double>(2.*log2((double)p),2.*n); 
-                          }), 
+                          }),
         _MPI_Gather("MPI_Gather",4,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Gatherv("MPI_Gatherv",5,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Allgather("MPI_Allgather",6,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Allgatherv("MPI_Allgatherv",7,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Scatter("MPI_Scatter",8,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Scatterv("MPI_Scatterv",9,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Reduce_scatter("MPI_Reduce_scatter",10,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),n); 
-                          }), 
+                          }),
         _MPI_Alltoall("MPI_Alltoall",11,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
-                          }), 
+                          }),
         _MPI_Alltoallv("MPI_Alltoallv",12,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
-                          }), 
+                          }),
         _MPI_Send("MPI_Send",13,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }), 
+                          }),
         _MPI_Recv("MPI_Recv",14,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }), 
+                          }),
         _MPI_Isend("MPI_Isend",15,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }), 
+                          }),
         _MPI_Irecv("MPI_Irecv",16,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }), 
+                          }),
         _MPI_Sendrecv("MPI_Sendrecv",17,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
-                          }), 
+                          }),
         _MPI_Sendrecv_replace("MPI_Sendrecv_replace",18,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1,n); 
+                          }),
+        _MPI_Ibcast("MPI_Ibcast",19,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(2.*log2((double)p),2.*n); 
+                          }),
+        _MPI_Iallreduce("MPI_Iallreduce",20,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(2.*log2((double)p),2.*n); 
+                          }),
+        _MPI_Ireduce("MPI_Ireduce",21,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(2.*log2((double)p),2.*n); 
+                          }),
+        _MPI_Igather("MPI_Igather",22,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Igatherv("MPI_Igatherv",23,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Iallgather("MPI_Iallgather",24,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Iallgatherv("MPI_Iallgatherv",25,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Iscatter("MPI_Iscatter",26,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Iscatterv("MPI_Iscatterv",27,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Ireduce_scatter("MPI_Ireduce_scatter",28,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),n); 
+                          }),
+        _MPI_Ialltoall("MPI_Ialltoall",29,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
+                          }),
+        _MPI_Ialltoallv("MPI_Ialltoallv",30,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
                           });
 
 
@@ -111,7 +158,19 @@ tracker* list[list_size] = {
         &_MPI_Irecv,
         &_MPI_Isend,
         &_MPI_Sendrecv,
-        &_MPI_Sendrecv_replace };
+        &_MPI_Sendrecv_replace,
+        &_MPI_Ibcast,
+        &_MPI_Iallreduce,
+        &_MPI_Ireduce,
+        &_MPI_Igather,
+        &_MPI_Igatherv,
+        &_MPI_Iallgather,
+        &_MPI_Iallgatherv,
+        &_MPI_Iscatter,
+        &_MPI_Iscatterv,
+        &_MPI_Ireduce_scatter,
+        &_MPI_Ialltoall,
+        &_MPI_Ialltoallv};
 
 std::string stream_name,/*stream_track_name,*/file_name;
 std::ofstream stream/*, stream_track*/;
@@ -328,7 +387,7 @@ void tracker::stop_block(bool is_sender){
   computation_timer = this->last_start_time;
 }
 
-void tracker::start_nonblock(MPI_Request* request, bool is_sender, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void tracker::start_nonblock(MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int nbr_pe, int nbr_pe2){
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
@@ -349,13 +408,19 @@ void tracker::start_nonblock(MPI_Request* request, bool is_sender, int64_t nelem
   double* data = (double*)malloc(sizeof(double)*10);
   // Save local data instead of immediately adding it to critical_pathical path, because this communication is not technically completed yet,
   //   and I do not want to corrupt critical_pathical path propogation in future communication that may occur before this nonblocking communication completes.
-  if (is_sender){
+  if (nbr_pe == -1){
     data[0]=this->critical_path_bytes; data[1]=this->critical_path_comm_time; data[2]=this->critical_path_msg; data[3]=this->critical_path_wrd;
     data[4]=costs[0]; data[5]=costs[1]; data[6]=costs[3]; data[7]=costs[4]; data[8]=costs[5]; data[9]=costs[6];
-    PMPI_Isend(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
-  }
-  else{
-    PMPI_Irecv(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+    PMPI_Iallreduce(MPI_IN_PLACE,&data[0],10,MPI_DOUBLE,MPI_MAX,cm,&internal_request);
+  } else{
+    if (is_sender){
+      data[0]=this->critical_path_bytes; data[1]=this->critical_path_comm_time; data[2]=this->critical_path_msg; data[3]=this->critical_path_wrd;
+      data[4]=costs[0]; data[5]=costs[1]; data[6]=costs[3]; data[7]=costs[4]; data[8]=costs[5]; data[9]=costs[6];
+      PMPI_Isend(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+    }
+    else{
+      PMPI_Irecv(&data[0],10,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+    }
   }
   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   internal_comm_info[*request] = std::make_pair(internal_request,is_sender);

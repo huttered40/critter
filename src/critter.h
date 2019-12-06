@@ -24,7 +24,7 @@ void stop();
 namespace internal{
 
 constexpr auto internal_tag = 1669220;	// arbitrary
-constexpr auto list_size = 19;	// numbers of tracked MPI routines
+constexpr auto list_size = 31;	// numbers of tracked MPI routines
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_volume_path(MPI_Comm cm);
 
@@ -140,7 +140,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_nonblock(MPI_Request* request, bool is_sender, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_nonblock(MPI_Request* request, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, bool is_sender=false, int nbr_pe=-1, int nbr_pe2=-1);
 
     /**
      * \brief completes interception of synchronous communication protocol
@@ -204,25 +204,37 @@ class tracker{
 };
 
 extern tracker
-         _MPI_Barrier, 
-         _MPI_Bcast, 
-         _MPI_Reduce, 
-         _MPI_Allreduce, 
-         _MPI_Gather, 
+         _MPI_Barrier,
+         _MPI_Bcast,
+         _MPI_Reduce,
+         _MPI_Allreduce,
+         _MPI_Gather,
          _MPI_Gatherv,
-         _MPI_Allgather, 
-         _MPI_Allgatherv, 
-         _MPI_Scatter, 
-         _MPI_Scatterv, 
-         _MPI_Reduce_scatter, 
-         _MPI_Alltoall, 
-         _MPI_Alltoallv, 
-         _MPI_Send, 
-         _MPI_Recv, 
-         _MPI_Isend, 
-         _MPI_Irecv, 
-         _MPI_Sendrecv, 
-         _MPI_Sendrecv_replace; 
+         _MPI_Allgather,
+         _MPI_Allgatherv,
+         _MPI_Scatter,
+         _MPI_Scatterv,
+         _MPI_Reduce_scatter,
+         _MPI_Alltoall,
+         _MPI_Alltoallv,
+         _MPI_Send,
+         _MPI_Recv,
+         _MPI_Isend,
+         _MPI_Irecv,
+         _MPI_Sendrecv,
+         _MPI_Sendrecv_replace,
+         _MPI_Ibcast,
+         _MPI_Iallreduce,
+         _MPI_Ireduce,
+         _MPI_Igather,
+         _MPI_Igatherv,
+         _MPI_Iallgather,
+         _MPI_Iallgatherv,
+         _MPI_Iscatter,
+         _MPI_Iscatterv,
+         _MPI_Ireduce_scatter,
+         _MPI_Ialltoall,
+         _MPI_Ialltoallv;
 
 extern tracker* list[list_size];
 struct double_int{
@@ -378,7 +390,8 @@ extern int crit_path_size_array[7];
 #define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
     if (critter::internal::track){\
-      assert(rt==st); critter::internal::_MPI_Scatter.start_synch(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+      assert(rt==st);\
+      critter::internal::_MPI_Scatter.start_synch(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
       PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
       critter::internal::_MPI_Scatter.stop_synch();}\
     else{\
@@ -431,7 +444,8 @@ extern int crit_path_size_array[7];
 #define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
     if (critter::internal::track){\
-      assert(rt==st); critter::internal::_MPI_Alltoall.start_synch(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+      assert(rt==st);\
+      critter::internal::_MPI_Alltoall.start_synch(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
       PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);\
       critter::internal::_MPI_Alltoall.stop_synch();}\
     else{\
@@ -556,7 +570,7 @@ extern int crit_path_size_array[7];
     if (critter::internal::track){\
       assert(tag != critter::internal::internal_tag);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-      critter::internal::_MPI_Irecv.start_nonblock(req, false, nelem, t, cm, src);\
+      critter::internal::_MPI_Irecv.start_nonblock(req, nelem, t, cm, false, src);\
       critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
@@ -569,11 +583,162 @@ extern int crit_path_size_array[7];
     if (critter::internal::track){\
       assert(tag != critter::internal::internal_tag);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::internal::_MPI_Isend.start_nonblock(req, true, nelem, t, cm, dest);\
+      critter::internal::_MPI_Isend.start_nonblock(req, nelem, t, cm, true, dest);\
       critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Ibcast(buf, nelem, t, root, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      PMPI_Ibcast(buf, nelem, t, root, cm);\
+      critter::internal::_MPI_Ibcast.start_nonblock(req, nelem, t, cm);\
+      critter::internal::computation_timer = MPI_Wtime();\
+    }\
+    else{\
+      PMPI_Ibcast(buf, nelem, t, root, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      PMPI_Iallreduce(buf, nelem, t, root, cm, req);\
+      critter::internal::_MPI_Iallreduce.start_nonblock(req, nelem, t, cm);\
+      critter::internal::computation_timer = MPI_Wtime();\
+    else{\
+      PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Ireduce(sbuf, rbuf, nelem, t, op, root, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      PMPI_Ireduce(buf, nelem, t, root, cm, req);\
+      critter::internal::_MPI_Iallreduce.start_nonblock(req, nelem, t, cm);\
+      critter::internal::computation_timer = MPI_Wtime();\
+    else{\
+      PMPI_Ireduce(sbuf, rbuf, nelem, t, op, root, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      int pSize; MPI_Comm_size(cm, &pSize);\
+      int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
+      PMPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
+      critter::internal::_MPI_Igather.start_nonblock(req, recvBufferSize, st, cm);\
+    else{\
+      PMPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      int64_t tot_recv=0;\
+      int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
+      if (r == root) for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; }\
+      PMPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req);\
+      critter::internal::_MPI_Igatherv.start_nonblock(req, std::max((int64_t)scount,tot_recv), st, cm);\
+    else{\
+      PMPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      int pSize; MPI_Comm_size(cm, &pSize);\
+      int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
+      PMPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
+      critter::internal::_MPI_Iallgather.start_nonblock(req, recvBufferSize, st, cm);\
+    else{\
+      PMPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      int64_t tot_recv=0;\
+      int p; MPI_Comm_size(cm, &p);\
+      for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
+      PMPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req);\
+      critter::internal::_MPI_Iallgatherv.start_nonblock(req, std::max((int64_t)scount,tot_recv), st, cm);\
+    else{\
+      PMPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      PMPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
+      critter::internal::_MPI_Iscatter.start_nonblock(req, std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    else{\
+      PMPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      int64_t tot_send=0;\
+      int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
+      if (r == root) for (int i=0; i<p; i++){ tot_send += ((int*)scounts)[i]; } \
+      PMPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req);\
+      critter::internal::_MPI_Iscatterv.start_nonblock(req, std::max(tot_send,(int64_t)rcount), st, cm);\
+    else{\
+      PMPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      int64_t tot_recv=0;\
+      int p; MPI_Comm_size(cm, &p);\
+      for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
+      PMPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req);\
+      critter::internal::_MPI_Ireduce_scatter.start_nonblock(req, tot_recv, t, cm);\
+    else{\
+      PMPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      PMPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
+      critter::internal::_MPI_Ialltoall.start_nonblock(req, std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    else{\
+      PMPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
+    }\
+  } while (0)
+
+#define MPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(rt==st);\
+      int64_t tot_send=0, tot_recv=0;\
+      int p; MPI_Comm_size(cm, &p);\
+      for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }\
+      PMPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req);\
+      critter::internal::_MPI_Ialltoallv.start_nonblock(req, std::max(tot_send,tot_recv), st, cm);\
+    else{\
+      PMPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req);\
     }\
   } while (0)
 
