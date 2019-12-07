@@ -1,6 +1,6 @@
 
 # critter
-Welcome! If you are looking for a lightweight tool to both analyze and predict the critical path costs of your distributed-memory MPI program, you have come to the right place. `critter` seeks to understand both the critical path and the average (per-process) path of your MPI program, and counts the following metrics for each:
+Welcome! If you are looking for a lightweight tool to analyze the critical path costs of your distributed-memory MPI program, you have come to the right place. `critter` seeks to understand the critical paths of your MPI program, and counts the following metrics for each:
 
 1. number of bytes communicated
 2. communication time
@@ -10,14 +10,14 @@ Welcome! If you are looking for a lightweight tool to both analyze and predict t
 6. computation time
 7. total runtime
 
-`critter` also counts the first five metrics above for each tracked MPI routine (see table below).
+`critter` also provides volumetric costs for each of the measures above, and tracks these measures for each MPI routine.
 
 `critter` provides three levels of support:
 1. counting critical/per-process path measures and outputting data to the standard output file
 2. both counting and tracking the critical/per-process path measures and critical path itself, as identified by local synchronization points inherent in your program (any intercepted MPI routine)
 3. micro-benchmarks for predicting based on critical path from level2
 
-Using both the micro-benchmarks and the tracked critical path, `critter` can re-assemble the communication costs and provide an accurate assessment and prediction for strong scaling and weak scaling tests for any node count.
+Using both the micro-benchmarks and the tracked critical path, `critter` can re-assemble the communication costs and provide an accurate assessment for strong scaling and weak scaling tests for any node count.
 
 See the lists below for an accurate depiction of our current support.
 
