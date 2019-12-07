@@ -174,7 +174,8 @@ tracker* list[list_size] = {
         &_MPI_Iscatterv,
         &_MPI_Ireduce_scatter,
         &_MPI_Ialltoall,
-        &_MPI_Ialltoallv};
+        &_MPI_Ialltoallv,
+        &_MPI_Ssend};
 
 std::string stream_name,/*stream_track_name,*/file_name;
 std::ofstream stream/*, stream_track*/;
