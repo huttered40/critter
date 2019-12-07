@@ -159,21 +159,6 @@ class tracker{
     void stop_nonblock(MPI_Request* request, double comp_time, double comm_time);
 
     /**
-     * \brief (re)-starts timer for nonblocking MPI call as the request is being finalized (via some MPI_Wait variant)
-     */
-    void istart(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2);
-
-    /**
-     * \brief stop timer for nonblocking communication
-     */
-    void istop1(MPI_Request* req);
-
-    /**
-     * \brief stop timer for blocking communication to close nonblocking comm requests
-     */
-    void istop2(MPI_Request req);
-
-    /**
      * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution
      * \param[in] cm communicator over which we want to get the maximum cost
      * \param[in] nbe_pe neighbor processor (only used for p2p routines)
@@ -771,9 +756,28 @@ extern int crit_path_size_array[7];
       curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
       MPI_Request request = pt[*indx];\
       auto comm_track_it = critter::internal::internal_comm_track.find(request);\
-      int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);\
       assert(comm_track_it != critter::internal::internal_comm_track.end());\
       comm_track_it->second->stop_nonblock(&request, save_comp_time, save_comm_time);\
+    }\
+    else{\
+      PMPI_Waitany(cnt, reqs, indx, stat);\
+    }\
+  } while (0)
+
+#define MPI_Waitsome(incnt, reqs, outcnt, indices, stats)\
+  do {\
+    if (critter::internal::track){\
+      volatile double curTime = MPI_Wtime(); double save_comp_time = curTime - critter::internal::computation_timer;\
+      std::vector<MPI_Request> pt(cnt); for (int i=0;i<cnt;i++){pt[i]=(reqs)[i];}\
+      volatile double last_start_time = MPI_Wtime();\
+      PMPI_Waitsome(incnt, reqs, outcnt, indices, stats);\
+      curTime = MPI_Wtime(); double save_comm_time = curTime - last_start_time;\
+      for (int i=0; i<*outcnt; i++){\
+        MPI_Request request = pt[indices[i]];\
+        auto comm_track_it = critter::internal::internal_comm_track.find(request);\
+        assert(comm_track_it != critter::internal::internal_comm_track.end());\
+        comm_track_it->second->stop_nonblock(&request, save_comp_time, save_comm_time);\
+      }\
     }\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
