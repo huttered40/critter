@@ -136,6 +136,10 @@ tracker _MPI_Barrier("MPI_Barrier",0,
         _MPI_Ialltoallv("MPI_Ialltoallv",30,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),log2((double)p)*n); 
+                          }),
+        _MPI_Ssend("MPI_Ssend",31,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1,n); 
                           });
 
 

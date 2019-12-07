@@ -24,7 +24,7 @@ void stop();
 namespace internal{
 
 constexpr auto internal_tag = 1669220;	// arbitrary
-constexpr auto list_size = 31;	// numbers of tracked MPI routines
+constexpr auto list_size = 32;	// numbers of tracked MPI routines
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
 void compute_volume_path(MPI_Comm cm);
 
@@ -220,7 +220,8 @@ extern tracker
          _MPI_Iscatterv,
          _MPI_Ireduce_scatter,
          _MPI_Ialltoall,
-         _MPI_Ialltoallv;
+         _MPI_Ialltoallv,
+         _MPI_Ssend;
 
 extern tracker* list[list_size];
 struct double_int{
@@ -525,6 +526,19 @@ extern int crit_path_size_array[7];
     }\
   } while (0)
 
+#define MPI_Ssend(buf, nelem, t, dest, tag, cm)\
+  do {\
+    if (critter::internal::track){\
+      assert(tag != critter::internal::internal_tag);\
+      critter::internal::_MPI_Ssend.start_synch(nelem, t, cm, dest);\
+      PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
+      critter::internal::_MPI_Ssend.stop_synch();\
+    }\
+    else{\
+      PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
+    }\
+  } while (0)
+
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
     if (critter::internal::track){\
@@ -535,6 +549,19 @@ extern int crit_path_size_array[7];
     }\
     else{\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
+    }\
+  } while (0)
+
+#define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
+  do {\
+    if (critter::internal::track){\
+      assert(tag != critter::internal::internal_tag);\
+      PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
+      critter::internal::_MPI_Isend.start_nonblock(req, nelem, t, cm, true, dest);\
+      critter::internal::computation_timer = MPI_Wtime();\
+    }\
+    else{\
+      PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
     }\
   } while (0)
 
@@ -561,19 +588,6 @@ extern int crit_path_size_array[7];
     }\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-    }\
-  } while (0)
-
-#define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
-  do {\
-    if (critter::internal::track){\
-      assert(tag != critter::internal::internal_tag);\
-      PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::internal::_MPI_Isend.start_nonblock(req, nelem, t, cm, true, dest);\
-      critter::internal::computation_timer = MPI_Wtime();\
-    }\
-    else{\
-      PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
     }\
   } while (0)
 
