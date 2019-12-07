@@ -38,12 +38,12 @@ In addition to writing the instructions file, the user need also write a file un
 
 ## Advice
 Large-scale tests can be expensive, and if you are using `critter`'s levels 2/3 support, we want to make sure you agree with the generated tests.
-1. always run `generate` without `launch` first and inspect the generated script files in the test directory. Once satisfied, erase the generated test directories (optional but convenient) and add the `launch` method directly after the `generate` method
-2. remove all binaries in the `bin/` (in test directory)  before applying `tar -cvf`
-3. plot names can be specified in `instructions.py` for each test
-4. due to scaplot assumptions, users can only specify node counts that range in a multiplicative manner
-5. don't have any `'+'` characters in the file path to `critter`, nor in any of the arguments. `critter` uses this character to parse file strings
-6. make sure your binaries are not named `test_allreduce` or similar for other benchmarks
+1. always run `generate` without `launch` first and inspect the generated script files in the test directory. Once satisfied, erase the generated test directories (optional but convenient) and add the `launch` method directly after the `generate` method.
+2. remove all binaries in the `bin/` (in test directory)  before applying `tar -cvf` to move data to local machine for analysis via *scaplot*.
+3. plot names can be specified in `instructions.py` for each test.
+4. due to scaplot assumptions, users can only specify node counts that range in a multiplicative manner.
+5. don't have any `'+'` characters in the file path to `critter`, nor in any of the arguments. `critter` uses this character to parse file strings.
+6. make sure your binaries are not named `test_allreduce` or similar for other benchmarks.
 7. make sure any communication requiring a tag doesn't use a tag of the same value as critter' internal tag critter::internal::tag. If there is a conflict, simply modify critter's internal tag and rebuild instead of modifying your source code.
 
 ## Design decisions
