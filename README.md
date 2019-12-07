@@ -81,8 +81,14 @@ Critter will never assume a communication protocol more limiting than what is sp
 | MPI_Ialltoall            |   yes       |   no       |   no            |
 | MPI_Ialltoallv           |   yes       |   no       |   no            |
 | MPI_Send                 |   yes       |   yes       |   yes            |
-| MPI_Recv                 |   yes       |   yes       |   yes            |
+| MPI_Ssend                 |   yes       |   no       |   no            |
+| MPI_Bsend                 |   no       |   no       |   no            |
+| MPI_Rsend                 |   no       |   no       |   no            |
 | MPI_Isend                |   yes       |   yes       |   no            |
+| MPI_Issend                 |   no       |   no       |   no            |
+| MPI_Ibsend                 |   no       |   no       |   no            |
+| MPI_Irsend                 |   no       |   no       |   no            |
+| MPI_Recv                 |   yes       |   yes       |   yes            |
 | MPI_Irecv                |   yes       |   yes       |   no            |
 | MPI_Sendrecv             |   yes       |   yes       |   yes            |
 | MPI_Sendrecv_replace     |   yes       |   yes       |   yes            |
