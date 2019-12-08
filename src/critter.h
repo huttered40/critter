@@ -17,16 +17,23 @@
 
 namespace critter{
 
+// User functions
 void print(size_t num_data, double* data);
 void start();
 void stop();
 
 namespace internal{
 
-constexpr auto internal_tag = 1669220;	// arbitrary
-constexpr auto list_size = 32;	// numbers of tracked MPI routines
+constexpr auto internal_tag 				= 1669220;	// arbitrary
+constexpr auto list_size 				= 32;		// numbers of tracked MPI routines
+constexpr auto num_critical_path_measures 		= 6;		// NumBytes,CommTime,EstCommCost,EstSynchCost,CompTime,RunTime
+constexpr auto num_volume_measures 			= 7;		// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
+constexpr auto num_tracker_critical_path_measures 	= 4;		// numbytes, commtime, estcomm, estsynch
+constexpr auto num_tracker_volume_measures 		= 5;		// numbytes, commtime, barriertime, estcomm, estsynch
+
+void update_critical_path(double* data);
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
-void compute_volume_path(MPI_Comm cm);
+void compute_volume(MPI_Comm cm);
 
 class tracker{
   public: 
@@ -36,37 +43,24 @@ class tracker{
     int tag;
 
     /* \brief local number of bytes max(sent,recv'ed) */
-    double my_bytes;
+    double* my_bytes;
     /* \brief local duration of communication time */
-    double my_comm_time;
+    double* my_comm_time;
     /* \brief local duration of idle time */
-    double my_bar_time;
+    double* my_bar_time;
     /* \brief local comm cost in #messages */
-    double my_msg;
+    double* my_msg;
     /* \brief local comm cost in #words */
-    double my_wrd;
+    double* my_wrd;
 
     /* \brief number of bytes max(sent,recv'ed) along the critical_pathical path among all processes */
-    double critical_path_bytes;
+    double* critical_path_bytes;
     /* \brief duration of communication time along the critical_pathical path among all processes */
-    double critical_path_comm_time;
-    /* \brief duration of idle time along the critical_pathical path mong all processes */
-    double critical_path_bar_time;
+    double* critical_path_comm_time;
     /* \brief comm cost in #messages along the critical_pathical path among all processes */
-    double critical_path_msg;
+    double* critical_path_msg;
     /* \brief comm cost in #words along the critical_pathical path among all processes */
-    double critical_path_wrd;
-
-    /* \brief number of bytes max(sent,recv'ed) among all processes */
-    double volume_bytes;
-    /* \brief duration of communication time among all processes */
-    double volume_comm_time;
-    /* \brief duration of idle time among all processes */
-    double volume_bar_time;
-    /* \brief comm cost in #messages among all processes */
-    double volume_msg;
-    /* \brief comm cost in #words among all processes */
-    double volume_wrd;
+    double* critical_path_wrd;
 
     /* \brief duration of computation time for each call made locally,
      *   used to save the local computation time between calls to ::start and ::stop variants */
@@ -77,7 +71,7 @@ class tracker{
 
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
     double last_start_time;
-    /* \brief saving across comm routine */
+    /* \brief save barrier time across start_synch */
     double last_barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm last_cm;
@@ -105,7 +99,7 @@ class tracker{
      * \brief timer copy constructor, copies name
      * \param[in] t other timer
      */
-    tracker(tracker const & t);
+    tracker(tracker const& t);
    
     /**
      * \brief timer destructor, frees name
@@ -159,22 +153,11 @@ class tracker{
     void stop_nonblock(MPI_Request* request, double comp_time, double comm_time);
 
     /**
-     * \brief computes max critical path costs over given communicator (used internally and can be used at end of execution
-     * \param[in] cm communicator over which we want to get the maximum cost
-     * \param[in] nbe_pe neighbor processor (only used for p2p routines)
-     * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      */
-    void get_my_data(double* container);
-    void get_critical_path_data(double* container);
-    void set_critical_path_data(double* container);
-    void update_critical_path_data(double* container);
-    void get_volume_data(double* container);
-    void set_volume_data(double* container);
-
+    void set_critical_path_costs(size_t idx);
     /**
-     * \brief appends timer data for critical path and average measurements to a global array
      */
-    void set_costs();
+    void set_volume_costs();
 
     /**
      * \brief evaluates communication cost model as specifed by cost_func
@@ -186,7 +169,10 @@ class tracker{
      * \brief common initialization of variables for construtors
      */
     void init();
-
+    /**
+     * \brief sets data members to point into global arrays
+     */
+    void set_cost_pointers();
 };
 
 extern tracker
@@ -236,27 +222,21 @@ struct int_int_double{
   int first; int second; double third;
 };
 
-extern std::string stream_name,/*stream_track_name,*/file_name;
+extern std::string stream_name,file_name;
 extern bool track,flag,is_first_iter,is_world_root,need_new_line;
-extern std::ofstream stream/*,stream_track*/;
+extern std::ofstream stream;
 
 extern double computation_timer;
 extern std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
 extern std::map<MPI_Request,double*> internal_comm_message;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,tracker*> internal_comm_track;
-//extern std::vector<std::vector<int_int_double>> critical_paths;
-extern std::array<double,14> costs;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
-extern std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> save_info;
-
-extern double old_cs[5*list_size+7];
-extern double new_cs[5*list_size+7];
-//extern double_int old_cp[7];
-//extern double_int new_cp[7];
-extern double old_vp[7];
-extern double new_vp[7];
-extern int root_array[7];
-extern int crit_path_size_array[7];
+constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*num_critical_path_measures*list_size;
+constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
+extern std::array<double,critical_path_costs_size> critical_path_costs;
+extern std::array<double,volume_costs_size> volume_costs;
+extern std::map<std::string,std::vector<double>> save_info;
+extern double new_cs[critical_path_costs_size];
 
 }
 }
@@ -272,7 +252,6 @@ extern int crit_path_size_array[7];
        critter::internal::flag = 1;\
        critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
        critter::internal::stream_name = critter::internal::file_name + ".txt";\
-       /*critter::internal::stream_track_name = critter::internal::file_name + "track.txt";*/\
      }\
      critter::internal::is_first_iter = true;\
      critter::internal::need_new_line = false;\
@@ -284,7 +263,6 @@ extern int crit_path_size_array[7];
      if (critter::internal::flag == 1){\
        if (rank==0){\
          critter::internal::stream.open(critter::internal::stream_name.c_str());\
-         /*critter::internal::stream_track.open(critter::internal::stream_track_name.c_str());*/\
        }\
      } else{\
      }\
@@ -301,7 +279,6 @@ extern int crit_path_size_array[7];
        critter::internal::flag = 1;\
        critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
        critter::internal::stream_name = critter::internal::file_name + ".txt";\
-       /*critter::internal::stream_track_name = critter::internal::file_name + "track.txt";*/\
      }\
      critter::internal::is_first_iter = true;\
      critter::internal::need_new_line = false;\
@@ -313,7 +290,6 @@ extern int crit_path_size_array[7];
      if (critter::internal::flag == 1){\
        if (rank==0){\
          critter::internal::stream.open(critter::internal::stream_name.c_str());\
-         /*critter::internal::stream_track.open(critter::internal::stream_track_name.c_str());*/\
        }\
      } else{\
      }\

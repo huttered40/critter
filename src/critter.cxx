@@ -13,6 +13,20 @@ void add_critical_path_data(int_int_double* in, int_int_double* inout, int* len,
   }
 }
 
+void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
+  double* invec = in;
+  double* inoutvec = inout;
+  bool decisions[num_critical_path_measures];
+  for (int i=0; i<num_critical_path_measures; i++){
+    decisions[i] = inoutvec[i] > invec[i];
+    inoutvec[i] = std::max(inoutvec[i],invec[i]);
+  }
+  for (int i=num_critical_path_measures; i<*len; i++){
+    int idx = (i-num_critical_path_measures)%num_critical_path_measures;
+    inoutvec[i] = (decisions[idx] ? inoutvec[i] : invec[i]);
+  }
+}
+
 tracker _MPI_Barrier("MPI_Barrier",0, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),0.); 
@@ -177,8 +191,8 @@ tracker* list[list_size] = {
         &_MPI_Ialltoallv,
         &_MPI_Ssend};
 
-std::string stream_name,/*stream_track_name,*/file_name;
-std::ofstream stream/*, stream_track*/;
+std::string stream_name,file_name;
+std::ofstream stream;
 bool track,flag,is_world_root,is_first_iter,need_new_line;
 
 double computation_timer;
@@ -186,45 +200,36 @@ std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
 std::map<MPI_Request,double*> internal_comm_message;
 std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 std::map<MPI_Request,tracker*> internal_comm_track;
-//std::vector<std::vector<int_int_double>> critical_paths(7);
-std::array<double,14> costs;	// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
-// Instead of printing out each Critter for each iteration individually, I will save them for each iteration, print out the iteration, and then clear before next iteration
-std::map<std::string,std::tuple<double,double,double,double,double,double,double,double,double,double>> save_info;
-
-double old_cs[5*list_size+7];
-double new_cs[5*list_size+7];
-//double_int old_cp[7];
-//double_int new_cp[7];
-double old_vp[7];
-double new_vp[7];
-int root_array[7];
-int crit_path_size_array[7];
+std::array<double,critical_path_costs_size> critical_path_costs;
+std::array<double,volume_costs_size> volume_costs;
+std::map<std::string,std::vector<double>> save_info;
+double new_cs[critical_path_costs_size];
 
 
 void tracker::init(){
   this->last_start_time  = -1.;
-  this->my_bytes         = 0.;
-  this->my_comm_time     = 0.;
-  this->my_bar_time      = 0.;
-  this->my_msg           = 0.;
-  this->my_wrd           = 0.;
-  this->critical_path_bytes       = 0.;
-  this->critical_path_comm_time   = 0.;
-  this->critical_path_bar_time    = 0.;
-  this->critical_path_msg         = 0.;
-  this->critical_path_wrd         = 0.;
   this->save_comp_time   = 0.;
-  this->volume_bytes     = 0.;
-  this->volume_comm_time = 0.;
-  this->volume_bar_time  = 0.;
-  this->volume_msg       = 0.;
-  this->volume_wrd       = 0.;
+}
+
+void tracker::set_cost_pointers(){
+  size_t volume_costs_idx        = num_volume_measures+this->tag*num_tracker_volume_measures;
+  size_t critical_path_costs_idx = num_critical_path_measures+this->tag*num_critical_path_measures*num_tracker_critical_path_measures;
+  this->my_bytes                 = &volume_costs[volume_costs_idx];
+  this->my_comm_time             = &volume_costs[volume_costs_idx+1];
+  this->my_bar_time              = &volume_costs[volume_costs_idx+2];
+  this->my_msg                   = &volume_costs[volume_costs_idx+3];
+  this->my_wrd                   = &volume_costs[volume_costs_idx+4];
+  this->critical_path_bytes      = &critical_path_costs[critical_path_costs_idx];
+  this->critical_path_comm_time  = &critical_path_costs[critical_path_costs_idx+num_critical_path_measures];
+  this->critical_path_msg        = &critical_path_costs[critical_path_costs_idx+num_critical_path_measures*2];
+  this->critical_path_wrd        = &critical_path_costs[critical_path_costs_idx+num_critical_path_measures*3];
 }
 
 tracker::tracker(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_){
   this->cost_func = cost_func_;
   this->name = std::move(name_);
   this->tag = tag;
+  this->set_cost_pointers();
   this->init();
 }
 
@@ -232,6 +237,7 @@ tracker::tracker(tracker const& t){
   this->cost_func = t.cost_func;
   this->name = t.name;
   this->tag = t.tag;
+  this->set_cost_pointers();
   this->init();
 }
 
@@ -240,13 +246,13 @@ tracker::~tracker(){}
 void tracker::start_synch(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
-  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
   this->save_comp_time = curTime - computation_timer;
-  costs[5] += this->save_comp_time;		// update critical_pathical path computation time
-  costs[6] += this->save_comp_time;		// update critical_pathical path runtime
-  costs[12] += this->save_comp_time;		// update local computation time
-  costs[13] += this->save_comp_time;		// update local runtime
+  critical_path_costs[4] += this->save_comp_time;		// update critical path path computation time
+  critical_path_costs[5] += this->save_comp_time;		// update critical path path runtime
+  volume_costs[5]        += this->save_comp_time;		// update local computation time
+  volume_costs[6]        += this->save_comp_time;		// update local runtime
 
   int el_size,p;
   MPI_Type_size(t, &el_size);
@@ -266,7 +272,7 @@ void tracker::start_synch(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe
   }
   this->last_barrier_time = MPI_Wtime() - init_time;
 
-  // Propogate critical_pathical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
+  // Propogate critical path paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   propagate_critical_path(cm, nbr_pe, nbr_pe2);
   if (last_nbr_pe == -1){
     PMPI_Barrier(cm);
@@ -283,39 +289,40 @@ void tracker::stop_synch(){
   double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
   std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
 
-  this->my_comm_time += dt;
-  this->critical_path_comm_time += dt;
-  this->my_bytes += this->last_nbytes;
-  this->critical_path_bytes += this->last_nbytes;
-  this->critical_path_msg += dcost.first;
-  this->my_msg += dcost.first;
-  this->critical_path_wrd += dcost.second;
-  this->my_wrd += dcost.second;
-  this->critical_path_bar_time += this->last_barrier_time;
-  this->my_bar_time += this->last_barrier_time;
+  *this->my_comm_time += dt;
+  *this->my_bytes     += this->last_nbytes;
+  *this->my_msg       += dcost.first;
+  *this->my_wrd       += dcost.second;
+  *this->my_bar_time  += this->last_barrier_time;
+  for (size_t i=0; i<num_critical_path_measures; i++){
+    *(this->critical_path_bytes+i)     += this->last_nbytes;
+    *(this->critical_path_comm_time+i) += dt;
+    *(this->critical_path_msg+i)       += dcost.first;
+    *(this->critical_path_wrd+i)       += dcost.second;
+  }
 
-  costs[0] += this->last_nbytes;		// update critical_pathical path bytes communicated
-  costs[1] += dt;				// update critical_pathical path communication time (for what this process has seen thus far)
-  costs[2] += this->last_barrier_time;		// update critical_pathical path barrier/idle time
-  costs[3] += dcost.second;			// update critical_pathical path estimated communication cost
-  costs[4] += dcost.first;			// update critical_pathical path estimated synchronization cost
-  costs[6] += dt;		// update critical_pathical path runtime
-  costs[7] += this->last_nbytes;		// update local bytes communication
-  costs[8] += dt;				// update local communication time (not volume until after the completion of the program)
-  costs[9] += this->last_barrier_time;		// update local barrier/idle time
-  costs[10] += dcost.second;			// update local estimated communication cost
-  costs[11] += dcost.first;			// update local estimated synchronization cost
-  costs[13] += dt;		// update local runtime
+  critical_path_costs[0] += this->last_nbytes;		// update critical path bytes communicated
+  critical_path_costs[1] += dt;				// update critical path communication time (for what this process has seen thus far)
+  critical_path_costs[2] += dcost.second;		// update critical path estimated communication cost
+  critical_path_costs[3] += dcost.first;		// update critical path estimated synchronization cost
+  critical_path_costs[5] += dt;				// update critical path runtime
+
+  volume_costs[0] += this->last_nbytes;			// update local bytes communication
+  volume_costs[1] += dt;				// update local communication time (not volume until after the completion of the program)
+  volume_costs[2] += this->last_barrier_time;		// update local barrier/idle time
+  volume_costs[3] += dcost.second;			// update local estimated communication cost
+  volume_costs[4] += dcost.first;			// update local estimated synchronization cost
+  volume_costs[6] += dt;				// update local runtime
 
 /*
   // Mark the local synchronization point before exchanging with its neighbors in the communicator
-  critical_pathical_paths[0].emplace_back(int_int_double(this->tag,p,nbytes));
-  critical_pathical_paths[1].emplace_back(int_int_double(this->tag,p,nbytes));
-  critical_pathical_paths[2].emplace_back(int_int_double(this->tag,p,nbytes));
-  critical_pathical_paths[3].emplace_back(int_int_double(this->tag,p,nbytes));
-  critical_pathical_paths[4].emplace_back(int_int_double(this->tag,p,nbytes));
-  critical_pathical_paths[5].emplace_back(int_int_double(this->tag,p,nbytes));
-  critical_pathical_paths[6].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[0].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[1].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[2].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[3].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[4].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[5].emplace_back(int_int_double(this->tag,p,nbytes));
+  critical path_paths[6].emplace_back(int_int_double(this->tag,p,nbytes));
 */
 
   // Prepare to leave interception and re-enter user code
@@ -326,7 +333,7 @@ void tracker::stop_synch(){
 void tracker::start_block(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
-  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
   this->save_comp_time = curTime - computation_timer;
   this->last_cm = cm;
@@ -349,49 +356,41 @@ void tracker::stop_block(bool is_sender){
   double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
   std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
 
-  this->my_comm_time += dt;
-  this->critical_path_comm_time += dt;
-  this->my_bytes += this->last_nbytes;
-  this->critical_path_bytes += this->last_nbytes;
-  this->critical_path_msg += dcost.first;
-  this->my_msg += dcost.first;
-  this->critical_path_wrd += dcost.second;
-  this->my_wrd += dcost.second;
+  *this->my_bytes     += this->last_nbytes;
+  *this->my_comm_time += dt;
+  *this->my_msg       += dcost.first;
+  *this->my_wrd       += dcost.second;
+  for (size_t i=0; i<num_critical_path_measures; i++){
+    *(this->critical_path_bytes+i)     += this->last_nbytes;
+    *(this->critical_path_comm_time+i) += dt;
+    *(this->critical_path_msg+i)       += dcost.first;
+    *(this->critical_path_wrd+i)       += dcost.second;
+  }
 
-  costs[0] += this->last_nbytes;		// update critical_pathical path bytes communicated
-  costs[1] += dt;				// update critical_pathical path communication time (for what this process has seen thus far)
-  costs[3] += dcost.second;			// update critical_pathical path estimated communication cost
-  costs[4] += dcost.first;			// update critical_pathical path estimated synchronization cost
-  costs[5] += this->save_comp_time;		// update critical_pathical path computation time
-  costs[6] += this->save_comp_time+dt;		// update critical_pathical path runtime
-  costs[7] += this->last_nbytes;		// update local bytes communication
-  costs[8] += dt;				// update local communication time (not volume until after the completion of the program)
-  costs[10] += dcost.second;			// update local estimated communication cost
-  costs[11] += dcost.first;			// update local estimated synchronization cost
-  costs[12] += this->save_comp_time;		// update local computation time
-  costs[13] += this->save_comp_time+dt;		// update local runtime
+  critical_path_costs[4] += this->save_comp_time;	// update critical path path computation time
+  critical_path_costs[5] += this->save_comp_time+dt;	// update critical path path runtime
+  volume_costs[5] += this->save_comp_time;		// update local computation time
+  volume_costs[6] += this->save_comp_time+dt;		// update local runtime
 
-  // Sender sends critical_pathical path data to receiver. Receiver updates its critical_pathical path information.
-  constexpr auto num_costs = 5*list_size+7;
+  critical_path_costs[0] += this->last_nbytes;		// update critical path path bytes communicated
+  critical_path_costs[1] += dt;				// update critical path path communication time (for what this process has seen thus far)
+  critical_path_costs[2] += dcost.second;		// update critical path path estimated communication cost
+  critical_path_costs[3] += dcost.first;		// update critical path path estimated synchronization cost
+
+  volume_costs[0] += this->last_nbytes;			// update local bytes communication
+  volume_costs[1] += dt;				// update local communication time (not volume until after the completion of the program)
+  volume_costs[3] += dcost.second;			// update local estimated communication cost
+  volume_costs[4] += dcost.first;			// update local estimated synchronization cost
+
+  // Sender sends critical path data to receiver. Receiver updates its critical path path information.
   if (is_sender){
-    for (int i=0; i<7; i++){
-      old_cs[i] = costs[i];
-    }
-    for (int i=0; i<list_size; i++){
-      list[i]->get_critical_path_data(&old_cs[5*i+7]);
-    }
-    PMPI_Send(&old_cs[0],num_costs,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm);
+    PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm);
     // Sender needs not wait for handshake with receiver, can continue back into user code
   }
   else{
     MPI_Status st;
-    PMPI_Recv(&new_cs[0],num_costs,MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&st);
-    for (int i=0; i<7; i++){
-      costs[i] = std::max(new_cs[i],costs[i]);
-    }
-    for (int i=0; i<list_size; i++){
-      list[i]->update_critical_path_data(&new_cs[5*i+7]);
-    }
+    PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&st);
+    update_critical_path(&new_cs[0]);
   }
 
   // Prepare to leave interception and re-enter user code
@@ -402,46 +401,41 @@ void tracker::stop_block(bool is_sender){
 // Called by both nonblocking p2p and nonblocking collectives
 void tracker::start_nonblock(MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int nbr_pe, int nbr_pe2){
   
-  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical_pathical-path yet or that will screw up calculation of overlap!
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   volatile double curTime = MPI_Wtime();
   this->save_comp_time = curTime - computation_timer;
-  costs[5] += this->save_comp_time;		// update critical_pathical path computation time
-  costs[6] += this->save_comp_time;		// update critical_pathical path runtime
-  costs[12] += this->save_comp_time;		// update local computation time
-  costs[13] += this->save_comp_time;		// update local runtime
+  critical_path_costs[4] += this->save_comp_time;		// update critical path path computation time
+  critical_path_costs[5] += this->save_comp_time;		// update critical path path runtime
+  volume_costs[5]        += this->save_comp_time;		// update local computation time
+  volume_costs[6]        += this->save_comp_time;		// update local runtime
 
   int el_size,p;
   MPI_Type_size(t, &el_size);
   int64_t nbytes = el_size * nelem;
   MPI_Comm_size(cm, &p);
 
-  // Nonblocking communication to propogate the critical_pathical path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
-  // Unlike blocking protocol, Receiver does not need sender's critical_pathical path information to include the contribution from this current routine
+  // Nonblocking communication to propogate the critical path path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
+  // Unlike blocking protocol, Receiver does not need sender's critical path path information to include the contribution from this current routine
   MPI_Request internal_request;
-  constexpr auto num_costs = 5*list_size+7;
-  double* data = (double*)malloc(sizeof(double)*num_costs);
-  // Save local data instead of immediately adding it to critical_pathical path, because this communication is not technically completed yet,
-  //   and I do not want to corrupt critical_pathical path propogation in future communication that may occur before this nonblocking communication completes.
+  double* data = (double*)malloc(sizeof(double)*critical_path_costs.size());
+  // Save local data instead of immediately adding it to critical path path, because this communication is not technically completed yet,
+  //   and I do not want to corrupt critical path path propogation in future communication that may occur before this nonblocking communication completes.
   if (nbr_pe == -1){
-    for (int i=0; i<7; i++){
-      data[i] = costs[i];
+    for (int i=0; i<critical_path_costs.size(); i++){
+      data[i] = critical_path_costs[i];
     }
-    for (int i=0; i<list_size; i++){
-      list[i]->get_critical_path_data(&data[5*i+7]);
-    }
-    PMPI_Iallreduce(MPI_IN_PLACE,&data[0],num_costs,MPI_DOUBLE,MPI_MAX,cm,&internal_request);
+    MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
+    PMPI_Iallreduce(MPI_IN_PLACE,&data[0],critical_path_costs.size(),MPI_DOUBLE,op,cm,&internal_request);
+    //MPI_Op_free(&op);
   } else{
     if (is_sender){
-      for (int i=0; i<7; i++){
-        data[i] = costs[i];
+      for (int i=0; i<critical_path_costs.size(); i++){
+        data[i] = critical_path_costs[i];
       }
-      for (int i=0; i<list_size; i++){
-        list[i]->get_critical_path_data(&data[5*i+7]);
-      }
-      PMPI_Isend(&data[0],num_costs,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+      PMPI_Isend(&data[0],critical_path_costs.size(),MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
     }
     else{
-      PMPI_Irecv(&data[0],num_costs,MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+      PMPI_Irecv(&data[0],critical_path_costs.size(),MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
     }
   }
   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -461,7 +455,7 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   assert(comm_data_it != internal_comm_data.end());\
   assert(comm_track_it != internal_comm_track.end());\
 
-  // Before accumulating the cost of this communication into our critical_pathical path/volume measures, we
+  // Before accumulating the cost of this communication into our critical path path/volume measures, we
   //   must first finish the internal communication, which doesn't take into account the cost of this communication
   // The computation and communication time of the sender between its MPI_Isend and MPI_Wait cannot be tracked. The receiver
   //   will just use its own. This is technically ok I think, because the receiver isn't waiting on the receiver in any capacity.
@@ -473,36 +467,36 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   double* data = comm_message_it->second;
   MPI_Status st;
   PMPI_Wait(&internal_request,&st);
+  // note: nonblocking collectives must update
   if (!is_sender){
-    for (int i=0; i<7; i++){
-      costs[i] = std::max(data[i],costs[i]);
-    }
-    for (int i=0; i<list_size; i++){
-      list[i]->update_critical_path_data(&data[5*i+7]);
-    }
+    update_critical_path(data);
   }
-  // Both sender and receiver will now update its critical_pathical path with the data from the communication
+  // Both sender and receiver will now update its critical path path with the data from the communication
   std::pair<double,double> dcost = cost_func(nbytes, p);
-  this->my_comm_time += comm_time;
-  this->critical_path_comm_time += comm_time;
-  this->my_bytes+=nbytes;
-  this->critical_path_bytes+=nbytes;
-  this->critical_path_msg += dcost.first;
-  this->my_msg += dcost.first;
-  this->critical_path_wrd += dcost.second;
-  this->my_wrd += dcost.second;
-  costs[0] += nbytes;
-  costs[1] += comm_time;
-  costs[3] += dcost.second;
-  costs[4] += dcost.first;
-  costs[5] += comp_time;
-  costs[6] += comp_time+comm_time;
-  costs[7] += nbytes;
-  costs[8] += comm_time;
-  costs[10] += dcost.second;
-  costs[11] += dcost.first;
-  costs[12] += comp_time;
-  costs[13] += comp_time+comm_time;
+  *this->my_bytes     +=nbytes;
+  *this->my_comm_time += comm_time;
+  *this->my_msg       += dcost.first;
+  *this->my_wrd       += dcost.second;
+  for (size_t i=0; i<num_critical_path_measures; i++){
+    *(this->critical_path_bytes+i)     +=nbytes;
+    *(this->critical_path_comm_time+i) += comm_time;
+    *(this->critical_path_msg+i)       += dcost.first;
+    *(this->critical_path_wrd+i)       += dcost.second;
+  }
+
+  critical_path_costs[0] += nbytes;
+  critical_path_costs[1] += comm_time;
+  critical_path_costs[2] += dcost.second;
+  critical_path_costs[3] += dcost.first;
+  critical_path_costs[4] += comp_time;
+  critical_path_costs[5] += comp_time+comm_time;
+
+  volume_costs[0] += nbytes;
+  volume_costs[1] += comm_time;
+  volume_costs[3] += dcost.second;
+  volume_costs[4] += dcost.first;
+  volume_costs[5] += comp_time;
+  volume_costs[6] += comp_time+comm_time;
 
   internal_comm_info.erase(*request);
   free(comm_message_it->second);
@@ -514,109 +508,35 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   computation_timer = this->last_start_time;
 }
 
-void tracker::get_my_data(double* container){
-  container[0] = this->my_bytes;
-  container[1] = this->my_comm_time;
-  container[2] = this->my_bar_time;
-  container[3] = this->my_msg;
-  container[4] = this->my_wrd;
-}
-
-void tracker::get_critical_path_data(double* container){
-  container[0] = this->critical_path_bytes;
-  container[1] = this->critical_path_comm_time;
-  container[2] = this->critical_path_bar_time;
-  container[3] = this->critical_path_msg;
-  container[4] = this->critical_path_wrd;
-}
-
-void tracker::set_critical_path_data(double* container){
-  this->critical_path_bytes     = container[0];
-  this->critical_path_comm_time = container[1];
-  this->critical_path_bar_time  = container[2];
-  this->critical_path_msg       = container[3];
-  this->critical_path_wrd       = container[4];
-}
-
-void tracker::update_critical_path_data(double* container){
-  this->critical_path_bytes     = std::max(container[0],this->critical_path_bytes);
-  this->critical_path_comm_time = std::max(container[1],this->critical_path_comm_time);
-  this->critical_path_bar_time  = std::max(container[2],this->critical_path_bar_time);
-  this->critical_path_msg       = std::max(container[3],this->critical_path_msg);
-  this->critical_path_wrd       = std::max(container[4],this->critical_path_wrd);
-}
-
-void tracker::get_volume_data(double* container){
-  container[0] = this->volume_bytes;
-  container[1] = this->volume_comm_time;
-  container[2] = this->volume_bar_time;
-  container[3] = this->volume_msg;
-  container[4] = this->volume_wrd;
-}
-
-void tracker::set_volume_data(double* container){
-  this->volume_bytes     = container[0];
-  this->volume_comm_time = container[1];
-  this->volume_bar_time  = container[2];
-  this->volume_msg       = container[3];
-  this->volume_wrd       = container[4];
-}
-
-void tracker::set_costs(){
-  // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if (this->critical_path_bytes != 0.){
-    save_info[this->name] = std::make_tuple(this->critical_path_bytes, this->critical_path_comm_time, this->critical_path_bar_time, this->critical_path_msg, this->critical_path_wrd,
-                                            this->volume_bytes,        this->volume_comm_time,        this->volume_bar_time,        this->volume_msg,        this->volume_wrd);
+void update_critical_path(double* data){
+  bool decisions[num_critical_path_measures];
+  for (int i=0; i<num_critical_path_measures; i++){
+    decisions[i] = data[i] > critical_path_costs[i];
+    critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
   }
-}
-
-std::vector<std::string> parse_file_string(){
-  std::vector<std::string> inputs;
-  auto prev=0;
-  auto First=false;
-  for (auto i=0; i<file_name.size(); i++){
-    if (file_name[i]=='+'){
-      if (First){
-        inputs.emplace_back(file_name.substr(prev,i-prev));
-      }
-      else{
-        First=true;
-      }
-      prev=i+1;
-    }
+  for (int i=num_critical_path_measures; i<critical_path_costs.size(); i++){
+    int idx = (i-num_critical_path_measures)%num_critical_path_measures;
+    critical_path_costs[i] = (decisions[idx] ? data[i] : critical_path_costs[i]);
   }
-  return inputs;
 }
 
 // Only used with synchronous communication protocol
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
   // First exchange the tracked routine critical path data
-  constexpr auto num_costs = 5*list_size+7;
-  for (int i=0; i<7; i++){
-    old_cs[i] = costs[i];
+  if (nbr_pe == -1){
+    MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
+    PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
+    MPI_Op_free(&op);
   }
-  for (int i=0; i<list_size; i++){
-    list[i]->get_critical_path_data(&old_cs[5*i+7]);
-  }
-  if (nbr_pe == -1)
-    PMPI_Allreduce(&old_cs[0], &new_cs[0], num_costs, MPI_DOUBLE, MPI_MAX, cm);
   else {
-    PMPI_Sendrecv(&old_cs[0], num_costs, MPI_DOUBLE, nbr_pe, internal_tag, &new_cs[0], num_costs, MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
-    for (int i=0; i<num_costs; i++){
-      new_cs[i] = std::max(old_cs[i], new_cs[i]);
-    }
+    PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, nbr_pe, internal_tag, &new_cs[0], critical_path_costs.size(),
+      MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
+    update_critical_path(&new_cs[0]);
     if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(&new_cs[0], num_costs, MPI_DOUBLE, nbr_pe2, internal_tag, &old_cs[0], num_costs, MPI_DOUBLE, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<num_costs; i++){
-        new_cs[i] = std::max(old_cs[i], new_cs[i]);
-      }
+      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, nbr_pe2, internal_tag, &new_cs[0], critical_path_costs.size(),
+        MPI_DOUBLE, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
+      update_critical_path(&new_cs[0]);
     }
-  }
-  for (int i=0; i<7; i++){
-    costs[i] = new_cs[i];
-  }
-  for (int i=0; i<list_size; i++){
-    list[i]->set_critical_path_data(&new_cs[5*i+7]);
   }
 /*
   // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
@@ -700,23 +620,52 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 }
 
 // Note: this function should be called once per start/stop, else it will double count
-void compute_volume_path(MPI_Comm cm){
-  constexpr auto num_costs = 5*list_size;
-  int rank; MPI_Comm_rank(cm,&rank);
-  for (int i=0; i<7; i++){
-    old_vp[i] = costs[7+i];
+void compute_volume(MPI_Comm cm){
+  PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
+  PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
+}
+
+void tracker::set_critical_path_costs(size_t idx){
+  // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
+  if (*this->my_bytes != 0.){
+    std::vector<double> vec(num_tracker_critical_path_measures);
+    vec[0] = *(this->critical_path_bytes+idx);
+    vec[1] = *(this->critical_path_comm_time+idx);
+    vec[2] = *(this->critical_path_msg+idx);
+    vec[3] = *(this->critical_path_wrd+idx);
+    save_info[this->name] = std::move(vec);
   }
-  for (int i=0; i<list_size; i++){
-    list[i]->get_my_data(&old_cs[5*i]);
+}
+
+void tracker::set_volume_costs(){
+  // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
+  if (*this->my_bytes != 0.){
+    std::vector<double> vec(5);
+    vec[0] = *this->my_bytes;
+    vec[1] = *this->my_comm_time;
+    vec[2] = *this->my_bar_time;
+    vec[3] = *this->my_msg;
+    vec[4] = *this->my_wrd;
+    save_info[this->name] = std::move(vec);
   }
-  PMPI_Allreduce(&old_cs[0], &new_cs[0], num_costs, MPI_DOUBLE, MPI_SUM, cm);
-  PMPI_Allreduce(&old_vp[0], &new_vp[0], 7, MPI_DOUBLE, MPI_SUM, cm);
-  for (int i=0; i<7; i++){
-    costs[7+i] = new_vp[i];
+}
+
+std::vector<std::string> parse_file_string(){
+  std::vector<std::string> inputs;
+  auto prev=0;
+  auto First=false;
+  for (auto i=0; i<file_name.size(); i++){
+    if (file_name[i]=='+'){
+      if (First){
+        inputs.emplace_back(file_name.substr(prev,i-prev));
+      }
+      else{
+        First=true;
+      }
+      prev=i+1;
+    }
   }
-  for (int i=0; i<list_size; i++){
-    list[i]->set_volume_data(&new_cs[5*i]);
-  }
+  return inputs;
 }
 
 template<typename StreamType>
@@ -735,9 +684,9 @@ void print_header(StreamType& Stream, size_t num_inputs){
     }
     Stream << "Input";
   }
-  Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// critical path
+  Stream << "\tNumBytes\tCommunicationTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// critical path
   Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// volume
-  for (auto i=0;i<10;i++){
+  for (auto i=0;i<num_tracker_critical_path_measures*num_critical_path_measures+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
     }
@@ -749,48 +698,35 @@ void record(std::ofstream& Stream){
   auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
   if (is_world_root){
     auto inputs = parse_file_string();
-    // Save the critter information before printing
-    for (int i=0; i<list_size; i++){
-      list[i]->set_costs();
-    }
     if (is_first_iter){
       print_header(Stream,inputs.size());
       Stream << "\n";
     }
     print_inputs(Stream,np,inputs);
-    Stream << "\t" << costs[0] << "\t" << costs[1] << "\t" << costs[2];
-    Stream << "\t" << costs[3] << "\t" << costs[4] << "\t" << costs[5] << "\t" << costs[6];
-    Stream << "\t" << costs[7] << "\t" << costs[8] << "\t" << costs[9];
-    Stream << "\t" << costs[10] << "\t" << costs[11] << "\t" << costs[12] << "\t" << costs[13];
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<0>(it.second);
+    for (size_t i=0; i<num_critical_path_measures; i++){
+      Stream << "\t" << critical_path_costs[i];
     }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<1>(it.second);
+    for (size_t i=0; i<num_volume_measures; i++){
+      Stream << "\t" << volume_costs[i];
     }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<2>(it.second);
+    for (auto i=0; i<num_critical_path_measures; i++){
+      // Save the critter information before printing
+      for (size_t j=0; j<list_size; j++){
+        list[j]->set_critical_path_costs(i);
+      }
+      for (size_t j=0; j<num_tracker_critical_path_measures; j++){
+        for (auto& it : save_info){
+          Stream << "\t" << it.second[j];
+        }
+      }
     }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<3>(it.second);
+    for (int i=0; i<list_size; i++){
+      list[i]->set_volume_costs();
     }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<4>(it.second);
-    }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<5>(it.second);
-    }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<6>(it.second);
-    }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<7>(it.second);
-    }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<8>(it.second);
-    }
-    for (auto& it : save_info){
-      Stream << "\t" << std::get<9>(it.second);
+    for (size_t j=0; j<num_tracker_volume_measures; j++){
+      for (auto& it : save_info){
+        Stream << "\t" << it.second[j];
+      }
     }
 /*
     for (auto i=0; i<critical_paths.size(); i++){
@@ -806,63 +742,69 @@ void record(std::ofstream& Stream){
 void record(std::ostream& Stream){
   assert(internal_comm_info.size() == 0);
   if (is_world_root){
-    // Save the critter information before printing
+    Stream << "\n\n";
+    Stream << std::left << std::setw(25) << "Critical path:";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "EstCommCost";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "CompTime";
+    Stream << std::left << std::setw(25) << "RunTime";
+    Stream << "\n";
+    Stream << std::left << std::setw(25) << "                  ";
+    for (size_t i=0; i<num_critical_path_measures; i++){
+      Stream << std::left << std::setw(25) << critical_path_costs[i];
+    }
+    Stream << "\n\n";
+
+    Stream << std::left << std::setw(25) << "Volume:";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "IdleTime";
+    Stream << std::left << std::setw(25) << "EstCommCost";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "CompTime";
+    Stream << std::left << std::setw(25) << "RunTime";
+    Stream << "\n";
+    Stream << std::left << std::setw(25) << "                  ";
+    for (size_t i=0; i<num_volume_measures; i++){
+      Stream << std::left << std::setw(25) << volume_costs[i];
+    }
+    Stream << "\n\n";
+
+    for (auto i=0; i<num_critical_path_measures; i++){
+      for (int j=0; j<list_size; j++){
+        list[j]->set_critical_path_costs(i);
+      }
+      if (i==0){
+        Stream << std::left << std::setw(25) << "NumBytes:";
+      } else if (i==1){
+        Stream << std::left << std::setw(25) << "CommTime:";
+      } else if (i==2){
+        Stream << std::left << std::setw(25) << "EstCommCost:";
+      } else if (i==3){
+        Stream << std::left << std::setw(25) << "EstSynchCost:";
+      } else if (i==4){
+        Stream << std::left << std::setw(25) << "CompTime:";
+      } else if (i==5){
+        Stream << std::left << std::setw(25) << "RunTime:";
+      }
+      Stream << std::left << std::setw(25) << "NumBytes";
+      Stream << std::left << std::setw(25) << "CommTime";
+      Stream << std::left << std::setw(25) << "EstSynchCost";
+      Stream << std::left << std::setw(25) << "EstCommCost";
+      for (auto& it : save_info){
+        Stream << "\n";
+        Stream << std::left << std::setw(25) << it.first;
+        for (size_t j=0; j<num_tracker_critical_path_measures; j++){
+          Stream << std::left << std::setw(25) << it.second[j];
+        }
+      }
+      Stream << "\n\n";
+    }
     for (int i=0; i<list_size; i++){
-      list[i]->set_costs();
+      list[i]->set_volume_costs();
     }
-    Stream << "\n\n";
-    Stream << std::left << std::setw(25) << "Critical path:";
-    Stream << std::left << std::setw(25) << "NumBytes";
-    Stream << std::left << std::setw(25) << "CommTime";
-    Stream << std::left << std::setw(25) << "IdleTime";
-    Stream << std::left << std::setw(25) << "EstCommCost";
-    Stream << std::left << std::setw(25) << "EstSynchCost";
-    Stream << std::left << std::setw(25) << "CompTime";
-    Stream << std::left << std::setw(25) << "RunTime";
-    Stream << "\n";
-    Stream << std::left << std::setw(25) << "                  ";
-    Stream << std::left << std::setw(25) << costs[0];
-    Stream << std::left << std::setw(25) << costs[1];
-    Stream << std::left << std::setw(25) << costs[2];
-    Stream << std::left << std::setw(25) << costs[3];
-    Stream << std::left << std::setw(25) << costs[4];
-    Stream << std::left << std::setw(25) << costs[5];
-    Stream << std::left << std::setw(25) << costs[6] << "\n\n";
-
-    Stream << std::left << std::setw(25) << "Volume:";
-    Stream << std::left << std::setw(25) << "NumBytes";
-    Stream << std::left << std::setw(25) << "CommTime";
-    Stream << std::left << std::setw(25) << "IdleTime";
-    Stream << std::left << std::setw(25) << "EstCommCost";
-    Stream << std::left << std::setw(25) << "EstSynchCost";
-    Stream << std::left << std::setw(25) << "CompTime";
-    Stream << std::left << std::setw(25) << "RunTime";
-    Stream << "\n";
-    Stream << std::left << std::setw(25) << "                  ";
-    Stream << std::left << std::setw(25) << costs[7];
-    Stream << std::left << std::setw(25) << costs[8];
-    Stream << std::left << std::setw(25) << costs[9];
-    Stream << std::left << std::setw(25) << costs[10];
-    Stream << std::left << std::setw(25) << costs[11];
-    Stream << std::left << std::setw(25) << costs[12];
-    Stream << std::left << std::setw(25) << costs[13] << "\n\n";
-
-    Stream << std::left << std::setw(25) << "Critical path:";
-    Stream << std::left << std::setw(25) << "NumBytes";
-    Stream << std::left << std::setw(25) << "CommTime";
-    Stream << std::left << std::setw(25) << "IdleTime";
-    Stream << std::left << std::setw(25) << "EstSynchCost";
-    Stream << std::left << std::setw(25) << "EstCommCost";
-    for (auto& it : save_info){
-      Stream << "\n";
-      Stream << std::left << std::setw(25) << it.first;
-      Stream << std::left << std::setw(25) << std::get<0>(it.second);
-      Stream << std::left << std::setw(25) << std::get<1>(it.second);
-      Stream << std::left << std::setw(25) << std::get<2>(it.second);
-      Stream << std::left << std::setw(25) << std::get<3>(it.second);
-      Stream << std::left << std::setw(25) << std::get<4>(it.second);
-    }
-    Stream << "\n\n";
     Stream << std::left << std::setw(25) << "Volume:";
     Stream << std::left << std::setw(25) << "NumBytes";
     Stream << std::left << std::setw(25) << "CommTime";
@@ -872,11 +814,9 @@ void record(std::ostream& Stream){
     for (auto& it : save_info){
       Stream << "\n";
       Stream << std::left << std::setw(25) << it.first;
-      Stream << std::left << std::setw(25) << std::get<5>(it.second);
-      Stream << std::left << std::setw(25) << std::get<6>(it.second);
-      Stream << std::left << std::setw(25) << std::get<7>(it.second);
-      Stream << std::left << std::setw(25) << std::get<8>(it.second);
-      Stream << std::left << std::setw(25) << std::get<9>(it.second);
+      for (size_t j=0; j<num_tracker_volume_measures; j++){
+        Stream << std::left << std::setw(25) << it.second[j];
+      }
     }
     Stream << "\n";
   }
@@ -908,8 +848,11 @@ void start(){
       if (internal::flag) {internal::stream << "\n";} else {std::cout << "\n";}
     }
   }
-  for (auto i=0; i<internal::costs.size(); i++){
-    internal::costs[i]=0.;
+  for (auto i=0; i<internal::critical_path_costs.size(); i++){
+    internal::critical_path_costs[i]=0.;
+  }
+  for (auto i=0; i<internal::volume_costs.size(); i++){
+    internal::volume_costs[i]=0.;
   }
   /*Initiate new timer*/
   internal::computation_timer=MPI_Wtime();
@@ -918,18 +861,22 @@ void start(){
 void stop(){
   auto last_time = MPI_Wtime();
   assert(internal::internal_comm_info.size() == 0);
-  internal::costs[5]+=(last_time-internal::computation_timer);	// update critical path computation time
-  internal::costs[6]+=(last_time-internal::computation_timer);	// update critical path runtime
-  internal::costs[12]+=(last_time-internal::computation_timer);	// update computation time volume
-  internal::costs[13]+=(last_time-internal::computation_timer);	// update runtime volume
+  internal::critical_path_costs[4]+=(last_time-internal::computation_timer);	// update critical path computation time
+  internal::critical_path_costs[5]+=(last_time-internal::computation_timer);	// update critical path runtime
+  internal::volume_costs[5]+=(last_time-internal::computation_timer);	// update computation time volume
+  internal::volume_costs[6]+=(last_time-internal::computation_timer);	// update runtime volume
   internal::propagate_critical_path(MPI_COMM_WORLD,-1,-1);
-  internal::compute_volume_path(MPI_COMM_WORLD);
+  internal::compute_volume(MPI_COMM_WORLD);
   if (internal::flag) {internal::record(internal::stream);} else {internal::record(std::cout);}
   internal::is_first_iter = false;\
   internal::track=false;
   internal::save_info.clear();
-  for (auto i=0; i<internal::costs.size(); i++){
-    internal::costs[i]=0.;
+  for (auto i=0; i<internal::critical_path_costs.size(); i++){
+    internal::critical_path_costs[i]=0.;
+    internal::volume_costs[i]=0.;
+  }
+  for (auto i=0; i<internal::volume_costs.size(); i++){
+    internal::volume_costs[i]=0.;
   }
   internal::need_new_line=false;
 /*
