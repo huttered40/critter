@@ -24,11 +24,12 @@ void start();
 void stop();
 
 // User variables
+// Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
 constexpr size_t critical_path_breakdown_size  = 2;
-constexpr std::bitset<6> critical_path_breakdown(0b100010); // RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
+constexpr std::bitset<6> critical_path_breakdown(0b100010); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
 
-// *******************************************************
+// *****************************************************************************************************************************
 namespace internal{
 
 constexpr auto list_size 				= 32;		// numbers of tracked MPI routines
