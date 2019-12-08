@@ -58,7 +58,7 @@ Critter will never assume a communication protocol more limiting than what is sp
 | MPI_Reduce_Scatter       |   yes       |   yes       |   no            |
 | MPI_Alltoall             |   yes       |   yes       |   no            |
 | MPI_Alltoallv            |   yes       |   yes       |   no            |
-| MPI_Ibcast               |   yes       |   yno      |   no           |
+| MPI_Ibcast               |   yes       |   no      |   no           |
 | MPI_Ireduce              |   yes       |   no      |   no           |
 | MPI_Iallreduce           |   yes       |   no      |   no           |
 | MPI_Igather              |   yes       |   no       |   no            |
