@@ -867,7 +867,7 @@ void stop(){
   internal::volume_costs[6]+=(last_time-internal::computation_timer);	// update runtime volume
   internal::propagate_critical_path(MPI_COMM_WORLD,-1,-1);
   internal::compute_volume(MPI_COMM_WORLD);
-  if (internal::flag) {internal::record(internal::stream);} else {internal::record(std::cout);}
+  if (internal::flag) {internal::record(internal::stream); internal::record(std::cout);} else {internal::record(std::cout);}
   internal::is_first_iter = false;\
   internal::track=false;
   internal::save_info.clear();
