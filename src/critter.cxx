@@ -16,13 +16,14 @@ void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* l
 void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
   double* invec = in;
   double* inoutvec = inout;
-  bool decisions[num_critical_path_measures];
+  bool decisions[critical_path_breakdown_size];
+  size_t breakdown_idx=0;
   for (int i=0; i<num_critical_path_measures; i++){
-    decisions[i] = inoutvec[i] > invec[i];
+    if (critical_path_breakdown[i]) decisions[breakdown_idx++] = inoutvec[i] > invec[i];
     inoutvec[i] = std::max(inoutvec[i],invec[i]);
   }
   for (int i=num_critical_path_measures; i<*len; i++){
-    int idx = (i-num_critical_path_measures)%num_critical_path_measures;
+    int idx = (i-num_critical_path_measures)%critical_path_breakdown_size;
     inoutvec[i] = (decisions[idx] ? inoutvec[i] : invec[i]);
   }
 }
@@ -213,16 +214,16 @@ void tracker::init(){
 
 void tracker::set_cost_pointers(){
   size_t volume_costs_idx        = num_volume_measures+this->tag*num_tracker_volume_measures;
-  size_t critical_path_costs_idx = num_critical_path_measures+this->tag*num_critical_path_measures*num_tracker_critical_path_measures;
+  size_t critical_path_costs_idx = num_critical_path_measures+this->tag*critical_path_breakdown_size*num_tracker_critical_path_measures;
   this->my_bytes                 = &volume_costs[volume_costs_idx];
   this->my_comm_time             = &volume_costs[volume_costs_idx+1];
   this->my_bar_time              = &volume_costs[volume_costs_idx+2];
   this->my_msg                   = &volume_costs[volume_costs_idx+3];
   this->my_wrd                   = &volume_costs[volume_costs_idx+4];
   this->critical_path_bytes      = &critical_path_costs[critical_path_costs_idx];
-  this->critical_path_comm_time  = &critical_path_costs[critical_path_costs_idx+num_critical_path_measures];
-  this->critical_path_msg        = &critical_path_costs[critical_path_costs_idx+num_critical_path_measures*2];
-  this->critical_path_wrd        = &critical_path_costs[critical_path_costs_idx+num_critical_path_measures*3];
+  this->critical_path_comm_time  = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size];
+  this->critical_path_msg        = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*2];
+  this->critical_path_wrd        = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*3];
 }
 
 tracker::tracker(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_){
@@ -294,7 +295,7 @@ void tracker::stop_synch(){
   *this->my_msg       += dcost.first;
   *this->my_wrd       += dcost.second;
   *this->my_bar_time  += this->last_barrier_time;
-  for (size_t i=0; i<num_critical_path_measures; i++){
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
     *(this->critical_path_bytes+i)     += this->last_nbytes;
     *(this->critical_path_comm_time+i) += dt;
     *(this->critical_path_msg+i)       += dcost.first;
@@ -360,7 +361,7 @@ void tracker::stop_block(bool is_sender){
   *this->my_comm_time += dt;
   *this->my_msg       += dcost.first;
   *this->my_wrd       += dcost.second;
-  for (size_t i=0; i<num_critical_path_measures; i++){
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
     *(this->critical_path_bytes+i)     += this->last_nbytes;
     *(this->critical_path_comm_time+i) += dt;
     *(this->critical_path_msg+i)       += dcost.first;
@@ -477,7 +478,7 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   *this->my_comm_time += comm_time;
   *this->my_msg       += dcost.first;
   *this->my_wrd       += dcost.second;
-  for (size_t i=0; i<num_critical_path_measures; i++){
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
     *(this->critical_path_bytes+i)     +=nbytes;
     *(this->critical_path_comm_time+i) += comm_time;
     *(this->critical_path_msg+i)       += dcost.first;
@@ -509,13 +510,14 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
 }
 
 void update_critical_path(double* data){
-  bool decisions[num_critical_path_measures];
+  bool decisions[critical_path_breakdown_size];
+  size_t breakdown_idx=0;
   for (int i=0; i<num_critical_path_measures; i++){
-    decisions[i] = data[i] > critical_path_costs[i];
+    if (critical_path_breakdown[i]) decisions[breakdown_idx++] = data[i] > critical_path_costs[i];
     critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
   }
   for (int i=num_critical_path_measures; i<critical_path_costs.size(); i++){
-    int idx = (i-num_critical_path_measures)%num_critical_path_measures;
+    int idx = (i-num_critical_path_measures)%critical_path_breakdown_size;
     critical_path_costs[i] = (decisions[idx] ? data[i] : critical_path_costs[i]);
   }
 }
@@ -685,7 +687,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
   }
   Stream << "\tNumBytes\tCommunicationTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// critical path
   Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// volume
-  for (auto i=0;i<num_tracker_critical_path_measures*num_critical_path_measures+num_tracker_volume_measures;i++){
+  for (auto i=0; i<num_tracker_critical_path_measures*critical_path_breakdown_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
     }
@@ -708,23 +710,26 @@ void record(std::ofstream& Stream){
     for (size_t i=0; i<num_volume_measures; i++){
       Stream << "\t" << volume_costs[i];
     }
-    for (auto i=0; i<num_critical_path_measures; i++){
-      // Save the critter information before printing
-      for (size_t j=0; j<list_size; j++){
-        list[j]->set_critical_path_costs(i);
-      }
-      for (size_t j=0; j<num_tracker_critical_path_measures; j++){
-        for (auto& it : save_info){
-          Stream << "\t" << it.second[j];
-        }
-      }
-    }
     for (int i=0; i<list_size; i++){
       list[i]->set_volume_costs();
     }
     for (size_t j=0; j<num_tracker_volume_measures; j++){
       for (auto& it : save_info){
         Stream << "\t" << it.second[j];
+      }
+    }
+    size_t breakdown_idx=0;
+    for (auto i=0; i<num_critical_path_measures; i++){
+      if (!critical_path_breakdown[i]) continue;
+      // Save the critter information before printing
+      for (size_t j=0; j<list_size; j++){
+        list[j]->set_critical_path_costs(breakdown_idx);
+      }
+      breakdown_idx++;
+      for (size_t j=0; j<num_tracker_critical_path_measures; j++){
+        for (auto& it : save_info){
+          Stream << "\t" << it.second[j];
+        }
       }
     }
 /*
@@ -771,10 +776,13 @@ void record(std::ostream& Stream){
     }
     Stream << "\n\n";
 
+    size_t breakdown_idx=0;
     for (auto i=0; i<num_critical_path_measures; i++){
+      if (!critical_path_breakdown[i]) continue;
       for (int j=0; j<list_size; j++){
-        list[j]->set_critical_path_costs(i);
+        list[j]->set_critical_path_costs(breakdown_idx);
       }
+      breakdown_idx++;
       if (i==0){
         Stream << std::left << std::setw(25) << "NumBytes:";
       } else if (i==1){

@@ -12,6 +12,7 @@
 #include <functional>
 #include <tuple>
 #include <map>
+#include <bitset>
 #include <cmath>
 #include <assert.h>
 
@@ -22,14 +23,19 @@ void print(size_t num_data, double* data);
 void start();
 void stop();
 
+// User variables
+constexpr size_t critical_path_breakdown_size  = 2;
+constexpr std::bitset<6> critical_path_breakdown(0b100010); // RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
+constexpr int internal_tag                     = 1669220;	// arbitrary
+
+// *******************************************************
 namespace internal{
 
-constexpr auto internal_tag 				= 1669220;	// arbitrary
 constexpr auto list_size 				= 32;		// numbers of tracked MPI routines
-constexpr auto num_critical_path_measures 		= 6;		// NumBytes,CommTime,EstCommCost,EstSynchCost,CompTime,RunTime
-constexpr auto num_volume_measures 			= 7;		// NumBytes,CommTime,IdleTime,EstCommCost,EstSynchCost,CompTime,RunTime
-constexpr auto num_tracker_critical_path_measures 	= 4;		// numbytes, commtime, estcomm, estsynch
-constexpr auto num_tracker_volume_measures 		= 5;		// numbytes, commtime, barriertime, estcomm, estsynch
+constexpr auto num_critical_path_measures 		= 6;		// NumBytes, CommTime, EstCommCost, EstSynchCost, CompTime,     RunTime
+constexpr auto num_volume_measures 			= 7;		// NumBytes, CommTime, IdleTime,    EstCommCost,  EstSynchCost, CompTime,RunTime
+constexpr auto num_tracker_critical_path_measures 	= 4;		// Numbytes, CommTime, EstCommCost, EstSynchCost
+constexpr auto num_tracker_volume_measures 		= 5;		// Numbytes, CommTime, IdleTime,    EstCommCost,  EstSynchCost
 
 void update_critical_path(double* data);
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
@@ -231,7 +237,7 @@ extern std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
 extern std::map<MPI_Request,double*> internal_comm_message;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,tracker*> internal_comm_track;
-constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*num_critical_path_measures*list_size;
+constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*critical_path_breakdown_size*list_size;
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 extern std::array<double,critical_path_costs_size> critical_path_costs;
 extern std::array<double,volume_costs_size> volume_costs;
@@ -243,6 +249,7 @@ extern double new_cs[critical_path_costs_size];
 
 #define MPI_Init(argc, argv)\
   do {\
+     assert(critter::critical_path_breakdown_size == critter::critical_path_breakdown.count());\
      PMPI_Init(argc,argv);\
      critter::internal::track=0;\
      critter::internal::flag = 0;\
@@ -270,6 +277,7 @@ extern double new_cs[critical_path_costs_size];
 
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
+     assert(critical_path_breakdown_size == critical_path_breakdown.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
      critter::internal::track=0;\
      critter::internal::flag = 0;\
@@ -481,7 +489,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)\
   do {\
     if (critter::internal::track){\
-      assert(st == rt); assert(stag != critter::internal::internal_tag); assert(rtag != critter::internal::internal_tag);\
+      assert(st == rt); assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv.start_synch(std::max(scnt,rcnt), st, cm, dest, src);\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv.stop_synch();}\
@@ -493,7 +501,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status)\
     do {\
     if (critter::internal::track){\
-      assert(stag != critter::internal::internal_tag); assert(rtag != critter::internal::internal_tag);\
+      assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv_replace.start_synch(scnt, st, cm, dest, src);\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv_replace.stop_synch();}\
@@ -505,7 +513,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Ssend(buf, nelem, t, dest, tag, cm)\
   do {\
     if (critter::internal::track){\
-      assert(tag != critter::internal::internal_tag);\
+      assert(tag != critter::internal_tag);\
       critter::internal::_MPI_Ssend.start_synch(nelem, t, cm, dest);\
       PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
       critter::internal::_MPI_Ssend.stop_synch();\
@@ -518,7 +526,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
     if (critter::internal::track){\
-      assert(tag != critter::internal::internal_tag);\
+      assert(tag != critter::internal_tag);\
       critter::internal::_MPI_Send.start_block(nelem, t, cm, dest);\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
       critter::internal::_MPI_Send.stop_block(true);\
@@ -531,7 +539,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
   do {\
     if (critter::internal::track){\
-      assert(tag != critter::internal::internal_tag);\
+      assert(tag != critter::internal_tag);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
       critter::internal::_MPI_Isend.start_nonblock(req, nelem, t, cm, true, dest);\
       critter::internal::computation_timer = MPI_Wtime();\
@@ -544,7 +552,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
   do {\
     if (critter::internal::track){\
-      assert(tag != critter::internal::internal_tag);\
+      assert(tag != critter::internal_tag);\
       critter::internal::_MPI_Recv.start_block(nelem, t, cm, src);\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
       critter::internal::_MPI_Recv.stop_block(false);\
@@ -557,7 +565,7 @@ extern double new_cs[critical_path_costs_size];
 #define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
   do {\
     if (critter::internal::track){\
-      assert(tag != critter::internal::internal_tag);\
+      assert(tag != critter::internal_tag);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
       critter::internal::_MPI_Irecv.start_nonblock(req, nelem, t, cm, false, src);\
       critter::internal::computation_timer = MPI_Wtime();\
