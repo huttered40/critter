@@ -3,7 +3,7 @@
 namespace critter{
 namespace internal{
 
-void add_critical_path_data(int_int_double* in, int_int_double* inout, int* len, MPI_Datatype* dtype){
+void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* len, MPI_Datatype* dtype){
   int_int_double* invec = in;
   int_int_double* inoutvec = inout;
   for (int i=0; i<*len; i++){
@@ -622,7 +622,6 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 // Note: this function should be called once per start/stop, else it will double count
 void compute_volume(MPI_Comm cm){
   PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
-  PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
 }
 
 void tracker::set_critical_path_costs(size_t idx){
@@ -873,7 +872,6 @@ void stop(){
   internal::save_info.clear();
   for (auto i=0; i<internal::critical_path_costs.size(); i++){
     internal::critical_path_costs[i]=0.;
-    internal::volume_costs[i]=0.;
   }
   for (auto i=0; i<internal::volume_costs.size(); i++){
     internal::volume_costs[i]=0.;
