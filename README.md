@@ -18,7 +18,7 @@ See the lists below for an accurate depiction of our current support.
 ## Build and use instructions
 `configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library file `./lib/libcritter.a`. Include `critter.h` in all files that use MPI in your application, remove all `include mpi.h`, and link to `./lib/libcritter.a`.
 
-`critter` provides three routines to the user: `critter::start()`, `critter::stop()`, and `critter::print(int size, double* data)`. The first two create the window within which all MPI routines are intercepted and tracked. The latter is optional and is provided to allow the user to include diagnostic data for the test, including information such as residual or raw performance.
+`critter` provides two routines to the user: `critter::start()` and `critter::stop()`. These create the window within which all MPI routines are intercepted and tracked.
 
 `critter` provies three variables to the user inside the `critter` namespace in `src/critter.h`. Along with a tag `critter::internal_tag` to prevent critter's internal MPI communication from conflicting with user communication, `critter_breakdown` specifies which, if any, critical path measurement is broken down into contributions from individual MPI routines. Note that this extra information comes at a cost of increased internal data transfer necessary to propogate critical path information. `critter::critter_breakdown_size` must match `critter::critter_breakdown.count()`.
 

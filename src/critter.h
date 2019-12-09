@@ -19,7 +19,6 @@
 namespace critter{
 
 // User functions
-void print(size_t num_data, double* data);
 void start();
 void stop();
 

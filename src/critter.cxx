@@ -852,20 +852,6 @@ void record(std::ostream& Stream){
 }
 };
 
-void print(size_t num_data, double* data){
-  assert(internal::internal_comm_info.size() == 0);
-  if (internal::need_new_line){
-    if (internal::flag) {internal::stream << "\n";} else {std::cout << "\n";}
-    internal::need_new_line=false;
-  }
-  if (internal::is_world_root){
-    for (auto i=0; i<num_data; i++){
-      if (internal::flag) {internal::stream << "\t" << data[i];} else {std::cout << "\t" << data[i];}
-    }
-  }
-  internal::need_new_line=true;
-}
-
 void start(){
   assert(internal::internal_comm_info.size() == 0);
   internal::track=true;
@@ -907,10 +893,5 @@ void stop(){
     internal::volume_costs[i]=0.;
   }
   internal::need_new_line=false;
-/*
-  for (auto i=0; i<internal::critical_paths.size(); i++){
-    internal::critical_paths[i].clear();
-  }
-*/
 }
 };
