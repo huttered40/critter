@@ -17,7 +17,6 @@ class bench(object):
 		 fileID,\
 		 roundID,\
 		 NumLaunchesPerBinary,\
-		 numTests,\
 		 numHours,\
 		 numMinutes,\
 		 numSeconds,\
@@ -63,9 +62,6 @@ class bench(object):
         NumLaunchesPerBinary - set to '1' unless performing testing to enhance performance reproducibility (by launching same jobs multiple times)
                              - different from 'roundID' because the former did not launch at the same time, but waited via a separate launch of bench.sh
 
-        numTests - number of scaling studies
-                 - for example, weak scaling and strong scaling, even across the same variants, constitute separate tests
-
         numHours,numMinutes,numSeconds - time for job
                                        - must be specified as two-digit strings
 
@@ -101,6 +97,7 @@ class bench(object):
                       - outer list must be of length 'numTests'
                       - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
         """
+        assert(len(CritterBreakdownInfo)==6)
         self.CritterPath = CritterPath
         self.MachineType = MachineType
         self.CritterBreakdownInfo = CritterBreakdownInfo
@@ -116,7 +113,7 @@ class bench(object):
         self.fileID = fileID
         self.roundID = roundID
         self.NumLaunchesPerBinary = NumLaunchesPerBinary
-        self.numTests = numTests
+        self.numTests = len(TestList)
         self.numHours = numHours
         self.numMinutes = numMinutes
         self.numSeconds = numSeconds
@@ -213,10 +210,10 @@ class bench(object):
             # Make sure we are in a suitable range
 	    numPEsPerNode=curPPN*curTPR
             if (self.minPEcountPerNode <= numPEsPerNode) and (self.maxPEcountPerNode >= numPEsPerNode):
-                if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
+                if (self.TestList[TestIndex][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
 		    totalScaleCount+=1
             curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
-            self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
+            self.TestList[TestIndex][AlgIndex].scale(AlgParameterList,scaleIndex)
             scaleIndex+=1
         return totalScaleCount
 
@@ -242,7 +239,7 @@ class bench(object):
         if (launchID == 1):
             File.write("0\n")
             File.write("%s\n"%(AlgTag))
-            File.write("%d\n"%(4+len(self.TestList[TestID][0][AlgID].InputParameterStartRange)+2))	# '+5' numPEs,testID,launchID,ppn,tpr,(node?)
+            File.write("%d\n"%(4+len(self.TestList[TestID][AlgID].InputParameterStartRange)+2))	# '+5' numPEs,testID,launchID,ppn,tpr,(node?)
             File.write("%s+critter.txt\n"%(PreFile))
             File.write("%s+critter.txt\n"%(PostFile))
 
@@ -321,9 +318,9 @@ class bench(object):
         """
 	"""
         # Set up the file string that will store the local benchmarking results
-        BaseString1="%s+%d"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+        BaseString1="%s+%d"%(self.TestList[TestID][AlgID].Tag,TestID)\
                   +"".join("+"+self.stringify(x) for x in AlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
-        BaseString2="%s+%d"%(self.TestList[TestID][0][AlgID].Tag,TestID)\
+        BaseString2="%s+%d"%(self.TestList[TestID][AlgID].Tag,TestID)\
                   +"".join("+"+self.stringify(x) for x in self.SaveAlgParameters) + "+%d+%d+%d"%(launchID,ppn,tpr)
         PostFile=BaseString2
         # 'PreFile' requires NumNodes specification because in the 'Pre' stage, we want to keep the data for different node counts separate.
@@ -335,9 +332,9 @@ class bench(object):
         if (IsFirstNode):
             self.SavePostFile = PostFile
             # look at position of the UpdatePlotFile* files WriteMethodDataForPlotting 0 ${UpdatePlotFile1} ${UpdatePlotFile2} ${tag1} ${PostFile} ${cubeDim} ${ppn} ${tpr}
-            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+            self.WriteAlgInfoForCollecting(launchID,self.PlotInstructionsFile,TestID,AlgID,self.TestList[TestID][AlgID].Tag,PreFile,PostFile)
             self.WriteAlgInfoForPlotting(self.SaveAlgParameters,launchID,ppn,tpr)	# Note that NumNodes is not included
-        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][0][AlgID].Tag,PreFile,PostFile)
+        self.WriteAlgInfoForCollecting(launchID,self.CollectInstructionsFile,TestID,AlgID,self.TestList[TestID][AlgID].Tag,PreFile,PostFile)
         self.launchJobs(BinaryPath,launchID,TestID,AlgID,node,ppn,tpr,AlgParameters,PrePath+"/%s"%(fileString))
 
 
@@ -376,7 +373,7 @@ class bench(object):
                                     # Save special variables if at 1st node count
                                     if (scaleIndex == 0):
                                         self.SaveAlgParameters = list(AlgParameterList)
-                                    if (self.TestList[TestIndex][0][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
+                                    if (self.TestList[TestIndex][AlgIndex].SpecialFunc(AlgParameterList,[curNumNodes,curPPN,curTPR])):
                                         TupleKey=(LaunchIndex,curNumNodes,curPPN,curTPR)
 				        if not(TupleKey in self.PortalDict):
                                             scriptName="%s/%s/script_%s_round%s_launch%s_node%s_ppn%s_tpr%s.%s"%(os.environ["SCRATCH"],self.testName,self.fileID,self.roundID,LaunchIndex,curNumNodes,curPPN,curTPR,self.MachineType.BatchFileExtension)
@@ -397,7 +394,7 @@ class bench(object):
                                     else:
                                         print("Variant with wrong params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
 		            if (op == 2):
-                                self.TestList[TestIndex][0][AlgIndex].scale(AlgParameterList,scaleIndex)
+                                self.TestList[TestIndex][AlgIndex].scale(AlgParameterList,scaleIndex)
                             scaleIndex=scaleIndex+1
                             curNumNodes=self.nodeScaleOperatorList[TestIndex](curNumNodes,self.nodeScaleFactorList[TestIndex])
 		        if (op == 2):
@@ -411,15 +408,15 @@ class bench(object):
         """
         """
         call("mv %s/tests/%s/bin/* %s/%s/bin"%(self.CritterPath,self.testName,os.environ["SCRATCH"],self.testName),shell=True)
-        self.portal(0,0,self.numTests)
+        self.portal(0,0,1)
 
     def cycle(self,TestIndex,AlgIndex,VariantIndex,ParameterIndex,AlgParameterList,ValidNodeList,ValidProcessList):
         """
 	"""
         # base case at the last level -- this is when we are sure a valid parameter combination exists
-	if (ParameterIndex == self.TestList[TestIndex][0][AlgIndex].NumParameters):
+	if (ParameterIndex == self.TestList[TestIndex][AlgIndex].NumParameters):
             # Echo for SCAPLOT makefile generator
-            BinaryTag=self.TestList[TestIndex][0][AlgIndex].Tag
+            BinaryTag=self.TestList[TestIndex][AlgIndex].Tag
 
             BinaryPath="%s/%s"%(os.environ["BINARYPATH"],BinaryTag)
             print("\n    Variant %d"%(VariantIndex))
@@ -428,12 +425,12 @@ class bench(object):
 
         IsValid=1
 	while (IsValid):
-	    if (AlgParameterList[ParameterIndex] == self.TestList[TestIndex][0][AlgIndex].InputParameterEndRange[ParameterIndex]):
+	    if (AlgParameterList[ParameterIndex] == self.TestList[TestIndex][AlgIndex].InputParameterEndRange[ParameterIndex]):
 	        IsValid=0
             VariantIndex = self.cycle(TestIndex,AlgIndex,VariantIndex,ParameterIndex+1,list(AlgParameterList),ValidNodeList,ValidProcessList)
             if (IsValid):
-	        AlgParameterList[ParameterIndex] = self.TestList[TestIndex][0][AlgIndex].InputParameterScaleOperator[ParameterIndex](\
-                    AlgParameterList[ParameterIndex],self.TestList[TestIndex][0][AlgIndex].InputParameterScaleFactor[ParameterIndex])
+	        AlgParameterList[ParameterIndex] = self.TestList[TestIndex][AlgIndex].InputParameterScaleOperator[ParameterIndex](\
+                    AlgParameterList[ParameterIndex],self.TestList[TestIndex][AlgIndex].InputParameterScaleFactor[ParameterIndex])
 	    else:
 	        return VariantIndex
 
@@ -446,22 +443,18 @@ class bench(object):
         self.PlotInstructionsFile.write(str(self.MachineType.PeakNodePerformance)+"\n")
         self.PlotInstructionsFile.write(str(self.MachineType.PeakNetworkInjectionRate)+"\n")
 
+        self.PortalDict = {}
         for TestIndex in range(0,self.numTests):
             print("\nTest %d"%(TestIndex))
-
-            self.PlotInstructionsFile.write("%s\n"%(self.TestList[TestIndex][1]))
-            self.PlotInstructionsFile.write("%d\n"%(len(self.TestList[TestIndex][2])))
-            for ColumnHeader in self.TestList[TestIndex][2]:
-                self.PlotInstructionsFile.write("%s\n"%(ColumnHeader))
 
             # These two lists below will have length equal to the number of valid algorithm variants
             ValidNodeList=[]
             ValidProcessList=[]
-            self.PortalDict = {}
-            for AlgIndex in range(len(self.TestList[TestIndex][0])):
-                print("\n  Algorithm %s"%(self.TestList[TestIndex][0][AlgIndex].Tag))
+            #self.PortalDict = {}
+            for AlgIndex in range(len(self.TestList[TestIndex])):
+                print("\n  Algorithm %s"%(self.TestList[TestIndex][AlgIndex].Tag))
                 VariantIndex=0
-		AlgParameterList=list(self.TestList[TestIndex][0][AlgIndex].InputParameterStartRange)
+		AlgParameterList=list(self.TestList[TestIndex][AlgIndex].InputParameterStartRange)
 		self.cycle(TestIndex,AlgIndex,VariantIndex,0,AlgParameterList,ValidNodeList,ValidProcessList)
 
             # Signify end of test info
