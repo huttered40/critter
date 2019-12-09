@@ -12,6 +12,7 @@ class bench(object):
     def __init__(self,\
                  CritterPath,\
 		 MachineType,\
+		 CritterBreakdownInfo,\
 		 CritterVizInfo,\
 		 fileID,\
 		 roundID,\
@@ -42,6 +43,8 @@ class bench(object):
                     - specified as a string
 
         MachineType - machine type specified in ../experiments/machines/
+
+        CritterBreakdownInfo - string that matches the critical_path_breakdown bitset global variable in src/critter.h
 
         CritterVizInfo - list that gives info as how to how use scaplot visualization tool to plot and predict data
                        - [0] - Use CritterViz (generate micro benchmarks)(2), Output to file(1), or output to standard output(0)
@@ -100,6 +103,7 @@ class bench(object):
         """
         self.CritterPath = CritterPath
         self.MachineType = MachineType
+        self.CritterBreakdownInfo = CritterBreakdownInfo
         self.UseCritterViz = CritterVizInfo[0]
         if (self.UseCritterViz>0):
             self.MinMessageSize = CritterVizInfo[1]
@@ -224,6 +228,7 @@ class bench(object):
         File.write("%s\n"%(self.testNameAllRounds))
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
+        File.write("%s\n"%(self.CritterBreakdownInfo))
 
     def WriteAlgInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
         if (launchID==1):
