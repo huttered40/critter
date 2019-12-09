@@ -25,8 +25,8 @@ void stop();
 
 // User variables
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
-constexpr size_t critical_path_breakdown_size  = 2;
-constexpr std::bitset<6> critical_path_breakdown(0b100010); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
+constexpr size_t critical_path_breakdown_size  = 0;
+constexpr std::bitset<6> critical_path_breakdown(0b000000); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
 
 // *****************************************************************************************************************************
@@ -244,7 +244,7 @@ extern std::array<double,critical_path_costs_size> critical_path_costs;
 extern std::array<double,volume_costs_size> volume_costs;
 extern std::map<std::string,std::vector<double>> save_info;
 extern double new_cs[critical_path_costs_size];
-
+extern double scratch_pad;
 }
 }
 

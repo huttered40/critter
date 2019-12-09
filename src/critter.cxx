@@ -16,15 +16,22 @@ void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* l
 void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
   double* invec = in;
   double* inoutvec = inout;
-  bool decisions[critical_path_breakdown_size];
-  size_t breakdown_idx=0;
-  for (int i=0; i<num_critical_path_measures; i++){
-    if (critical_path_breakdown[i]) decisions[breakdown_idx++] = inoutvec[i] > invec[i];
-    inoutvec[i] = std::max(inoutvec[i],invec[i]);
-  }
-  for (int i=num_critical_path_measures; i<*len; i++){
-    int idx = (i-num_critical_path_measures)%critical_path_breakdown_size;
-    inoutvec[i] = (decisions[idx] ? inoutvec[i] : invec[i]);
+  if (critical_path_breakdown_size > 0){
+    bool decisions[critical_path_breakdown_size];
+    size_t breakdown_idx=0;
+    size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
+    for (int i=0; i<num_critical_path_measures; i++){
+      if (critical_path_breakdown[i]) decisions[breakdown_idx++] = inoutvec[i] > invec[i];
+      inoutvec[i] = std::max(inoutvec[i],invec[i]);
+    }
+    for (int i=num_critical_path_measures; i<*len; i++){
+      int idx = (i-num_critical_path_measures)%breakdown_size;
+      inoutvec[i] = (decisions[idx] ? inoutvec[i] : invec[i]);
+    }
+  } else{
+    for (int i=0; i<num_critical_path_measures; i++){
+      inoutvec[i] = std::max(inoutvec[i],invec[i]);
+    }
   }
 }
 
@@ -205,6 +212,7 @@ std::array<double,critical_path_costs_size> critical_path_costs;
 std::array<double,volume_costs_size> volume_costs;
 std::map<std::string,std::vector<double>> save_info;
 double new_cs[critical_path_costs_size];
+double scratch_pad;
 
 
 void tracker::init(){
@@ -214,16 +222,23 @@ void tracker::init(){
 
 void tracker::set_cost_pointers(){
   size_t volume_costs_idx        = num_volume_measures+this->tag*num_tracker_volume_measures;
-  size_t critical_path_costs_idx = num_critical_path_measures+this->tag*critical_path_breakdown_size*num_tracker_critical_path_measures;
   this->my_bytes                 = &volume_costs[volume_costs_idx];
   this->my_comm_time             = &volume_costs[volume_costs_idx+1];
   this->my_bar_time              = &volume_costs[volume_costs_idx+2];
   this->my_msg                   = &volume_costs[volume_costs_idx+3];
   this->my_wrd                   = &volume_costs[volume_costs_idx+4];
-  this->critical_path_bytes      = &critical_path_costs[critical_path_costs_idx];
-  this->critical_path_comm_time  = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size];
-  this->critical_path_msg        = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*2];
-  this->critical_path_wrd        = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*3];
+  if (this->tag*critical_path_breakdown_size>0){
+    size_t critical_path_costs_idx = num_critical_path_measures+this->tag*critical_path_breakdown_size*num_tracker_critical_path_measures;
+    this->critical_path_bytes      = &critical_path_costs[critical_path_costs_idx];
+    this->critical_path_comm_time  = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size];
+    this->critical_path_msg        = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*2];
+    this->critical_path_wrd        = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*3];
+  } else{
+    this->critical_path_bytes      = &scratch_pad;
+    this->critical_path_comm_time  = &scratch_pad;
+    this->critical_path_msg        = &scratch_pad;
+    this->critical_path_wrd        = &scratch_pad;
+  }
 }
 
 tracker::tracker(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_){
@@ -510,15 +525,22 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
 }
 
 void update_critical_path(double* data){
-  bool decisions[critical_path_breakdown_size];
-  size_t breakdown_idx=0;
-  for (int i=0; i<num_critical_path_measures; i++){
-    if (critical_path_breakdown[i]) decisions[breakdown_idx++] = data[i] > critical_path_costs[i];
-    critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
-  }
-  for (int i=num_critical_path_measures; i<critical_path_costs.size(); i++){
-    int idx = (i-num_critical_path_measures)%critical_path_breakdown_size;
-    critical_path_costs[i] = (decisions[idx] ? data[i] : critical_path_costs[i]);
+  if (critical_path_breakdown_size>0){
+    bool decisions[critical_path_breakdown_size];
+    size_t breakdown_idx=0;
+    size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
+    for (int i=0; i<num_critical_path_measures; i++){
+      if (critical_path_breakdown[i]) decisions[breakdown_idx++] = data[i] > critical_path_costs[i];
+      critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
+    }
+    for (int i=num_critical_path_measures; i<critical_path_costs.size(); i++){
+      int idx = (i-num_critical_path_measures)%breakdown_size;
+      critical_path_costs[i] = (decisions[idx] ? data[i] : critical_path_costs[i]);
+    }
+  } else{
+    for (int i=0; i<num_critical_path_measures; i++){
+      critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
+    }
   }
 }
 
@@ -628,7 +650,7 @@ void compute_volume(MPI_Comm cm){
 
 void tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if (*this->my_bytes != 0.){
+  if ((*this->my_bytes != 0.) && (critical_path_breakdown_size>0)){
     std::vector<double> vec(num_tracker_critical_path_measures);
     vec[0] = *(this->critical_path_bytes+idx);
     vec[1] = *(this->critical_path_comm_time+idx);
