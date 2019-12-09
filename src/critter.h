@@ -278,7 +278,7 @@ extern double new_cs[critical_path_costs_size];
 
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
-     assert(critical_path_breakdown_size == critical_path_breakdown.count());\
+     assert(critter::critical_path_breakdown_size == critter::critical_path_breakdown.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
      critter::internal::track=0;\
      critter::internal::flag = 0;\
