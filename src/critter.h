@@ -578,7 +578,7 @@ extern double scratch_pad;
 #define MPI_Ibcast(buf, nelem, t, root, cm, req)\
   do {\
     if (critter::internal::track){\
-      PMPI_Ibcast(buf, nelem, t, root, cm);\
+      PMPI_Ibcast(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Ibcast.start_nonblock(req, nelem, t, cm);\
       critter::internal::computation_timer = MPI_Wtime();\
     }\
@@ -593,6 +593,7 @@ extern double scratch_pad;
       PMPI_Iallreduce(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Iallreduce.start_nonblock(req, nelem, t, cm);\
       critter::internal::computation_timer = MPI_Wtime();\
+    }\
     else{\
       PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
     }\
@@ -604,6 +605,7 @@ extern double scratch_pad;
       PMPI_Ireduce(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Iallreduce.start_nonblock(req, nelem, t, cm);\
       critter::internal::computation_timer = MPI_Wtime();\
+    }\
     else{\
       PMPI_Ireduce(sbuf, rbuf, nelem, t, op, root, cm, req);\
     }\
@@ -617,6 +619,7 @@ extern double scratch_pad;
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
       PMPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
       critter::internal::_MPI_Igather.start_nonblock(req, recvBufferSize, st, cm);\
+    }\
     else{\
       PMPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
     }\
@@ -631,6 +634,7 @@ extern double scratch_pad;
       if (r == root) for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; }\
       PMPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req);\
       critter::internal::_MPI_Igatherv.start_nonblock(req, std::max((int64_t)scount,tot_recv), st, cm);\
+    }\
     else{\
       PMPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req);\
     }\
@@ -644,6 +648,7 @@ extern double scratch_pad;
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
       PMPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
       critter::internal::_MPI_Iallgather.start_nonblock(req, recvBufferSize, st, cm);\
+    }\
     else{\
       PMPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
     }\
@@ -658,6 +663,7 @@ extern double scratch_pad;
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
       PMPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req);\
       critter::internal::_MPI_Iallgatherv.start_nonblock(req, std::max((int64_t)scount,tot_recv), st, cm);\
+    }\
     else{\
       PMPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req);\
     }\
@@ -669,6 +675,7 @@ extern double scratch_pad;
       assert(rt==st);\
       PMPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
       critter::internal::_MPI_Iscatter.start_nonblock(req, std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    }\
     else{\
       PMPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
     }\
@@ -683,6 +690,7 @@ extern double scratch_pad;
       if (r == root) for (int i=0; i<p; i++){ tot_send += ((int*)scounts)[i]; } \
       PMPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req);\
       critter::internal::_MPI_Iscatterv.start_nonblock(req, std::max(tot_send,(int64_t)rcount), st, cm);\
+    }\
     else{\
       PMPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req);\
     }\
@@ -696,6 +704,7 @@ extern double scratch_pad;
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
       PMPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req);\
       critter::internal::_MPI_Ireduce_scatter.start_nonblock(req, tot_recv, t, cm);\
+    }\
     else{\
       PMPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req);\
     }\
@@ -707,6 +716,7 @@ extern double scratch_pad;
       assert(rt==st);\
       PMPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
       critter::internal::_MPI_Ialltoall.start_nonblock(req, std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+    }\
     else{\
       PMPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
     }\
@@ -721,6 +731,7 @@ extern double scratch_pad;
       for (int i=0; i<p; i++){ tot_send += scounts[i]; tot_recv += rcounts[i]; }\
       PMPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req);\
       critter::internal::_MPI_Ialltoallv.start_nonblock(req, std::max(tot_send,tot_recv), st, cm);\
+    }\
     else{\
       PMPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req);\
     }\

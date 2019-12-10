@@ -462,14 +462,14 @@ void tracker::start_nonblock(MPI_Request* request, int64_t nelem, MPI_Datatype t
 }
 
 void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_time){
-  auto comm_info_it = internal_comm_info.find(*request);\
-  auto comm_message_it = internal_comm_message.find(*request);\
-  auto comm_data_it = internal_comm_data.find(*request);\
-  auto comm_track_it = internal_comm_track.find(*request);\
-  assert(comm_info_it != internal_comm_info.end());\
-  assert(comm_message_it != internal_comm_message.end());\
-  assert(comm_data_it != internal_comm_data.end());\
-  assert(comm_track_it != internal_comm_track.end());\
+  auto comm_info_it = internal_comm_info.find(*request);
+  auto comm_message_it = internal_comm_message.find(*request);
+  auto comm_data_it = internal_comm_data.find(*request);
+  auto comm_track_it = internal_comm_track.find(*request);
+  assert(comm_info_it != internal_comm_info.end());
+  assert(comm_message_it != internal_comm_message.end());
+  assert(comm_data_it != internal_comm_data.end());
+  assert(comm_track_it != internal_comm_track.end());
 
   // Before accumulating the cost of this communication into our critical path path/volume measures, we
   //   must first finish the internal communication, which doesn't take into account the cost of this communication
@@ -883,7 +883,7 @@ void stop(){
   internal::propagate_critical_path(MPI_COMM_WORLD,-1,-1);
   internal::compute_volume(MPI_COMM_WORLD);
   if (internal::flag) {internal::record(internal::stream); internal::record(std::cout);} else {internal::record(std::cout);}
-  internal::is_first_iter = false;\
+  internal::is_first_iter = false;
   internal::track=false;
   internal::save_info.clear();
   for (auto i=0; i<internal::critical_path_costs.size(); i++){
