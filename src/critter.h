@@ -27,6 +27,7 @@ void stop();
 constexpr size_t critical_path_breakdown_size  = 0;
 constexpr std::bitset<6> critical_path_breakdown(0b000000); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
+constexpr bool p2p_blocking_comm_protocol      = false;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 
 // *****************************************************************************************************************************
 namespace internal{
@@ -528,9 +529,11 @@ extern double scratch_pad;
   do {\
     if (critter::internal::track){\
       assert(tag != critter::internal_tag);\
-      critter::internal::_MPI_Send.start_block(nelem, t, cm, dest);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.start_block(nelem, t, cm, dest);}\
+      else {critter::internal::_MPI_Send.start_synch(nelem, t, cm, dest); }\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
-      critter::internal::_MPI_Send.stop_block(true);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.stop_block(true);}\
+      else {critter::internal::_MPI_Send.stop_synch(); }\
     }\
     else{\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
@@ -554,9 +557,11 @@ extern double scratch_pad;
   do {\
     if (critter::internal::track){\
       assert(tag != critter::internal_tag);\
-      critter::internal::_MPI_Recv.start_block(nelem, t, cm, src);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block(nelem, t, cm, src);}\
+      else {critter::internal::_MPI_Recv.start_synch(nelem, t, cm, src); }\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
-      critter::internal::_MPI_Recv.stop_block(false);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.stop_block(false);}\
+      else {critter::internal::_MPI_Recv.stop_synch(); }\
     }\
     else{\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
