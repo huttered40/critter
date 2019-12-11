@@ -210,6 +210,7 @@ std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 std::map<MPI_Request,tracker*> internal_comm_track;
 std::array<double,critical_path_costs_size> critical_path_costs;
 std::array<double,volume_costs_size> volume_costs;
+std::array<double,num_critical_path_measures> max_per_process_costs;
 std::map<std::string,std::vector<double>> save_info;
 double new_cs[critical_path_costs_size];
 double scratch_pad;
@@ -645,6 +646,13 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 
 // Note: this function should be called once per start/stop, else it will double count
 void compute_volume(MPI_Comm cm){
+  size_t j=0;
+  for (size_t i=0; i<num_volume_measures; i++){
+    if (i!=2){// skip idle time
+      max_per_process_costs[j++] = volume_costs[i];
+    }
+  }
+  PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], max_per_process_costs.size(), MPI_DOUBLE, MPI_MAX, cm);
   PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
 }
 
@@ -729,6 +737,9 @@ void record(std::ofstream& Stream){
     for (size_t i=0; i<num_critical_path_measures; i++){
       Stream << "\t" << critical_path_costs[i];
     }
+    for (size_t i=0; i<max_per_process_costs.size(); i++){
+      Stream << "\t" << max_per_process_costs[i];
+    }
     for (size_t i=0; i<num_volume_measures; i++){
       Stream << "\t" << volume_costs[i];
     }
@@ -780,6 +791,20 @@ void record(std::ostream& Stream){
     Stream << std::left << std::setw(25) << "                  ";
     for (size_t i=0; i<num_critical_path_measures; i++){
       Stream << std::left << std::setw(25) << critical_path_costs[i];
+    }
+    Stream << "\n\n";
+
+    Stream << std::left << std::setw(25) << "Per-process max:";
+    Stream << std::left << std::setw(25) << "NumBytes";
+    Stream << std::left << std::setw(25) << "CommTime";
+    Stream << std::left << std::setw(25) << "EstCommCost";
+    Stream << std::left << std::setw(25) << "EstSynchCost";
+    Stream << std::left << std::setw(25) << "CompTime";
+    Stream << std::left << std::setw(25) << "RunTime";
+    Stream << "\n";
+    Stream << std::left << std::setw(25) << "                  ";
+    for (size_t i=0; i<max_per_process_costs.size(); i++){
+      Stream << std::left << std::setw(25) << max_per_process_costs[i];
     }
     Stream << "\n\n";
 

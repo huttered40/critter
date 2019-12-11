@@ -241,6 +241,7 @@ constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 extern std::array<double,critical_path_costs_size> critical_path_costs;
 extern std::array<double,volume_costs_size> volume_costs;
+extern std::array<double,num_critical_path_measures> max_per_process_costs;
 extern std::map<std::string,std::vector<double>> save_info;
 extern double new_cs[critical_path_costs_size];
 extern double scratch_pad;
