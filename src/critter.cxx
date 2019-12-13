@@ -329,6 +329,7 @@ void tracker::stop_synch(){
   volume_costs[2] += this->last_barrier_time;		// update local barrier/idle time
   volume_costs[3] += dcost.second;			// update local estimated communication cost
   volume_costs[4] += dcost.first;			// update local estimated synchronization cost
+  volume_costs[6] += this->last_barrier_time;		// update local runtime with idle time
   volume_costs[6] += dt;				// update local runtime
 
 /*
@@ -716,6 +717,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
     Stream << "Input";
   }
   Stream << "\tNumBytes\tCommunicationTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// critical path
+  Stream << "\tNumBytes\tCommunicationTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// per-process
   Stream << "\tNumBytes\tCommunicationTime\tIdleTime\tEstimatedCommCost\tEstimatedSynchCost\tComputationTime\tRunTime";// volume
   for (auto i=0; i<num_tracker_critical_path_measures*critical_path_breakdown_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
