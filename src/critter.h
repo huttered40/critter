@@ -8,6 +8,7 @@
 #include <utility>
 #include "iomanip"
 #include <vector>
+#include <array>
 #include <stdint.h>
 #include <functional>
 #include <tuple>
@@ -27,7 +28,7 @@ void stop();
 constexpr size_t critical_path_breakdown_size  = 0;
 constexpr std::bitset<6> critical_path_breakdown(0b000000); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
-constexpr bool p2p_blocking_comm_protocol      = false;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
+constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 
 // *****************************************************************************************************************************
 namespace internal{
