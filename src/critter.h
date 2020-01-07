@@ -597,7 +597,7 @@ extern double scratch_pad;
 #define MPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req)\
   do {\
     if (critter::internal::track){\
-      PMPI_Iallreduce(buf, nelem, t, root, cm, req);\
+      PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
       critter::internal::_MPI_Iallreduce.start_nonblock(req, nelem, t, cm);\
       critter::internal::computation_timer = MPI_Wtime();\
     }\
