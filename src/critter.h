@@ -20,13 +20,13 @@
 namespace critter{
 
 // User functions
-void start();
-void stop();
+void start(bool track = true);
+void stop(bool track = true);
 
 // User variables
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
-constexpr size_t critical_path_breakdown_size  = 0;
-constexpr std::bitset<6> critical_path_breakdown(0b000000); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
+constexpr size_t critical_path_breakdown_size  = 1;
+constexpr std::bitset<6> critical_path_breakdown(0b100000); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
 constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 

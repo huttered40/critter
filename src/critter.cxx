@@ -329,7 +329,7 @@ void tracker::stop_synch(){
   volume_costs[2] += this->last_barrier_time;		// update local barrier/idle time
   volume_costs[3] += dcost.second;			// update local estimated communication cost
   volume_costs[4] += dcost.first;			// update local estimated synchronization cost
-  volume_costs[6] += this->last_barrier_time;		// update local runtime with idle time
+//  volume_costs[6] += this->last_barrier_time;		// update local runtime with idle time
   volume_costs[6] += dt;				// update local runtime
 
 /*
@@ -879,9 +879,9 @@ void record(std::ostream& Stream){
 }
 };
 
-void start(){
+void start(bool track){
   assert(internal::internal_comm_info.size() == 0);
-  internal::track=true;
+  internal::track=track;
   for (int i=0; i<internal::list_size; i++){
     internal::list[i]->init();
   }
@@ -900,9 +900,9 @@ void start(){
   internal::computation_timer=MPI_Wtime();
 }
 
-void stop(){
+void stop(bool track){
   auto last_time = MPI_Wtime();
-  assert(internal::internal_comm_info.size() == 0);
+  assert(internal::internal_comm_info.size() == 0); assert(track==internal::track);
   internal::critical_path_costs[4]+=(last_time-internal::computation_timer);	// update critical path computation time
   internal::critical_path_costs[5]+=(last_time-internal::computation_timer);	// update critical path runtime
   internal::volume_costs[5]+=(last_time-internal::computation_timer);	// update computation time volume
