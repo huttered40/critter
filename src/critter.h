@@ -26,7 +26,7 @@ void stop(bool track = true);
 // User variables
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
 constexpr size_t critical_path_breakdown_size  = 1;
-constexpr std::bitset<6> critical_path_breakdown(0b100000); 	// RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,NumBytes
+constexpr std::bitset<8> critical_path_breakdown(0b10000000); // RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,DataMvtTime,SynchTime,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
 constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 
@@ -34,10 +34,10 @@ constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking 
 namespace internal{
 
 constexpr auto list_size 				= 32;		// numbers of tracked MPI routines
-constexpr auto num_critical_path_measures 		= 6;		// NumBytes, CommTime, EstCommCost, EstSynchCost, CompTime,     RunTime
-constexpr auto num_volume_measures 			= 7;		// NumBytes, CommTime, IdleTime,    EstCommCost,  EstSynchCost, CompTime,RunTime
-constexpr auto num_tracker_critical_path_measures 	= 4;		// Numbytes, CommTime, EstCommCost, EstSynchCost
-constexpr auto num_tracker_volume_measures 		= 5;		// Numbytes, CommTime, IdleTime,    EstCommCost,  EstSynchCost
+constexpr auto num_critical_path_measures 		= 8;		// NumBytes, SynchTime, DataMvtTime, CommTime, EstCommCost, EstSynchCost, CompTime,     RunTime
+constexpr auto num_volume_measures 			= 9;		// NumBytes, SynchTime, DataMvtTime, CommTime, IdleTime,    EstCommCost,  EstSynchCost, CompTime,RunTime
+constexpr auto num_tracker_critical_path_measures 	= 6;		// Numbytes, SynchTime, DataMvtTime, CommTime, EstCommCost, EstSynchCost
+constexpr auto num_tracker_volume_measures 		= 7;		// Numbytes, SynchTime, DataMvtTime, CommTime, IdleTime,    EstCommCost,  EstSynchCost
 
 void update_critical_path(double* data);
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
@@ -52,6 +52,10 @@ class tracker{
 
     /* \brief local number of bytes max(sent,recv'ed) */
     double* my_bytes;
+    /* \brief local duration of synchronization time */
+    double* my_synch_time;
+    /* \brief local duration of data mvt time */
+    double* my_datamvt_time;
     /* \brief local duration of communication time */
     double* my_comm_time;
     /* \brief local duration of idle time */
@@ -61,13 +65,17 @@ class tracker{
     /* \brief local comm cost in #words */
     double* my_wrd;
 
-    /* \brief number of bytes max(sent,recv'ed) along the critical_pathical path among all processes */
+    /* \brief number of bytes max(sent,recv'ed) along the critical path among all processes */
     double* critical_path_bytes;
-    /* \brief duration of communication time along the critical_pathical path among all processes */
+    /* \brief duration of synchronization time along the critical path among all processes */
+    double* critical_path_synch_time;
+    /* \brief number of time spent moving data about the network among all processes */
+    double* critical_path_datamvt_time;
+    /* \brief duration of communication time along the critical path among all processes */
     double* critical_path_comm_time;
-    /* \brief comm cost in #messages along the critical_pathical path among all processes */
+    /* \brief comm cost in #messages along the critical path among all processes */
     double* critical_path_msg;
-    /* \brief comm cost in #words along the critical_pathical path among all processes */
+    /* \brief comm cost in #words along the critical path among all processes */
     double* critical_path_wrd;
 
     /* \brief duration of computation time for each call made locally,
@@ -79,6 +87,8 @@ class tracker{
 
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
     double last_start_time;
+    /* \brief time when start() was last called, set to -1.0 initially and after stop() */
+    double last_synch_time;
     /* \brief save barrier time across start_synch */
     double last_barrier_time;
     /* \brief cm with which start() was last called */
@@ -122,7 +132,8 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_synch(int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_synch(int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_synch();
 
     /**
      * \brief starts timer for MPI call with nelem elements of type t over communicator cm, performs barrier over cm
@@ -132,7 +143,8 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_block(int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_block(int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_block();
 
     /**
      * \brief starts timer for MPI call with nelem elements of type t over communicator cm, performs barrier over cm
@@ -143,6 +155,7 @@ class tracker{
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
     void start_nonblock(MPI_Request* request, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, bool is_sender=false, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_nonblock();
 
     /**
      * \brief completes interception of synchronous communication protocol
@@ -321,6 +334,8 @@ extern double scratch_pad;
     if (critter::internal::track){\
       critter::internal::_MPI_Barrier.start_synch(0, MPI_CHAR, cm);\
       PMPI_Barrier(cm);\
+      critter::internal::_MPI_Barrier.start_synch();\
+      PMPI_Barrier(cm);\
       critter::internal::_MPI_Barrier.stop_synch();}\
     else{\
       PMPI_Barrier(cm);\
@@ -331,6 +346,8 @@ extern double scratch_pad;
   do {\
     if (critter::internal::track){\
       critter::internal::_MPI_Bcast.start_synch(nelem, t, cm);\
+      PMPI_Bcast(nullptr, 0, t, root, cm);\
+      critter::internal::_MPI_Bcast.start_synch();\
       PMPI_Bcast(buf, nelem, t, root, cm);\
       critter::internal::_MPI_Bcast.stop_synch();\
     }\
@@ -343,6 +360,8 @@ extern double scratch_pad;
   do {\
     if (critter::internal::track){\
       critter::internal::_MPI_Allreduce.start_synch(nelem, t, cm);\
+      PMPI_Allreduce(nullptr, nullptr, 0, t, op, cm);\
+      critter::internal::_MPI_Allreduce.start_synch();\
       PMPI_Allreduce(sbuf, rbuf, nelem, t, op, cm);\
       critter::internal::_MPI_Allreduce.stop_synch();}\
     else{\
@@ -354,6 +373,8 @@ extern double scratch_pad;
   do {\
     if (critter::internal::track){\
       critter::internal::_MPI_Reduce.start_synch(nelem, t, cm);\
+      PMPI_Reduce(nullptr, nullptr, 0, t, op, root, cm);\
+      critter::internal::_MPI_Reduce.start_synch();\
       PMPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm);\
       critter::internal::_MPI_Reduce.stop_synch();}\
     else{\
@@ -366,6 +387,8 @@ extern double scratch_pad;
     if (critter::internal::track){\
       assert(rt==st);\
       critter::internal::_MPI_Scatter.start_synch(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+      PMPI_Scatter(nullptr, 0, st, nullptr, 0, rt, root, cm);\
+      critter::internal::_MPI_Scatter.start_synch();\
       PMPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
       critter::internal::_MPI_Scatter.stop_synch();}\
     else{\
@@ -380,6 +403,8 @@ extern double scratch_pad;
       int pSize; MPI_Comm_size(cm, &pSize);\
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
       critter::internal::_MPI_Gather.start_synch(recvBufferSize, st, cm);\
+      PMPI_Gather(nullptr, 0, st, nullptr, 0, rt, root, cm);\
+      critter::internal::_MPI_Gather.start_synch();\
       PMPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm);\
       critter::internal::_MPI_Gather.stop_synch();}\
     else{\
@@ -394,6 +419,8 @@ extern double scratch_pad;
       int pSize; MPI_Comm_size(cm, &pSize);\
       int64_t recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * pSize;\
       critter::internal::_MPI_Allgather.start_synch(recvBufferSize, st, cm);\
+      PMPI_Allgather(nullptr, 0, st, nullptr, 0, rt, cm);\
+      critter::internal::_MPI_Allgather.start_synch();\
       PMPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm);\
       critter::internal::_MPI_Allgather.stop_synch();}\
     else{\
@@ -406,8 +433,11 @@ extern double scratch_pad;
     if (critter::internal::track){\
       int64_t tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
+      std::vector<int> rcounts_c_(p,0);\
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
       critter::internal::_MPI_Reduce_scatter.start_synch(tot_recv, t, cm);\
+      PMPI_Reduce_scatter(nullptr, nullptr, &rcounts_c_[0], t, op, cm);\
+      critter::internal::_MPI_Reduce_scatter.start_synch();\
       PMPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm);\
       critter::internal::_MPI_Reduce_scatter.stop_synch();}\
     else{\
@@ -420,6 +450,8 @@ extern double scratch_pad;
     if (critter::internal::track){\
       assert(rt==st);\
       critter::internal::_MPI_Alltoall.start_synch(std::max((int64_t)scount,(int64_t)rcount), st, cm);\
+      PMPI_Alltoall(nullptr, 0, st, nullptr, 0, rt, cm);\
+      critter::internal::_MPI_Alltoall.start_synch();\
       PMPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm);\
       critter::internal::_MPI_Alltoall.stop_synch();}\
     else{\
@@ -432,9 +464,12 @@ extern double scratch_pad;
     if (critter::internal::track){\
       assert(rt==st);\
       int64_t tot_recv=0;\
+      std::vector<int> rcounts_c_(p,0);\
       int p; MPI_Comm_size(cm, &p);\
       for (int i=0; i<p; i++){ tot_recv += rcounts[i]; }\
       critter::internal::_MPI_Allgatherv.start_synch(std::max((int64_t)scount,tot_recv), st, cm);\
+      PMPI_Allgatherv(nullptr, 0, st, nullptr, &rcounts_c_[0], &rcounts_c_[0], rt, cm);\
+      critter::internal::_MPI_Allgatherv.start_synch();\
       PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\
       critter::internal::_MPI_Allgatherv.stop_synch();}\
     else{\
@@ -449,8 +484,11 @@ extern double scratch_pad;
       assert(rt==st);\
       int64_t tot_recv=0;\
       int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
+      std::vector<int> rcounts_c_(p,0);\
       if (r == root) for (int i=0; i<p; i++){ tot_recv += ((int*)rcounts)[i]; }\
       critter::internal::_MPI_Gatherv.start_synch(std::max((int64_t)scount,tot_recv), st, cm);\
+      PMPI_Gatherv(nullptr, 0, st, nullptr, &rcounts_c_[0], &rcounts_c_[0], rt, root, cm);\
+      critter::internal::_MPI_Gatherv.start_synch();\
       PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);\
       critter::internal::_MPI_Gatherv.stop_synch();}\
     else{\
@@ -464,8 +502,11 @@ extern double scratch_pad;
       assert(rt==st);\
       int64_t tot_send=0;\
       int r, p; MPI_Comm_rank(cm, &r); MPI_Comm_size(cm, &p);\
+      std::vector<int> scounts_c_(p,0);\
       if (r == root) for (int i=0; i<p; i++){ tot_send += ((int*)scounts)[i]; } \
       critter::internal::_MPI_Scatterv.start_synch(std::max(tot_send,(int64_t)rcount), st, cm);\
+      PMPI_Scatterv(nullptr, &scounts_c_[0], &scounts_c_[0], st, nullptr, 0, rt, root, cm);\
+      critter::internal::_MPI_Scatterv.start_synch();\
       PMPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm);\
       critter::internal::_MPI_Scatterv.stop_synch();}\
     else{\
@@ -476,6 +517,7 @@ extern double scratch_pad;
 #define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
     if (critter::internal::track){\
+      char test_cc_='b';\
       assert(rt==st);\
       int64_t tot_send=0, tot_recv=0;\
       int p; MPI_Comm_size(cm, &p);\
@@ -494,6 +536,8 @@ extern double scratch_pad;
     if (critter::internal::track){\
       assert(st == rt); assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv.start_synch(std::max(scnt,rcnt), st, cm, dest, src);\
+      PMPI_Sendrecv(nullptr, 0, st, dest, stag, nullptr, rcnt, rt, src, rtag, cm, status);\
+      critter::internal::_MPI_Sendrecv.start_synch();\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv.stop_synch();}\
     else{\
@@ -506,6 +550,8 @@ extern double scratch_pad;
     if (critter::internal::track){\
       assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv_replace.start_synch(scnt, st, cm, dest, src);\
+      PMPI_Sendrecv_replace(nullptr, 0, st, dest, stag, src, rtag, cm, status);\
+      critter::internal::_MPI_Sendrecv_replace.start_synch();\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv_replace.stop_synch();}\
     else{\
@@ -518,6 +564,8 @@ extern double scratch_pad;
     if (critter::internal::track){\
       assert(tag != critter::internal_tag);\
       critter::internal::_MPI_Ssend.start_synch(nelem, t, cm, dest);\
+      PMPI_Ssend(nullptr, 0, t, dest, tag, cm);\
+      critter::internal::_MPI_Ssend.start_synch();\
       PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
       critter::internal::_MPI_Ssend.stop_synch();\
     }\
@@ -532,12 +580,33 @@ extern double scratch_pad;
       assert(tag != critter::internal_tag);\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.start_block(nelem, t, cm, dest);}\
       else {critter::internal::_MPI_Send.start_synch(nelem, t, cm, dest); }\
+      PMPI_Send(nullptr, 0, t, dest, tag, cm);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.start_block();}\
+      else {critter::internal::_MPI_Send.start_synch(); }\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.stop_block(true);}\
       else {critter::internal::_MPI_Send.stop_synch(); }\
     }\
     else{\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
+    }\
+  } while (0)
+
+#define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
+  do {\
+    if (critter::internal::track){\
+      assert(tag != critter::internal_tag);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block(nelem, t, cm, src);}\
+      else {critter::internal::_MPI_Recv.start_synch(nelem, t, cm, src); }\
+      PMPI_Recv(nullptr, 0, t, src, tag, cm, status);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block();}\
+      else {critter::internal::_MPI_Recv.start_synch(); }\
+      PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
+      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.stop_block(false);}\
+      else {critter::internal::_MPI_Recv.stop_synch(); }\
+    }\
+    else{\
+      PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
     }\
   } while (0)
 
@@ -551,21 +620,6 @@ extern double scratch_pad;
     }\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-    }\
-  } while (0)
-
-#define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
-  do {\
-    if (critter::internal::track){\
-      assert(tag != critter::internal_tag);\
-      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block(nelem, t, cm, src);}\
-      else {critter::internal::_MPI_Recv.start_synch(nelem, t, cm, src); }\
-      PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
-      if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.stop_block(false);}\
-      else {critter::internal::_MPI_Recv.stop_synch(); }\
-    }\
-    else{\
-      PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
     }\
   } while (0)
 
