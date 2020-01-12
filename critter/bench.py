@@ -359,6 +359,7 @@ class bench(object):
                             ValidNodeList.append([])
                             ValidProcessList.append([])
                         curNumNodes=self.GetNodeListOffset(TestIndex,0)
+                        PrevAlgParameterList = list(AlgParameterList)
                         while (curNumNodes <= self.nodeMaxList[TestIndex]):
                             # Make sure we are in a suitable range
 	                    numPEsPerNode=curPPN*curTPR
@@ -391,8 +392,10 @@ class bench(object):
                                         self.ProcessCountDict[curNumNodes*curPPN]=1
                                         ValidNodeList[-1].append(curNumNodes)
                                         ValidProcessList[-1].append(curNumNodes*curPPN)
+                                        PrevAlgParameterList = list(AlgParameterList)
                                     else:
                                         print("Variant with wrong params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
+                                        AlgParameterList = list(PrevAlgParameterList)
 		            if (op == 2):
                                 self.TestList[TestIndex][AlgIndex].scale(AlgParameterList,scaleIndex)
                             scaleIndex=scaleIndex+1
