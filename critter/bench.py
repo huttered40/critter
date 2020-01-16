@@ -21,6 +21,7 @@ class bench(object):
 		 numMinutes,\
 		 numSeconds,\
 		 email,\
+		 scaleWrongParams,\
 		 minPEcountPerNode,\
 		 maxPEcountPerNode,\
 		 nodeMinList,\
@@ -97,7 +98,7 @@ class bench(object):
                       - outer list must be of length 'numTests'
                       - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
         """
-        assert(len(CritterBreakdownInfo)==6)
+        assert(len(CritterBreakdownInfo)==8)
         self.CritterPath = CritterPath
         self.MachineType = MachineType
         self.CritterBreakdownInfo = CritterBreakdownInfo
@@ -118,6 +119,7 @@ class bench(object):
         self.numMinutes = numMinutes
         self.numSeconds = numSeconds
         self.email = email
+        self.scaleWrongParams = scaleWrongParams
         self.minPEcountPerNode = minPEcountPerNode
         self.maxPEcountPerNode = maxPEcountPerNode
         self.nodeMinList = nodeMinList
@@ -395,7 +397,8 @@ class bench(object):
                                         PrevAlgParameterList = list(AlgParameterList)
                                     else:
                                         print("Variant with wrong params - ", AlgParameterList,[curNumNodes,curPPN,curTPR])
-                                        AlgParameterList = list(PrevAlgParameterList)
+                                        if (self.scaleWrongParams):
+                                            AlgParameterList = list(PrevAlgParameterList)
 		            if (op == 2):
                                 self.TestList[TestIndex][AlgIndex].scale(AlgParameterList,scaleIndex)
                             scaleIndex=scaleIndex+1

@@ -710,6 +710,14 @@ void compute_volume(MPI_Comm cm){
   PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
 }
 
+void tracker::set_header(){
+  // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
+  if (*this->my_bytes != 0.){
+    std::vector<double> vec(1);
+    save_info[this->name] = std::move(vec);
+  }
+}
+
 void tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if ((*this->my_bytes != 0.) && (critical_path_breakdown_size>0)){
@@ -788,6 +796,9 @@ void record(std::ofstream& Stream){
   auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
   if (is_world_root){
     auto inputs = parse_file_string();
+    for (int i=0; i<list_size; i++){
+      list[i]->set_header();
+    }
     if (is_first_iter){
       print_header(Stream,inputs.size());
       Stream << "\n";
@@ -824,14 +835,6 @@ void record(std::ofstream& Stream){
         }
       }
     }
-/*
-    for (auto i=0; i<critical_paths.size(); i++){
-      for (auto j=0; j<critical_paths[i].size(); j++){
-        stream_track << critical_paths[i][j].first << " " << critical_paths[i][j].second << " " << critical_paths[i][j].third << std::endl;
-      }
-      stream_track << "0\n";
-    }
-*/
   }
 }
 

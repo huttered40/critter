@@ -175,6 +175,9 @@ class tracker{
 
     /**
      */
+    void set_header();
+    /**
+     */
     void set_critical_path_costs(size_t idx);
     /**
      */
