@@ -212,6 +212,8 @@ std::array<double,num_critical_path_measures> max_per_process_costs;
 std::map<std::string,std::vector<double>> save_info;
 double new_cs[critical_path_costs_size];
 double scratch_pad;
+std::vector<char> synch_pad_send;
+std::vector<char> synch_pad_recv;
 
 
 void tracker::init(){
@@ -264,11 +266,10 @@ tracker::tracker(tracker const& t){
 
 tracker::~tracker(){}
 
-void tracker::start_synch(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void tracker::start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-  volatile double curTime = MPI_Wtime();
   this->save_comp_time = curTime - computation_timer;
   critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
   critical_path_costs[7] += this->save_comp_time;		// update critical path runtime
@@ -365,11 +366,10 @@ void tracker::stop_synch(){
   computation_timer = this->last_start_time;
 }
 
-void tracker::start_block(int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
+void tracker::start_block(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   //assert(this->last_start_time == -1.); //assert timer was not started twice without first being stopped
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-  volatile double curTime = MPI_Wtime();
   this->save_comp_time = curTime - computation_timer;
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
@@ -457,10 +457,9 @@ void tracker::stop_block(bool is_sender){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void tracker::start_nonblock(MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int nbr_pe, int nbr_pe2){
+void tracker::start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int nbr_pe, int nbr_pe2){
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-  volatile double curTime = MPI_Wtime();
   this->save_comp_time = curTime - computation_timer;
   critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
   critical_path_costs[7] += this->save_comp_time;		// update critical path runtime
