@@ -26,7 +26,7 @@ void stop(bool track = true);
 // User variables
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
 constexpr size_t critical_path_breakdown_size  = 1;
-constexpr std::bitset<8> critical_path_breakdown(0b10000000); // RunTime,CompTime,EstSynchCost,EstCommCost,CommTime,DataMvtTime,SynchTime,NumBytes
+constexpr std::bitset<8> critical_path_breakdown(0b10000000); // RunTime,CompTime,DataMvtTime,SynchTime,CommTime,EstSynchCost,EstCommCost,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
 constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 
@@ -34,10 +34,10 @@ constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking 
 namespace internal{
 
 constexpr auto list_size 				= 32;		// numbers of tracked MPI routines
-constexpr auto num_critical_path_measures 		= 8;		// NumBytes, SynchTime, DataMvtTime, CommTime, EstCommCost, EstSynchCost, CompTime,     RunTime
-constexpr auto num_volume_measures 			= 9;		// NumBytes, SynchTime, DataMvtTime, CommTime, IdleTime,    EstCommCost,  EstSynchCost, CompTime,RunTime
-constexpr auto num_tracker_critical_path_measures 	= 6;		// Numbytes, SynchTime, DataMvtTime, CommTime, EstCommCost, EstSynchCost
-constexpr auto num_tracker_volume_measures 		= 7;		// Numbytes, SynchTime, DataMvtTime, CommTime, IdleTime,    EstCommCost,  EstSynchCost
+constexpr auto num_critical_path_measures 		= 8;		// NumBytes, EstCommCost, EstSynchCost, CommTime, SynchTime, DataMvtTime, CompTime,     RunTime
+constexpr auto num_volume_measures 			= 9;		// NumBytes, EstCommCost, EstSynchCost, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime,     RunTime
+constexpr auto num_tracker_critical_path_measures 	= 6;		// Numbytes, EstCommCost, EstSynchCost, CommTime, SynchTime, DataMvtTime
+constexpr auto num_tracker_volume_measures 		= 7;		// Numbytes, EstCommCost, EstSynchCost, IdleTime, CommTime, SynchTime, DataMvtTime,
 
 void update_critical_path(double* data);
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
@@ -86,11 +86,11 @@ class tracker{
     std::function< std::pair<double,double>(int64_t,int) > cost_func;
 
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    double last_start_time;
+    volatile double last_start_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    double last_synch_time;
+    volatile double last_synch_time;
     /* \brief save barrier time across start_synch */
-    double last_barrier_time;
+    volatile double last_barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm last_cm;
     /* \brief nbr_pe with which start() was last called */
@@ -276,7 +276,7 @@ extern std::vector<char> synch_pad_recv;
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
-     if (std::getenv("CRITTER_VIZ") != NULL){\
+     if (std::getenv("CRITTER_VIZ_FILE") != NULL){\
        critter::internal::flag = 1;\
        critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
        critter::internal::stream_name = critter::internal::file_name + ".txt";\
@@ -307,7 +307,7 @@ extern std::vector<char> synch_pad_recv;
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
-     if (std::getenv("CRITTER_VIZ") != NULL){\
+     if (std::getenv("CRITTER_VIZ_FILE") != NULL){\
        critter::internal::flag = 1;\
        critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
        critter::internal::stream_name = critter::internal::file_name + ".txt";\

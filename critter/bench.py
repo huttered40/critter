@@ -147,10 +147,6 @@ class bench(object):
         self.PortalDict = {}
 
         if (self.UseCritterViz>0):
-	    # First check if the user correctly set the corresponding environment variable. (It cannot be set inside this script!)
-            if ("CRITTER_VIZ" not in os.environ.keys()):#os.environ["CRITTER_VIZ"]==""):
-                print("User must set the environment variable `CRITTER_VIZ`=`ON`")
-                sys.exit(0)
             if (self.UseCritterViz>1):
                 # Build the micro benchmarks and move all binaries from ../tests/testName/bin
                 call("cd %s; make test"%(self.CritterPath),shell=True)
