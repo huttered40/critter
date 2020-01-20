@@ -283,7 +283,7 @@ extern std::vector<char> synch_pad_recv;
      }\
      critter::internal::is_first_iter = true;\
      critter::internal::need_new_line = false;\
-     int _critter_rank,_critter_size\
+     int _critter_rank,_critter_size;\
      MPI_Comm_rank(MPI_COMM_WORLD,&_critter_rank);\
      MPI_Comm_size(MPI_COMM_WORLD,&_critter_size);\
      critter::internal::synch_pad_send.resize(_critter_size);\
@@ -512,7 +512,7 @@ extern std::vector<char> synch_pad_recv;
       std::vector<int> _critter_rcounts(_critter_np,0);\
       if (_critter_rank == root) for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_recv += ((int*)rcounts)[_critter_i]; }\
       critter::internal::_MPI_Gatherv.start_synch(_critter_curTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm);\
-      PMPI_Gatherv(nullptr, 0, st, nullptr, &rcounts_c_[0], &rcounts_c_[0], rt, root, cm);\
+      PMPI_Gatherv(nullptr, 0, st, nullptr, &_critter_rcounts[0], &_critter_rcounts[0], rt, root, cm);\
       critter::internal::_MPI_Gatherv.start_synch();\
       PMPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm);\
       critter::internal::_MPI_Gatherv.stop_synch();}\
