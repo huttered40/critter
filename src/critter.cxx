@@ -791,7 +791,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
   }
 }
 
-void record(std::ofstream& Stream){
+void record(std::ofstream& Stream, size_t factor){
   assert(internal_comm_info.size() == 0);
   auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
   if (is_world_root){
@@ -805,20 +805,20 @@ void record(std::ofstream& Stream){
     }
     print_inputs(Stream,np,inputs);
     for (size_t i=0; i<num_critical_path_measures; i++){
-      Stream << "\t" << critical_path_costs[i];
+      Stream << "\t" << factor*critical_path_costs[i];
     }
     for (size_t i=0; i<max_per_process_costs.size(); i++){
-      Stream << "\t" << max_per_process_costs[i];
+      Stream << "\t" << factor*max_per_process_costs[i];
     }
     for (size_t i=0; i<num_volume_measures; i++){
-      Stream << "\t" << volume_costs[i];
+      Stream << "\t" << factor*volume_costs[i];
     }
     for (int i=0; i<list_size; i++){
       list[i]->set_volume_costs();
     }
     for (size_t j=0; j<num_tracker_volume_measures; j++){
       for (auto& it : save_info){
-        Stream << "\t" << it.second[j];
+        Stream << "\t" << factor*it.second[j];
       }
     }
     size_t breakdown_idx=0;
@@ -831,14 +831,14 @@ void record(std::ofstream& Stream){
       breakdown_idx++;
       for (size_t j=0; j<num_tracker_critical_path_measures; j++){
         for (auto& it : save_info){
-          Stream << "\t" << it.second[j];
+          Stream << "\t" << factor*it.second[j];
         }
       }
     }
   }
 }
 
-void record(std::ostream& Stream){
+void record(std::ostream& Stream, size_t factor){
   assert(internal_comm_info.size() == 0);
   if (is_world_root){
     Stream << "\n\n";
@@ -854,7 +854,7 @@ void record(std::ostream& Stream){
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
     for (size_t i=0; i<num_critical_path_measures; i++){
-      Stream << std::left << std::setw(25) << critical_path_costs[i];
+      Stream << std::left << std::setw(25) << factor*critical_path_costs[i];
     }
     Stream << "\n\n";
 
@@ -870,7 +870,7 @@ void record(std::ostream& Stream){
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
     for (size_t i=0; i<max_per_process_costs.size(); i++){
-      Stream << std::left << std::setw(25) << max_per_process_costs[i];
+      Stream << std::left << std::setw(25) << factor*max_per_process_costs[i];
     }
     Stream << "\n\n";
 
@@ -887,7 +887,7 @@ void record(std::ostream& Stream){
     Stream << "\n";
     Stream << std::left << std::setw(25) << "                  ";
     for (size_t i=0; i<num_volume_measures; i++){
-      Stream << std::left << std::setw(25) << volume_costs[i];
+      Stream << std::left << std::setw(25) << factor*volume_costs[i];
     }
     Stream << "\n\n";
 
@@ -925,7 +925,7 @@ void record(std::ostream& Stream){
         Stream << "\n";
         Stream << std::left << std::setw(25) << it.first;
         for (size_t j=0; j<num_tracker_critical_path_measures; j++){
-          Stream << std::left << std::setw(25) << it.second[j];
+          Stream << std::left << std::setw(25) << factor*it.second[j];
         }
       }
       Stream << "\n\n";
@@ -945,7 +945,7 @@ void record(std::ostream& Stream){
       Stream << "\n";
       Stream << std::left << std::setw(25) << it.first;
       for (size_t j=0; j<num_tracker_volume_measures; j++){
-        Stream << std::left << std::setw(25) << it.second[j];
+        Stream << std::left << std::setw(25) << factor*it.second[j];
       }
     }
     Stream << "\n";
@@ -974,7 +974,7 @@ void start(bool track){
   internal::computation_timer=MPI_Wtime();
 }
 
-void stop(bool track){
+void stop(bool track, size_t factor){
   volatile double last_time = MPI_Wtime();
   assert(internal::internal_comm_info.size() == 0); assert(track==internal::track);
   internal::critical_path_costs[6]+=(last_time-internal::computation_timer);	// update critical path computation time
@@ -985,7 +985,7 @@ void stop(bool track){
   internal::propagate_critical_path(MPI_COMM_WORLD,-1,-1);
   internal::compute_volume(MPI_COMM_WORLD);
 
-  if (internal::flag) {internal::record(internal::stream); internal::record(std::cout);} else {internal::record(std::cout);}
+  if (internal::flag) {internal::record(internal::stream,factor); internal::record(std::cout,factor);} else {internal::record(std::cout,factor);}
   internal::is_first_iter = false;
   internal::track=false;
   internal::save_info.clear();

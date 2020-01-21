@@ -21,7 +21,7 @@ namespace critter{
 
 // User functions
 void start(bool track = true);
-void stop(bool track = true);
+void stop(bool track = true, size_t factor = 1);
 
 // User variables
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
