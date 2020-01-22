@@ -702,7 +702,7 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
 void compute_volume(MPI_Comm cm){
   size_t j=0;
   for (size_t i=0; i<num_volume_measures; i++){
-    if (i!=4){// skip idle time
+    if (i!=3){// skip idle time
       max_per_process_costs[j++] = volume_costs[i];
     }
   }
