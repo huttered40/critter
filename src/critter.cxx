@@ -199,7 +199,8 @@ tracker* list[list_size] = {
 
 std::string stream_name,file_name;
 std::ofstream stream;
-bool track,flag,is_world_root,is_first_iter,need_new_line;
+bool flag,is_world_root,is_first_iter,need_new_line;
+size_t mode;
 
 double computation_timer;
 std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
@@ -214,7 +215,10 @@ double new_cs[critical_path_costs_size];
 double scratch_pad;
 std::vector<char> synch_pad_send;
 std::vector<char> synch_pad_recv;
-
+std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
+std::array<double,3*max_num_symbols> symbol_timer_pad;
+std::unordered_map<std::string,ftimer> symbol_timers;
+double exclusive_time;
 
 void tracker::init(){
   this->last_start_time  = -1.;
@@ -618,81 +622,84 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     }
   }
 /*
-  // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
-  int rank; MPI_Comm_rank(cm,&rank);
-  for (int i=0; i<7; i++){
-    old_cp[i].first = costs[i];
-    old_cp[i].second = rank;
-  }
-  if (nbr_pe == -1)
-    PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-  else {
-    PMPI_Sendrecv(old_cp, 7, MPI_DOUBLE_INT, nbr_pe, internal_tag, new_cp, 7, MPI_DOUBLE_INT, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
+  if (mode>1){
+    .. need to clear symbol_timers and then re-update
+    // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
+    int rank; MPI_Comm_rank(cm,&rank);
     for (int i=0; i<7; i++){
-      new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-      if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
+      old_cp[i].first = costs[i];
+      old_cp[i].second = rank;
     }
-    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, internal_tag, old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
+    if (nbr_pe == -1)
+      PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    else {
+      PMPI_Sendrecv(old_cp, 7, MPI_DOUBLE_INT, nbr_pe, internal_tag, new_cp, 7, MPI_DOUBLE_INT, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
       for (int i=0; i<7; i++){
         new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
+        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
       }
-    }
-  }
-  for (int i=0; i<7; i++){
-    costs[i] = new_cp[i].first;
-    root_array[i] = new_cp[i].second;
-  }
-  if (internal::flag){
-    for (int i=0; i<7; i++){
-      if (rank==root_array[i]){
-        crit_path_size_array[i] = CritterPaths[i].size();
-      } else{ crit_path_size_array[i]=0; }
-    }
-    // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
-    // set up new vectors to handle whats about to come
-    PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_MAX,cm);
-    int crit_length=0;
-    for (int i=0; i<7; i++){
-      crit_length+=crit_path_size_array[i];
-    }
-    std::vector<int_int_double> crit_buffer(crit_length);
-    int offset=0;
-    for (int i=0; i<7; i++){
-      if (rank==root_array[i]){
-        assert(CritterPaths[i].size() == crit_path_size_array[i]);
-        for (auto j=0; j<crit_path_size_array[i]; j++){
-          crit_buffer[offset+j] = CritterPaths[i][j];
-        }
-      } else{
-        for (auto j=0; j<crit_path_size_array[i]; j++){
-          crit_buffer[offset+j] = int_int_double(0,0,0.);
+      if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+        PMPI_Sendrecv(new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, internal_tag, old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
+        for (int i=0; i<7; i++){
+          new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
+          if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
         }
       }
-      offset+=crit_path_size_array[i];
     }
-    std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
-    MPI_Datatype MPI_INT_INT_DOUBLE;
-    block[0] = 2;
-    block[1] = 1;
-    disp[0] = 0;
-    disp[1] = 2*sizeof(int);
-    type[0] = MPI_INT;
-    type[1] = MPI_DOUBLE;
-    MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_INT_DOUBLE);
-    MPI_Type_commit(&MPI_INT_INT_DOUBLE);
-    MPI_Op op; MPI_Op_create((MPI_User_function*) add_critical_path_data,1,&op);
-    PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_INT_DOUBLE,op,cm);
-    MPI_Op_free(&op);
-    // now copy into 7 different buffers and change their lengths (via some resize)
-    offset=0;
     for (int i=0; i<7; i++){
-      CritterPaths[i].resize(crit_path_size_array[i]);
-      for (int j=0; j<crit_path_size_array[i]; j++){
-        CritterPaths[i][j] = crit_buffer[offset+j];
+      costs[i] = new_cp[i].first;
+      root_array[i] = new_cp[i].second;
+    }
+    if (internal::flag){
+      for (int i=0; i<7; i++){
+        if (rank==root_array[i]){
+          crit_path_size_array[i] = CritterPaths[i].size();
+        } else{ crit_path_size_array[i]=0; }
       }
-      offset+=crit_path_size_array[i];
+      // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
+      // set up new vectors to handle whats about to come
+      PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_MAX,cm);
+      int crit_length=0;
+      for (int i=0; i<7; i++){
+        crit_length+=crit_path_size_array[i];
+      }
+      std::vector<int_int_double> crit_buffer(crit_length);
+      int offset=0;
+      for (int i=0; i<7; i++){
+        if (rank==root_array[i]){
+          assert(CritterPaths[i].size() == crit_path_size_array[i]);
+          for (auto j=0; j<crit_path_size_array[i]; j++){
+            crit_buffer[offset+j] = CritterPaths[i][j];
+          }
+        } else{
+          for (auto j=0; j<crit_path_size_array[i]; j++){
+            crit_buffer[offset+j] = int_int_double(0,0,0.);
+          }
+        }
+        offset+=crit_path_size_array[i];
+      }
+      std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
+      MPI_Datatype MPI_INT_INT_DOUBLE;
+      block[0] = 2;
+      block[1] = 1;
+      disp[0] = 0;
+      disp[1] = 2*sizeof(int);
+      type[0] = MPI_INT;
+      type[1] = MPI_DOUBLE;
+      MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_INT_DOUBLE);
+      MPI_Type_commit(&MPI_INT_INT_DOUBLE);
+      MPI_Op op; MPI_Op_create((MPI_User_function*) add_critical_path_data,1,&op);
+      PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_INT_DOUBLE,op,cm);
+      MPI_Op_free(&op);
+      // now copy into 7 different buffers and change their lengths (via some resize)
+      offset=0;
+      for (int i=0; i<7; i++){
+        CritterPaths[i].resize(crit_path_size_array[i]);
+        for (int j=0; j<crit_path_size_array[i]; j++){
+          CritterPaths[i][j] = crit_buffer[offset+j];
+        }
+        offset+=crit_path_size_array[i];
+      }
     }
   }
 */
@@ -708,6 +715,10 @@ void compute_volume(MPI_Comm cm){
   }
   PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], max_per_process_costs.size(), MPI_DOUBLE, MPI_MAX, cm);
   PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
+
+  if (mode>1){
+    //.. communicate timer stuff. Find which dude has max
+  }
 }
 
 void tracker::set_header(){
@@ -763,6 +774,48 @@ std::vector<std::string> parse_file_string(){
     }
   }
   return inputs;
+}
+
+ftimer::ftimer(std::string name_){
+  if (critter::internal::mode>1){
+    assert(name_.size() <= max_timer_name_length);
+    this->name = std::move(name_);
+    this->start_time = MPI_Wtime();
+    this->start_excl_time = exclusive_time;	// weird global variable
+    this->acc_time = &symbol_timer_pad[(symbol_timers.size()-1)*3];
+    this->acc_excl_time = &symbol_timer_pad[(symbol_timers.size()-1)*3+1];
+    this->acc_calls = &symbol_timer_pad[(symbol_timers.size()-1)*3+2];
+    *this->acc_time = 0.0;
+    *this->acc_excl_time = 0.0;
+    *this->acc_calls = 0;
+    this->active_counter = 0;
+  }
+}
+
+/*
+bool ftimer::operator<(const ftimer& w) const {
+  return this->total_time > w.total_time;
+}
+*/
+
+void ftimer::start(){
+  if (critter::internal::mode>1){
+    this->start_time = MPI_Wtime();
+    this->start_excl_time = exclusive_time;
+    this->active_counter++;
+  }
+}
+
+void ftimer::stop(){
+  if (critter::internal::mode>1){
+    assert(this->active_counter>0);
+    volatile double delta_time = MPI_Wtime() - this->start_time;
+    *this->acc_time += delta_time;
+    *this->acc_excl_time += delta_time - (exclusive_time- this->start_excl_time); 
+    exclusive_time = this->start_excl_time + delta_time;
+    *this->acc_calls = *this->acc_calls + 1.;
+    this->active_counter--;
+  }
 }
 
 template<typename StreamType>
@@ -949,13 +1002,28 @@ void record(std::ostream& Stream, size_t factor){
       }
     }
     Stream << "\n";
+
+    if (mode > 1){
+      Stream << "\n" << std::left << std::setw(max_timer_name_length) << "";
+      Stream << std::left << std::setw(max_timer_name_length) << "number of calls";
+      Stream << std::left << std::setw(max_timer_name_length) << "inclusive time";
+      Stream << std::left << std::setw(max_timer_name_length) << "exclusive time";
+      for (auto it : symbol_timers){
+        assert(it.second.active_counter == 0);
+        Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
+        Stream << std::left << std::setw(max_timer_name_length) << *it.second.acc_calls;
+        Stream << std::left << std::setw(max_timer_name_length) << *it.second.acc_time;
+        Stream << std::left << std::setw(max_timer_name_length) << *it.second.acc_excl_time;
+      }
+      Stream << "\n";
+    }
   }
 }
 };
 
-void start(bool track){
+void start(size_t mode){
   assert(internal::internal_comm_info.size() == 0);
-  internal::track=track;
+  internal::mode=mode;
   for (int i=0; i<internal::list_size; i++){
     internal::list[i]->init();
   }
@@ -970,13 +1038,14 @@ void start(bool track){
   for (auto i=0; i<internal::volume_costs.size(); i++){
     internal::volume_costs[i]=0.;
   }
+  internal::exclusive_time = 0.0;
   /*Initiate new timer*/
   internal::computation_timer=MPI_Wtime();
 }
 
-void stop(bool track, size_t factor){
+void stop(size_t mode, size_t factor){
   volatile double last_time = MPI_Wtime();
-  assert(internal::internal_comm_info.size() == 0); assert(track==internal::track);
+  assert(internal::internal_comm_info.size() == 0); assert(mode==internal::mode);
   internal::critical_path_costs[6]+=(last_time-internal::computation_timer);	// update critical path computation time
   internal::critical_path_costs[7]+=(last_time-internal::computation_timer);	// update critical path runtime
   internal::volume_costs[7]+=(last_time-internal::computation_timer);	// update computation time volume
@@ -985,9 +1054,11 @@ void stop(bool track, size_t factor){
   internal::propagate_critical_path(MPI_COMM_WORLD,-1,-1);
   internal::compute_volume(MPI_COMM_WORLD);
 
-  if (internal::flag) {internal::record(internal::stream,factor); internal::record(std::cout,factor);} else {internal::record(std::cout,factor);}
+  internal::record(std::cout,factor);
+  if (internal::flag) {internal::record(internal::stream,factor);}
+
   internal::is_first_iter = false;
-  internal::track=false;
+  internal::mode=0;
   internal::save_info.clear();
   for (auto i=0; i<internal::critical_path_costs.size(); i++){
     internal::critical_path_costs[i]=0.;
@@ -996,5 +1067,6 @@ void stop(bool track, size_t factor){
     internal::volume_costs[i]=0.;
   }
   internal::need_new_line=false;
+  internal::symbol_timers.clear();
 }
 };

@@ -13,6 +13,7 @@
 #include <functional>
 #include <tuple>
 #include <map>
+#include <unordered_map>
 #include <bitset>
 #include <cmath>
 #include <assert.h>
@@ -20,15 +21,17 @@
 namespace critter{
 
 // User functions
-void start(bool track = true);
-void stop(bool track = true, size_t factor = 1);
+void start(size_t mode = 1);
+void stop(size_t mode = 1, size_t factor = 1);
 
 // User variables
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
 constexpr size_t critical_path_breakdown_size  = 1;
-constexpr std::bitset<8> critical_path_breakdown(0b10000000); // RunTime,CompTime,DataMvtTime,SynchTime,CommTime,EstSynchCost,EstCommCost,NumBytes
+constexpr std::bitset<8> critical_path_breakdown(0b10000000); 	// RunTime,CompTime,DataMvtTime,SynchTime,CommTime,EstSynchCost,EstCommCost,NumBytes
 constexpr int internal_tag                     = 1669220;	// arbitrary
 constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
+constexpr size_t max_timer_name_length = 50;			// max length of a symbol defining a timer
+constexpr size_t max_num_symbols       = 1000;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************
 namespace internal{
@@ -246,8 +249,24 @@ struct int_int_double{
   int first; int second; double third;
 };
 
+class ftimer{
+  public:
+    ftimer() {}
+    ftimer(std::string name_);
+    void stop();
+    void start();
+    bool operator<(const ftimer& w) const ;
+
+    std::string name;
+    double start_time,start_excl_time;
+    double* acc_time,*acc_excl_time,*acc_calls;
+    int active_counter;
+};
+
+
 extern std::string stream_name,file_name;
-extern bool track,flag,is_first_iter,is_world_root,need_new_line;
+extern bool flag,is_first_iter,is_world_root,need_new_line;
+extern size_t mode;
 extern std::ofstream stream;
 
 extern double computation_timer;
@@ -265,14 +284,41 @@ extern double new_cs[critical_path_costs_size];
 extern double scratch_pad;
 extern std::vector<char> synch_pad_send;
 extern std::vector<char> synch_pad_recv;
+extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
+extern std::array<double,3*max_num_symbols> symbol_timer_pad;
+extern std::unordered_map<std::string,ftimer> symbol_timers;
+extern double exclusive_time;
 }
 }
+
+// **********************************************************************************************************
+
+#define TAU_START(ARG) do {\
+  if (critter::internal::mode>1){\
+  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+    critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
+    critter::internal::symbol_timers[#ARG].start();\
+  }\
+  else{\
+    critter::internal::symbol_timers[#ARG].start();\
+  }}}while (0);
+
+#define TAU_STOP(ARG) do {\
+  if (critter::internal::mode>1){\
+  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+    assert(0);\
+  }\
+  else{\
+    critter::internal::symbol_timers[#ARG].stop();\
+  }}}while (0);
+
+// **********************************************************************************************************
 
 #define MPI_Init(argc, argv)\
   do {\
      assert(critter::critical_path_breakdown_size == critter::critical_path_breakdown.count());\
      PMPI_Init(argc,argv);\
-     critter::internal::track=0;\
+     critter::internal::mode=0;\
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
@@ -303,7 +349,7 @@ extern std::vector<char> synch_pad_recv;
   do{\
      assert(critter::critical_path_breakdown_size == critter::critical_path_breakdown.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
-     critter::internal::track=0;\
+     critter::internal::mode=0;\
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
@@ -342,7 +388,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Barrier(cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       critter::internal::_MPI_Barrier.start_synch(_critter_curTime_, 0, MPI_CHAR, cm);\
       PMPI_Barrier(cm);\
@@ -356,7 +402,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Bcast(buf, nelem, t, root, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       critter::internal::_MPI_Bcast.start_synch(_critter_curTime_, nelem, t, cm);\
       PMPI_Bcast(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, root, cm);\
@@ -371,7 +417,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Allreduce(sbuf, rbuf, nelem, t, op, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       critter::internal::_MPI_Allreduce.start_synch(_critter_curTime_, nelem, t, cm);\
       PMPI_Allreduce(MPI_IN_PLACE, &critter::internal::synch_pad_send[0], 1, MPI_CHAR, MPI_MAX, cm);\
@@ -385,7 +431,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Reduce(sbuf, rbuf, nelem, t, op, root, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       critter::internal::_MPI_Reduce.start_synch(_critter_curTime_, nelem, t, cm);\
       PMPI_Reduce(&critter::internal::synch_pad_send[0], &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, MPI_MAX, root, cm);\
@@ -399,7 +445,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Scatter(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -416,7 +462,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Gather(sbuf, scount, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -433,7 +479,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Allgather(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -450,7 +496,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Reduce_scatter(sbuf, rbuf, rcounts, t, op, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       int64_t _critter_tot_recv=0;\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -468,7 +514,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Alltoall(sbuf, scount, st, rbuf, rcount, rt, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -485,7 +531,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_recv=0; int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -504,7 +550,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Gatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_recv=0;\
@@ -523,7 +569,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Scatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_send=0;\
@@ -542,7 +588,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Alltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_send=0, _critter_tot_recv=0;\
@@ -562,7 +608,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(st == rt); assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv.start_synch(_critter_curTime_, std::max(scnt,rcnt), st, cm, dest, src);\
@@ -577,7 +623,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv_replace.start_synch(_critter_curTime_, scnt, st, cm, dest, src);\
@@ -592,7 +638,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Ssend(buf, nelem, t, dest, tag, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       critter::internal::_MPI_Ssend.start_synch(_critter_curTime_, nelem, t, cm, dest);\
@@ -608,7 +654,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.start_block(_critter_curTime_, nelem, t, cm, dest);}\
@@ -627,7 +673,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Recv(buf, nelem, t, src, tag, cm, status)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block(_critter_curTime_, nelem, t, cm, src);}\
@@ -646,7 +692,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Isend(buf, nelem, t, dest, tag, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
@@ -660,7 +706,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Irecv(buf, nelem, t, src, tag, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
@@ -674,7 +720,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Ibcast(buf, nelem, t, root, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       PMPI_Ibcast(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Ibcast.start_nonblock(_critter_curTime_, req, nelem, t, cm);\
@@ -687,7 +733,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
       critter::internal::_MPI_Iallreduce.start_nonblock(_critter_curTime_, req, nelem, t, cm);\
@@ -700,7 +746,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Ireduce(sbuf, rbuf, nelem, t, op, root, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       PMPI_Ireduce(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Iallreduce.start_nonblock(_critter_curTime_, req, nelem, t, cm);\
@@ -713,7 +759,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -728,7 +774,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_recv=0; int _critter_rank, _critter_npp; MPI_Comm_rank(cm, &_critter_rank); MPI_Comm_size(cm, &_critter_np);\
@@ -743,7 +789,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np); int64_t _critter_recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * _critter_np;\
@@ -757,7 +803,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_recv=0; int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -772,7 +818,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -787,7 +833,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_send=0;\
@@ -803,7 +849,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       int64_t _critter_tot_recv=0;\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -818,7 +864,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
@@ -832,7 +878,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_send=0, _critter_tot_recv=0;\
@@ -848,7 +894,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Wait(req, stat)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
       auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
@@ -866,7 +912,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Waitany(cnt, reqs, indx, stat)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
       std::vector<MPI_Request> _critter_pt(cnt); for (int _critter_i=0;_critter_i<cnt;_critter_i++){_critter_pt[_critter_i]=(reqs)[_critter_i];}\
       volatile double _critter_last_start_time = MPI_Wtime();\
@@ -884,7 +930,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Waitsome(incnt, reqs, outcnt, indices, stats)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
       std::vector<MPI_Request> _critter_pt(incnt); for (int _critter_i=0;_critter_i<incnt;_critter_i++){_critter_pt[_critter_i]=(reqs)[_critter_i];}\
       volatile double _critter_last_start_time = MPI_Wtime();\
@@ -904,7 +950,7 @@ extern std::vector<char> synch_pad_recv;
 
 #define MPI_Waitall(cnt, reqs, stats)\
   do {\
-    if (critter::internal::track){\
+    if (critter::internal::mode>0){\
       int _critter_indx; MPI_Status _critter_stat; for (int _critter_i=0; _critter_i<cnt; _critter_i++){ MPI_Waitany(cnt, reqs, &_critter_indx, &_critter_stat); if ((MPI_Status*)stats != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)stats)[_critter_indx] = _critter_stat;}\
     }\
     else{\
