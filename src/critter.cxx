@@ -15,7 +15,6 @@ void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* l
 
 void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
   if (critical_path_breakdown_size > 0){
-    bool decisions[critical_path_breakdown_size];
     size_t breakdown_idx=0;
     size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
     for (int i=0; i<num_critical_path_measures; i++){
@@ -207,6 +206,7 @@ std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
 std::map<MPI_Request,double*> internal_comm_message;
 std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 std::map<MPI_Request,tracker*> internal_comm_track;
+bool decisions[critical_path_breakdown_size];
 std::array<double,critical_path_costs_size> critical_path_costs;
 std::array<double,volume_costs_size> volume_costs;
 std::array<double,num_critical_path_measures> max_per_process_costs;
@@ -273,51 +273,46 @@ tracker::tracker(tracker const& t){
 tracker::~tracker(){}
 
 void tracker::start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  if (mode < 2){
-    // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-    this->save_comp_time = curTime - computation_timer;
-    critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
-    critical_path_costs[7] += this->save_comp_time;		// update critical path runtime
-    volume_costs[7]        += this->save_comp_time;		// update local computation time
-    volume_costs[8]        += this->save_comp_time;		// update local runtime
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
+  this->save_time         = curTime;
+  this->save_comp_time    = curTime - computation_timer;
+  critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
+  critical_path_costs[7] += this->save_comp_time;		// update critical path runtime
+  volume_costs[7]        += this->save_comp_time;		// update local computation time
+  volume_costs[8]        += this->save_comp_time;		// update local runtime
 
-    int el_size,p;
-    MPI_Type_size(t, &el_size);
-    int64_t nbytes = el_size * nelem;
-    MPI_Comm_size(cm, &p);
-    this->last_nbytes = nbytes;
-    this->last_p = p;
+  int el_size,p;
+  MPI_Type_size(t, &el_size);
+  int64_t nbytes = el_size * nelem;
+  MPI_Comm_size(cm, &p);
+  this->last_nbytes = nbytes;
+  this->last_p = p;
 
-    volatile double init_time = MPI_Wtime();
-    if (nbr_pe == -1){
-      PMPI_Barrier(cm);
-    }
-    else {
-      double sbuf, rbuf;
-      sbuf = 0.;
-      PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, &rbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
-    }
-    this->last_barrier_time = MPI_Wtime() - init_time;
-
-    // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
-    propagate_critical_path(cm, nbr_pe, nbr_pe2);
-    if (last_nbr_pe == -1){
-      PMPI_Barrier(cm);
-    } else {
-      double sbuf, rbuf;
-      sbuf = 0.;
-      PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, &rbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
-    }
-    // start synchronization timer for communication routine
-    this->last_start_time = MPI_Wtime();
+  volatile double init_time = MPI_Wtime();
+  if (nbr_pe == -1){
+    PMPI_Barrier(cm);
   }
-  else if (mode == 2){
-    // use symbol_timers[symbol_stack.top()] .. So I can add the various measures to the top symbol's exclusive measure AND inclusive measure
+  else {
+    double sbuf, rbuf;
+    sbuf = 0.;
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, &rbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
   }
+  this->last_barrier_time = MPI_Wtime() - init_time;
+
+  // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
+  propagate_critical_path(cm, nbr_pe, nbr_pe2);
+  if (last_nbr_pe == -1){
+    PMPI_Barrier(cm);
+  } else {
+    double sbuf, rbuf;
+    sbuf = 0.;
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, &rbuf, 1, MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
+  }
+  // start synchronization timer for communication routine
+  this->last_start_time = MPI_Wtime();
 }
 
 void tracker::start_synch(){
-  assert(mode < 2); 
   // Deal with synchronization time
   volatile double synchTime = MPI_Wtime();
   this->last_synch_time = synchTime-this->last_start_time;
@@ -326,11 +321,11 @@ void tracker::start_synch(){
 }
 
 void tracker::stop_synch(){
-  if (mode < 2){
-    volatile double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
-    double datamvt_time = std::max(0.,(dt-this->last_synch_time));
-    std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
+  volatile double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
+  double datamvt_time = std::max(0.,(dt-this->last_synch_time));
+  std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
 
+  if (mode == 1){
     *this->my_bytes        += this->last_nbytes;
     *this->my_synch_time   += this->last_synch_time;
     *this->my_datamvt_time += datamvt_time;
@@ -346,49 +341,62 @@ void tracker::stop_synch(){
       *(this->critical_path_msg+i)          += dcost.first;
       *(this->critical_path_wrd+i)          += dcost.second;
     }
-
-    critical_path_costs[0] += this->last_nbytes;		// update critical path bytes communicated
-    critical_path_costs[1] += dcost.second;		// update critical path estimated communication cost
-    critical_path_costs[2] += dcost.first;		// update critical path estimated synchronization cost
-    critical_path_costs[3] += dt;				// update critical path communication time (for what this process has seen thus far)
-    critical_path_costs[4] += this->last_synch_time;	// update critical path synchronization time
-    critical_path_costs[5] += datamvt_time;		// update critical path data mvt time
-    critical_path_costs[7] += dt;				// update critical path runtime
-
-    volume_costs[0] += this->last_nbytes;			// update local bytes communication
-    volume_costs[1] += dcost.second;			// update local estimated communication cost
-    volume_costs[2] += dcost.first;			// update local estimated synchronization cost
-    volume_costs[3] += this->last_barrier_time;		// update local barrier/idle time
-    volume_costs[4] += dt;				// update local communication time (not volume until after the completion of the program)
-    volume_costs[5] += this->last_synch_time;		// update local synchronization time
-    volume_costs[6] += datamvt_time;			// update local data mvt time
-    volume_costs[8] += this->last_barrier_time;		// update local runtime with idle time
-    volume_costs[8] += dt;				// update local runtime
-
-    // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-    volume_costs[4] = volume_costs[4] > critical_path_costs[3] ? critical_path_costs[3] : volume_costs[4];
-    volume_costs[5] = volume_costs[5] > critical_path_costs[4] ? critical_path_costs[4] : volume_costs[5];
-    volume_costs[6] = volume_costs[6] > critical_path_costs[5] ? critical_path_costs[5] : volume_costs[6];
-    volume_costs[7] = volume_costs[7] > critical_path_costs[6] ? critical_path_costs[6] : volume_costs[7];
-    volume_costs[8] = volume_costs[8] > critical_path_costs[7] ? critical_path_costs[7] : volume_costs[8];
-
-    // Prepare to leave interception and re-enter user code
-    this->last_start_time = MPI_Wtime();
-    computation_timer = this->last_start_time;
   }
   else if (mode == 2){
-/*
-    // use symbol_timers[symbol_stack.top()]
-    auto overhead_time = MPI_Wtime() - this->last_start_time;
-    for (auto& it : symbol_timers){
-      it.second.overhead_time += overhead_time;
-    }*/
+    // update all communication-related measures for the top symbol in stack
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[0] += this->last_nbytes;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[1] += dcost.second;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[2] += dcost.first;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[3] += dt;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[4] += this->last_synch_time;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[5] += datamvt_time;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[0] += this->last_nbytes;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[1] += dcost.second;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[2] += dcost.first;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[3] += dt;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[4] += this->last_synch_time;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[5] += datamvt_time;
+  }
+
+  critical_path_costs[0] += this->last_nbytes;		// update critical path bytes communicated
+  critical_path_costs[1] += dcost.second;		// update critical path estimated communication cost
+  critical_path_costs[2] += dcost.first;		// update critical path estimated synchronization cost
+  critical_path_costs[3] += dt;				// update critical path communication time (for what this process has seen thus far)
+  critical_path_costs[4] += this->last_synch_time;	// update critical path synchronization time
+  critical_path_costs[5] += datamvt_time;		// update critical path data mvt time
+  critical_path_costs[7] += dt;				// update critical path runtime
+
+  volume_costs[0] += this->last_nbytes;			// update local bytes communication
+  volume_costs[1] += dcost.second;			// update local estimated communication cost
+  volume_costs[2] += dcost.first;			// update local estimated synchronization cost
+  volume_costs[3] += this->last_barrier_time;		// update local barrier/idle time
+  volume_costs[4] += dt;				// update local communication time (not volume until after the completion of the program)
+  volume_costs[5] += this->last_synch_time;		// update local synchronization time
+  volume_costs[6] += datamvt_time;			// update local data mvt time
+  volume_costs[8] += this->last_barrier_time;		// update local runtime with idle time
+  volume_costs[8] += dt;				// update local runtime
+
+  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  volume_costs[4] = volume_costs[4] > critical_path_costs[3] ? critical_path_costs[3] : volume_costs[4];
+  volume_costs[5] = volume_costs[5] > critical_path_costs[4] ? critical_path_costs[4] : volume_costs[5];
+  volume_costs[6] = volume_costs[6] > critical_path_costs[5] ? critical_path_costs[5] : volume_costs[6];
+  volume_costs[7] = volume_costs[7] > critical_path_costs[6] ? critical_path_costs[6] : volume_costs[7];
+  volume_costs[8] = volume_costs[8] > critical_path_costs[7] ? critical_path_costs[7] : volume_costs[8];
+
+  // Prepare to leave interception and re-enter user code
+  this->last_start_time = MPI_Wtime();
+  computation_timer = this->last_start_time;
+
+  if (mode == 2){
+    auto overhead_time = MPI_Wtime() - this->save_time;
+    symbol_timers[symbol_stack.top()].critter_overhead_time += overhead_time;
   }
 }
 
 void tracker::start_block(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int nbr_pe, int nbr_pe2){
   
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
+  this->save_time = curTime;
   this->save_comp_time = curTime - computation_timer;
   this->last_cm = cm;
   this->last_nbr_pe = nbr_pe;
@@ -406,7 +414,6 @@ void tracker::start_block(volatile double curTime, int64_t nelem, MPI_Datatype t
 }
 
 void tracker::start_block(){
-  assert(mode < 2); 
   // Deal with synchronization time
   volatile double synchTime = MPI_Wtime();
   this->last_synch_time = synchTime-this->last_start_time;
@@ -416,11 +423,11 @@ void tracker::start_block(){
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
 void tracker::stop_block(bool is_sender){
-  if (mode < 2){
-    volatile double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
-    double datamvt_time = std::max(0.,(dt-this->last_synch_time));
-    std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
+  volatile double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
+  double datamvt_time = std::max(0.,(dt-this->last_synch_time));
+  std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
 
+  if (mode == 1){
     *this->my_bytes        += this->last_nbytes;
     *this->my_synch_time   += this->last_synch_time;
     *this->my_datamvt_time += datamvt_time;
@@ -435,130 +442,145 @@ void tracker::stop_block(bool is_sender){
       *(this->critical_path_msg+i)          += dcost.first;
       *(this->critical_path_wrd+i)          += dcost.second;
     }
-
-    critical_path_costs[6] += this->save_comp_time;	// update critical path computation time
-    critical_path_costs[7] += this->save_comp_time+dt;	// update critical path runtime
-    volume_costs[7] += this->save_comp_time;		// update local computation time
-    volume_costs[8] += this->save_comp_time+dt;		// update local runtime
-
-    critical_path_costs[0] += this->last_nbytes;		// update critical path bytes communicated
-    critical_path_costs[1] += dcost.second;		// update critical path estimated communication cost
-    critical_path_costs[2] += dcost.first;		// update critical path estimated synchronization cost
-    critical_path_costs[3] += dt;				// update critical path communication time (for what this process has seen thus far)
-    critical_path_costs[4] += this->last_synch_time;	// update critical path synchronization time (for what this process has seen thus far)
-    critical_path_costs[5] += datamvt_time;		// update critical path data movement time (for what this process has seen thus far)
-
-    volume_costs[0] += this->last_nbytes;			// update local bytes communication
-    volume_costs[1] += dcost.second;			// update local estimated communication cost
-    volume_costs[2] += dcost.first;			// update local estimated synchronization cost
-    volume_costs[4] += dt;				// update local communication time (not volume until after the completion of the program)
-    volume_costs[5] += this->last_synch_time;		// update local synchronzation time (not volume until after the completion of the program)
-    volume_costs[6] += datamvt_time;			// update local data movement time (not volume until after the completion of the program)
-
-    // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-    volume_costs[4] = volume_costs[4] > critical_path_costs[3] ? critical_path_costs[3] : volume_costs[4];
-    volume_costs[5] = volume_costs[5] > critical_path_costs[4] ? critical_path_costs[4] : volume_costs[5];
-    volume_costs[6] = volume_costs[6] > critical_path_costs[5] ? critical_path_costs[5] : volume_costs[6];
-    volume_costs[7] = volume_costs[7] > critical_path_costs[6] ? critical_path_costs[6] : volume_costs[7];
-    volume_costs[8] = volume_costs[8] > critical_path_costs[7] ? critical_path_costs[7] : volume_costs[8];
-
-    // Sender sends critical path data to receiver. Receiver updates its critical path information.
-    if (is_sender){
-      PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm);
-      // Sender needs not wait for handshake with receiver, can continue back into user code
-    }
-    else{
-      MPI_Status st;
-      PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&st);
-      update_critical_path(&new_cs[0]);
-    }
-
-    // Prepare to leave interception and re-enter user code
-    this->last_start_time = MPI_Wtime();
-    computation_timer = this->last_start_time;
   }
   else if (mode == 2){
+    // update all communication-related measures for the top symbol in stack
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[0] += this->last_nbytes;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[1] += dcost.second;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[2] += dcost.first;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[3] += dt;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[4] += this->last_synch_time;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[5] += datamvt_time;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[0] += this->last_nbytes;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[1] += dcost.second;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[2] += dcost.first;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[3] += dt;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[4] += this->last_synch_time;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[5] += datamvt_time;
+  }
+
+  critical_path_costs[6] += this->save_comp_time;	// update critical path computation time
+  critical_path_costs[7] += this->save_comp_time+dt;	// update critical path runtime
+  volume_costs[7] += this->save_comp_time;		// update local computation time
+  volume_costs[8] += this->save_comp_time+dt;		// update local runtime
+
+  critical_path_costs[0] += this->last_nbytes;		// update critical path bytes communicated
+  critical_path_costs[1] += dcost.second;		// update critical path estimated communication cost
+  critical_path_costs[2] += dcost.first;		// update critical path estimated synchronization cost
+  critical_path_costs[3] += dt;				// update critical path communication time (for what this process has seen thus far)
+  critical_path_costs[4] += this->last_synch_time;	// update critical path synchronization time (for what this process has seen thus far)
+  critical_path_costs[5] += datamvt_time;		// update critical path data movement time (for what this process has seen thus far)
+
+  volume_costs[0] += this->last_nbytes;			// update local bytes communication
+  volume_costs[1] += dcost.second;			// update local estimated communication cost
+  volume_costs[2] += dcost.first;			// update local estimated synchronization cost
+  volume_costs[4] += dt;				// update local communication time (not volume until after the completion of the program)
+  volume_costs[5] += this->last_synch_time;		// update local synchronzation time (not volume until after the completion of the program)
+  volume_costs[6] += datamvt_time;			// update local data movement time (not volume until after the completion of the program)
+
+  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  volume_costs[4] = volume_costs[4] > critical_path_costs[3] ? critical_path_costs[3] : volume_costs[4];
+  volume_costs[5] = volume_costs[5] > critical_path_costs[4] ? critical_path_costs[4] : volume_costs[5];
+  volume_costs[6] = volume_costs[6] > critical_path_costs[5] ? critical_path_costs[5] : volume_costs[6];
+  volume_costs[7] = volume_costs[7] > critical_path_costs[6] ? critical_path_costs[6] : volume_costs[7];
+  volume_costs[8] = volume_costs[8] > critical_path_costs[7] ? critical_path_costs[7] : volume_costs[8];
+
+  // Sender sends critical path data to receiver. Receiver updates its critical path information.
+  if (is_sender){
+    PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm);
+    // Sender needs not wait for handshake with receiver, can continue back into user code
+  }
+  else{
+    MPI_Status st;
+    PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,this->last_nbr_pe,internal_tag,this->last_cm,&st);
+    update_critical_path(&new_cs[0]);
+  }
+
+  // Prepare to leave interception and re-enter user code
+  this->last_start_time = MPI_Wtime();
+  computation_timer = this->last_start_time;
+  if (mode == 2){
+    auto overhead_time = MPI_Wtime() - this->save_time;
+    symbol_timers[symbol_stack.top()].critter_overhead_time += overhead_time;
   }
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
 void tracker::start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int nbr_pe, int nbr_pe2){
-  if (mode < 2){
-    // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-    this->save_comp_time = curTime - computation_timer;
-    critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
-    critical_path_costs[7] += this->save_comp_time;		// update critical path runtime
-    volume_costs[7]        += this->save_comp_time;		// update local computation time
-    volume_costs[8]        += this->save_comp_time;		// update local runtime
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
+  this->save_time = curTime;
+  this->save_comp_time = curTime - computation_timer;
+  critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
+  critical_path_costs[7] += this->save_comp_time;		// update critical path runtime
+  volume_costs[7]        += this->save_comp_time;		// update local computation time
+  volume_costs[8]        += this->save_comp_time;		// update local runtime
 
-    int el_size,p;
-    MPI_Type_size(t, &el_size);
-    int64_t nbytes = el_size * nelem;
-    MPI_Comm_size(cm, &p);
+  int el_size,p;
+  MPI_Type_size(t, &el_size);
+  int64_t nbytes = el_size * nelem;
+  MPI_Comm_size(cm, &p);
 
-    // Nonblocking communication to propogate the critical path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
-    // Unlike blocking protocol, Receiver does not need sender's critical path information to include the contribution from this current routine
-    MPI_Request internal_request;
-    double* data = (double*)malloc(sizeof(double)*critical_path_costs.size());
-    // Save local data instead of immediately adding it to critical path, because this communication is not technically completed yet,
-    //   and I do not want to corrupt critical path propogation in future communication that may occur before this nonblocking communication completes.
-    if (nbr_pe == -1){
+  // Nonblocking communication to propogate the critical path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
+  // Unlike blocking protocol, Receiver does not need sender's critical path information to include the contribution from this current routine
+  MPI_Request internal_request;
+  double* data = (double*)malloc(sizeof(double)*critical_path_costs.size());
+  // Save local data instead of immediately adding it to critical path, because this communication is not technically completed yet,
+  //   and I do not want to corrupt critical path propogation in future communication that may occur before this nonblocking communication completes.
+  if (nbr_pe == -1){
+    for (int i=0; i<critical_path_costs.size(); i++){
+      data[i] = critical_path_costs[i];
+    }
+    MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
+    PMPI_Iallreduce(MPI_IN_PLACE,&data[0],critical_path_costs.size(),MPI_DOUBLE,op,cm,&internal_request);
+    //MPI_Op_free(&op);
+  } else{
+    if (is_sender){
       for (int i=0; i<critical_path_costs.size(); i++){
         data[i] = critical_path_costs[i];
       }
-      MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
-      PMPI_Iallreduce(MPI_IN_PLACE,&data[0],critical_path_costs.size(),MPI_DOUBLE,op,cm,&internal_request);
-      //MPI_Op_free(&op);
-    } else{
-      if (is_sender){
-        for (int i=0; i<critical_path_costs.size(); i++){
-          data[i] = critical_path_costs[i];
-        }
-        PMPI_Isend(&data[0],critical_path_costs.size(),MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
-      }
-      else{
-        PMPI_Irecv(&data[0],critical_path_costs.size(),MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
-      }
+      PMPI_Isend(&data[0],critical_path_costs.size(),MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
     }
-    int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    internal_comm_info[*request] = std::make_pair(internal_request,is_sender);
-    internal_comm_message[*request] = data;
-    internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
-    internal_comm_track[*request] = this;
+    else{
+      PMPI_Irecv(&data[0],critical_path_costs.size(),MPI_DOUBLE,nbr_pe,internal_tag,cm,&internal_request);
+    }
   }
-  else if (mode == 2){
-  }
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  internal_comm_info[*request] = std::make_pair(internal_request,is_sender);
+  internal_comm_message[*request] = data;
+  internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
+  internal_comm_track[*request] = this;
 }
 
 void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_time){
-  if (mode < 2){
-    auto comm_info_it = internal_comm_info.find(*request);
-    auto comm_message_it = internal_comm_message.find(*request);
-    auto comm_data_it = internal_comm_data.find(*request);
-    auto comm_track_it = internal_comm_track.find(*request);
-    assert(comm_info_it != internal_comm_info.end());
-    assert(comm_message_it != internal_comm_message.end());
-    assert(comm_data_it != internal_comm_data.end());
-    assert(comm_track_it != internal_comm_track.end());
+  auto comm_info_it = internal_comm_info.find(*request);
+  auto comm_message_it = internal_comm_message.find(*request);
+  auto comm_data_it = internal_comm_data.find(*request);
+  auto comm_track_it = internal_comm_track.find(*request);
+  assert(comm_info_it != internal_comm_info.end());
+  assert(comm_message_it != internal_comm_message.end());
+  assert(comm_data_it != internal_comm_data.end());
+  assert(comm_track_it != internal_comm_track.end());
 
-    // Before accumulating the cost of this communication into our critical path/volume measures, we
-    //   must first finish the internal communication, which doesn't take into account the cost of this communication
-    // The computation and communication time of the sender between its MPI_Isend and MPI_Wait cannot be tracked. The receiver
-    //   will just use its own. This is technically ok I think, because the receiver isn't waiting on the receiver in any capacity.
+  // Before accumulating the cost of this communication into our critical path/volume measures, we
+  //   must first finish the internal communication, which doesn't take into account the cost of this communication
+  // The computation and communication time of the sender between its MPI_Isend and MPI_Wait cannot be tracked. The receiver
+  //   will just use its own. This is technically ok I think, because the receiver isn't waiting on the receiver in any capacity.
 
-    MPI_Request internal_request = comm_info_it->second.first;
-    bool is_sender = comm_info_it->second.second;
-    double nbytes = comm_data_it->second.first;
-    double p = comm_data_it->second.second;
-    double* data = comm_message_it->second;
-    MPI_Status st;
-    PMPI_Wait(&internal_request,&st);
-    // note: nonblocking collectives must update
-    if (!is_sender){
-      update_critical_path(data);
-    }
-    // Both sender and receiver will now update its critical path with the data from the communication
-    std::pair<double,double> dcost = cost_func(nbytes, p);
+  MPI_Request internal_request = comm_info_it->second.first;
+  bool is_sender = comm_info_it->second.second;
+  double nbytes = comm_data_it->second.first;
+  double p = comm_data_it->second.second;
+  double* data = comm_message_it->second;
+  MPI_Status st;
+  PMPI_Wait(&internal_request,&st);
+  // note: nonblocking collectives must update
+  if (!is_sender){
+    update_critical_path(data);
+  }
+  // Both sender and receiver will now update its critical path with the data from the communication
+  std::pair<double,double> dcost = cost_func(nbytes, p);
+
+  if (mode == 1){
     *this->my_bytes        += nbytes;
     *this->my_synch_time   += 0;			// Nonblocking routines will have no synchronization time component
     *this->my_datamvt_time += comm_time;
@@ -571,42 +593,58 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
       *(this->critical_path_msg+i)       += dcost.first;
       *(this->critical_path_wrd+i)       += dcost.second;
     }
-
-    critical_path_costs[0] += nbytes;
-    critical_path_costs[1] += dcost.second;
-    critical_path_costs[2] += dcost.first;
-    critical_path_costs[3] += comm_time;
-    critical_path_costs[4] += 0;
-    critical_path_costs[5] += comm_time;
-    critical_path_costs[6] += comp_time;
-    critical_path_costs[7] += comp_time+comm_time;
-
-    volume_costs[0] += nbytes;
-    volume_costs[1] += dcost.second;
-    volume_costs[2] += dcost.first;
-    volume_costs[4] += comm_time;
-    volume_costs[5] += 0;
-    volume_costs[6] += comm_time;
-    volume_costs[7] += comp_time;
-    volume_costs[8] += comp_time+comm_time;
-
-    // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-    volume_costs[4] = volume_costs[4] > critical_path_costs[3] ? critical_path_costs[3] : volume_costs[4];
-    volume_costs[5] = volume_costs[5] > critical_path_costs[4] ? critical_path_costs[4] : volume_costs[5];
-    volume_costs[6] = volume_costs[6] > critical_path_costs[5] ? critical_path_costs[5] : volume_costs[6];
-    volume_costs[7] = volume_costs[7] > critical_path_costs[6] ? critical_path_costs[6] : volume_costs[7];
-    volume_costs[8] = volume_costs[8] > critical_path_costs[7] ? critical_path_costs[7] : volume_costs[8];
-
-    internal_comm_info.erase(*request);
-    free(comm_message_it->second);
-    internal_comm_message.erase(*request);
-    internal_comm_data.erase(*request);
-    internal_comm_track.erase(*request);
-
-    this->last_start_time = MPI_Wtime();
-    computation_timer = this->last_start_time;
   }
   else if (mode == 2){
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[0] += this->last_nbytes;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[1] += dcost.second;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[2] += dcost.first;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[3] += comm_time;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[4] += 0;
+    symbol_timers[symbol_stack.top()].exclusive_measure.top()[5] += comm_time;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[0] += this->last_nbytes;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[1] += dcost.second;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[2] += dcost.first;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[3] += comm_time;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[4] += 0;
+    symbol_timers[symbol_stack.top()].inclusive_measure.top()[5] += comm_time;
+  }
+
+  critical_path_costs[0] += nbytes;
+  critical_path_costs[1] += dcost.second;
+  critical_path_costs[2] += dcost.first;
+  critical_path_costs[3] += comm_time;
+  critical_path_costs[4] += 0;
+  critical_path_costs[5] += comm_time;
+  critical_path_costs[6] += comp_time;
+  critical_path_costs[7] += comp_time+comm_time;
+
+  volume_costs[0] += nbytes;
+  volume_costs[1] += dcost.second;
+  volume_costs[2] += dcost.first;
+  volume_costs[4] += comm_time;
+  volume_costs[5] += 0;
+  volume_costs[6] += comm_time;
+  volume_costs[7] += comp_time;
+  volume_costs[8] += comp_time+comm_time;
+
+  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  volume_costs[4] = volume_costs[4] > critical_path_costs[3] ? critical_path_costs[3] : volume_costs[4];
+  volume_costs[5] = volume_costs[5] > critical_path_costs[4] ? critical_path_costs[4] : volume_costs[5];
+  volume_costs[6] = volume_costs[6] > critical_path_costs[5] ? critical_path_costs[5] : volume_costs[6];
+  volume_costs[7] = volume_costs[7] > critical_path_costs[6] ? critical_path_costs[6] : volume_costs[7];
+  volume_costs[8] = volume_costs[8] > critical_path_costs[7] ? critical_path_costs[7] : volume_costs[8];
+
+  internal_comm_info.erase(*request);
+  free(comm_message_it->second);
+  internal_comm_message.erase(*request);
+  internal_comm_data.erase(*request);
+  internal_comm_track.erase(*request);
+
+  this->last_start_time = MPI_Wtime();
+  computation_timer = this->last_start_time;
+  if (mode == 2){
+    auto overhead_time = MPI_Wtime() - this->save_time;
+    symbol_timers[symbol_stack.top()].critter_overhead_time += overhead_time;
   }
 }
 
@@ -632,25 +670,27 @@ void update_critical_path(double* data){
 
 // Only used with synchronous communication protocol
 void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
-  // First exchange the tracked routine critical path data
-  if (nbr_pe == -1){
-    MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
-    PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
-    MPI_Op_free(&op);
-  }
-  else {
-    PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, nbr_pe, internal_tag, &new_cs[0], critical_path_costs.size(),
-      MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
-    update_critical_path(&new_cs[0]);
-    if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, nbr_pe2, internal_tag, &new_cs[0], critical_path_costs.size(),
-        MPI_DOUBLE, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
+  if (mode == 1){
+    // First exchange the tracked routine critical path data
+    if (nbr_pe == -1){
+      MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
+      PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
+      MPI_Op_free(&op);
+    }
+    else {
+      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, nbr_pe, internal_tag, &new_cs[0], critical_path_costs.size(),
+        MPI_DOUBLE, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
       update_critical_path(&new_cs[0]);
+      if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+        PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, nbr_pe2, internal_tag, &new_cs[0], critical_path_costs.size(),
+          MPI_DOUBLE, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
+        update_critical_path(&new_cs[0]);
+     }
     }
   }
+  else if (mode == 2){
 /*
-  if (mode==2){
-    .. need to clear symbol_timers and then re-update
+    // Note: challenge of updating symbol_stack. For local symbols that are not along the updated critical path, we need to just make their contributions zero, but still keep them in the maps.
     // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
     int rank; MPI_Comm_rank(cm,&rank);
     for (int i=0; i<7; i++){
@@ -730,6 +770,7 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     }
   }
 */
+  }
 }
 
 // Note: this function should be called once per start/stop, else it will double count
@@ -813,6 +854,8 @@ void ftimer::stop(){
   volatile double delta_time = MPI_Wtime() - this->start_timer.top() - this->inclusive_measure.top()[num_critical_path_measures-1] - this->overhead_timer.top();
   this->exclusive_measure.top()[num_critical_path_measures-1] += delta_time;
   this->inclusive_measure.top()[num_critical_path_measures-1] += delta_time;
+  this->exclusive_measure.top()[num_critical_path_measures-2] += (this->exclusive_measure.top()[num_critical_path_measures-1]-this->exclusive_measure.top()[num_critical_path_measures-5]);
+  this->inclusive_measure.top()[num_critical_path_measures-2] += (this->inclusive_measure.top()[num_critical_path_measures-1]-this->inclusive_measure.top()[num_critical_path_measures-5]);
   for (auto i=0; i<num_critical_path_measures; i++){
     *this->acc_measure[i]      += this->inclusive_measure.top()[i];
     *this->acc_excl_measure[i] += this->exclusive_measure.top()[i];
@@ -824,7 +867,7 @@ void ftimer::stop(){
   this->inclusive_measure.pop();
   this->exclusive_measure.pop();
   symbol_stack.pop();
-
+  //TODO: What about adding overhead time to the next symbol in stack? That will be necessary.
   if (symbol_stack.size() > 0){
     for (auto i=0; i<num_critical_path_measures; i++){
       symbol_timers[symbol_stack.top()].inclusive_measure.top()[i] += save_inclusive_info[i];
@@ -1053,9 +1096,9 @@ void record(std::ostream& Stream, size_t factor){
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
           Stream << std::left << std::setw(25) << *it.second.acc_numcalls;
           Stream << std::left << std::setw(25) << *it.second.acc_excl_measure[i];
-          Stream << std::left << std::setw(25) << std::setprecision(4) << (critical_path_costs[i] == 0. ? 1.00 : *it.second.acc_excl_measure[i]/critical_path_costs[i]);
+          Stream << std::left << std::setw(25) << std::setprecision(4) << (critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_excl_measure[i]/critical_path_costs[i]);
           Stream << std::left << std::setw(25) << *it.second.acc_measure[i];
-          Stream << std::left << std::setw(25) << std::setprecision(4) << (critical_path_costs[i] == 0. ? 1.00 : *it.second.acc_measure[i]/critical_path_costs[i]);
+          Stream << std::left << std::setw(25) << std::setprecision(4) << (critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_measure[i]/critical_path_costs[i]);
         }
         Stream << "\n";
       }
