@@ -389,7 +389,7 @@ void tracker::stop_synch(){
 
   if (mode == 2){
     auto overhead_time = MPI_Wtime() - this->save_time;
-    symbol_timers[symbol_stack.top()].critter_overhead_time += overhead_time;
+    symbol_timers[symbol_stack.top()].overhead_time.top() += overhead_time;
   }
 }
 
@@ -501,7 +501,7 @@ void tracker::stop_block(bool is_sender){
   computation_timer = this->last_start_time;
   if (mode == 2){
     auto overhead_time = MPI_Wtime() - this->save_time;
-    symbol_timers[symbol_stack.top()].critter_overhead_time += overhead_time;
+    symbol_timers[symbol_stack.top()].overhead_time.top() += overhead_time;
   }
 }
 
@@ -644,7 +644,7 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   computation_timer = this->last_start_time;
   if (mode == 2){
     auto overhead_time = MPI_Wtime() - this->save_time;
-    symbol_timers[symbol_stack.top()].critter_overhead_time += overhead_time;
+    symbol_timers[symbol_stack.top()].overhead_time.top() += overhead_time;
   }
 }
 
@@ -835,14 +835,13 @@ ftimer::ftimer(std::string name_){
     this->acc_measure[i]      = &symbol_timer_pad_local[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*i+1]; *acc_measure[i] = 0.;
     this->acc_excl_measure[i] = &symbol_timer_pad_local[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*(i+1)]; *acc_excl_measure[i] = 0.;
   }
-  this->critter_overhead_time = 0.;
 }
 
 void ftimer::start(){
   assert(critter::internal::mode==2);
   symbol_stack.push(this->name);
   this->start_timer.push(MPI_Wtime());
-  this->overhead_timer.push(0.0);
+  this->overhead_time.push(0.0);
   this->inclusive_measure.push({0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0});
   this->exclusive_measure.push({0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0});
 }
@@ -851,7 +850,7 @@ void ftimer::stop(){
   assert(critter::internal::mode==2);
   assert(this->start_timer.size()>0);
   // delta_time represents the symbol's exclusive time (even if the symbol is stacked recursively)
-  volatile double delta_time = MPI_Wtime() - this->start_timer.top() - this->inclusive_measure.top()[num_critical_path_measures-1] - this->overhead_timer.top();
+  volatile double delta_time = MPI_Wtime() - this->start_timer.top() - this->inclusive_measure.top()[num_critical_path_measures-1] - this->overhead_time.top();
   this->exclusive_measure.top()[num_critical_path_measures-1] += delta_time;
   this->inclusive_measure.top()[num_critical_path_measures-1] += delta_time;
   this->exclusive_measure.top()[num_critical_path_measures-2] += (this->exclusive_measure.top()[num_critical_path_measures-1]-this->exclusive_measure.top()[num_critical_path_measures-5]);
@@ -862,8 +861,9 @@ void ftimer::stop(){
   }
   *this->acc_numcalls = *this->acc_numcalls + 1.;
   auto save_inclusive_info = this->inclusive_measure.top();
+  auto save_overhead_time  = this->overhead_time.top();
   this->start_timer.pop();
-  this->overhead_timer.pop();
+  this->overhead_time.pop();
   this->inclusive_measure.pop();
   this->exclusive_measure.pop();
   symbol_stack.pop();
@@ -872,6 +872,7 @@ void ftimer::stop(){
     for (auto i=0; i<num_critical_path_measures; i++){
       symbol_timers[symbol_stack.top()].inclusive_measure.top()[i] += save_inclusive_info[i];
     }
+    symbol_timers[symbol_stack.top()].overhead_time.top() += save_overhead_time;
   }
 }
 
