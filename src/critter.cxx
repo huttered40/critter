@@ -863,13 +863,6 @@ void ftimer::stop(){
   *this->acc_numcalls = *this->acc_numcalls + 1.;
   auto save_inclusive_info = this->inclusive_measure.top();
   auto save_overhead_time  = this->inclusive_overhead_time.top();
-/*
-  // debug
-  int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank == 0){
-    std::cout << symbol_stack.top() << " incl - " << this->inclusive_measure.top()[2] << " excl - " << this->exclusive_measure.top()[2] << " total incl - " << *this->acc_measure[2] << " total excl - " << *this->acc_excl_measure[2] << std::endl;
-  }
-*/
   auto old_name = symbol_stack.top();
   this->start_timer.pop();
   this->exclusive_overhead_time.pop();
