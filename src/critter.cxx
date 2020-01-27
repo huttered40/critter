@@ -318,10 +318,15 @@ void tracker::start_synch(){
   this->last_synch_time = synchTime-this->last_start_time;
   // start communication timer for communication routine
   this->last_start_time = MPI_Wtime();
+  if (mode == 2){
+    auto overhead_time = this->last_start_time - this->save_time;
+    symbol_timers[symbol_stack.top()].exclusive_overhead_time.top() += overhead_time;
+  }
 }
 
 void tracker::stop_synch(){
-  volatile double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
+  volatile double new_time = MPI_Wtime();
+  volatile double dt = new_time - this->last_start_time;	// complete communication time
   double datamvt_time = std::max(0.,(dt-this->last_synch_time));
   std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
 
@@ -350,12 +355,6 @@ void tracker::stop_synch(){
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[3] += dt;
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[4] += this->last_synch_time;
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[5] += datamvt_time;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[0] += this->last_nbytes;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[1] += dcost.second;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[2] += dcost.first;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[3] += dt;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[4] += this->last_synch_time;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[5] += datamvt_time;
   }
 
   critical_path_costs[0] += this->last_nbytes;		// update critical path bytes communicated
@@ -386,10 +385,9 @@ void tracker::stop_synch(){
   // Prepare to leave interception and re-enter user code
   this->last_start_time = MPI_Wtime();
   computation_timer = this->last_start_time;
-
   if (mode == 2){
-    auto overhead_time = MPI_Wtime() - this->save_time;
-    symbol_timers[symbol_stack.top()].overhead_time.top() += overhead_time;
+    auto overhead_time = this->last_start_time - new_time;
+    symbol_timers[symbol_stack.top()].exclusive_overhead_time.top() += overhead_time;
   }
 }
 
@@ -419,11 +417,16 @@ void tracker::start_block(){
   this->last_synch_time = synchTime-this->last_start_time;
   // start communication timer for communication routine
   this->last_start_time = MPI_Wtime();
+  if (mode == 2){
+    auto overhead_time = this->last_start_time - this->save_time;
+    symbol_timers[symbol_stack.top()].exclusive_overhead_time.top() += overhead_time;
+  }
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
 void tracker::stop_block(bool is_sender){
-  volatile double dt = MPI_Wtime() - this->last_start_time;	// complete communication time
+  volatile double new_time = MPI_Wtime();
+  volatile double dt = new_time - this->last_start_time;	// complete communication time
   double datamvt_time = std::max(0.,(dt-this->last_synch_time));
   std::pair<double,double> dcost = cost_func(this->last_nbytes, this->last_p);
 
@@ -451,12 +454,6 @@ void tracker::stop_block(bool is_sender){
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[3] += dt;
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[4] += this->last_synch_time;
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[5] += datamvt_time;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[0] += this->last_nbytes;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[1] += dcost.second;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[2] += dcost.first;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[3] += dt;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[4] += this->last_synch_time;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[5] += datamvt_time;
   }
 
   critical_path_costs[6] += this->save_comp_time;	// update critical path computation time
@@ -500,8 +497,8 @@ void tracker::stop_block(bool is_sender){
   this->last_start_time = MPI_Wtime();
   computation_timer = this->last_start_time;
   if (mode == 2){
-    auto overhead_time = MPI_Wtime() - this->save_time;
-    symbol_timers[symbol_stack.top()].overhead_time.top() += overhead_time;
+    auto overhead_time = this->last_start_time - new_time;
+    symbol_timers[symbol_stack.top()].exclusive_overhead_time.top() += overhead_time;
   }
 }
 
@@ -549,9 +546,14 @@ void tracker::start_nonblock(volatile double curTime, MPI_Request* request, int6
   internal_comm_message[*request] = data;
   internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
   internal_comm_track[*request] = this;
+  if (mode == 2){
+    auto overhead_time = this->last_start_time - this->save_time;
+    symbol_timers[symbol_stack.top()].exclusive_overhead_time.top() += overhead_time;
+  }
 }
 
 void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_time){
+  volatile double new_time = MPI_Wtime();
   auto comm_info_it = internal_comm_info.find(*request);
   auto comm_message_it = internal_comm_message.find(*request);
   auto comm_data_it = internal_comm_data.find(*request);
@@ -601,12 +603,6 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[3] += comm_time;
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[4] += 0;
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[5] += comm_time;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[0] += this->last_nbytes;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[1] += dcost.second;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[2] += dcost.first;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[3] += comm_time;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[4] += 0;
-    symbol_timers[symbol_stack.top()].inclusive_measure.top()[5] += comm_time;
   }
 
   critical_path_costs[0] += nbytes;
@@ -643,8 +639,8 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
   this->last_start_time = MPI_Wtime();
   computation_timer = this->last_start_time;
   if (mode == 2){
-    auto overhead_time = MPI_Wtime() - this->save_time;
-    symbol_timers[symbol_stack.top()].overhead_time.top() += overhead_time;
+    auto overhead_time = this->last_start_time - new_time;
+    symbol_timers[symbol_stack.top()].exclusive_overhead_time.top() += overhead_time;
   }
 }
 
@@ -841,7 +837,8 @@ void ftimer::start(){
   assert(critter::internal::mode==2);
   symbol_stack.push(this->name);
   this->start_timer.push(MPI_Wtime());
-  this->overhead_time.push(0.0);
+  this->exclusive_overhead_time.push(0.0);
+  this->inclusive_overhead_time.push(0.0);
   this->inclusive_measure.push({0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0});
   this->exclusive_measure.push({0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0});
 }
@@ -850,29 +847,41 @@ void ftimer::stop(){
   assert(critter::internal::mode==2);
   assert(this->start_timer.size()>0);
   // delta_time represents the symbol's exclusive time (even if the symbol is stacked recursively)
-  volatile double delta_time = MPI_Wtime() - this->start_timer.top() - this->inclusive_measure.top()[num_critical_path_measures-1] - this->overhead_time.top();
+  this->inclusive_overhead_time.top() += this->exclusive_overhead_time.top();
+  volatile double delta_time = MPI_Wtime() - this->start_timer.top() - this->inclusive_measure.top()[num_critical_path_measures-1] - this->inclusive_overhead_time.top();
+  delta_time = delta_time >= 0. ? delta_time : 0.;
   this->exclusive_measure.top()[num_critical_path_measures-1] += delta_time;
-  this->inclusive_measure.top()[num_critical_path_measures-1] += delta_time;
   this->exclusive_measure.top()[num_critical_path_measures-2] += (this->exclusive_measure.top()[num_critical_path_measures-1]-this->exclusive_measure.top()[num_critical_path_measures-5]);
-  this->inclusive_measure.top()[num_critical_path_measures-2] += (this->inclusive_measure.top()[num_critical_path_measures-1]-this->inclusive_measure.top()[num_critical_path_measures-5]);
   for (auto i=0; i<num_critical_path_measures; i++){
-    *this->acc_measure[i]      += this->inclusive_measure.top()[i];
-    *this->acc_excl_measure[i] += this->exclusive_measure.top()[i];
+    this->inclusive_measure.top()[i] += this->exclusive_measure.top()[i];
+    // branch below prevents overcounting of recursive symbols
+    if (this->start_timer.size() == 1){
+      *this->acc_measure[i]      += this->inclusive_measure.top()[i];
+      *this->acc_excl_measure[i] += this->exclusive_measure.top()[i];
+    }
   }
   *this->acc_numcalls = *this->acc_numcalls + 1.;
   auto save_inclusive_info = this->inclusive_measure.top();
-  auto save_overhead_time  = this->overhead_time.top();
+  auto save_overhead_time  = this->inclusive_overhead_time.top();
+/*
+  // debug
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  if (rank == 0){
+    std::cout << symbol_stack.top() << " incl - " << this->inclusive_measure.top()[2] << " excl - " << this->exclusive_measure.top()[2] << " total incl - " << *this->acc_measure[2] << " total excl - " << *this->acc_excl_measure[2] << std::endl;
+  }
+*/
+  auto old_name = symbol_stack.top();
   this->start_timer.pop();
-  this->overhead_time.pop();
+  this->exclusive_overhead_time.pop();
+  this->inclusive_overhead_time.pop();
   this->inclusive_measure.pop();
   this->exclusive_measure.pop();
   symbol_stack.pop();
-  //TODO: What about adding overhead time to the next symbol in stack? That will be necessary.
   if (symbol_stack.size() > 0){
     for (auto i=0; i<num_critical_path_measures; i++){
       symbol_timers[symbol_stack.top()].inclusive_measure.top()[i] += save_inclusive_info[i];
     }
-    symbol_timers[symbol_stack.top()].overhead_time.top() += save_overhead_time;
+    symbol_timers[symbol_stack.top()].inclusive_overhead_time.top() += save_overhead_time;
   }
 }
 
@@ -1097,9 +1106,9 @@ void record(std::ostream& Stream, size_t factor){
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
           Stream << std::left << std::setw(25) << *it.second.acc_numcalls;
           Stream << std::left << std::setw(25) << *it.second.acc_excl_measure[i];
-          Stream << std::left << std::setw(25) << std::setprecision(4) << (critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_excl_measure[i]/critical_path_costs[i]);
+          Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_excl_measure[i]/critical_path_costs[i]);
           Stream << std::left << std::setw(25) << *it.second.acc_measure[i];
-          Stream << std::left << std::setw(25) << std::setprecision(4) << (critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_measure[i]/critical_path_costs[i]);
+          Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_measure[i]/critical_path_costs[i]);
         }
         Stream << "\n";
       }

@@ -262,7 +262,8 @@ class ftimer{
 
     std::string name;
     std::stack<double> start_timer;
-    std::stack<double> overhead_time;
+    std::stack<double> inclusive_overhead_time;
+    std::stack<double> exclusive_overhead_time;
     std::stack<std::array<double,num_critical_path_measures>> inclusive_measure;
     std::stack<std::array<double,num_critical_path_measures>> exclusive_measure;
     double* acc_numcalls;
