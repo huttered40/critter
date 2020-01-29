@@ -269,6 +269,7 @@ class ftimer{
     double* acc_numcalls;
     std::array<double*,num_critical_path_measures> acc_measure;
     std::array<double*,num_critical_path_measures> acc_excl_measure;
+    bool has_been_processed;
 };
 
 
@@ -298,7 +299,10 @@ extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
+extern std::array<std::string,max_num_symbols> symbol_order;
 extern std::array<std::string,num_critical_path_measures> critical_path_measure_names;
+extern double_int timer_cp_info_sender[num_critical_path_measures];
+extern double_int timer_cp_info_receiver[num_critical_path_measures];
 }
 }
 
@@ -308,6 +312,7 @@ extern std::array<std::string,num_critical_path_measures> critical_path_measure_
   if (critter::internal::mode==2){\
   if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
     critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
+    critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
     critter::internal::symbol_timers[#ARG].start();\
   }\
   else{\

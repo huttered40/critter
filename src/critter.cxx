@@ -220,7 +220,10 @@ std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_sym
 std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global;
 std::unordered_map<std::string,ftimer> symbol_timers;
 std::stack<std::string> symbol_stack;
+std::array<std::string,max_num_symbols> symbol_order;
 std::array<std::string,num_critical_path_measures> critical_path_measure_names;
+double_int timer_cp_info_sender[num_critical_path_measures];
+double_int timer_cp_info_receiver[num_critical_path_measures];
 
 void tracker::init(){
   this->last_start_time  = -1.;
@@ -685,87 +688,180 @@ void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2){
     }
   }
   else if (mode == 2){
-/*
     // Note: challenge of updating symbol_stack. For local symbols that are not along the updated critical path, we need to just make their contributions zero, but still keep them in the maps.
     // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
-    int rank; MPI_Comm_rank(cm,&rank);
-    for (int i=0; i<7; i++){
-      old_cp[i].first = costs[i];
-      old_cp[i].second = rank;
+    int rank; MPI_Comm_rank(cm,&rank); int true_rank; MPI_Comm_rank(MPI_COMM_WORLD,&true_rank);
+    for (int i=0; i<num_critical_path_measures; i++){
+      timer_cp_info_sender[i].first = critical_path_costs[i];
+      timer_cp_info_sender[i].second = rank;
     }
-    if (nbr_pe == -1)
-      PMPI_Allreduce(old_cp, new_cp, 7, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    if (nbr_pe == -1){
+      PMPI_Allreduce(&timer_cp_info_sender[0].first, &timer_cp_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    }
     else {
-      PMPI_Sendrecv(old_cp, 7, MPI_DOUBLE_INT, nbr_pe, internal_tag, new_cp, 7, MPI_DOUBLE_INT, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
-      for (int i=0; i<7; i++){
-        new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-        if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe;}
+      PMPI_Sendrecv(&timer_cp_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, nbr_pe, internal_tag, &timer_cp_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, nbr_pe, internal_tag, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<num_critical_path_measures; i++){
+        if (timer_cp_info_sender[i].first>timer_cp_info_receiver[i].first){timer_cp_info_receiver[i].second = rank;}
+        else if (timer_cp_info_sender[i].first==timer_cp_info_receiver[i].first){
+          if (timer_cp_info_sender[i].second < timer_cp_info_receiver[i].second){
+            timer_cp_info_receiver[i].second = rank;
+          } else{
+            timer_cp_info_receiver[i].second = nbr_pe;
+          }
+        }
+        timer_cp_info_receiver[i].first = std::max(timer_cp_info_sender[i].first, timer_cp_info_receiver[i].first);
       }
+/*
       if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
-        PMPI_Sendrecv(new_cp, 7, MPI_DOUBLE_INT, nbr_pe2, internal_tag, old_cp, 7, MPI_DOUBLE_INT, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
+        PMPI_Sendrecv(&timer_cp_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, nbr_pe2, internal_tag, &timer_cp_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, nbr_pe2, internal_tag, cm, MPI_STATUS_IGNORE);
         for (int i=0; i<7; i++){
-          new_cp[i].first = std::max(old_cp[i].first, new_cp[i].first);
-          if (old_cp[i].first<new_cp[i].first){new_cp[i].second = nbr_pe2;}
+          if (timer_cp_info_sender[i].first<timer_cp_info_receiver[i].first){timer_cp_info_receiver[i].second = nbr_pe2;}
+          timer_cp_info_receiver[i].first = std::max(timer_cp_info_sender[i].first, timer_cp_info_receiver[i].first);
         }
       }
-    }
-    for (int i=0; i<7; i++){
-      costs[i] = new_cp[i].first;
-      root_array[i] = new_cp[i].second;
-    }
-    if (internal::flag){
-      for (int i=0; i<7; i++){
-        if (rank==root_array[i]){
-          crit_path_size_array[i] = CritterPaths[i].size();
-        } else{ crit_path_size_array[i]=0; }
-      }
-      // Note that instead of using a MPI_Bcast, we can use an AllReduce and that will require fewer messages (only 1)
-      // set up new vectors to handle whats about to come
-      PMPI_Allreduce(MPI_IN_PLACE,&crit_path_size_array[0],7,MPI_INT,MPI_MAX,cm);
-      int crit_length=0;
-      for (int i=0; i<7; i++){
-        crit_length+=crit_path_size_array[i];
-      }
-      std::vector<int_int_double> crit_buffer(crit_length);
-      int offset=0;
-      for (int i=0; i<7; i++){
-        if (rank==root_array[i]){
-          assert(CritterPaths[i].size() == crit_path_size_array[i]);
-          for (auto j=0; j<crit_path_size_array[i]; j++){
-            crit_buffer[offset+j] = CritterPaths[i][j];
-          }
-        } else{
-          for (auto j=0; j<crit_path_size_array[i]; j++){
-            crit_buffer[offset+j] = int_int_double(0,0,0.);
-          }
-        }
-        offset+=crit_path_size_array[i];
-      }
-      std::vector<int> block(2); std::vector<MPI_Aint> disp(2); std::vector<MPI_Datatype> type(2);
-      MPI_Datatype MPI_INT_INT_DOUBLE;
-      block[0] = 2;
-      block[1] = 1;
-      disp[0] = 0;
-      disp[1] = 2*sizeof(int);
-      type[0] = MPI_INT;
-      type[1] = MPI_DOUBLE;
-      MPI_Type_create_struct(2,&block[0],&disp[0],&type[0], &MPI_INT_INT_DOUBLE);
-      MPI_Type_commit(&MPI_INT_INT_DOUBLE);
-      MPI_Op op; MPI_Op_create((MPI_User_function*) add_critical_path_data,1,&op);
-      PMPI_Allreduce(MPI_IN_PLACE,&crit_buffer[0],crit_length,MPI_INT_INT_DOUBLE,op,cm);
-      MPI_Op_free(&op);
-      // now copy into 7 different buffers and change their lengths (via some resize)
-      offset=0;
-      for (int i=0; i<7; i++){
-        CritterPaths[i].resize(crit_path_size_array[i]);
-        for (int j=0; j<crit_path_size_array[i]; j++){
-          CritterPaths[i][j] = crit_buffer[offset+j];
-        }
-        offset+=crit_path_size_array[i];
-      }
-    }
-  }
 */
+    }
+
+    for (int i=0; i<num_critical_path_measures; i++){
+      critical_path_costs[i] = timer_cp_info_receiver[i].first;
+    }
+    // We consider only critical path runtime
+    int ftimer_size = 0;
+    if (rank==timer_cp_info_receiver[num_critical_path_measures-1].second){
+      ftimer_size = symbol_timers.size();
+    }
+    if (nbr_pe == -1){
+      PMPI_Allreduce(MPI_IN_PLACE,&ftimer_size,1,MPI_INT,MPI_SUM,cm);
+    }
+    else{
+      if (rank != nbr_pe){
+        if (rank==timer_cp_info_receiver[num_critical_path_measures-1].second){
+          PMPI_Send(&ftimer_size,1,MPI_INT,nbr_pe,internal_tag,cm);
+        }
+        else{
+          PMPI_Recv(&ftimer_size,1,MPI_INT,nbr_pe,internal_tag,cm,MPI_STATUS_IGNORE);
+        }
+      }
+/*
+      if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+        if (rank==timer_cp_info_receiver[num_critical_path_measures-1].second){
+          PMPI_Send(&ftimer_size,1,MPI_INT,nbr_pe2,internal_tag,cm);
+        }
+        else{
+          PMPI_Recv(&ftimer_size,1,MPI_INT,nbr_pe2,internal_tag,cm,MPI_STATUS_IGNORE);
+        }
+      }
+*/
+    }
+
+    std::vector<int> symbol_sizes(ftimer_size);
+    if (rank==timer_cp_info_receiver[num_critical_path_measures-1].second){
+      int symbol_offset = 0; int i=0;
+      for (auto i=0; i<symbol_timers.size(); i++){
+        symbol_sizes[i] = symbol_order[i].size();
+        for (auto j=0; j<symbol_sizes[i]; j++){
+          symbol_pad[symbol_offset+j] = symbol_order[i][j];
+        }
+        symbol_offset += symbol_sizes[i];
+      }
+    }
+    else{
+      for (auto i=0; i<ftimer_size; i++){
+        symbol_sizes[i] = 0;
+      }
+    }
+    if (nbr_pe == -1){
+      PMPI_Allreduce(MPI_IN_PLACE,&symbol_sizes[0],ftimer_size,MPI_INT,MPI_SUM,cm);
+    }
+    else{
+      if (rank != nbr_pe){
+        if (rank==timer_cp_info_receiver[num_critical_path_measures-1].second){
+          PMPI_Send(&symbol_sizes[0],ftimer_size,MPI_INT,nbr_pe,internal_tag,cm);
+        }
+        else{
+          PMPI_Recv(&symbol_sizes[0],ftimer_size,MPI_INT,nbr_pe,internal_tag,cm,MPI_STATUS_IGNORE);
+        }
+      }
+/*
+      if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+        if (rank==timer_cp_info_receiver[num_critical_path_measures-1].second){
+          PMPI_Send(&symbol_sizes[0],ftimer_size,MPI_INT,nbr_pe2,internal_tag,cm);
+        }
+        else{
+          PMPI_Recv(&symbol_sizes[0],ftimer_size,MPI_INT,nbr_pe2,internal_tag,cm,MPI_STATUS_IGNORE);
+        }
+      }
+*/
+    }
+
+    int num_chars = 0;
+    for (auto i=0; i<ftimer_size; i++){
+      num_chars += symbol_sizes[i];
+    }
+    if (rank == timer_cp_info_receiver[num_critical_path_measures-1].second){
+      if (nbr_pe == -1){
+        PMPI_Bcast(&symbol_timer_pad_local[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,rank,cm);
+        PMPI_Bcast(&symbol_pad[0],num_chars,MPI_CHAR,rank,cm);
+      }
+      else{
+        if (rank != nbr_pe){
+          PMPI_Send(&symbol_timer_pad_local[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,nbr_pe,internal_tag,cm);
+          PMPI_Send(&symbol_pad[0],num_chars,MPI_CHAR,nbr_pe,internal_tag,cm);
+/*
+        if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+          PMPI_Send(&symbol_timer_pad_local[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,nbr_pe2,internal_tag,cm);
+          PMPI_Send(&symbol_pad[0],num_chars,MPI_CHAR,nbr_pe2,internal_tag,cm);
+        }
+*/
+        }
+      }
+    }
+    else{
+      if (nbr_pe == -1){
+        PMPI_Bcast(&symbol_timer_pad_global[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,timer_cp_info_receiver[num_critical_path_measures-1].second,cm);
+        PMPI_Bcast(&symbol_pad[0],num_chars,MPI_CHAR,timer_cp_info_receiver[num_critical_path_measures-1].second,cm);
+      }
+      else{
+        if (rank != nbr_pe){
+          PMPI_Recv(&symbol_timer_pad_global[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,nbr_pe,internal_tag,cm,MPI_STATUS_IGNORE);
+          PMPI_Recv(&symbol_pad[0],num_chars,MPI_CHAR,nbr_pe,internal_tag,cm,MPI_STATUS_IGNORE);
+/*
+        if (nbr_pe2 != -1 && nbr_pe2 != nbr_pe){
+          PMPI_Recv(&symbol_timer_pad_local[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,nbr_pe2,internal_tag,cm,MPI_STATUS_IGNORE);
+          PMPI_Recv(&symbol_pad[0],num_chars,MPI_CHAR,nbr_pe2,internal_tag,cm,MPI_STATUS_IGNORE);
+        }
+*/
+        }
+      }
+      if (rank != nbr_pe){
+        int symbol_offset = 0;
+        for (int i=0; i<ftimer_size; i++){
+          auto reconstructed_symbol = std::string(symbol_pad.begin()+symbol_offset,symbol_pad.begin()+symbol_offset+symbol_sizes[i]);
+          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+            symbol_timers[reconstructed_symbol] = ftimer(reconstructed_symbol);
+            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+          }
+          *symbol_timers[reconstructed_symbol].acc_numcalls = symbol_timer_pad_global[(num_ftimer_measures*num_critical_path_measures+1)*i];
+          for (int j=0; j<num_critical_path_measures; j++){
+            *symbol_timers[reconstructed_symbol].acc_measure[j] = symbol_timer_pad_global[(num_ftimer_measures*num_critical_path_measures+1)*i+2*j+1];
+            *symbol_timers[reconstructed_symbol].acc_excl_measure[j] = symbol_timer_pad_global[(num_ftimer_measures*num_critical_path_measures+1)*i+2*(j+1)];
+          }
+          symbol_timers[reconstructed_symbol].has_been_processed = true;
+          symbol_offset += symbol_sizes[i];
+        }
+        // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
+        for (auto& it : symbol_timers){
+          if (it.second.has_been_processed){ it.second.has_been_processed = false; }
+          else{
+            *it.second.acc_numcalls = 0;
+            for (int j=0; j<num_critical_path_measures; j++){
+              *it.second.acc_measure[j] = 0;
+              *it.second.acc_excl_measure[j] = 0;
+            }
+          }
+        }
+      }
+    }
   }
 }
 
@@ -831,6 +927,7 @@ ftimer::ftimer(std::string name_){
     this->acc_measure[i]      = &symbol_timer_pad_local[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*i+1]; *acc_measure[i] = 0.;
     this->acc_excl_measure[i] = &symbol_timer_pad_local[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*(i+1)]; *acc_excl_measure[i] = 0.;
   }
+  this->has_been_processed = false;
 }
 
 void ftimer::start(){
@@ -849,15 +946,14 @@ void ftimer::stop(){
   // delta_time represents the symbol's exclusive time (even if the symbol is stacked recursively)
   this->inclusive_overhead_time.top() += this->exclusive_overhead_time.top();
   volatile double delta_time = MPI_Wtime() - this->start_timer.top() - this->inclusive_measure.top()[num_critical_path_measures-1] - this->inclusive_overhead_time.top();
-  delta_time = delta_time >= 0. ? delta_time : 0.;
   this->exclusive_measure.top()[num_critical_path_measures-1] += delta_time;
   this->exclusive_measure.top()[num_critical_path_measures-2] += (this->exclusive_measure.top()[num_critical_path_measures-1]-this->exclusive_measure.top()[num_critical_path_measures-5]);
   for (auto i=0; i<num_critical_path_measures; i++){
     this->inclusive_measure.top()[i] += this->exclusive_measure.top()[i];
+    *this->acc_excl_measure[i] += this->exclusive_measure.top()[i];
     // branch below prevents overcounting of recursive symbols
     if (this->start_timer.size() == 1){
       *this->acc_measure[i]      += this->inclusive_measure.top()[i];
-      *this->acc_excl_measure[i] += this->exclusive_measure.top()[i];
     }
   }
   *this->acc_numcalls = *this->acc_numcalls + 1.;
@@ -1103,6 +1199,12 @@ void record(std::ostream& Stream, size_t factor){
           Stream << std::left << std::setw(25) << *it.second.acc_measure[i];
           Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.acc_measure[i]/critical_path_costs[i]);
         }
+        Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
+        Stream << std::left << std::setw(25) << "";
+        Stream << std::left << std::setw(25) << critical_path_costs[i];
+        Stream << std::left << std::setw(25) << "";
+        Stream << std::left << std::setw(25) << critical_path_costs[i];
+        Stream << std::left << std::setw(25) << "";
         Stream << "\n";
       }
     }
