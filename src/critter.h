@@ -262,9 +262,8 @@ class ftimer{
 
     std::string name;
     std::stack<double> start_timer;
-    std::stack<double> inclusive_overhead_time;
     std::stack<double> exclusive_overhead_time;
-    std::stack<std::array<double,num_critical_path_measures>> inclusive_measure;
+    std::unordered_map<std::string,std::array<double,num_critical_path_measures>> exclusive_contributions;
     std::stack<std::array<double,num_critical_path_measures>> exclusive_measure;
     double* acc_numcalls;
     std::array<double*,num_critical_path_measures> acc_measure;
@@ -551,7 +550,8 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int64_t _critter_tot_recv=0; int _critter_np; MPI_Comm_size(cm, &_critter_np);\
-      std::vector<int> _critter_rcounts(_critter_np,1); std::vector<int> _critter_rdisp(_critter_np,0); for (_critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_rdisp[i]=_critter_rdisp[_critter_i-1]+1;\
+      std::vector<int> _critter_rcounts(_critter_np,1); std::vector<int> _critter_rdisp(_critter_np,0);\
+      for (int _critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_rdisp[_critter_i]=_critter_rdisp[_critter_i-1]+1;\
       for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_recv += rcounts[_critter_i]; }\
       critter::internal::_MPI_Allgatherv.start_synch(_critter_curTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm);\
       PMPI_Allgatherv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, &critter::internal::synch_pad_recv[0], &_critter_rcounts[0], &_critter_rdisp[0], MPI_CHAR, cm);\
@@ -590,7 +590,7 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       assert(rt==st);\
       int64_t _critter_tot_send=0;\
       int _critter_r, _critter_np; MPI_Comm_rank(cm, &_critter_rank); MPI_Comm_size(cm, &_critter_np);\
-      std::vector<int> _critter_scounts(_critter_np,1); std::vector<int> _critter_sdisp(_critter_np,0); for (_critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_rdisp[i]=_critter_rdisp[_critter_i-1]+1;\
+      std::vector<int> _critter_scounts(_critter_np,1); std::vector<int> _critter_sdisp(_critter_np,0); for (_critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_sdisp[i]=_critter_sdisp[_critter_i-1]+1;\
       if (_critter_rank == root) for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_send += ((int*)scounts)[_critter_i]; } \
       critter::internal::_MPI_Scatterv.start_synch(_critter_curTime_, std::max(_critter_tot_send,(int64_t)rcount), st, cm);\
       PMPI_Scatterv(&critter::internal::synch_pad_send[0], &_critter_scounts[0], &_critter_sdisp[0], MPI_CHAR, &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, root, cm);\
@@ -610,7 +610,8 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       int64_t _critter_tot_send=0, _critter_tot_recv=0;\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
       for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_send += scounts[_critter_i]; _critter_tot_recv += rcounts[_critter_i]; }\
-      std::vector<int> _critter_counts(_critter_np,1); std::vector<int> _critter_disp(_critter_np,0); for (_critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_rdisp[i]=_critter_rdisp[_critter_i-1]+1;\
+      std::vector<int> _critter_counts(_critter_np,1); std::vector<int> _critter_disp(_critter_np,0);\
+      for (int _critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_disp[_critter_i]=_critter_disp[_critter_i-1]+1;\
       critter::internal::_MPI_Alltoallv.start_synch(_critter_curTime_, std::max(_critter_tot_send,_critter_tot_recv), st, cm);\
       PMPI_Alltoallv(&critter::internal::synch_pad_send[0], &_critter_counts[0], &_critter_disp[0], MPI_CHAR, &critter::internal::synch_pad_recv[0], &_critter_counts[0], &_critter_disp[0], MPI_CHAR, cm);\
       critter::internal::_MPI_Scatterv.start_synch();\
