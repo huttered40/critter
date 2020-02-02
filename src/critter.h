@@ -32,7 +32,7 @@ constexpr std::bitset<8> critical_path_breakdown(0b10000000); 	// RunTime,CompTi
 constexpr int internal_tag                     = 1669220;	// arbitrary
 constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 constexpr size_t max_timer_name_length = 50;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       = 1000;			// max number of symbols to be tracked
+constexpr size_t max_num_symbols       = 50;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************
 namespace internal{
@@ -45,7 +45,7 @@ constexpr auto num_tracker_volume_measures 		= 7;		// Numbytes, EstCommCost, Est
 constexpr auto num_ftimer_measures                      = 2;		// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
 
 void update_critical_path(double* data);
-void propagate_critical_path(MPI_Comm cm, int nbr_pe, int nbr_pe2);
+void propagate_critical_path(MPI_Comm cm, int nbr_pe);
 void compute_volume(MPI_Comm cm);
 
 class tracker{
@@ -86,11 +86,11 @@ class tracker{
     /* \brief duration of computation time for each call made locally,
      *   used to save the local computation time between calls to ::start and ::stop variants */
     double save_comp_time;
+    volatile double save_time;
 
     /* \brief function for cost model of collective, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func;
 
-    volatile double save_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
     volatile double last_start_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
@@ -149,7 +149,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_block(volatile double curTime, int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_block(volatile double curTime, int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1);
     void start_block();
 
     /**
@@ -160,7 +160,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, bool is_sender=false, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, bool is_sender=false, int nbr_pe=-1);
     void start_nonblock();
 
     /**
@@ -252,6 +252,7 @@ struct int_int_double{
   int first; int second; double third;
 };
 
+// One instance for each unique symbol
 class ftimer{
   public:
     ftimer() {}
@@ -262,12 +263,15 @@ class ftimer{
 
     std::string name;
     std::stack<double> start_timer;
-    std::stack<double> exclusive_overhead_time;
     std::unordered_map<std::string,std::array<double,num_critical_path_measures>> exclusive_contributions;
     std::stack<std::array<double,num_critical_path_measures>> exclusive_measure;
-    double* acc_numcalls;
-    std::array<double*,num_critical_path_measures> acc_measure;
-    std::array<double*,num_critical_path_measures> acc_excl_measure;
+    double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
+    std::array<double*,num_critical_path_measures> cp_incl_measure;
+    std::array<double*,num_critical_path_measures> cp_excl_measure;
+    std::array<double*,num_critical_path_measures> pp_incl_measure;
+    std::array<double*,num_critical_path_measures> pp_excl_measure;
+    std::array<double*,num_critical_path_measures> vol_incl_measure;
+    std::array<double*,num_critical_path_measures> vol_excl_measure;
     bool has_been_processed;
 };
 
@@ -294,8 +298,10 @@ extern double scratch_pad;
 extern std::vector<char> synch_pad_send;
 extern std::vector<char> synch_pad_recv;
 extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
-extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local;
-extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global;
+extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local_cp;
+extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
+extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_pp;
+extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_vol;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
 extern std::array<std::string,max_num_symbols> symbol_order;
