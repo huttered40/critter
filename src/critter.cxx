@@ -1492,6 +1492,8 @@ void record(std::ostream& Stream, size_t factor){
         Stream << std::left << std::setw(25) << "exclusive %";
         Stream << std::left << std::setw(25) << "inclusive";
         Stream << std::left << std::setw(25) << "inclusive %";
+        double total_exclusive = 0.;
+        double total_inclusive = 0.;
         for (auto& it : symbol_timers){
           assert(it.second.start_timer.size() == 0);
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
@@ -1500,13 +1502,15 @@ void record(std::ostream& Stream, size_t factor){
           Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.cp_excl_measure[i]/critical_path_costs[i]);
           Stream << std::left << std::setw(25) << *it.second.cp_incl_measure[i];
           Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.cp_incl_measure[i]/critical_path_costs[i]);
+          total_exclusive += *it.second.cp_excl_measure[i];
+          total_inclusive = std::max(*it.second.cp_incl_measure[i],total_inclusive);
         }
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(25) << "";
-        Stream << std::left << std::setw(25) << critical_path_costs[i];
-        Stream << std::left << std::setw(25) << "";
-        Stream << std::left << std::setw(25) << critical_path_costs[i];
-        Stream << std::left << std::setw(25) << "";
+        Stream << std::left << std::setw(25) << total_exclusive;
+        Stream << std::left << std::setw(25) << 100.*total_exclusive/critical_path_costs[i];
+        Stream << std::left << std::setw(25) << total_inclusive;
+        Stream << std::left << std::setw(25) << 100.*total_inclusive/critical_path_costs[i];;
         Stream << "\n";
       }
     }
