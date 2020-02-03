@@ -45,7 +45,9 @@ constexpr auto num_tracker_volume_measures 		= 7;		// Numbytes, EstCommCost, Est
 constexpr auto num_ftimer_measures                      = 2;		// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
 
 void update_critical_path(double* data);
-void propagate_critical_path(MPI_Comm cm, int nbr_pe);
+void propagate_critical_path_synch(MPI_Comm cm, int partner);
+void propagate_critical_path_blocking(MPI_Comm cm, int partner, bool is_sender);
+void propagate_critical_path_nonblocking(double* data, MPI_Request internal_request, MPI_Comm cm, int partner, bool is_sender);
 void compute_volume(MPI_Comm cm);
 
 class tracker{
@@ -99,10 +101,10 @@ class tracker{
     volatile double last_barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm last_cm;
-    /* \brief nbr_pe with which start() was last called */
-    int last_nbr_pe;
-    /* \brief nbr_pe2 with which start() was last called */
-    int last_nbr_pe2;
+    /* \brief partner with which start() was last called */
+    int last_partner;
+    /* \brief partner2 with which start() was last called */
+    int last_partner2;
     /* \brief helper for nonblocking comm */
     int64_t last_nbytes;
     /* \brief helper for nonblocking comm */
@@ -138,7 +140,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1, int nbr_pe2=-1);
+    void start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int partner=-1, int partner2=-1);
     void start_synch();
 
     /**
@@ -149,7 +151,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_block(volatile double curTime, int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int nbr_pe=-1);
+    void start_block(volatile double curTime, int64_t nelem, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, int partner=-1);
     void start_block();
 
     /**
@@ -160,7 +162,7 @@ class tracker{
      * \param[in] nbe_pe2 second neighbor processor (only used for p2p routines)
      * \param[in] is_async whether the call is asynchronous (used only for p2p routines)
      */
-    void start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, bool is_sender=false, int nbr_pe=-1);
+    void start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem=1, MPI_Datatype t=MPI_CHAR, MPI_Comm cm=MPI_COMM_WORLD, bool is_sender=false, int partner=-1);
     void start_nonblock();
 
     /**
@@ -263,7 +265,7 @@ class ftimer{
 
     std::string name;
     std::stack<double> start_timer;
-    std::unordered_map<std::string,std::array<double,num_critical_path_measures>> exclusive_contributions;
+    std::stack<std::unordered_map<std::string,std::array<double,num_critical_path_measures>>> exclusive_contributions;
     std::stack<std::array<double,num_critical_path_measures>> exclusive_measure;
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
     std::array<double*,num_critical_path_measures> cp_incl_measure;
@@ -283,6 +285,7 @@ extern std::ofstream stream;
 
 extern double computation_timer;
 extern std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
+extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 extern std::map<MPI_Request,double*> internal_comm_message;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,tracker*> internal_comm_track;
