@@ -1485,32 +1485,68 @@ void record(std::ostream& Stream, size_t factor){
   }
   else if (mode == 2){
     if (is_world_root){
+      Stream << "***********************************************************************************************************************";
       for (auto i=num_critical_path_measures-1; i>=0; i--){
-        Stream << "\n" << std::left << std::setw(max_timer_name_length) << critical_path_measure_names[i];
-        Stream << std::left << std::setw(25) << "number of calls";
-        Stream << std::left << std::setw(25) << "exclusive";
-        Stream << std::left << std::setw(25) << "exclusive %";
-        Stream << std::left << std::setw(25) << "inclusive";
-        Stream << std::left << std::setw(25) << "inclusive %";
-        double total_exclusive = 0.;
-        double total_inclusive = 0.;
+        // Exclusive
+        Stream << "\n\n\n\n" << std::left << std::setw(max_timer_name_length) << critical_path_measure_names[i];
+        Stream << std::left << std::setw(15) << "cp-#calls";
+        Stream << std::left << std::setw(15) << "cp-excl";
+        Stream << std::left << std::setw(15) << "cp-excl %";
+        Stream << std::left << std::setw(15) << "pp-#calls";
+        Stream << std::left << std::setw(15) << "pp-excl";
+        Stream << std::left << std::setw(15) << "pp-excl %";
+        double cp_total_exclusive = 0.;
+        double pp_total_exclusive = 0.;
         for (auto& it : symbol_timers){
           assert(it.second.start_timer.size() == 0);
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
-          Stream << std::left << std::setw(25) << *it.second.cp_numcalls;
-          Stream << std::left << std::setw(25) << *it.second.cp_excl_measure[i];
-          Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.cp_excl_measure[i]/critical_path_costs[i]);
-          Stream << std::left << std::setw(25) << *it.second.cp_incl_measure[i];
-          Stream << std::left << std::setw(25) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.00 : *it.second.cp_incl_measure[i]/critical_path_costs[i]);
-          total_exclusive += *it.second.cp_excl_measure[i];
-          total_inclusive = std::max(*it.second.cp_incl_measure[i],total_inclusive);
+          Stream << std::left << std::setw(15) << *it.second.cp_numcalls;
+          Stream << std::left << std::setw(15) << *it.second.cp_excl_measure[i];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 100.0 : *it.second.cp_excl_measure[i]/critical_path_costs[i]);
+          Stream << std::left << std::setw(15) << *it.second.pp_numcalls;
+          Stream << std::left << std::setw(15) << *it.second.pp_excl_measure[i];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.0 : *it.second.pp_excl_measure[i]/max_per_process_costs[i]);
+          cp_total_exclusive += *it.second.cp_excl_measure[i];
+          pp_total_exclusive += *it.second.pp_excl_measure[i];
         }
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
-        Stream << std::left << std::setw(25) << "";
-        Stream << std::left << std::setw(25) << total_exclusive;
-        Stream << std::left << std::setw(25) << 100.*total_exclusive/critical_path_costs[i];
-        Stream << std::left << std::setw(25) << total_inclusive;
-        Stream << std::left << std::setw(25) << 100.*total_inclusive/critical_path_costs[i];;
+        Stream << std::left << std::setw(15) << "";
+        Stream << std::left << std::setw(15) << cp_total_exclusive;
+        Stream << std::left << std::setw(15) << 100.*cp_total_exclusive/critical_path_costs[i];
+        Stream << std::left << std::setw(15) << "";
+        Stream << std::left << std::setw(15) << pp_total_exclusive;
+        Stream << std::left << std::setw(15) << 100.*pp_total_exclusive/max_per_process_costs[i];
+        Stream << "\n";
+
+        // Inclusive
+        Stream << "\n" << std::left << std::setw(max_timer_name_length) << critical_path_measure_names[i];
+        Stream << std::left << std::setw(15) << "cp-#calls";
+        Stream << std::left << std::setw(15) << "cp-incl";
+        Stream << std::left << std::setw(15) << "cp-incl %";
+        Stream << std::left << std::setw(15) << "pp-#calls";
+        Stream << std::left << std::setw(15) << "pp-incl";
+        Stream << std::left << std::setw(15) << "pp-incl %";
+        double cp_total_inclusive = 0.;
+        double pp_total_inclusive = 0.;
+        for (auto& it : symbol_timers){
+          assert(it.second.start_timer.size() == 0);
+          Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
+          Stream << std::left << std::setw(15) << *it.second.cp_numcalls;
+          Stream << std::left << std::setw(15) << *it.second.cp_incl_measure[i];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 100.0 : *it.second.cp_incl_measure[i]/critical_path_costs[i]);
+          Stream << std::left << std::setw(15) << *it.second.pp_numcalls;
+          Stream << std::left << std::setw(15) << *it.second.pp_incl_measure[i];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 0.0 : *it.second.pp_incl_measure[i]/max_per_process_costs[i]);
+          cp_total_inclusive = std::max(*it.second.cp_incl_measure[i],cp_total_inclusive);
+          pp_total_inclusive = std::max(*it.second.pp_incl_measure[i],pp_total_inclusive);
+        }
+        Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
+        Stream << std::left << std::setw(15) << "";
+        Stream << std::left << std::setw(15) << cp_total_inclusive;
+        Stream << std::left << std::setw(15) << 100.*cp_total_inclusive/critical_path_costs[i];
+        Stream << std::left << std::setw(15) << "";
+        Stream << std::left << std::setw(15) << pp_total_inclusive;
+        Stream << std::left << std::setw(15) << 100.*pp_total_inclusive/max_per_process_costs[i];
         Stream << "\n";
       }
     }
