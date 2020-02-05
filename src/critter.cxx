@@ -504,6 +504,9 @@ void tracker::stop_block(bool is_sender){
 void tracker::start_nonblock(volatile double curTime, MPI_Request* request, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int partner){
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   if (mode == 2){
+    // debug
+    assert(symbol_stack.size()>0);
+    assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
     this->save_time = curTime - symbol_timers[symbol_stack.top()].start_timer.top();
   }
   this->save_comp_time = curTime - computation_timer;
@@ -1324,6 +1327,8 @@ void ftimer::stop(){
   *this->pp_numcalls = *this->pp_numcalls + 1.;
   *this->vol_numcalls = *this->vol_numcalls + 1.;
 
+  assert(this->exclusive_contributions.size()>0);
+  assert(this->exclusive_measure.size()>0);
   for (auto i=0; i<num_critical_path_measures; i++){
     this->exclusive_contributions.top()[this->name][i] += this->exclusive_measure.top()[i];
   }
@@ -1347,7 +1352,9 @@ void ftimer::stop(){
   volume_costs[7]        += (save_time - computation_timer);		// update local computation time
   volume_costs[8]        += (save_time - computation_timer);		// update local runtime
   computation_timer = MPI_Wtime();
-  if (symbol_stack.size()>0) symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer;
+  if (symbol_stack.size()>0){
+    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer;
+  }
 }
 
 std::vector<std::string> parse_file_string(){
