@@ -279,6 +279,7 @@ tracker::tracker(tracker const& t){
 tracker::~tracker(){}
 
 void tracker::start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int partner1, int partner2){
+
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   this->save_comp_time    = curTime - computation_timer;
   critical_path_costs[6] += this->save_comp_time;		// update critical path computation time
@@ -298,24 +299,26 @@ void tracker::start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t
   this->last_p = p;
 
   volatile double init_time = MPI_Wtime();
-  if (partner2 == -1){
+  if (partner1 == -1){
     PMPI_Barrier(cm);
   }
   else {
     double sbuf=0.; double rbuf=0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
-    if (partner2 != -1 && partner2 != partner2) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag, cm, MPI_STATUS_IGNORE);
+    if ((partner2 != -1) && (partner2 != partner2)){
+      PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+    }
   }
   this->last_barrier_time = MPI_Wtime() - init_time;
 
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
-  propagate_critical_path_synch(cm, partner2);
-  if (partner2 != -1 && partner2 != partner2) propagate_critical_path_synch(cm, partner2);
-  if (last_partner2 == -1){
+  propagate_critical_path_synch(cm, partner1);
+  if ((partner2 != -1) && (partner2 != partner2)) propagate_critical_path_synch(cm, partner2);
+  if (partner1 == -1){
     PMPI_Barrier(cm);
   } else {
     double sbuf=0.; double rbuf=0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag, cm, MPI_STATUS_IGNORE);
     if (partner2 != -1 && partner2 != partner2) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
   }
   // start synchronization timer for communication routine

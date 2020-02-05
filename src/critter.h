@@ -103,8 +103,6 @@ class tracker{
     MPI_Comm last_cm;
     /* \brief partner with which start() was last called */
     int last_partner;
-    /* \brief partner2 with which start() was last called */
-    int last_partner2;
     /* \brief helper for nonblocking comm */
     int64_t last_nbytes;
     /* \brief helper for nonblocking comm */
@@ -327,7 +325,27 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
     critter::internal::symbol_timers[#ARG].start();\
   }}}while (0);
 
+#define TAU_FSTART(ARG) do {\
+  if (critter::internal::mode==2){\
+  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+    critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
+    critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
+    critter::internal::symbol_timers[#ARG].start();\
+  }\
+  else{\
+    critter::internal::symbol_timers[#ARG].start();\
+  }}}while (0);
+
 #define TAU_STOP(ARG) do {\
+  if (critter::internal::mode==2){\
+  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+    assert(0);\
+  }\
+  else{\
+    critter::internal::symbol_timers[#ARG].stop();\
+  }}}while (0);
+
+#define TAU_FSTOP(ARG) do {\
   if (critter::internal::mode==2){\
   if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
     assert(0);\
