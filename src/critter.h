@@ -32,7 +32,7 @@ constexpr std::bitset<8> critical_path_breakdown(0b10000000); 	// RunTime,CompTi
 constexpr int internal_tag                     = 1669220;	// arbitrary
 constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 constexpr size_t max_timer_name_length = 50;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       = 50;			// max number of symbols to be tracked
+constexpr size_t max_num_symbols       = 500;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************
 namespace internal{
