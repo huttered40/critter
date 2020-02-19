@@ -5,6 +5,7 @@
 #include "mpi.h"
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 #include <utility>
 #include "iomanip"
 #include <vector>

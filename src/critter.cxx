@@ -598,6 +598,8 @@ void tracker::stop_nonblock(MPI_Request* request, double comp_time, double comm_
     for (size_t i=0; i<critical_path_breakdown_size; i++){
       *(this->critical_path_bytes+i)     +=nbytes;
       *(this->critical_path_comm_time+i) += comm_time;
+      //*(this->critical_path_synch_time+i)   += this->last_synch_time;	// We do not consider synch time for nonblocking communication
+      *(this->critical_path_datamvt_time+i) += comm_time;
       *(this->critical_path_msg+i)       += dcost.first;
       *(this->critical_path_wrd+i)       += dcost.second;
     }
@@ -1567,7 +1569,16 @@ void record(std::ostream& Stream, size_t factor){
   else if (mode == 2){
     if (is_world_root){
       Stream << "***********************************************************************************************************************";
+      std::vector<std::pair<std::string,std::array<double,6>>> sort_info(symbol_timers.size());
       for (auto i=num_critical_path_measures-1; i>=0; i--){
+        sort_info.clear(); sort_info.resize(symbol_timers.size());
+        // Reset symbol timers and sort
+        size_t j=0;
+        for (auto& it : symbol_timers){
+          assert(it.second.start_timer.size() == 0);
+          sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls,*it.second.vol_excl_measure[i]});
+        }
+        std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
         // Exclusive
         Stream << "\n\n\n\n" << std::left << std::setw(max_timer_name_length) << critical_path_measure_names[i];
         Stream << std::left << std::setw(15) << "cp-#calls";
@@ -1582,21 +1593,20 @@ void record(std::ostream& Stream, size_t factor){
         double cp_total_exclusive = 0.;
         double pp_total_exclusive = 0.;
         double vol_total_exclusive = 0.;
-        for (auto& it : symbol_timers){
-          assert(it.second.start_timer.size() == 0);
-          Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
-          Stream << std::left << std::setw(15) << *it.second.cp_numcalls;
-          Stream << std::left << std::setw(15) << *it.second.cp_excl_measure[i];
-          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 100.0 : *it.second.cp_excl_measure[i]/critical_path_costs[i]);
-          Stream << std::left << std::setw(15) << *it.second.pp_numcalls;
-          Stream << std::left << std::setw(15) << *it.second.pp_excl_measure[i];
-          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(max_per_process_costs[i] == 0. ? 0.0 : *it.second.pp_excl_measure[i]/max_per_process_costs[i]);
-          Stream << std::left << std::setw(15) << *it.second.vol_numcalls;
-          Stream << std::left << std::setw(15) << *it.second.vol_excl_measure[i];
-          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(volume_costs[i] == 0. ? 0.0 : *it.second.vol_excl_measure[i]/volume_costs[i]);
-          cp_total_exclusive += *it.second.cp_excl_measure[i];
-          pp_total_exclusive += *it.second.pp_excl_measure[i];
-          vol_total_exclusive += *it.second.vol_excl_measure[i];
+        for (auto& it : sort_info){
+          Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
+          Stream << std::left << std::setw(15) << it.second[0];
+          Stream << std::left << std::setw(15) << it.second[1];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 100.0 : it.second[1]/critical_path_costs[i]);
+          Stream << std::left << std::setw(15) << it.second[2];
+          Stream << std::left << std::setw(15) << it.second[3];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(max_per_process_costs[i] == 0. ? 0.0 : it.second[3]/max_per_process_costs[i]);
+          Stream << std::left << std::setw(15) << it.second[4];
+          Stream << std::left << std::setw(15) << it.second[5];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(volume_costs[i] == 0. ? 0.0 : it.second[5]/volume_costs[i]);
+          cp_total_exclusive += it.second[1];
+          pp_total_exclusive += it.second[3];
+          vol_total_exclusive += it.second[5];
         }
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(15) << "";
@@ -1610,6 +1620,14 @@ void record(std::ostream& Stream, size_t factor){
         Stream << std::left << std::setw(15) << 100.*vol_total_exclusive/volume_costs[i];
         Stream << "\n";
 
+        // Reset symbol timers and sort
+        sort_info.clear(); sort_info.resize(symbol_timers.size());
+        j=0;
+        for (auto& it : symbol_timers){
+          assert(it.second.start_timer.size() == 0);
+          sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls,*it.second.vol_incl_measure[i]});
+        }
+        std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
         // Inclusive
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << critical_path_measure_names[i];
         Stream << std::left << std::setw(15) << "cp-#calls";
@@ -1624,21 +1642,20 @@ void record(std::ostream& Stream, size_t factor){
         double cp_total_inclusive = 0.;
         double pp_total_inclusive = 0.;
         double vol_total_inclusive = 0.;
-        for (auto& it : symbol_timers){
-          assert(it.second.start_timer.size() == 0);
-          Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.second.name;
-          Stream << std::left << std::setw(15) << *it.second.cp_numcalls;
-          Stream << std::left << std::setw(15) << *it.second.cp_incl_measure[i];
-          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 100.0 : *it.second.cp_incl_measure[i]/critical_path_costs[i]);
-          Stream << std::left << std::setw(15) << *it.second.pp_numcalls;
-          Stream << std::left << std::setw(15) << *it.second.pp_incl_measure[i];
-          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(max_per_process_costs[i] == 0. ? 100.0 : *it.second.pp_incl_measure[i]/max_per_process_costs[i]);
-          Stream << std::left << std::setw(15) << *it.second.vol_numcalls;
-          Stream << std::left << std::setw(15) << *it.second.vol_incl_measure[i];
-          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(volume_costs[i] == 0. ? 100.0 : *it.second.vol_incl_measure[i]/volume_costs[i]);
-          cp_total_inclusive = std::max(*it.second.cp_incl_measure[i],cp_total_inclusive);
-          pp_total_inclusive = std::max(*it.second.pp_incl_measure[i],pp_total_inclusive);
-          vol_total_inclusive = std::max(*it.second.vol_incl_measure[i],vol_total_inclusive);
+        for (auto& it : sort_info){
+          Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
+          Stream << std::left << std::setw(15) << it.second[0];
+          Stream << std::left << std::setw(15) << it.second[1];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(critical_path_costs[i] == 0. ? 100.0 : it.second[1]/critical_path_costs[i]);
+          Stream << std::left << std::setw(15) << it.second[2];
+          Stream << std::left << std::setw(15) << it.second[3];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(max_per_process_costs[i] == 0. ? 100.0 : it.second[3]/max_per_process_costs[i]);
+          Stream << std::left << std::setw(15) << it.second[4];
+          Stream << std::left << std::setw(15) << it.second[5];
+          Stream << std::left << std::setw(15) << std::setprecision(4) << 100.*(volume_costs[i] == 0. ? 100.0 : it.second[5]/volume_costs[i]);
+          cp_total_inclusive = std::max(it.second[1],cp_total_inclusive);
+          pp_total_inclusive = std::max(it.second[3],pp_total_inclusive);
+          vol_total_inclusive = std::max(it.second[5],vol_total_inclusive);
         }
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(15) << "";
