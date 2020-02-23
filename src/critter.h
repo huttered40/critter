@@ -46,7 +46,7 @@ constexpr auto num_tracker_volume_measures 		= 7;		// Numbytes, EstCommCost, Est
 constexpr auto num_ftimer_measures                      = 2;		// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
 
 void update_critical_path(double* data);
-void propagate_critical_path_synch(MPI_Comm cm, int partner);
+void propagate_critical_path_synch(MPI_Comm cm, int partner, int comm_id);
 void propagate_critical_path_blocking(MPI_Comm cm, int partner, bool is_sender);
 void propagate_critical_path_nonblocking(double* data, MPI_Request internal_request, MPI_Comm cm, int partner, bool is_sender);
 void compute_volume(MPI_Comm cm);
@@ -257,7 +257,7 @@ struct int_int_double{
 class ftimer{
   public:
     ftimer() {}
-    ftimer(std::string name_);
+    ftimer(std::string name_, bool internal=false);
     void stop();
     void start();
     bool operator<(const ftimer& w) const ;
