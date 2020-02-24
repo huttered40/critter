@@ -293,7 +293,7 @@ constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 extern std::array<double,critical_path_costs_size> critical_path_costs;
 extern std::array<double,volume_costs_size> volume_costs;
-extern std::array<double,num_critical_path_measures> max_per_process_costs;
+extern std::array<double,volume_costs_size> max_per_process_costs;
 extern std::map<std::string,std::vector<double>> save_info;
 extern double new_cs[critical_path_costs_size];
 extern double scratch_pad;
@@ -302,14 +302,14 @@ extern std::vector<char> synch_pad_recv;
 extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local_cp;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
-extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_pp;
-extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_vol;
+extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_pp;
+extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_vol;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
 extern std::array<std::string,max_num_symbols> symbol_order;
 extern std::array<std::string,num_critical_path_measures> critical_path_measure_names;
-extern double_int timer_cp_info_sender[num_critical_path_measures];
-extern double_int timer_cp_info_receiver[num_critical_path_measures];
+extern double_int timer_info_sender[num_volume_measures];
+extern double_int timer_info_receiver[num_volume_measures];
 }
 }
 
