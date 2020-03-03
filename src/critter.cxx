@@ -309,10 +309,8 @@ void tracker::start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t
   }
   else {
     double sbuf=0.; double rbuf=0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag, cm, MPI_STATUS_IGNORE);
-    if ((partner2 != -1) && (partner2 != partner2)){
-      PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
-    }
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag3, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag3, cm, MPI_STATUS_IGNORE);
+    if ((partner2 != -1) && (partner1 != partner2)) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag3, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag3, cm, MPI_STATUS_IGNORE);
   }
   this->last_barrier_time = MPI_Wtime() - init_time;
 
@@ -323,8 +321,8 @@ void tracker::start_synch(volatile double curTime, int64_t nelem, MPI_Datatype t
     PMPI_Barrier(cm);
   } else {
     double sbuf=0.; double rbuf=0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag, cm, MPI_STATUS_IGNORE);
-    if (partner2 != -1 && partner2 != partner2) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag4, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag4, cm, MPI_STATUS_IGNORE);
+    if ((partner2 != -1) && (partner1 != partner2)) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag4, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag4, cm, MPI_STATUS_IGNORE);
   }
   // start synchronization timer for communication routine
   this->last_start_time = MPI_Wtime();
@@ -736,8 +734,8 @@ void propagate_critical_path_synch(MPI_Comm cm, int partner, int comm_id){
       MPI_Op_free(&op);
     }
     else {
-      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner, internal_tag, &new_cs[0], critical_path_costs.size(),
-        MPI_DOUBLE, partner, internal_tag, cm, MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner, internal_tag1, &new_cs[0], critical_path_costs.size(),
+        MPI_DOUBLE, partner, internal_tag1, cm, MPI_STATUS_IGNORE);
       update_critical_path(&new_cs[0]);
     }
   }
@@ -1080,7 +1078,7 @@ void propagate_critical_path_nonblocking(double* data, MPI_Request internal_requ
       PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
     }
     else {
-      PMPI_Sendrecv(&timer_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner, internal_tag, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner, internal_tag, cm, MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(&timer_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner, internal_tag2, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner, internal_tag2, cm, MPI_STATUS_IGNORE);
       for (int i=0; i<num_critical_path_measures; i++){
         if (timer_info_sender[i].first>timer_info_receiver[i].first){timer_info_receiver[i].second = rank;}
         else if (timer_info_sender[i].first==timer_info_receiver[i].first){
