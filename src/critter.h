@@ -30,8 +30,12 @@ void stop(size_t mode = 1, size_t factor = 1);
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
 constexpr size_t critical_path_breakdown_size  = 1;
 constexpr std::bitset<8> critical_path_breakdown(0b10000000); 	// RunTime,CompTime,DataMvtTime,SynchTime,CommTime,EstSynchCost,EstCommCost,NumBytes
-constexpr int internal_tag                     = 1669220;	// arbitrary
-constexpr bool p2p_blocking_comm_protocol      = true;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
+constexpr int internal_tag                      = 1669220;	// arbitrary
+constexpr int internal_tag1                     = 1669221;	// arbitrary
+constexpr int internal_tag2                     = 1669222;	// arbitrary
+constexpr int internal_tag3                     = 1669223;	// arbitrary
+constexpr int internal_tag4                     = 1669224;	// arbitrary
+constexpr bool p2p_blocking_comm_protocol      = false;		// 'false' for blocking p2p getting blockign protocol, 'true' for synchronous protocol
 constexpr size_t max_timer_name_length = 50;			// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       = 500;			// max number of symbols to be tracked
 
@@ -657,7 +661,7 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(st == rt); assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv.start_synch(_critter_curTime_, std::max(scnt,rcnt), st, cm, dest, src);\
-      PMPI_Sendrecv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, stag, &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, rtag, cm, status);\
+      PMPI_Sendrecv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status);\
       critter::internal::_MPI_Sendrecv.start_synch();\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv.stop_synch();}\
@@ -672,7 +676,7 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
       critter::internal::_MPI_Sendrecv_replace.start_synch(_critter_curTime_, scnt, st, cm, dest, src);\
-      PMPI_Sendrecv_replace(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, stag, src, rtag, cm, status);\
+      PMPI_Sendrecv_replace(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, src, critter::internal_tag, cm, status);\
       critter::internal::_MPI_Sendrecv_replace.start_synch();\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv_replace.stop_synch();}\
@@ -687,7 +691,7 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       critter::internal::_MPI_Ssend.start_synch(_critter_curTime_, nelem, t, cm, dest);\
-      PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, tag, cm);\
+      PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, cm);\
       critter::internal::_MPI_Ssend.start_synch();\
       PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
       critter::internal::_MPI_Ssend.stop_synch();\
@@ -703,8 +707,8 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.start_block(_critter_curTime_, nelem, t, cm, dest);}\
-      else {critter::internal::_MPI_Send.start_synch(_critter_curTime_, nelem, t, cm, dest); }\
-      PMPI_Send(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, tag, cm);\
+      else {critter::internal::_MPI_Send.start_synch(_critter_curTime_, nelem, t, cm, dest);\
+            PMPI_Send(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, cm); }\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Send.start_block();}\
       else {critter::internal::_MPI_Send.start_synch(); }\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
@@ -722,8 +726,8 @@ extern double_int timer_cp_info_receiver[num_critical_path_measures];
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block(_critter_curTime_, nelem, t, cm, src);}\
-      else {critter::internal::_MPI_Recv.start_synch(_critter_curTime_, nelem, t, cm, src); }\
-      PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, tag, cm, status);\
+      else {critter::internal::_MPI_Recv.start_synch(_critter_curTime_, nelem, t, cm, src);\
+            PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status); }\
       if (!critter::p2p_blocking_comm_protocol) {critter::internal::_MPI_Recv.start_block();}\
       else {critter::internal::_MPI_Recv.start_synch(); }\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
