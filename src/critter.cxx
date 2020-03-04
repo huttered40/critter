@@ -1581,7 +1581,7 @@ void record(std::ostream& Stream, size_t factor){
       Stream << std::left << std::setw(25) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(25) << "                  ";
-      for (size_t i=0; i<max_per_process_costs.size(); i++){
+      for (size_t i=0; i<num_volume_measures; i++){
         Stream << std::left << std::setw(25) << factor*max_per_process_costs[i];
       }
       Stream << "\n\n";
