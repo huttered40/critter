@@ -273,10 +273,10 @@ class ftimer{
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
     std::array<double*,num_critical_path_measures> cp_incl_measure;
     std::array<double*,num_critical_path_measures> cp_excl_measure;
-    std::array<double*,num_critical_path_measures> pp_incl_measure;
-    std::array<double*,num_critical_path_measures> pp_excl_measure;
-    std::array<double*,num_critical_path_measures> vol_incl_measure;
-    std::array<double*,num_critical_path_measures> vol_excl_measure;
+    std::array<double*,num_volume_measures> pp_incl_measure;
+    std::array<double*,num_volume_measures> pp_excl_measure;
+    std::array<double*,num_volume_measures> vol_incl_measure;
+    std::array<double*,num_volume_measures> vol_excl_measure;
     bool has_been_processed;
 };
 

@@ -441,7 +441,7 @@ void tracker::start_block(volatile double curTime, int64_t nelem, MPI_Datatype t
 void tracker::start_block(){
   // Deal with synchronization time
   volatile double synchTime = MPI_Wtime();
-  this->last_synch_time = synchTime-this->last_start_time;
+  this->last_synch_time = 0.;//synchTime-this->last_start_time;
   // start communication timer for communication routine
   this->last_start_time = MPI_Wtime();
 }
@@ -726,7 +726,7 @@ void update_critical_path(double* data){
 }
 
 void propagate_critical_path_synch(MPI_Comm cm, int partner, int comm_id){
-  if (mode == 1){
+  if (mode <= 1){// Note that the only way this routine would be called with mode==0 is after critter::stop
     // First exchange the tracked routine critical path data
     if (partner == -1){
       MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
@@ -1515,7 +1515,7 @@ void record(std::ofstream& Stream, size_t factor){
       for (size_t i=0; i<num_critical_path_measures; i++){
         Stream << "\t" << factor*critical_path_costs[i];
       }
-      for (size_t i=0; i<max_per_process_costs.size(); i++){
+      for (size_t i=0; i<num_volume_measures; i++){
         if (i==3) continue;// skip idle time (for now?)
         Stream << "\t" << factor*max_per_process_costs[i];
       }
@@ -1796,7 +1796,7 @@ void start(size_t mode){
 
 void stop(size_t mode, size_t factor){
   volatile double last_time = MPI_Wtime();
-  assert(mode==internal::mode);
+//  assert(mode==internal::mode);
   assert(internal::internal_comm_info.size() == 0);
   internal::critical_path_costs[6]+=(last_time-internal::computation_timer);	// update critical path computation time
   internal::critical_path_costs[7]+=(last_time-internal::computation_timer);	// update critical path runtime
