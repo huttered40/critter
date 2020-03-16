@@ -472,7 +472,7 @@ nonblocking::nonblocking(nonblocking const& t){
   this->init();
 }
 
-void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root, int partner1, int partner2){
+void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root, bool is_sender, int partner1, int partner2){
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   this->save_comp_time    = curTime - computation_timer;
@@ -497,6 +497,9 @@ void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   this->last_nbytes = nbytes;
   this->last_p = p;
   this->last_is_root = is_root;
+  this->last_is_sender = is_sender;
+  this->last_partner1 = partner1;
+  this->last_partner2 = partner2;
 
   volatile double init_time = MPI_Wtime();
   if (partner1 == -1){
@@ -510,7 +513,7 @@ void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   this->last_barrier_time = MPI_Wtime() - init_time;
 
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
-  propagate(cm, partner1);
+  propagate(cm, this->last_is_sender, this->last_partner1, this->last_partner2);
   if ((partner2 != -1) && (partner2 != partner2)) propagate(cm, partner2);
   if (partner1 == -1){
     PMPI_Barrier(cm);
@@ -531,7 +534,7 @@ void synchronous::intermediate(){
   this->last_start_time = MPI_Wtime();
 }
 
-void synchronous::stop(bool is_sender){
+void synchronous::stop(){
   volatile double new_time = MPI_Wtime();
   volatile double dt = new_time - this->last_start_time;	// complete communication time
   double datamvt_time = std::max(0.,(dt-this->last_synch_time));
@@ -642,14 +645,17 @@ void synchronous::stop(bool is_sender){
   }
 }
 
-void blocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root, int partner1, int partner2){
+void blocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root, bool is_sender, int partner1, int partner2){
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   if (mode == 2){
     this->save_time = curTime - symbol_timers[symbol_stack.top()].start_timer.top();
   }
   this->save_comp_time = curTime - computation_timer;
   this->last_cm = cm;
-  this->last_partner = partner1;
+  this->last_is_root = is_root;
+  this->last_is_sender = is_sender;
+  this->last_partner1 = partner1;
+  this->last_partner2 = partner2;
 
   int el_size,p;
   MPI_Type_size(t, &el_size);
@@ -671,7 +677,7 @@ void blocking::intermediate(){
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
-void blocking::stop(bool is_sender){
+void blocking::stop(){
   volatile double new_time = MPI_Wtime();
   volatile double dt = new_time - this->last_start_time;	// complete communication time
   double datamvt_time = std::max(0.,(dt-this->last_synch_time));
@@ -779,7 +785,7 @@ void blocking::stop(bool is_sender){
                                           ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
 
   // Exchange the tracked routine critical path data
-  propagate(this->last_cm,this->last_partner,is_sender);
+  propagate(this->last_cm,this->last_is_sender,this->last_partner1,this->last_partner2);
 
   // Prepare to leave interception and re-enter user code
   this->last_start_time = MPI_Wtime();
@@ -990,21 +996,33 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   }
 }
 
-void complete_propagation(MPI_Comm cm, int partner){
+void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner2){
   if (mode <= 1){// Note that the only way this routine would be called with mode==0 is after critter::stop
     // First exchange the tracked routine critical path data
-    if (partner == -1){
+    if (partner1 == -1){
       MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
       PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
       MPI_Op_free(&op);
     }
-    else {
-      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner, internal_tag1, &new_cs[0], critical_path_costs.size(),
-        MPI_DOUBLE, partner, internal_tag1, cm, MPI_STATUS_IGNORE);
+    else if (partner2 == -1){
+      // Sender sends critical path data to receiver. Receiver updates its critical path information.
+      if (is_sender){
+        PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm);
+        // Sender needs not wait for handshake with receiver, can continue back into user code
+      }
+      else{
+        PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
+        update_critical_path(&new_cs[0]);
+      }
+    }
+    else{
+      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag1, &new_cs[0], critical_path_costs.size(),
+        MPI_DOUBLE, partner2, internal_tag1, cm, MPI_STATUS_IGNORE);
       update_critical_path(&new_cs[0]);
     }
   }
   else if (mode == 2){
+/*
     // Note: challenge of updating symbol_stack. For local symbols that are not along the updated critical path, we need to just make their contributions zero, but still keep them in the maps.
     // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
     //TODO: Note that this is missing non-runtime-critical-path breakdown, as is performed above for mode==1 with the MPI_Op or the function 'update_critical_path'
@@ -1032,30 +1050,6 @@ void complete_propagation(MPI_Comm cm, int partner){
       }
     }
     int critical_path_runtime_root_rank = timer_info_receiver[num_critical_path_measures-1].second;
-/*
-    // debug
-    if (true_rank==0){
-      double total=0;
-      std::cout << "World Rank 0 - BEFORE\n";
-      for (auto& it : symbol_timers){
-        std::cout << "\t\t exclusive time in " << it.first << " is " << *it.second.cp_excl_measure[7] << std::endl;
-        total += *it.second.cp_excl_measure[7];
-      }
-      std::cout << "\ttotal exclusive time - " << total << std::endl;
-      std::cout << "world rank 0 has cp runtime - " << critical_path_costs[7] << " and is now " << timer_info_receiver[7].first << " by cm rank " << critical_path_runtime_root_rank << std::endl;
-    }
-    PMPI_Barrier(cm);
-    if ((rank==critical_path_runtime_root_rank) && (comm_id==4)){
-      double total=0;
-      std::cout << "Root rank - " << rank << " - BEFORE\n";
-      for (auto& it : symbol_timers){
-        std::cout << "\t\t exclusive time in " << it.first << " is " << *it.second.cp_excl_measure[7] << std::endl;
-        total += *it.second.cp_excl_measure[7];
-      }
-      std::cout << "\ttotal exclusive time - " << total << std::endl;
-      std::cout << "world rank 0 has cp runtime - " << critical_path_costs[7] << " and is now " << timer_info_receiver[7].first << " by cm rank " << critical_path_runtime_root_rank << std::endl;
-    }
-*/
     for (int i=0; i<num_critical_path_measures; i++){
       critical_path_costs[i] = timer_info_receiver[i].first;
     }
@@ -1188,39 +1182,35 @@ void complete_propagation(MPI_Comm cm, int partner){
         }
       }
     }
-/*
-    // debug
-    if (true_rank==0){
-      double total=0;
-      std::cout << "World Rank0 - AFTER\n";
-      for (auto& it : symbol_timers){
-        std::cout << "\t\t exclusive time in " << it.first << " is " << *it.second.cp_excl_measure[7] << std::endl;
-        total += *it.second.cp_excl_measure[7];
-      }
-      std::cout << "\ttotal exclusive time - " << total << std::endl;
-      std::cout << "world rank 0 has cp runtime - " << critical_path_costs[7] << " and is now " << timer_info_receiver[7].first << " by cm rank " << critical_path_runtime_root_rank << std::endl;
-    }
 */
   }
 }
 
-void synchronous::propagate(MPI_Comm cm, int partner){
-  complete_propagation(cm,partner);
+void synchronous::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
+  complete_propagation(cm,is_sender,partner1,partner2);
 }
 
-void blocking::propagate(MPI_Comm cm, int partner, bool is_sender){
+void blocking::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
   if (mode == 1){
-    // Sender sends critical path data to receiver. Receiver updates its critical path information.
-    if (is_sender){
-      PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,partner,internal_tag,cm);
-      // Sender needs not wait for handshake with receiver, can continue back into user code
+    if (partner2==-1){
+      // Sender sends critical path data to receiver. Receiver updates its critical path information.
+      if (is_sender){
+        PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm);
+        // Sender needs not wait for handshake with receiver, can continue back into user code
+      }
+      else{
+        PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
+        update_critical_path(&new_cs[0]);
+      }
     }
     else{
-      PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner,internal_tag,cm,MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag1, &new_cs[0], critical_path_costs.size(),
+        MPI_DOUBLE, partner2, internal_tag1, cm, MPI_STATUS_IGNORE);
       update_critical_path(&new_cs[0]);
     }
   }
   else if (mode == 2){
+/*
     // Note: challenge of updating symbol_stack. For local symbols that are not along the updated critical path, we need to just make their contributions zero, but still keep them in the maps.
     // Next, exchange the critical path metric, together with tracking the rank of the process that determines each critical path
     //TODO: Note that this is missing non-runtime-critical-path breakdown, as is performed above for mode==1 with the MPI_Op or the function 'update_critical_path'
@@ -1321,6 +1311,7 @@ void blocking::propagate(MPI_Comm cm, int partner, bool is_sender){
         }
       }
     }
+*/
   }
 }
 
@@ -2113,7 +2104,7 @@ void stop(size_t mode, size_t factor){
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);	// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);	// update runtime volume
 
-  internal::complete_propagation(MPI_COMM_WORLD,-1);
+  internal::complete_propagation(MPI_COMM_WORLD,false,-1,-1);
   internal::compute_volume(MPI_COMM_WORLD);
 
   internal::record(std::cout,factor);

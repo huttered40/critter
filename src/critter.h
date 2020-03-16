@@ -43,7 +43,7 @@ constexpr int internal_tag1                     = 1669221;	// arbitrary
 constexpr int internal_tag2                     = 1669222;	// arbitrary
 constexpr int internal_tag3                     = 1669223;	// arbitrary
 constexpr int internal_tag4                     = 1669224;	// arbitrary
-using p2p_type = internal::synchronous;/*internal::blocking;*/	// p2p communication can be tracked as 'synchronous' or 'blocking'
+using p2p_type = internal::blocking;//synchronous;/*internal::blocking;*/	// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 		= 50;		// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       		= 500;		// max number of symbols to be tracked
 
@@ -59,7 +59,7 @@ constexpr auto num_ftimer_measures                      = 2;				// ExclusiveTime
 
 void update_critical_path(double* data);
 void compute_volume(MPI_Comm cm);
-void complete_propagation(MPI_Comm, int partner=-1);
+void complete_propagation(MPI_Comm, bool is_sender, int partner1, int partner2);
 
 /* \brief encapsulation of the state of a MPI routine */
 class tracker{
@@ -111,13 +111,17 @@ class tracker{
     /* \brief cm with which start() was last called */
     MPI_Comm last_cm;
     /* \brief partner with which start() was last called */
-    int last_partner;
+    int last_partner1;
+    /* \brief partner with which start() was last called */
+    int last_partner2;
     /* \brief nbytes with which start() was last called */
     int64_t last_nbytes;
     /* \brief process count with which start() was last called */
     int last_p;
-    /* \brief root id with which start() was last called */
+    /* \brief root bool with which start() was last called */
     bool last_is_root;
+    /* \brief is_sender bool with which start() was last called */
+    bool last_is_sender;
     /** \brief initialization of state called by construtors */
     void init();
     /** */
@@ -151,13 +155,13 @@ public:
     /** \brief copy constructor */
     synchronous(synchronous const& t);
     /** \brief starts tracking of synchronous MPI communication of nelem elements of type t over communicator cm */
-    void start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root = false, int partner=-1, int partner2=-1);
+    void start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root = false, bool is_sender = false, int partner=-1, int partner2=-1);
     /** \brief starts communication timer for corresponding synchronous MPI communication */
     void intermediate();
     /** \brief completes interception of synchronous communication protocol */
-    void stop(bool is_sender=false);
+    void stop();
     /** \brief propagates path information */
-    void propagate(MPI_Comm cm, int partner);
+    void propagate(MPI_Comm cm, bool is_sender=false, int partner1=-1, int partner2=-1);
 };
 
 class blocking : public tracker{
@@ -181,13 +185,13 @@ public:
     /** \brief copy constructor */
     blocking(blocking const& t);
     /** \brief starts tracking of blocking MPI communication of nelem elements of type t over communicator cm */
-    void start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root = false, int partner1=-1, int partner2=-1);
+    void start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_root, bool is_sender, int partner1, int partner2=-1);
     /** \brief starts communication timer for corresponding blocking MPI communication */
     void intermediate();
     /** \brief completes interception of blocking communication protocol */
-    void stop(bool is_sender);
+    void stop();
     /** \brief propagates path information */
-    void propagate(MPI_Comm cm, int partner, bool is_sender);
+    void propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2=-1);
 };
 
 class nonblocking : public tracker{
@@ -234,9 +238,7 @@ extern synchronous
          _MPI_Allgatherv,
          _MPI_Scatterv,
          _MPI_Alltoallv,
-         _MPI_Ssend,
-         _MPI_Sendrecv,
-         _MPI_Sendrecv_replace;
+         _MPI_Ssend;
 extern p2p_type
          _MPI_Send,
          _MPI_Recv,
@@ -641,7 +643,7 @@ extern bool wait_id;
       PMPI_Allgatherv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, &critter::internal::synch_pad_recv[0], &_critter_rcounts[0], &_critter_rdisp[0], MPI_CHAR, cm);\
       critter::internal::_MPI_Allgatherv.intermediate();\
       PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\
-      critter::internal::_MPI_Allgatherv.stop_synch();\
+      critter::internal::_MPI_Allgatherv.stop();\
     }\
     else{\
       PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\
@@ -696,7 +698,7 @@ extern bool wait_id;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(st == rt); assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
-      critter::internal::_MPI_Sendrecv.start(_critter_curTime_, std::max(scnt,rcnt), st, cm, false, dest, src);\
+      critter::internal::_MPI_Sendrecv.start(_critter_curTime_, std::max(scnt,rcnt), st, cm, false, true, dest, src);\
       if (std::is_same<critter::p2p_type,critter::internal::synchronous>::value){\
         PMPI_Sendrecv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status);\
       }\
@@ -714,7 +716,7 @@ extern bool wait_id;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
-      critter::internal::_MPI_Sendrecv_replace.start(_critter_curTime_, scnt, st, cm, false, dest, src);\
+      critter::internal::_MPI_Sendrecv_replace.start(_critter_curTime_, scnt, st, cm, false, true, dest, src);\
       if (std::is_same<critter::p2p_type,critter::internal::synchronous>::value){\
         PMPI_Sendrecv_replace(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, src, critter::internal_tag, cm, status);\
       }\
@@ -732,7 +734,7 @@ extern bool wait_id;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
-      critter::internal::_MPI_Ssend.start(_critter_curTime_, nelem, t, cm, false, dest);\
+      critter::internal::_MPI_Ssend.start(_critter_curTime_, nelem, t, cm, false, true, dest);\
       PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, cm);\
       critter::internal::_MPI_Ssend.intermediate();\
       PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
@@ -748,13 +750,13 @@ extern bool wait_id;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
-      critter::internal::_MPI_Send.start(_critter_curTime_, nelem, t, cm, false, dest);\
+      critter::internal::_MPI_Send.start(_critter_curTime_, nelem, t, cm, false, true, dest);\
       if (std::is_same<critter::p2p_type,critter::internal::synchronous>::value){\
             PMPI_Send(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, cm);\
       }\
       critter::internal::_MPI_Send.intermediate();\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
-      critter::internal::_MPI_Send.stop(true);}\
+      critter::internal::_MPI_Send.stop();\
     }\
     else{\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
@@ -766,13 +768,13 @@ extern bool wait_id;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
-      critter::internal::_MPI_Recv.start_block(_critter_curTime_, nelem, t, cm, false, src);}\
+      critter::internal::_MPI_Recv.start(_critter_curTime_, nelem, t, cm, false, false, src);\
       if (std::is_same<critter::p2p_type,critter::internal::synchronous>::value){\
-        PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status); }\
+        PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status);\
       }\
-      critter::internal::_MPI_Recv.intermediate();}\
+      critter::internal::_MPI_Recv.intermediate();\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
-      critter::internal::_MPI_Recv.stop_block(false);\
+      critter::internal::_MPI_Recv.stop();\
     }\
     else{\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
