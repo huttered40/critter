@@ -328,8 +328,8 @@ tracker* list[list_size] = {
         &_MPI_Sendrecv_replace,
         &_MPI_Send,
         &_MPI_Recv,
-        &_MPI_Irecv,
         &_MPI_Isend,
+        &_MPI_Irecv,
         &_MPI_Ibcast,
         &_MPI_Iallreduce,
         &_MPI_Ireduce,
@@ -1573,7 +1573,7 @@ void compute_volume(MPI_Comm cm){
 
 void tracker::set_header(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if (this->my_bytes != 0.){
+  if ((*this->my_msg_count != 0) || (*this->my_wrd_count != 0)){
     std::vector<double> vec(1);
     save_info[this->name] = std::move(vec);
   }
@@ -1581,7 +1581,7 @@ void tracker::set_header(){
 
 void tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if ((this->my_bytes != 0.) && (critical_path_breakdown_size>0)){
+  if (((*this->my_msg_count != 0) || (*this->my_wrd_count != 0)) && (critical_path_breakdown_size>0)){
     std::vector<double> vec(num_tracker_critical_path_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
@@ -1600,7 +1600,7 @@ void tracker::set_critical_path_costs(size_t idx){
 
 void tracker::set_volume_costs(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if (this->my_bytes != 0.){
+  if ((*this->my_msg_count != 0) || (*this->my_wrd_count != 0)){
     std::vector<double> vec(num_tracker_volume_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
