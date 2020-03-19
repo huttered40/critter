@@ -33,8 +33,8 @@ void stop(size_t mode = 1, size_t factor = 1);
 
 // User variables
 // Note: `cost_model_size` must equal `cost_models.count()`. This will not be checked at compile time.
-constexpr size_t cost_model_size  = 2;				// must match number of bits set in cost_model (below)
-constexpr std::bitset<3> cost_models(0b101);			// BSP, alpha-beta butterfly, simple
+constexpr size_t cost_model_size  = 3;				// must match number of bits set in cost_model (below)
+constexpr std::bitset<3> cost_models(0b111);			// BSP, alpha-beta butterfly, simple
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
 constexpr size_t critical_path_breakdown_size  = 1;		// must match number of bits set in critical_path_breakdown (below)
 constexpr std::bitset<5> critical_path_breakdown(0b10000);  // RunTime,CompTime,DataMvtTime,SynchTime,CommTime
@@ -639,7 +639,7 @@ extern bool wait_id;
       std::vector<int> _critter_rcounts(_critter_np,1); std::vector<int> _critter_rdisp(_critter_np,0);\
       for (int _critter_i=1; _critter_i<_critter_np; _critter_i++) _critter_rdisp[_critter_i]=_critter_rdisp[_critter_i-1]+1;\
       for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_recv += rcounts[_critter_i]; }\
-      critter::internal::_MPI_Allgatherv.start(_critter_curTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm, _critter_cm_rank==root);\
+      critter::internal::_MPI_Allgatherv.start(_critter_curTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm, true);\
       PMPI_Allgatherv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, &critter::internal::synch_pad_recv[0], &_critter_rcounts[0], &_critter_rdisp[0], MPI_CHAR, cm);\
       critter::internal::_MPI_Allgatherv.intermediate();\
       PMPI_Allgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm);\

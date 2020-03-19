@@ -12,6 +12,7 @@ class bench(object):
     def __init__(self,\
                  CritterPath,\
 		 MachineType,\
+		 CritterCostModelInfo,\
 		 CritterBreakdownInfo,\
 		 CritterVizInfo,\
 		 fileID,\
@@ -43,6 +44,8 @@ class bench(object):
                     - specified as a string
 
         MachineType - machine type specified in ../experiments/machines/
+
+        CritterCostModelInfo - string that matches the cost_model bitset global variable in src/critter.h
 
         CritterBreakdownInfo - string that matches the critical_path_breakdown bitset global variable in src/critter.h
 
@@ -98,9 +101,11 @@ class bench(object):
                       - outer list must be of length 'numTests'
                       - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
         """
-        assert(len(CritterBreakdownInfo)==8)
+        assert(len(CritterCostModelInfo)==3)
+        assert(len(CritterBreakdownInfo)==5)
         self.CritterPath = CritterPath
         self.MachineType = MachineType
+        self.CritterCostModelInfo = CritterCostModelInfo
         self.CritterBreakdownInfo = CritterBreakdownInfo
         self.UseCritterViz = CritterVizInfo[0]
         if (self.UseCritterViz>0):
@@ -223,6 +228,7 @@ class bench(object):
         File.write("%s\n"%(self.testNameAllRounds))
         File.write("%s\n"%(self.MachineType.MachineName))
         File.write("%d\n"%(self.numTests))
+        File.write("%s\n"%(self.CritterCostModelInfo))
         File.write("%s\n"%(self.CritterBreakdownInfo))
 
     def WriteAlgInfoForPlotting(self,AlgParameters,launchID,ppn,tpr):
