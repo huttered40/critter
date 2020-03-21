@@ -17,8 +17,10 @@ void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatyp
   if (critical_path_breakdown_size > 0){
     size_t breakdown_idx=0;
     size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
+    for (int i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+      if (critical_path_breakdown[i]) decisions[breakdown_idx++] = inout[num_critical_path_measures-i-1] > in[num_critical_path_measures-i-1];
+    }
     for (int i=0; i<num_critical_path_measures; i++){
-      if (critical_path_breakdown[i]) decisions[breakdown_idx++] = inout[i] > in[i];
       inout[i] = std::max(inout[i],in[i]);
     }
     for (int i=num_critical_path_measures; i<*len; i++){
@@ -37,8 +39,10 @@ void update_critical_path(double* data){
     bool decisions[critical_path_breakdown_size];
     size_t breakdown_idx=0;
     size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
+    for (int i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+      if (critical_path_breakdown[i]) decisions[breakdown_idx++] = data[num_critical_path_measures-i-1] > critical_path_costs[num_critical_path_measures-i-1];
+    }
     for (int i=0; i<num_critical_path_measures; i++){
-      if (critical_path_breakdown[i]) decisions[breakdown_idx++] = data[i] > critical_path_costs[i];
       critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
     }
     for (int i=num_critical_path_measures; i<critical_path_costs.size(); i++){
