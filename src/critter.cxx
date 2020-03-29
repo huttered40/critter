@@ -398,9 +398,9 @@ void tracker::set_cost_pointers(){
     size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*critical_path_breakdown_size*num_tracker_critical_path_measures;
     this->critical_path_wrd_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx] : &scratch_pad;
     this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*critical_path_breakdown_size] : &scratch_pad;
-    this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*2*cost_model_size];
-    this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*2*cost_model_size+critical_path_breakdown_size];
-    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+critical_path_breakdown_size*2*cost_model_size+2*critical_path_breakdown_size];
+    this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+2*critical_path_breakdown_size*cost_model_size];
+    this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+2*critical_path_breakdown_size*cost_model_size+critical_path_breakdown_size];
+    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+2*critical_path_breakdown_size*cost_model_size+2*critical_path_breakdown_size];
   } else{
     this->critical_path_wrd_count    = &scratch_pad;
     this->critical_path_msg_count    = &scratch_pad;
@@ -565,14 +565,16 @@ void synchronous::stop(){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += datamvt_time;
       *(this->critical_path_comm_time+i)    += dt;
-      save=0;
-      for (int j=0; j<cost_models.size(); j++){
+    }
+    save=0;
+    for (int j=0; j<cost_models.size(); j++){
+      for (size_t i=0; i<critical_path_breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+i*cost_model_size+save) += dcosts[j].first;
-          *(this->critical_path_wrd_count+i*cost_model_size+save) += dcosts[j].second;
-          save++;
+          *(this->critical_path_msg_count+save*cost_model_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*cost_model_size+i) += dcosts[j].second;
         }
       }
+      save++;
     }
   }
   else if (mode == 2){
@@ -604,7 +606,7 @@ void synchronous::stop(){
   int save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      critical_path_costs[save]                  += dcosts[j].second;		// update critical path estimated communication cost
+      critical_path_costs[save]                 += dcosts[j].second;		// update critical path estimated communication cost
       critical_path_costs[cost_model_size+save] += dcosts[j].first;		// update critical path estimated synchronization cost
       save++;
     }
@@ -617,7 +619,7 @@ void synchronous::stop(){
   save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      volume_costs[save]                  += dcosts[j].second;		// update local estimated communication cost
+      volume_costs[save]                 += dcosts[j].second;		// update local estimated communication cost
       volume_costs[cost_model_size+save] += dcosts[j].first;		// update local estimated synchronization cost
       save++;
     }
@@ -708,14 +710,16 @@ void blocking::stop(){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += datamvt_time;
       *(this->critical_path_comm_time+i)    += dt;
-      save=0;
-      for (int j=0; j<cost_models.size(); j++){
+    }
+    save=0;
+    for (int j=0; j<cost_models.size(); j++){
+      for (size_t i=0; i<critical_path_breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+i*cost_model_size+save) += dcosts[j].first;
-          *(this->critical_path_wrd_count+i*cost_model_size+save) += dcosts[j].second;
-          save++;
+          *(this->critical_path_msg_count+save*cost_model_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*cost_model_size+i) += dcosts[j].second;
         }
       }
+      save++;
     }
   }
   else if (mode == 2){
@@ -754,7 +758,7 @@ void blocking::stop(){
   int save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      critical_path_costs[save]                  += dcosts[j].second;		// update critical path estimated communication cost
+      critical_path_costs[save]                 += dcosts[j].second;		// update critical path estimated communication cost
       critical_path_costs[cost_model_size+save] += dcosts[j].first;		// update critical path estimated synchronization cost
       save++;
     }
@@ -766,7 +770,7 @@ void blocking::stop(){
   save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      volume_costs[save]                  += dcosts[j].second;		// update local estimated communication cost
+      volume_costs[save]                 += dcosts[j].second;		// update local estimated communication cost
       volume_costs[cost_model_size+save] += dcosts[j].first;		// update local estimated synchronization cost
       save++;
     }
@@ -905,18 +909,20 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
         save++;
       }
     }
+    save=0;
     for (size_t i=0; i<critical_path_breakdown_size; i++){
-      *(this->critical_path_comm_time+i) += comm_time;
-      //*(this->critical_path_synch_time+i)   += this->last_synch_time;	// We do not consider synch time for nonblocking communication
+      *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += comm_time;
-      save=0;
-      for (int j=0; j<cost_models.size(); j++){
+      *(this->critical_path_comm_time+i)    += comm_time;
+    }
+    for (int j=0; j<cost_models.size(); j++){
+      for (size_t i=0; i<critical_path_breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+i*cost_model_size+save) += dcosts[j].first;
-          *(this->critical_path_wrd_count+i*cost_model_size+save) += dcosts[j].second;
-          save++;
+          *(this->critical_path_msg_count+save*cost_model_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*cost_model_size+i) += dcosts[j].second;
         }
       }
+      save++;
     }
   }
   else if (mode == 2){
@@ -1590,8 +1596,8 @@ void tracker::set_critical_path_costs(size_t idx){
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]){
-        vec[save] = *(this->critical_path_wrd_count+idx+save);
-        vec[cost_model_size+save] = *(this->critical_path_msg_count+idx+save);
+        vec[save] = *(this->critical_path_wrd_count+idx+save*critical_path_breakdown_size);
+        vec[cost_model_size+save] = *(this->critical_path_msg_count+idx+save*critical_path_breakdown_size);
         save++;
       }
     }
