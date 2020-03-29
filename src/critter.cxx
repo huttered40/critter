@@ -1507,6 +1507,10 @@ void compute_volume(MPI_Comm cm){
     }
     PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], max_per_process_costs.size(), MPI_DOUBLE, MPI_MAX, cm);
     PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
+    int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+    for (int i=0; i<volume_costs.size(); i++){
+      volume_costs[i] /= (1.*world_size);
+    }
   }
   else if (mode==2){
     int rank; MPI_Comm_rank(cm,&rank);
