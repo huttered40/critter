@@ -394,7 +394,7 @@ void tracker::set_cost_pointers(){
   this->my_comm_time             = &volume_costs[volume_costs_idx+2*cost_model_size+1];
   this->my_synch_time            = &volume_costs[volume_costs_idx+2*cost_model_size+2];
   this->my_datamvt_time          = &volume_costs[volume_costs_idx+2*cost_model_size+3];
-  if (this->tag*critical_path_breakdown_size>0){
+  if (critical_path_breakdown_size>0){
     size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*critical_path_breakdown_size*num_tracker_critical_path_measures;
     this->critical_path_wrd_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx] : &scratch_pad;
     this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*critical_path_breakdown_size] : &scratch_pad;
