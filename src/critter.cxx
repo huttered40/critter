@@ -570,8 +570,8 @@ void synchronous::stop(){
     for (int j=0; j<cost_models.size(); j++){
       for (size_t i=0; i<critical_path_breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+save*cost_model_size+i) += dcosts[j].first;
-          *(this->critical_path_wrd_count+save*cost_model_size+i) += dcosts[j].second;
+          *(this->critical_path_msg_count+save*critical_path_breakdown_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*critical_path_breakdown_size+i) += dcosts[j].second;
         }
       }
       save++;
@@ -715,8 +715,8 @@ void blocking::stop(){
     for (int j=0; j<cost_models.size(); j++){
       for (size_t i=0; i<critical_path_breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+save*cost_model_size+i) += dcosts[j].first;
-          *(this->critical_path_wrd_count+save*cost_model_size+i) += dcosts[j].second;
+          *(this->critical_path_msg_count+save*critical_path_breakdown_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*critical_path_breakdown_size+i) += dcosts[j].second;
         }
       }
       save++;
@@ -918,8 +918,8 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
     for (int j=0; j<cost_models.size(); j++){
       for (size_t i=0; i<critical_path_breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+save*cost_model_size+i) += dcosts[j].first;
-          *(this->critical_path_wrd_count+save*cost_model_size+i) += dcosts[j].second;
+          *(this->critical_path_msg_count+save*critical_path_breakdown_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*critical_path_breakdown_size+i) += dcosts[j].second;
         }
       }
       save++;
