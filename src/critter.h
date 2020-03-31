@@ -33,17 +33,17 @@ void stop(size_t mode = 1, size_t factor = 1);
 
 // User variables
 // Note: `cost_model_size` must equal `cost_models.count()`. This will not be checked at compile time.
-constexpr size_t cost_model_size  = 3;				// must match number of bits set in cost_model (below)
-constexpr std::bitset<3> cost_models(0b111);			// BSP, alpha-beta butterfly, simple
+constexpr size_t cost_model_size  = 2;				// must match number of bits set in cost_model (below)
+constexpr std::bitset<3> cost_models(0b011);			// BSP, alpha-beta butterfly, simple
 // Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
-constexpr size_t critical_path_breakdown_size  = 1;		// must match number of bits set in critical_path_breakdown (below)
-constexpr std::bitset<5> critical_path_breakdown(0b10000);  // RunTime,CompTime,DataMvtTime,SynchTime,CommTime
+constexpr size_t critical_path_breakdown_size  = 3;		// must match number of bits set in critical_path_breakdown (below)
+constexpr std::bitset<5> critical_path_breakdown(0b11001);  // RunTime,CompTime,DataMvtTime,SynchTime,CommTime
 constexpr int internal_tag                      = 1669220;	// arbitrary
 constexpr int internal_tag1                     = 1669221;	// arbitrary
 constexpr int internal_tag2                     = 1669222;	// arbitrary
 constexpr int internal_tag3                     = 1669223;	// arbitrary
 constexpr int internal_tag4                     = 1669224;	// arbitrary
-using p2p_type = internal::blocking;//synchronous;/*internal::blocking;*/	// p2p communication can be tracked as 'synchronous' or 'blocking'
+using p2p_type = internal::blocking;	// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 		= 50;		// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       		= 500;		// max number of symbols to be tracked
 
@@ -309,7 +309,7 @@ extern std::map<MPI_Request,double*> internal_comm_message;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,nonblocking*> internal_comm_track;
 extern bool decisions[critical_path_breakdown_size];
-constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*critical_path_breakdown_size*list_size;
+constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*critical_path_breakdown_size*list_size+critical_path_breakdown_size;
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 extern std::array<double,critical_path_costs_size> critical_path_costs;
 extern std::array<double,volume_costs_size> volume_costs;

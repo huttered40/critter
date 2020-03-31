@@ -488,6 +488,9 @@ void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time;	// update critical path runtime
   volume_costs[num_volume_measures-2]        += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += this->save_comp_time;		// update local runtime
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
+    critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
+  }
   if (mode == 2){
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[num_critical_path_measures-1] += (curTime - symbol_timers[symbol_stack.top()].start_timer.top());
     symbol_timers[symbol_stack.top()].exclusive_measure.top()[num_critical_path_measures-2] += (curTime - symbol_timers[symbol_stack.top()].start_timer.top());
@@ -758,6 +761,9 @@ void blocking::stop(){
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time+dt;	// update critical path runtime
   volume_costs[num_volume_measures-2] += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1] += this->save_comp_time+dt;		// update local runtime
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
+    critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
+  }
 
   int save=0;
   for (int j=0; j<cost_models.size(); j++){
@@ -815,6 +821,9 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-2]        += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += this->save_comp_time;		// update local runtime
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
+    critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
+  }
   if (mode == 2){
     assert(symbol_stack.size()>0);
     assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
@@ -1660,6 +1669,9 @@ ftimer::ftimer(std::string name_, bool internal){
     critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
     volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
     volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
+    for (size_t i=0; i<critical_path_breakdown_size; i++){
+      critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
+    }
     computation_timer = MPI_Wtime();
   }
 }
@@ -1682,6 +1694,9 @@ void ftimer::start(){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
+    critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
+  }
   computation_timer = MPI_Wtime();
   this->start_timer.push(computation_timer);
 }
@@ -1735,6 +1750,9 @@ void ftimer::stop(){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
+    critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
+  }
   computation_timer = MPI_Wtime();
   if (symbol_stack.size()>0){
     symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer;
@@ -1853,7 +1871,13 @@ void record(std::ofstream& Stream, size_t factor){
         }
       }
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+        if (!critical_path_breakdown[i]) continue;
+        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-critical_path_breakdown_size+breakdown_idx-1];
+        breakdown_idx++;
+      }
+      breakdown_idx=0;
+      for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
         if (!critical_path_breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1932,30 +1956,35 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n\n";
 
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
         if (!critical_path_breakdown[i]) continue;
         for (int j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
         }
         breakdown_idx++;
         if (i==0){
-          Stream << std::left << std::setw(25) << "CommTime:";
+          Stream << std::left << std::setw(25) << "CommTime critical path:";
         } else if (i==1){
-          Stream << std::left << std::setw(25) << "SynchTime:";
+          Stream << std::left << std::setw(25) << "SynchTime critical path:";
         } else if (i==2){
-          Stream << std::left << std::setw(25) << "DataMvtTime:";
+          Stream << std::left << std::setw(25) << "DataMvtTime critical path:";
         } else if (i==3){
-          Stream << std::left << std::setw(25) << "CompTime:";
+          Stream << std::left << std::setw(25) << "CompTime critical path:";
         } else if (i==4){
-          Stream << std::left << std::setw(25) << "RunTime:";
+          Stream << std::left << std::setw(25) << "RunTime critical path:";
         }
+        Stream << std::left << std::setw(25) << "CompTime";
         print_cost_model_header(Stream);
         Stream << std::left << std::setw(25) << "CommTime";
         Stream << std::left << std::setw(25) << "SynchTime";
         Stream << std::left << std::setw(25) << "DataMvtTime";
+        Stream << "\n";
+        Stream << std::left << std::setw(25) << "Computation";
+        Stream << std::left << std::setw(25) << factor*critical_path_costs[critical_path_costs_size-critical_path_breakdown_size+breakdown_idx-1];
         for (auto& it : save_info){
           Stream << "\n";
           Stream << std::left << std::setw(25) << it.first;
+          Stream << std::left << std::setw(25) << 0.0;
           for (size_t j=0; j<num_tracker_critical_path_measures; j++){
             Stream << std::left << std::setw(25) << factor*it.second[j];
           }
@@ -2121,6 +2150,9 @@ void stop(size_t mode, size_t factor){
   internal::critical_path_costs[internal::num_critical_path_measures-1]+=(last_time-internal::computation_timer);	// update critical path runtime
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);	// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);	// update runtime volume
+  for (size_t i=0; i<critical_path_breakdown_size; i++){
+    internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer);
+  }
 
   internal::complete_propagation(MPI_COMM_WORLD,false,-1,-1);
   internal::compute_volume(MPI_COMM_WORLD);
