@@ -13,7 +13,7 @@ void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* l
   }
 }
 
-void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
+void update_critical_path(double* in, double* inout, size_t len){
   if (critical_path_breakdown_size > 0){
     size_t breakdown_idx=0;
     size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
@@ -25,7 +25,7 @@ void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatyp
     for (int i=0; i<num_critical_path_measures; i++){
       inout[i] = std::max(inout[i],in[i]);
     }
-    for (int i=num_critical_path_measures; i<*len; i++){
+    for (int i=num_critical_path_measures; i<len; i++){
       int idx = (i-num_critical_path_measures)%breakdown_size;
       inout[i] = (decisions[idx] ? inout[i] : in[i]);
     }
@@ -36,28 +36,8 @@ void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatyp
   }
 }
 
-void update_critical_path(double* data){
-  if (critical_path_breakdown_size>0){
-    bool decisions[critical_path_breakdown_size];
-    size_t breakdown_idx=0;
-    size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
-    for (int i=0; i<num_critical_path_measures-2*cost_model_size; i++){
-      if (critical_path_breakdown[i]){
-        decisions[breakdown_idx++] = data[2*cost_model_size+i] > critical_path_costs[2*cost_model_size+i];
-      }
-    }
-    for (int i=0; i<num_critical_path_measures; i++){
-      critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
-    }
-    for (int i=num_critical_path_measures; i<critical_path_costs.size(); i++){
-      int idx = (i-num_critical_path_measures)%breakdown_size;
-      critical_path_costs[i] = (decisions[idx] ? data[i] : critical_path_costs[i]);
-    }
-  } else{
-    for (int i=0; i<num_critical_path_measures; i++){
-      critical_path_costs[i] = std::max(data[i],critical_path_costs[i]);
-    }
-  }
+void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
+  update_critical_path(in,inout,static_cast<size_t>(*len));
 }
 
 synchronous _MPI_Barrier("MPI_Barrier",0, 
@@ -1035,13 +1015,13 @@ void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner
       }
       else{
         PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-        update_critical_path(&new_cs[0]);
+        update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
       }
     }
     else{
       PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag1, &new_cs[0], critical_path_costs.size(),
         MPI_DOUBLE, partner2, internal_tag1, cm, MPI_STATUS_IGNORE);
-      update_critical_path(&new_cs[0]);
+      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
     }
   }
   else if (mode == 2){
@@ -1223,13 +1203,13 @@ void blocking::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2
       }
       else{
         PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-        update_critical_path(&new_cs[0]);
+        update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
       }
     }
     else{
       PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag1, &new_cs[0], critical_path_costs.size(),
         MPI_DOUBLE, partner2, internal_tag1, cm, MPI_STATUS_IGNORE);
-      update_critical_path(&new_cs[0]);
+      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
     }
   }
   else if (mode == 2){
@@ -1344,7 +1324,7 @@ void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm
   PMPI_Wait(&internal_request,&st);
   if (mode == 1){
     if (!is_sender){
-      update_critical_path(data);
+      update_critical_path(data,&critical_path_costs[0],critical_path_costs_size);
     }
   }
   else if (mode == 2){
