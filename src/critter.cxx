@@ -1591,7 +1591,7 @@ void compute_volume(MPI_Comm cm){
 
 void tracker::set_header(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if ((*this->my_msg_count != 0) || (*this->my_wrd_count != 0)){
+  if (*this->my_comm_time != 0){
     std::vector<double> vec(1);
     save_info[this->name] = std::move(vec);
   }
@@ -1599,13 +1599,13 @@ void tracker::set_header(){
 
 void tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if (((*this->my_msg_count != 0) || (*this->my_wrd_count != 0)) && (critical_path_breakdown_size>0)){
+  if ((*this->my_comm_time != 0) && (critical_path_breakdown_size>0)){
     std::vector<double> vec(num_tracker_critical_path_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]){
-        vec[save] = *(this->critical_path_wrd_count+idx+save*critical_path_breakdown_size);
-        vec[cost_model_size+save] = *(this->critical_path_msg_count+idx+save*critical_path_breakdown_size);
+        vec[2*save] = *(this->critical_path_wrd_count+idx+save*critical_path_breakdown_size);
+        vec[2*save+1] = *(this->critical_path_msg_count+idx+save*critical_path_breakdown_size);
         save++;
       }
     }
@@ -1618,13 +1618,13 @@ void tracker::set_critical_path_costs(size_t idx){
 
 void tracker::set_volume_costs(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if ((*this->my_msg_count != 0) || (*this->my_wrd_count != 0)){
+  if (*this->my_comm_time != 0){
     std::vector<double> vec(num_tracker_volume_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]){
-        vec[save] = *(this->my_wrd_count+save);
-        vec[cost_model_size+save] = *(this->my_msg_count+save);
+        vec[2*save] = *(this->my_wrd_count+save);
+        vec[2*save+1] = *(this->my_msg_count+save);
         save++;
       }
     }
@@ -1770,33 +1770,33 @@ void print_inputs(StreamType& Stream, int np, std::vector<std::string>& inputs){
 template<typename StreamType>
 void print_cost_model_header(StreamType& Stream){
   if (cost_models[0]){
-    Stream << std::left << std::setw(25) << "SimpleCommCost";}
+    Stream << std::left << std::setw(25) << "SimpleCommCost";
+    Stream << std::left << std::setw(25) << "SimpleSynchCost";
+  }
   if (cost_models[1]){
-    Stream << std::left << std::setw(25) << "ABbutterflyCommCost";}
+    Stream << std::left << std::setw(25) << "ABbutterflyCommCost";
+    Stream << std::left << std::setw(25) << "ABbutterflySynchCost";
+  }
   if (cost_models[2]){
-    Stream << std::left << std::setw(25) << "BSPCommCost";}
-  if (cost_models[0]){
-    Stream << std::left << std::setw(25) << "SimpleSynchCost";}
-  if (cost_models[1]){
-    Stream << std::left << std::setw(25) << "ABbutterflySynchCost";}
-  if (cost_models[2]){
-    Stream << std::left << std::setw(25) << "BSPSynchCost";}
+    Stream << std::left << std::setw(25) << "BSPCommCost";
+    Stream << std::left << std::setw(25) << "BSPSynchCost";
+  }
 }
 
 template<typename StreamType>
 void print_cost_model_header_file(StreamType& Stream){
   if (cost_models[0]){
-    Stream << "\tSimpleCommCost";}
+    Stream << "\tSimpleCommCost";
+    Stream << "\tSimpleSynchCost";
+  }
   if (cost_models[1]){
-    Stream << "\tABbutterflyCommCost";}
+    Stream << "\tABbutterflyCommCost";
+    Stream << "\tABbutterflySynchCost";
+  }
   if (cost_models[2]){
-    Stream << "\tBSPCommCost";}
-  if (cost_models[0]){
-    Stream << "\tSimpleSynchCost";}
-  if (cost_models[1]){
-    Stream << "\tABbutterflySynchCost";}
-  if (cost_models[2]){
-    Stream << "\tBSPSynchCost";}
+    Stream << "\tBSPCommCost";
+    Stream << "\tBSPSynchCost";
+  }
 }
 
 template<typename StreamType>
@@ -2094,7 +2094,7 @@ void start(size_t mode){
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true;
   internal::mode=mode;
-  internal::critical_path_measure_names = {"est comm cost","est synch cost","comm time","synch time","datamvt time","comp time","runtime"};
+  internal::critical_path_measure_names = {"comm time","synch time","datamvt time","comp time","runtime"};
   for (int i=0; i<internal::list_size; i++){
     internal::list[i]->init();
   }
