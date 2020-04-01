@@ -55,11 +55,11 @@ constexpr auto num_critical_path_measures 		= 5+2*cost_model_size;		// CommCost*
 constexpr auto num_per_process_measures 		= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_volume_measures 			= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_tracker_critical_path_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
-constexpr auto num_tracker_per_process_measures 	= 4+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime,
-constexpr auto num_tracker_volume_measures 		= 4+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime,
+constexpr auto num_tracker_per_process_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime,
+constexpr auto num_tracker_volume_measures 		= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime,
 constexpr auto num_ftimer_measures                      = 2;				// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
 constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+breakdown_size;
-constexpr auto per_process_costs_size = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+breakdown_size;
+constexpr auto per_process_costs_size = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+2*breakdown_size;
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 
 void update_critical_path(double* data);
@@ -79,8 +79,6 @@ class tracker{
     double* my_datamvt_time;
     /* \brief local duration of communication time */
     double* my_comm_time;
-    /* \brief local duration of idle time */
-    double* my_bar_time;
     /* \brief local comm cost in #messages */
     double* my_msg_count;
     /* \brief local comm cost in #words */

@@ -372,10 +372,9 @@ void tracker::set_cost_pointers(){
   size_t volume_costs_idx        = num_volume_measures+this->tag*num_tracker_volume_measures;
   this->my_wrd_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx] : &scratch_pad;
   this->my_msg_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx+cost_model_size] : &scratch_pad;
-  this->my_bar_time              = &volume_costs[volume_costs_idx+2*cost_model_size];
-  this->my_comm_time             = &volume_costs[volume_costs_idx+2*cost_model_size+1];
-  this->my_synch_time            = &volume_costs[volume_costs_idx+2*cost_model_size+2];
-  this->my_datamvt_time          = &volume_costs[volume_costs_idx+2*cost_model_size+3];
+  this->my_comm_time             = &volume_costs[volume_costs_idx+2*cost_model_size];
+  this->my_synch_time            = &volume_costs[volume_costs_idx+2*cost_model_size+1];
+  this->my_datamvt_time          = &volume_costs[volume_costs_idx+2*cost_model_size+2];
   if (breakdown_size>0){
     size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*breakdown_size*num_tracker_critical_path_measures;
     this->critical_path_wrd_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx] : &scratch_pad;
@@ -544,7 +543,6 @@ void synchronous::stop(){
         save++;
       }
     }
-    *this->my_bar_time     += this->last_barrier_time;
     for (size_t i=0; i<breakdown_size; i++){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += datamvt_time;
@@ -614,6 +612,7 @@ void synchronous::stop(){
   volume_costs[num_volume_measures-3] += datamvt_time;			// update local data mvt time
   volume_costs[num_volume_measures-1] += this->last_barrier_time;		// update local runtime with idle time
   volume_costs[num_volume_measures-1] += dt;				// update local runtime
+  volume_costs[num_volume_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
 
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
   volume_costs[num_volume_measures-5] = volume_costs[num_volume_measures-5] > critical_path_costs[num_critical_path_measures-5]
@@ -688,7 +687,6 @@ void blocking::stop(){
         save++;
       }
     }
-    *this->my_bar_time     += this->last_barrier_time;
     for (size_t i=0; i<breakdown_size; i++){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += datamvt_time;
@@ -761,7 +759,6 @@ void blocking::stop(){
       save++;
     }
   }
-  volume_costs[num_volume_measures-6] += this->last_barrier_time;		// update local barrier/idle time
   volume_costs[num_volume_measures-5] += dt;				// update local communication time (not volume until after the completion of the program)
   volume_costs[num_volume_measures-4] += this->last_synch_time;		// update local synchronization time
   volume_costs[num_volume_measures-3] += datamvt_time;			// update local data mvt time
@@ -1507,16 +1504,17 @@ void find_per_process_max(MPI_Comm cm){
       if (breakdown[i] == 0) continue;
       if (cm_rank == buffer[2*cost_model_size+i+1].second){
         for (size_t j=0; j<num_tracker_per_process_measures*list_size; j++){
-          max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+1)+j] = volume_costs[num_volume_measures+j];
+          max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)+j] = volume_costs[num_volume_measures+j];
         }
-        max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+1)-1] = volume_costs[num_volume_measures-2];
+        max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-2] = volume_costs[num_volume_measures-2];
+        max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-1] = volume_costs[num_volume_measures-6];
       }
       else{
-        for (size_t j=0; j<num_tracker_per_process_measures*list_size+1; j++){
-          max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+1)+j] = 0.;
+        for (size_t j=0; j<num_tracker_per_process_measures*list_size+2; j++){
+          max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)+j] = 0.;
         }
       }
-      PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+1)], num_tracker_per_process_measures*list_size+1, MPI_DOUBLE, MPI_MAX, cm);
+      PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)], num_tracker_per_process_measures*list_size+2, MPI_DOUBLE, MPI_MAX, cm);
       save++;
     }
   }
@@ -1634,19 +1632,19 @@ void tracker::set_critical_path_costs(size_t idx){
 void tracker::set_per_process_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if ((*this->my_comm_time != 0) && (breakdown_size>0)){
-    std::vector<double> vec(num_tracker_per_process_measures-1);	// don't count idle time
+    std::vector<double> vec(num_tracker_per_process_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]){
-        vec[2*save] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+save];
-        vec[2*save+1] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+cost_model_size+save];
+        vec[2*save] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+save];
+        vec[2*save+1] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+cost_model_size+save];
         save++;
       }
     }
     // For now, do not include idle time
-    vec[num_tracker_per_process_measures-4] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-3];
-    vec[num_tracker_per_process_measures-3] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-2];
-    vec[num_tracker_per_process_measures-2] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-1];
+    vec[num_tracker_per_process_measures-3] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-3];
+    vec[num_tracker_per_process_measures-2] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-2];
+    vec[num_tracker_per_process_measures-1] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-1];
     save_info[this->name] = std::move(vec);
   }
 }
@@ -1663,10 +1661,9 @@ void tracker::set_volume_costs(){
         save++;
       }
     }
-    vec[2*cost_model_size] = *this->my_bar_time;
-    vec[2*cost_model_size+1] = *this->my_comm_time;
-    vec[2*cost_model_size+2] = *this->my_synch_time;
-    vec[2*cost_model_size+3] = *this->my_datamvt_time;
+    vec[2*cost_model_size] = *this->my_comm_time;
+    vec[2*cost_model_size+1] = *this->my_synch_time;
+    vec[2*cost_model_size+2] = *this->my_datamvt_time;
     save_info[this->name] = std::move(vec);
   }
 }
@@ -1854,10 +1851,10 @@ void print_header(StreamType& Stream, size_t num_inputs){
   print_cost_model_header_file(Stream);
   Stream << "\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// critical path
   print_cost_model_header_file(Stream);
-  Stream << "\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
+  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
   Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// volume
-  for (auto i=0; i<num_tracker_critical_path_measures*breakdown_size+num_tracker_volume_measures;i++){
+  for (auto i=0; i<num_tracker_critical_path_measures*breakdown_size+num_tracker_per_process_measures*breakdown_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
     }
@@ -1881,8 +1878,7 @@ void record(std::ofstream& Stream, size_t factor){
       for (size_t i=0; i<num_critical_path_measures; i++){
         Stream << "\t" << factor*critical_path_costs[i];
       }
-      for (size_t i=0; i<num_volume_measures; i++){
-        if (i==2*cost_model_size) continue;// skip idle time (for now?)
+      for (size_t i=0; i<num_per_process_measures; i++){
         Stream << "\t" << factor*max_per_process_costs[i];
       }
       for (size_t i=0; i<num_volume_measures; i++){
@@ -1903,12 +1899,13 @@ void record(std::ofstream& Stream, size_t factor){
         for (size_t j=0; j<list_size; j++){
           list[j]->set_per_process_costs(breakdown_idx);
         }
-        for (size_t j=0; j<num_tracker_per_process_measures-1; j++){	// no idle time
+        for (size_t j=0; j<num_tracker_per_process_measures; j++){
           for (auto& it : save_info){
             Stream << "\t" << factor*it.second[j];
           }
         }
-        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+1)-1];
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];
         breakdown_idx++;
       }
       breakdown_idx=0;
@@ -2042,12 +2039,12 @@ void record(std::ostream& Stream, size_t factor){
         Stream << "\n";
         Stream << std::left << std::setw(25) << "Computation";
         Stream << std::left << std::setw(25) << "per-process";
-        Stream << std::left << std::setw(25) << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+1)-1];
+        Stream << std::left << std::setw(25) << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];
         Stream << "\n";
         Stream << std::left << std::setw(25) << "Idle";
         Stream << std::left << std::setw(25) << "per-process";
-        Stream << std::left << std::setw(25) << 0.0;	// TODO: Needs replacing
         Stream << std::left << std::setw(25) << 0.0;
+        Stream << std::left << std::setw(25) << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];
         for (int j=0; j<list_size; j++){
           list[j]->set_per_process_costs(breakdown_idx);
         }
@@ -2057,7 +2054,7 @@ void record(std::ostream& Stream, size_t factor){
           Stream << std::left << std::setw(25) << "per-process";
           Stream << std::left << std::setw(25) << 0.0;
           Stream << std::left << std::setw(25) << 0.0;
-          for (size_t j=0; j<num_tracker_per_process_measures-1; j++){
+          for (size_t j=0; j<num_tracker_per_process_measures; j++){
             Stream << std::left << std::setw(25) << factor*it.second[j];
           }
         }
@@ -2069,7 +2066,6 @@ void record(std::ostream& Stream, size_t factor){
       }
       Stream << std::left << std::setw(25) << "Volume:";
       print_cost_model_header(Stream);
-      Stream << std::left << std::setw(25) << "IdleTime";
       Stream << std::left << std::setw(25) << "CommTime";
       Stream << std::left << std::setw(25) << "SynchTime";
       Stream << std::left << std::setw(25) << "DataMvtTime";
