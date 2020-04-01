@@ -36,8 +36,8 @@ void stop(size_t mode = 1, size_t factor = 1);
 constexpr size_t cost_model_size  = 2;					// must match number of bits set in cost_model (below)
 constexpr std::bitset<2> cost_models(0b11);				// alpha-beta butterfly, BSP
 // Note: `breakdown_size` must equal `breakdown.count()`. This will not be checked at compile time.
-constexpr size_t breakdown_size  			= 3;			// must match number of bits set in breakdown (below)
-constexpr std::bitset<5> breakdown(0b11001);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime
+constexpr size_t breakdown_size  			= 5;			// must match number of bits set in breakdown (below)
+constexpr std::bitset<5+2*cost_model_size> breakdown(0b110010101);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime,ABSynchCost,BSPsynchCost,ABCommCost,BSPcommCost
 constexpr int internal_tag                      	= 1669220;		// arbitrary
 constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary

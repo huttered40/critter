@@ -14,17 +14,18 @@ void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* l
 }
 
 void update_critical_path(double* in, double* inout, size_t len){
+  assert(len == critical_path_costs_size);	// this assert prevents user from obtaining wrong output if MPI implementation cuts up the message.
   if (breakdown_size > 0){
     size_t breakdown_idx=0;
-    for (int i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+    for (int i=0; i<num_critical_path_measures; i++){
       if (breakdown[i]){
-        decisions[breakdown_idx++] = inout[2*cost_model_size+i] > in[2*cost_model_size+i];
+        decisions[breakdown_idx++] = inout[i] > in[i];
       }
     }
     for (int i=0; i<num_critical_path_measures; i++){
       inout[i] = std::max(inout[i],in[i]);
     }
-    for (int i=num_critical_path_measures; i<len; i++){
+    for (int i=num_critical_path_measures; i<critical_path_costs_size; i++){
       int idx = (i-num_critical_path_measures)%breakdown_size;
       inout[i] = (decisions[idx] ? inout[i] : in[i]);
     }
@@ -749,7 +750,7 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
     for (int i=0; i<critical_path_costs.size(); i++){
       data[i] = critical_path_costs[i];
     }
-    MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
+    MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,0,&op);
     PMPI_Iallreduce(MPI_IN_PLACE,&data[0],critical_path_costs.size(),MPI_DOUBLE,op,cm,&internal_request);
     //MPI_Op_free(&op);
   } else{
@@ -922,7 +923,7 @@ void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner
   if (mode <= 1){// Note that the only way this routine would be called with mode==0 is after critter::stop
     // First exchange the tracked routine critical path data
     if (partner1 == -1){
-      MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,1,&op);
+      MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,0,&op);
       PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
       MPI_Op_free(&op);
     }
@@ -1424,9 +1425,10 @@ void find_per_process_max(MPI_Comm cm){
     PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_DOUBLE, MPI_MAX, cm);
     PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
     size_t save=0;
-    for (size_t i=0; i<num_per_process_measures-2*cost_model_size-1; i++){
+    for (size_t i=0; i<num_per_process_measures-1; i++){// don't consider idle time an option
       if (breakdown[i] == 0) continue;
-      if (cm_rank == buffer[2*cost_model_size+i+1].second){
+      size_t z = i<(2*cost_model_size) ? i : i+1;	// careful indexing to avoid idle time
+      if (cm_rank == buffer[z].second){
         for (size_t j=0; j<num_tracker_per_process_measures*list_size; j++){
           max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)+j] = volume_costs[num_volume_measures+j];
         }
@@ -1809,7 +1811,7 @@ void record(std::ofstream& Stream, size_t factor){
         }
       }
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_per_process_measures-2*cost_model_size-1; i++){	// no idle time
+      for (auto i=0; i<num_per_process_measures-1; i++){	// no idle time
         if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1825,13 +1827,13 @@ void record(std::ofstream& Stream, size_t factor){
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+      for (auto i=0; i<num_critical_path_measures; i++){
         if (!breakdown[i]) continue;
         Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+      for (auto i=0; i<num_critical_path_measures; i++){
         if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1915,17 +1917,25 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n\n";
 
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
+      for (auto i=0; i<num_critical_path_measures; i++){
         if (!breakdown[i]) continue;
         if (i==0){
-          Stream << std::left << std::setw(25) << "CommTime max:";
+          Stream << std::left << std::setw(25) << "BSPCommCost max:";
         } else if (i==1){
-          Stream << std::left << std::setw(25) << "SynchTime max:";
+          Stream << std::left << std::setw(25) << "ABCommCost max:";
         } else if (i==2){
-          Stream << std::left << std::setw(25) << "DataMvtTime max:";
+          Stream << std::left << std::setw(25) << "BSPSynchCost max:";
         } else if (i==3){
-          Stream << std::left << std::setw(25) << "CompTime max:";
+          Stream << std::left << std::setw(25) << "ABSynchCost max:";
         } else if (i==4){
+          Stream << std::left << std::setw(25) << "CommTime max:";
+        } else if (i==5){
+          Stream << std::left << std::setw(25) << "SynchTime max:";
+        } else if (i==6){
+          Stream << std::left << std::setw(25) << "DataMvtTime max:";
+        } else if (i==7){
+          Stream << std::left << std::setw(25) << "CompTime max:";
+        } else if (i==8){
           Stream << std::left << std::setw(25) << "RunTime max:";
         }
         Stream << std::left << std::setw(25) << "MeasureType";
