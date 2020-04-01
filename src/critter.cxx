@@ -1897,9 +1897,24 @@ void record(std::ofstream& Stream, size_t factor){
         }
       }
       size_t breakdown_idx=0;
+      for (auto i=0; i<num_per_process_measures-2*cost_model_size-1; i++){	// no idle time
+        if (!breakdown[i]) continue;
+        // Save the critter information before printing
+        for (size_t j=0; j<list_size; j++){
+          list[j]->set_per_process_costs(breakdown_idx);
+        }
+        for (size_t j=0; j<num_tracker_per_process_measures-1; j++){	// no idle time
+          for (auto& it : save_info){
+            Stream << "\t" << factor*it.second[j];
+          }
+        }
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+1)-1];
+        breakdown_idx++;
+      }
+      breakdown_idx=0;
       for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
         if (!breakdown[i]) continue;
-        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx-1];
+        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];
         breakdown_idx++;
       }
       breakdown_idx=0;
@@ -1909,12 +1924,12 @@ void record(std::ofstream& Stream, size_t factor){
         for (size_t j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
         }
-        breakdown_idx++;
         for (size_t j=0; j<num_tracker_critical_path_measures; j++){
           for (auto& it : save_info){
             Stream << "\t" << factor*it.second[j];
           }
         }
+        breakdown_idx++;
       }
     }
   }
