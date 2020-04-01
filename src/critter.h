@@ -34,7 +34,7 @@ void stop(size_t mode = 1, size_t factor = 1);
 // User variables
 // Note: `cost_model_size` must equal `cost_models.count()`. This will not be checked at compile time.
 constexpr size_t cost_model_size  = 2;					// must match number of bits set in cost_model (below)
-constexpr std::bitset<3> cost_models(0b011);				// BSP, alpha-beta butterfly, simple
+constexpr std::bitset<2> cost_models(0b11);				// alpha-beta butterfly, BSP
 // Note: `breakdown_size` must equal `breakdown.count()`. This will not be checked at compile time.
 constexpr size_t breakdown_size  			= 3;			// must match number of bits set in breakdown (below)
 constexpr std::bitset<5> breakdown(0b11001);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime
@@ -93,12 +93,10 @@ class tracker{
     double* critical_path_msg_count;
     /* \brief comm cost in #words along a critical path */
     double* critical_path_wrd_count;
-    /* \brief function for cost model of MPI routine in simple cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
-    std::function< std::pair<double,double>(int64_t,int) > cost_func_simple;
+    /* \brief function for cost model of MPI routine in bsp cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
+    std::function< std::pair<double,double>(int64_t,int) > cost_func_bsp;
     /* \brief function for cost model of MPI routine in alpha-beta butterfly cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func_alphabeta_butterfly;
-    /* \brief function for cost model of MPI routine in bsp cost model, takes (msg_size_in_bytes, number_processors, is_root) and returns (latency_cost, bandwidth_cost) */
-    std::function< std::pair<double,double>(int64_t,int,bool) > cost_func_bsp;
     /* \brief duration of computation time for each call made locally, used to save the local computation time between calls to ::start and ::stop variants */
     double save_comp_time;
     /* \brief variable to save time across start and stop tracking */
@@ -143,17 +141,14 @@ public:
      * \brief constructor
      * \param[in] name symbol name of MPI routine
      * \param[in] tag integer id of MPI routine
-     * \param[in] cost_func_simple function for simple cost model of MPI routine
+     * \param[in] cost_func_bsp function for simple cost model of MPI routine
      * \param[in] cost_func_alphabeta_butterfly function for alpha-beta cost model of MPI routine assuming butterfly algorithms
-     * \param[in] cost_func_bsp function for BSP cost model of MPI routine
      */
     synchronous(std::string name, int tag,
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_simple = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
+              cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
-            std::function< std::pair<double,double>(int64_t,int, bool is_root)> 
-              cost_func_bsp = [](int64_t n, int p, bool is_root){ return std::pair<double,double>(1.,n); }
+              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
                );
     /** \brief copy constructor */
     synchronous(synchronous const& t);
@@ -173,17 +168,14 @@ public:
      * \brief constructor
      * \param[in] name symbol name of MPI routine
      * \param[in] tag integer id of MPI routine
-     * \param[in] cost_func_simple function for simple cost model of MPI routine
+     * \param[in] cost_func_bsp function for simple cost model of MPI routine
      * \param[in] cost_func_alphabeta_butterfly function for alpha-beta cost model of MPI routine assuming butterfly algorithms
-     * \param[in] cost_func_bsp function for BSP cost model of MPI routine
      */
     blocking(std::string name, int tag,
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_simple = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
+              cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
-            std::function< std::pair<double,double>(int64_t,int, bool is_root)> 
-              cost_func_bsp = [](int64_t n, int p, bool is_root){ return std::pair<double,double>(1.,n); }
+              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
             );
     /** \brief copy constructor */
     blocking(blocking const& t);
@@ -203,17 +195,14 @@ public:
      * \brief constructor
      * \param[in] name symbol name of MPI routine
      * \param[in] tag integer id of MPI routine
-     * \param[in] cost_func_simple function for simple cost model of MPI routine
+     * \param[in] cost_func_bsp function for simple cost model of MPI routine
      * \param[in] cost_func_alphabeta_butterfly function for alpha-beta cost model of MPI routine assuming butterfly algorithms
-     * \param[in] cost_func_bsp function for BSP cost model of MPI routine
      */
     nonblocking(std::string name, int tag,
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_simple = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
+              cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
-            std::function< std::pair<double,double>(int64_t,int, bool is_root)> 
-              cost_func_bsp = [](int64_t n, int p, bool is_root){ return std::pair<double,double>(1.,n); }
+              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
                );
     /** \brief copy constructor */
     nonblocking(nonblocking const& t);

@@ -43,257 +43,193 @@ synchronous _MPI_Barrier("MPI_Barrier",0,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,0.);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),0.);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,0.);}
+                            return std::pair<double,double>(log2((double)p),0.);}
                         );
 synchronous _MPI_Bcast("MPI_Bcast",1,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(is_root ? p : 1.,is_root ? n*p : n);}
+                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
                       );
 synchronous _MPI_Reduce("MPI_Reduce",2, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(is_root ? p : 1.,is_root ? n*p : n);}
+                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
                        );
 synchronous _MPI_Allreduce("MPI_Allreduce",3,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);}, 
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}, 
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n*p);}
+                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
                           );
 synchronous _MPI_Gather("MPI_Gather",4,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(is_root ? p : 1.,is_root ? n : (n*1.)/(p*1.));}
+                            return std::pair<double,double>(log2((double)p),n);}
                        );
 synchronous _MPI_Allgather("MPI_Allgather",5,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                           );
 synchronous _MPI_Scatter("MPI_Scatter",6,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(is_root ? p : 1.,is_root ? n : (n*1.)/(p*1.));}
+                            return std::pair<double,double>(log2((double)p),n);}
                         );
 synchronous _MPI_Reduce_scatter("MPI_Reduce_scatter",7,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                                );
 synchronous _MPI_Alltoall("MPI_Alltoall",8,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
                          );
 synchronous _MPI_Gatherv("MPI_Gatherv",9,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(is_root ? p : 1.,is_root ? n : (n*1.)/(p*1.));}
+                            return std::pair<double,double>(log2((double)p),n);}
                         );
 synchronous _MPI_Allgatherv("MPI_Allgatherv",10,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                            );
 synchronous _MPI_Scatterv("MPI_Scatterv",11,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(is_root ? p : 1.,is_root ? n : (n*1.)/(p*1.));}
+                            return std::pair<double,double>(log2((double)p),n);}
                          );
 synchronous _MPI_Alltoallv("MPI_Alltoallv",12,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                           return std::pair<double,double>(log2((double)p),log2((double)p)*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                           return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
                           );
 synchronous _MPI_Ssend("MPI_Ssend",13,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(1.,n);} 
+                            return std::pair<double,double>(1.,n);}
                       );
 p2p_type _MPI_Sendrecv("MPI_Sendrecv",14,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
                             return std::pair<double,double>(1.,n);}
                       );
 p2p_type _MPI_Sendrecv_replace("MPI_Sendrecv_replace",15,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
                             return std::pair<double,double>(1.,n);}
                               );
 p2p_type _MPI_Send("MPI_Send",16,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
                             return std::pair<double,double>(1.,n);}
                   );
 p2p_type _MPI_Recv("MPI_Recv",17,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
                             return std::pair<double,double>(1.,n);}
                   );
 nonblocking _MPI_Isend("MPI_Isend",18,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(0.,n);}
+                            return std::pair<double,double>(1.,n);}
                       );
 nonblocking _MPI_Irecv("MPI_Irecv",19,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(0.,n);}
+                            return std::pair<double,double>(1.,n);}
                       );
 nonblocking _MPI_Ibcast("MPI_Ibcast",20,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
                        );
 nonblocking _MPI_Iallreduce("MPI_Iallreduce",21,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
                            );
 nonblocking _MPI_Ireduce("MPI_Ireduce",22,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
                         );
 nonblocking _MPI_Igather("MPI_Igather",23,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                         );
 nonblocking _MPI_Igatherv("MPI_Igatherv",24,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                          );
 nonblocking _MPI_Iallgather("MPI_Iallgather",25,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                            );
 nonblocking _MPI_Iallgatherv("MPI_Iallgatherv",26,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                             );
 nonblocking _MPI_Iscatter("MPI_Iscatter",27,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                          );
 nonblocking _MPI_Iscatterv("MPI_Iscatterv",28,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                           );
 nonblocking _MPI_Ireduce_scatter("MPI_Ireduce_scatter",29,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),n);}
                                 );
 nonblocking _MPI_Ialltoall("MPI_Ialltoall",30,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
                           );
 nonblocking _MPI_Ialltoallv("MPI_Ialltoallv",31,
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);},
-                          [](int64_t n, int p, bool is_root){
-                            return std::pair<double,double>(p,n);}
+                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
                            );
 
 tracker* list[list_size] = {
@@ -391,12 +327,10 @@ void tracker::set_cost_pointers(){
   }
 }
 
-synchronous::synchronous(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_simple,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly,
-                                             std::function<std::pair<double,double>(int64_t,int,bool)> cost_func_bsp){
-  this->cost_func_simple              = cost_func_simple;
-  this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
+synchronous::synchronous(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
+                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly){
   this->cost_func_bsp                 = cost_func_bsp;
+  this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
   this->name = std::move(name_);
   this->tag = tag;
   this->set_cost_pointers();
@@ -404,21 +338,18 @@ synchronous::synchronous(std::string name_, int tag, std::function<std::pair<dou
 }
 
 synchronous::synchronous(synchronous const& t){
-  this->cost_func_simple              = t.cost_func_simple;
+  this->cost_func_bsp              = t.cost_func_bsp;
   this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
-  this->cost_func_bsp                 = t.cost_func_bsp;
   this->name = t.name;
   this->tag = t.tag;
   this->set_cost_pointers();
   this->init();
 }
 
-blocking::blocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_simple,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly,
-                                             std::function<std::pair<double,double>(int64_t,int,bool)> cost_func_bsp){
-  this->cost_func_simple              = cost_func_simple;
+blocking::blocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
+                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly){
+  this->cost_func_bsp              = cost_func_bsp;
   this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
-  this->cost_func_bsp                 = cost_func_bsp;
   this->name = std::move(name_);
   this->tag = tag;
   this->set_cost_pointers();
@@ -426,21 +357,18 @@ blocking::blocking(std::string name_, int tag, std::function<std::pair<double,do
 }
 
 blocking::blocking(blocking const& t){
-  this->cost_func_simple              = t.cost_func_simple;
-  this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
   this->cost_func_bsp                 = t.cost_func_bsp;
+  this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
   this->name = t.name;
   this->tag = t.tag;
   this->set_cost_pointers();
   this->init();
 }
 
-nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_simple,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly,
-                                             std::function<std::pair<double,double>(int64_t,int,bool)> cost_func_bsp){
-  this->cost_func_simple              = cost_func_simple;
-  this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
+nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
+                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly){
   this->cost_func_bsp                 = cost_func_bsp;
+  this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
   this->name = std::move(name_);
   this->tag = tag;
   this->set_cost_pointers();
@@ -448,9 +376,8 @@ nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<dou
 }
 
 nonblocking::nonblocking(nonblocking const& t){
-  this->cost_func_simple              = t.cost_func_simple;
-  this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
   this->cost_func_bsp                 = t.cost_func_bsp;
+  this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
   this->name = t.name;
   this->tag = t.tag;
   this->set_cost_pointers();
@@ -526,10 +453,9 @@ void synchronous::stop(){
   volatile double new_time = MPI_Wtime();
   volatile double dt = new_time - this->last_start_time;	// complete communication time
   double datamvt_time = std::max(0.,(dt-this->last_synch_time));
-  std::pair<double,double> dcost_simple    = this->cost_func_simple(this->last_nbytes, this->last_p);
+  std::pair<double,double> dcost_bsp    = this->cost_func_bsp(this->last_nbytes, this->last_p);
   std::pair<double,double> dcost_alphabeta_butterfly = this->cost_func_alphabeta_butterfly(this->last_nbytes, this->last_p);
-  std::pair<double,double> dcost_bsp       = this->cost_func_bsp(this->last_nbytes, this->last_p, this->last_is_root);
-  std::vector<std::pair<double,double>> dcosts = {dcost_simple,dcost_alphabeta_butterfly,dcost_bsp};
+  std::vector<std::pair<double,double>> dcosts = {dcost_bsp,dcost_alphabeta_butterfly};
 
   if (mode == 1){
     *this->my_synch_time   += this->last_synch_time;
@@ -670,10 +596,9 @@ void blocking::stop(){
   volatile double new_time = MPI_Wtime();
   volatile double dt = new_time - this->last_start_time;	// complete communication time
   double datamvt_time = std::max(0.,(dt-this->last_synch_time));
-  std::pair<double,double> dcost_simple    = this->cost_func_simple(this->last_nbytes, this->last_p);
+  std::pair<double,double> dcost_bsp    = this->cost_func_bsp(this->last_nbytes, this->last_p);
   std::pair<double,double> dcost_alphabeta_butterfly = this->cost_func_alphabeta_butterfly(this->last_nbytes, this->last_p);
-  std::pair<double,double> dcost_bsp       = this->cost_func_bsp(this->last_nbytes, this->last_p, false);
-  std::vector<std::pair<double,double>> dcosts = {dcost_simple,dcost_alphabeta_butterfly,dcost_bsp};
+  std::vector<std::pair<double,double>> dcosts = {dcost_bsp,dcost_alphabeta_butterfly};
 
   if (mode == 1){
     *this->my_synch_time   += this->last_synch_time;
@@ -876,11 +801,10 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   propagate(data,internal_request,cm,partner,is_sender);
 
   // Both sender and receiver will now update its critical path with the data from the communication
-  std::pair<double,double> dcost_simple  = this->cost_func_simple(nbytes,p);
+  std::pair<double,double> dcost_bsp  = this->cost_func_bsp(nbytes,p);
   std::pair<double,double> dcost_alphabeta_butterfly = this->cost_func_alphabeta_butterfly(nbytes,p);
-  std::pair<double,double> dcost_bsp     = this->cost_func_bsp(nbytes,p,false);
   if ((this->tag<20) && (wait_id)) dcost_bsp.first=1.;	// this is usually zero, but we force it to be 1 in special circumstances (for nonblocking p2p with wait_id one)
-  std::vector<std::pair<double,double>> dcosts = {dcost_simple,dcost_alphabeta_butterfly,dcost_bsp};
+  std::vector<std::pair<double,double>> dcosts = {dcost_bsp,dcost_alphabeta_butterfly};
 
   if (mode == 1){
     *this->my_synch_time   += 0;			// Nonblocking routines will have no synchronization time component
@@ -1811,32 +1735,24 @@ void print_inputs(StreamType& Stream, int np, std::vector<std::string>& inputs){
 template<typename StreamType>
 void print_cost_model_header(StreamType& Stream){
   if (cost_models[0]){
-    Stream << std::left << std::setw(25) << "SimpleCommCost";
-    Stream << std::left << std::setw(25) << "SimpleSynchCost";
+    Stream << std::left << std::setw(25) << "BSPCommCost";
+    Stream << std::left << std::setw(25) << "BSPSynchCost";
   }
   if (cost_models[1]){
     Stream << std::left << std::setw(25) << "ABbutterflyCommCost";
     Stream << std::left << std::setw(25) << "ABbutterflySynchCost";
-  }
-  if (cost_models[2]){
-    Stream << std::left << std::setw(25) << "BSPCommCost";
-    Stream << std::left << std::setw(25) << "BSPSynchCost";
   }
 }
 
 template<typename StreamType>
 void print_cost_model_header_file(StreamType& Stream){
   if (cost_models[0]){
-    Stream << "\tSimpleCommCost";
-    Stream << "\tSimpleSynchCost";
+    Stream << "\tBSPCommCost";
+    Stream << "\tBSPSynchCost";
   }
   if (cost_models[1]){
     Stream << "\tABbutterflyCommCost";
     Stream << "\tABbutterflySynchCost";
-  }
-  if (cost_models[2]){
-    Stream << "\tBSPCommCost";
-    Stream << "\tBSPSynchCost";
   }
 }
 
@@ -1956,9 +1872,10 @@ void record(std::ostream& Stream, size_t factor){
       Stream << std::left << std::setw(25) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(25) << "                  ";
-      for (size_t i=0; i<num_critical_path_measures+1; i++){
+      for (size_t i=0; i<num_critical_path_measures+1; i++){//+1 for blank space
         if (i==(2*cost_model_size)) Stream << std::left << std::setw(25) << "";
-        else if (i<(2*cost_model_size)) Stream << std::left << std::setw(25) << factor*critical_path_costs[i];
+        else if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(25) << factor*critical_path_costs[i/2];
+        else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(25) << factor*critical_path_costs[(i-1)/2+cost_model_size];
         else Stream << std::left << std::setw(25) << factor*critical_path_costs[i-1];
       }
       Stream << "\n\n";
@@ -1974,7 +1891,9 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n";
       Stream << std::left << std::setw(25) << "                  ";
       for (size_t i=0; i<num_volume_measures; i++){
-        Stream << std::left << std::setw(25) << factor*max_per_process_costs[i];
+        if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(25) << factor*max_per_process_costs[i/2];
+        else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(25) << factor*max_per_process_costs[(i-1)/2+cost_model_size];
+        else Stream << std::left << std::setw(25) << factor*max_per_process_costs[i];
       }
       Stream << "\n\n";
 
@@ -1989,7 +1908,9 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n";
       Stream << std::left << std::setw(25) << "                  ";
       for (size_t i=0; i<num_volume_measures; i++){
-        Stream << std::left << std::setw(25) << factor*volume_costs[i];
+        if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(25) << factor*volume_costs[i/2];
+        else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(25) << factor*volume_costs[(i-1)/2+cost_model_size];
+        else Stream << std::left << std::setw(25) << factor*volume_costs[i];
       }
       Stream << "\n\n";
 
