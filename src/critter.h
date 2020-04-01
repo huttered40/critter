@@ -21,7 +21,7 @@
 namespace critter{
 
 // *****************************************************************************************************************************************************************
-// Forward declarations needed for 'p2p_type'
+// Forward declarations needed for 'p2p_type' (see 'User functions' listed below)
 namespace internal{
 class synchronous; class blocking;
 };
@@ -33,29 +33,34 @@ void stop(size_t mode = 1, size_t factor = 1);
 
 // User variables
 // Note: `cost_model_size` must equal `cost_models.count()`. This will not be checked at compile time.
-constexpr size_t cost_model_size  = 2;				// must match number of bits set in cost_model (below)
-constexpr std::bitset<3> cost_models(0b011);			// BSP, alpha-beta butterfly, simple
-// Note: `critical_path_breakdown_size` must equal `critical_path_breakdown.count()`. This will not be checked at compile time.
-constexpr size_t critical_path_breakdown_size  = 3;		// must match number of bits set in critical_path_breakdown (below)
-constexpr std::bitset<5> critical_path_breakdown(0b11001);  // RunTime,CompTime,DataMvtTime,SynchTime,CommTime
-constexpr int internal_tag                      = 1669220;	// arbitrary
-constexpr int internal_tag1                     = 1669221;	// arbitrary
-constexpr int internal_tag2                     = 1669222;	// arbitrary
-constexpr int internal_tag3                     = 1669223;	// arbitrary
-constexpr int internal_tag4                     = 1669224;	// arbitrary
-using p2p_type = internal::blocking;	// p2p communication can be tracked as 'synchronous' or 'blocking'
-constexpr size_t max_timer_name_length 		= 50;		// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       		= 500;		// max number of symbols to be tracked
+constexpr size_t cost_model_size  = 2;					// must match number of bits set in cost_model (below)
+constexpr std::bitset<3> cost_models(0b011);				// BSP, alpha-beta butterfly, simple
+// Note: `breakdown_size` must equal `breakdown.count()`. This will not be checked at compile time.
+constexpr size_t breakdown_size  			= 3;			// must match number of bits set in breakdown (below)
+constexpr std::bitset<5> breakdown(0b11001);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime
+constexpr int internal_tag                      	= 1669220;		// arbitrary
+constexpr int internal_tag1                     	= 1669221;		// arbitrary
+constexpr int internal_tag2                     	= 1669222;		// arbitrary
+constexpr int internal_tag3                     	= 1669223;		// arbitrary
+constexpr int internal_tag4                     	= 1669224;		// arbitrary
+using p2p_type 						= internal::blocking;	// p2p communication can be tracked as 'synchronous' or 'blocking'
+constexpr size_t max_timer_name_length 			= 50;			// max length of a symbol defining a timer
+constexpr size_t max_num_symbols       			= 500;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************************************************
 namespace internal{
 
 constexpr auto list_size 				= 32;				// numbers of tracked MPI routines
 constexpr auto num_critical_path_measures 		= 5+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
+constexpr auto num_per_process_measures 		= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_volume_measures 			= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_tracker_critical_path_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
+constexpr auto num_tracker_per_process_measures 	= 4+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime,
 constexpr auto num_tracker_volume_measures 		= 4+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime,
 constexpr auto num_ftimer_measures                      = 2;				// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
+constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+breakdown_size;
+constexpr auto per_process_costs_size = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+breakdown_size;
+constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 
 void update_critical_path(double* data);
 void compute_volume(MPI_Comm cm);
@@ -68,8 +73,6 @@ class tracker{
     std::string name;
     /* \brief integer tag of MPI routine */
     int tag;
-    /* \brief local running sum of number of bytes communicated */
-    double my_bytes;
     /* \brief local duration of synchronization time */
     double* my_synch_time;
     /* \brief local duration of data mvt time */
@@ -128,6 +131,8 @@ class tracker{
     void set_header();
     /** */
     void set_critical_path_costs(size_t idx);
+    /** */
+    void set_per_process_costs(size_t idx);
     /** */
     void set_volume_costs();
     /** \brief sets data members to point into global arrays */
@@ -289,8 +294,8 @@ class ftimer{
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
     std::array<double*,num_critical_path_measures> cp_incl_measure;
     std::array<double*,num_critical_path_measures> cp_excl_measure;
-    std::array<double*,num_volume_measures> pp_incl_measure;
-    std::array<double*,num_volume_measures> pp_excl_measure;
+    std::array<double*,num_per_process_measures> pp_incl_measure;
+    std::array<double*,num_per_process_measures> pp_excl_measure;
     std::array<double*,num_volume_measures> vol_incl_measure;
     std::array<double*,num_volume_measures> vol_excl_measure;
     bool has_been_processed;
@@ -308,12 +313,10 @@ extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 extern std::map<MPI_Request,double*> internal_comm_message;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,nonblocking*> internal_comm_track;
-extern bool decisions[critical_path_breakdown_size];
-constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*critical_path_breakdown_size*list_size+critical_path_breakdown_size;
-constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
+extern bool decisions[breakdown_size];
 extern std::array<double,critical_path_costs_size> critical_path_costs;
+extern std::array<double,per_process_costs_size> max_per_process_costs;
 extern std::array<double,volume_costs_size> volume_costs;
-extern std::array<double,volume_costs_size> max_per_process_costs;
 extern std::map<std::string,std::vector<double>> save_info;
 extern double new_cs[critical_path_costs_size];
 extern double scratch_pad;
@@ -322,7 +325,7 @@ extern std::vector<char> synch_pad_recv;
 extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local_cp;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
-extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_pp;
+extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_pp;
 extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_vol;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
@@ -380,7 +383,7 @@ extern bool wait_id;
 
 #define MPI_Init(argc, argv)\
   do {\
-     assert(critter::critical_path_breakdown_size == critter::critical_path_breakdown.count());\
+     assert(critter::breakdown_size == critter::breakdown.count());\
      assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init(argc,argv);\
      critter::internal::mode=0;\
@@ -412,7 +415,7 @@ extern bool wait_id;
 
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
-     assert(critter::critical_path_breakdown_size == critter::critical_path_breakdown.count());\
+     assert(critter::breakdown_size == critter::breakdown.count());\
      assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
      critter::internal::mode=0;\

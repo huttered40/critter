@@ -14,11 +14,10 @@ void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* l
 }
 
 void update_critical_path(double* in, double* inout, size_t len){
-  if (critical_path_breakdown_size > 0){
+  if (breakdown_size > 0){
     size_t breakdown_idx=0;
-    size_t breakdown_size = critical_path_breakdown_size;	// prevents compiler warning
     for (int i=0; i<num_critical_path_measures-2*cost_model_size; i++){
-      if (critical_path_breakdown[i]){
+      if (breakdown[i]){
         decisions[breakdown_idx++] = inout[2*cost_model_size+i] > in[2*cost_model_size+i];
       }
     }
@@ -342,10 +341,10 @@ std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 std::map<MPI_Request,double*> internal_comm_message;
 std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 std::map<MPI_Request,nonblocking*> internal_comm_track;
-bool decisions[critical_path_breakdown_size];
+bool decisions[breakdown_size];
 std::array<double,critical_path_costs_size> critical_path_costs;
+std::array<double,per_process_costs_size> max_per_process_costs;
 std::array<double,volume_costs_size> volume_costs;
-std::array<double,volume_costs_size> max_per_process_costs;
 std::map<std::string,std::vector<double>> save_info;
 double new_cs[critical_path_costs_size];
 double scratch_pad;
@@ -367,24 +366,23 @@ bool wait_id;
 void tracker::init(){
   this->last_start_time  = -1.;
   this->save_comp_time   = 0.;
-  this->my_bytes=0.;
 }
 
 void tracker::set_cost_pointers(){
   size_t volume_costs_idx        = num_volume_measures+this->tag*num_tracker_volume_measures;
-  this->my_msg_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx] : &scratch_pad;
-  this->my_wrd_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx+cost_model_size] : &scratch_pad;
+  this->my_wrd_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx] : &scratch_pad;
+  this->my_msg_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx+cost_model_size] : &scratch_pad;
   this->my_bar_time              = &volume_costs[volume_costs_idx+2*cost_model_size];
   this->my_comm_time             = &volume_costs[volume_costs_idx+2*cost_model_size+1];
   this->my_synch_time            = &volume_costs[volume_costs_idx+2*cost_model_size+2];
   this->my_datamvt_time          = &volume_costs[volume_costs_idx+2*cost_model_size+3];
-  if (critical_path_breakdown_size>0){
-    size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*critical_path_breakdown_size*num_tracker_critical_path_measures;
+  if (breakdown_size>0){
+    size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*breakdown_size*num_tracker_critical_path_measures;
     this->critical_path_wrd_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx] : &scratch_pad;
-    this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*critical_path_breakdown_size] : &scratch_pad;
-    this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+2*critical_path_breakdown_size*cost_model_size];
-    this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+2*critical_path_breakdown_size*cost_model_size+critical_path_breakdown_size];
-    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+2*critical_path_breakdown_size*cost_model_size+2*critical_path_breakdown_size];
+    this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*breakdown_size] : &scratch_pad;
+    this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+2*breakdown_size*cost_model_size];
+    this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+2*breakdown_size*cost_model_size+breakdown_size];
+    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+2*breakdown_size*cost_model_size+2*breakdown_size];
   } else{
     this->critical_path_wrd_count    = &scratch_pad;
     this->critical_path_msg_count    = &scratch_pad;
@@ -468,7 +466,7 @@ void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time;	// update critical path runtime
   volume_costs[num_volume_measures-2]        += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += this->save_comp_time;		// update local runtime
-  for (size_t i=0; i<critical_path_breakdown_size; i++){
+  for (size_t i=0; i<breakdown_size; i++){
     critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
   }
   if (mode == 2){
@@ -534,7 +532,6 @@ void synchronous::stop(){
   std::pair<double,double> dcost_bsp       = this->cost_func_bsp(this->last_nbytes, this->last_p, this->last_is_root);
   std::vector<std::pair<double,double>> dcosts = {dcost_simple,dcost_alphabeta_butterfly,dcost_bsp};
 
-  this->my_bytes += this->last_nbytes;
   if (mode == 1){
     *this->my_synch_time   += this->last_synch_time;
     *this->my_datamvt_time += datamvt_time;
@@ -548,17 +545,17 @@ void synchronous::stop(){
       }
     }
     *this->my_bar_time     += this->last_barrier_time;
-    for (size_t i=0; i<critical_path_breakdown_size; i++){
+    for (size_t i=0; i<breakdown_size; i++){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += datamvt_time;
       *(this->critical_path_comm_time+i)    += dt;
     }
     save=0;
     for (int j=0; j<cost_models.size(); j++){
-      for (size_t i=0; i<critical_path_breakdown_size; i++){
+      for (size_t i=0; i<breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+save*critical_path_breakdown_size+i) += dcosts[j].first;
-          *(this->critical_path_wrd_count+save*critical_path_breakdown_size+i) += dcosts[j].second;
+          *(this->critical_path_msg_count+save*breakdown_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*breakdown_size+i) += dcosts[j].second;
         }
       }
       save++;
@@ -679,7 +676,6 @@ void blocking::stop(){
   std::pair<double,double> dcost_bsp       = this->cost_func_bsp(this->last_nbytes, this->last_p, false);
   std::vector<std::pair<double,double>> dcosts = {dcost_simple,dcost_alphabeta_butterfly,dcost_bsp};
 
-  this->my_bytes += this->last_nbytes;
   if (mode == 1){
     *this->my_synch_time   += this->last_synch_time;
     *this->my_datamvt_time += datamvt_time;
@@ -693,17 +689,17 @@ void blocking::stop(){
       }
     }
     *this->my_bar_time     += this->last_barrier_time;
-    for (size_t i=0; i<critical_path_breakdown_size; i++){
+    for (size_t i=0; i<breakdown_size; i++){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += datamvt_time;
       *(this->critical_path_comm_time+i)    += dt;
     }
     save=0;
     for (int j=0; j<cost_models.size(); j++){
-      for (size_t i=0; i<critical_path_breakdown_size; i++){
+      for (size_t i=0; i<breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+save*critical_path_breakdown_size+i) += dcosts[j].first;
-          *(this->critical_path_wrd_count+save*critical_path_breakdown_size+i) += dcosts[j].second;
+          *(this->critical_path_msg_count+save*breakdown_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*breakdown_size+i) += dcosts[j].second;
         }
       }
       save++;
@@ -741,7 +737,7 @@ void blocking::stop(){
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time+dt;	// update critical path runtime
   volume_costs[num_volume_measures-2] += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1] += this->save_comp_time+dt;		// update local runtime
-  for (size_t i=0; i<critical_path_breakdown_size; i++){
+  for (size_t i=0; i<breakdown_size; i++){
     critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
   }
 
@@ -801,7 +797,7 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-2]        += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += this->save_comp_time;		// update local runtime
-  for (size_t i=0; i<critical_path_breakdown_size; i++){
+  for (size_t i=0; i<breakdown_size; i++){
     critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
   }
   if (mode == 2){
@@ -889,7 +885,6 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   if ((this->tag<20) && (wait_id)) dcost_bsp.first=1.;	// this is usually zero, but we force it to be 1 in special circumstances (for nonblocking p2p with wait_id one)
   std::vector<std::pair<double,double>> dcosts = {dcost_simple,dcost_alphabeta_butterfly,dcost_bsp};
 
-  this->my_bytes += nbytes;
   if (mode == 1){
     *this->my_synch_time   += 0;			// Nonblocking routines will have no synchronization time component
     *this->my_datamvt_time += comm_time;
@@ -903,16 +898,16 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
       }
     }
     save=0;
-    for (size_t i=0; i<critical_path_breakdown_size; i++){
+    for (size_t i=0; i<breakdown_size; i++){
       *(this->critical_path_synch_time+i)   += this->last_synch_time;
       *(this->critical_path_datamvt_time+i) += comm_time;
       *(this->critical_path_comm_time+i)    += comm_time;
     }
     for (int j=0; j<cost_models.size(); j++){
-      for (size_t i=0; i<critical_path_breakdown_size; i++){
+      for (size_t i=0; i<breakdown_size; i++){
         if (cost_models[j]){
-          *(this->critical_path_msg_count+save*critical_path_breakdown_size+i) += dcosts[j].first;
-          *(this->critical_path_wrd_count+save*critical_path_breakdown_size+i) += dcosts[j].second;
+          *(this->critical_path_msg_count+save*breakdown_size+i) += dcosts[j].first;
+          *(this->critical_path_wrd_count+save*breakdown_size+i) += dcosts[j].second;
         }
       }
       save++;
@@ -958,6 +953,9 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   critical_path_costs[num_critical_path_measures-3] += comm_time;				// update critical path runtime
   critical_path_costs[num_critical_path_measures-2] += comp_time;				// update critical path runtime
   critical_path_costs[num_critical_path_measures-1] += comp_time+comm_time;				// update critical path runtime
+  for (size_t i=0; i<breakdown_size; i++){
+    critical_path_costs[critical_path_costs_size-1-i] += comp_time;
+  }
 
   save=0;
   for (int j=0; j<cost_models.size(); j++){
@@ -1493,12 +1491,40 @@ void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm
 
 
 // Note: this function should be called once per start/stop, else it will double count
+void find_per_process_max(MPI_Comm cm){
+  if (mode<2){
+    int cm_rank; MPI_Comm_rank(cm,&cm_rank);
+    double_int buffer[num_per_process_measures];
+    for (size_t i=0; i<num_per_process_measures; i++){
+      max_per_process_costs[i] = volume_costs[i];
+      buffer[i].first          = volume_costs[i];
+      buffer[i].second         = cm_rank;
+    }
+    PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_DOUBLE, MPI_MAX, cm);
+    PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    size_t save=0;
+    for (size_t i=0; i<num_per_process_measures-2*cost_model_size-1; i++){
+      if (breakdown[i] == 0) continue;
+      if (cm_rank == buffer[2*cost_model_size+i+1].second){
+        for (size_t j=0; j<num_tracker_per_process_measures*list_size; j++){
+          max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+1)+j] = volume_costs[num_volume_measures+j];
+        }
+        max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+1)-1] = volume_costs[num_volume_measures-2];
+      }
+      else{
+        for (size_t j=0; j<num_tracker_per_process_measures*list_size+1; j++){
+          max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+1)+j] = 0.;
+        }
+      }
+      PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+1)], num_tracker_per_process_measures*list_size+1, MPI_DOUBLE, MPI_MAX, cm);
+      save++;
+    }
+  }
+  // else if mode ==2, I need to add (do later)
+}
+
 void compute_volume(MPI_Comm cm){
   if (mode<2){
-    for (size_t i=0; i<num_volume_measures; i++){
-      max_per_process_costs[i] = volume_costs[i];
-    }
-    PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], max_per_process_costs.size(), MPI_DOUBLE, MPI_MAX, cm);
     PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
     int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
     for (int i=0; i<volume_costs.size(); i++){
@@ -1588,19 +1614,39 @@ void tracker::set_header(){
 
 void tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if ((*this->my_comm_time != 0) && (critical_path_breakdown_size>0)){
+  if ((*this->my_comm_time != 0) && (breakdown_size>0)){
     std::vector<double> vec(num_tracker_critical_path_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]){
-        vec[2*save] = *(this->critical_path_wrd_count+idx+save*critical_path_breakdown_size);
-        vec[2*save+1] = *(this->critical_path_msg_count+idx+save*critical_path_breakdown_size);
+        vec[2*save] = *(this->critical_path_wrd_count+idx+save*breakdown_size);
+        vec[2*save+1] = *(this->critical_path_msg_count+idx+save*breakdown_size);
         save++;
       }
     }
     vec[num_tracker_critical_path_measures-3] = *(this->critical_path_comm_time+idx);
     vec[num_tracker_critical_path_measures-2] = *(this->critical_path_synch_time+idx);
     vec[num_tracker_critical_path_measures-1] = *(this->critical_path_datamvt_time+idx);
+    save_info[this->name] = std::move(vec);
+  }
+}
+
+void tracker::set_per_process_costs(size_t idx){
+  // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
+  if ((*this->my_comm_time != 0) && (breakdown_size>0)){
+    std::vector<double> vec(num_tracker_per_process_measures-1);	// don't count idle time
+    int save=0;
+    for (int j=0; j<cost_models.size(); j++){
+      if (cost_models[j]){
+        vec[2*save] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+save];
+        vec[2*save+1] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+cost_model_size+save];
+        save++;
+      }
+    }
+    // For now, do not include idle time
+    vec[num_tracker_per_process_measures-4] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-3];
+    vec[num_tracker_per_process_measures-3] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-2];
+    vec[num_tracker_per_process_measures-2] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+1)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-1];
     save_info[this->name] = std::move(vec);
   }
 }
@@ -1649,7 +1695,7 @@ ftimer::ftimer(std::string name_, bool internal){
     critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
     volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
     volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-    for (size_t i=0; i<critical_path_breakdown_size; i++){
+    for (size_t i=0; i<breakdown_size; i++){
       critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
     }
     computation_timer = MPI_Wtime();
@@ -1674,7 +1720,7 @@ void ftimer::start(){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-  for (size_t i=0; i<critical_path_breakdown_size; i++){
+  for (size_t i=0; i<breakdown_size; i++){
     critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
   }
   computation_timer = MPI_Wtime();
@@ -1730,7 +1776,7 @@ void ftimer::stop(){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-  for (size_t i=0; i<critical_path_breakdown_size; i++){
+  for (size_t i=0; i<breakdown_size; i++){
     critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
   }
   computation_timer = MPI_Wtime();
@@ -1811,7 +1857,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
   Stream << "\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
   Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// volume
-  for (auto i=0; i<num_tracker_critical_path_measures*critical_path_breakdown_size+num_tracker_volume_measures;i++){
+  for (auto i=0; i<num_tracker_critical_path_measures*breakdown_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
     }
@@ -1852,13 +1898,13 @@ void record(std::ofstream& Stream, size_t factor){
       }
       size_t breakdown_idx=0;
       for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
-        if (!critical_path_breakdown[i]) continue;
-        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-critical_path_breakdown_size+breakdown_idx-1];
+        if (!breakdown[i]) continue;
+        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx-1];
         breakdown_idx++;
       }
       breakdown_idx=0;
       for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
-        if (!critical_path_breakdown[i]) continue;
+        if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
@@ -1937,38 +1983,70 @@ void record(std::ostream& Stream, size_t factor){
 
       size_t breakdown_idx=0;
       for (auto i=0; i<num_critical_path_measures-2*cost_model_size; i++){
-        if (!critical_path_breakdown[i]) continue;
-        for (int j=0; j<list_size; j++){
-          list[j]->set_critical_path_costs(breakdown_idx);
-        }
-        breakdown_idx++;
+        if (!breakdown[i]) continue;
         if (i==0){
-          Stream << std::left << std::setw(25) << "CommTime critical path:";
+          Stream << std::left << std::setw(25) << "CommTime max:";
         } else if (i==1){
-          Stream << std::left << std::setw(25) << "SynchTime critical path:";
+          Stream << std::left << std::setw(25) << "SynchTime max:";
         } else if (i==2){
-          Stream << std::left << std::setw(25) << "DataMvtTime critical path:";
+          Stream << std::left << std::setw(25) << "DataMvtTime max:";
         } else if (i==3){
-          Stream << std::left << std::setw(25) << "CompTime critical path:";
+          Stream << std::left << std::setw(25) << "CompTime max:";
         } else if (i==4){
-          Stream << std::left << std::setw(25) << "RunTime critical path:";
+          Stream << std::left << std::setw(25) << "RunTime max:";
         }
+        Stream << std::left << std::setw(25) << "MeasureType";
         Stream << std::left << std::setw(25) << "CompTime";
+        Stream << std::left << std::setw(25) << "IdleTime";
         print_cost_model_header(Stream);
         Stream << std::left << std::setw(25) << "CommTime";
         Stream << std::left << std::setw(25) << "SynchTime";
         Stream << std::left << std::setw(25) << "DataMvtTime";
         Stream << "\n";
         Stream << std::left << std::setw(25) << "Computation";
-        Stream << std::left << std::setw(25) << factor*critical_path_costs[critical_path_costs_size-critical_path_breakdown_size+breakdown_idx-1];
+        Stream << std::left << std::setw(25) << "path";
+        Stream << std::left << std::setw(25) << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];
+        Stream << "\n";
+        Stream << std::left << std::setw(25) << "Idle";
+        Stream << std::left << std::setw(25) << "path";
+        Stream << std::left << std::setw(25) << 0.0;
+        Stream << std::left << std::setw(25) << 0.0;
+        for (int j=0; j<list_size; j++){
+          list[j]->set_critical_path_costs(breakdown_idx);
+        }
         for (auto& it : save_info){
           Stream << "\n";
           Stream << std::left << std::setw(25) << it.first;
+          Stream << std::left << std::setw(25) << "path";
+          Stream << std::left << std::setw(25) << 0.0;
           Stream << std::left << std::setw(25) << 0.0;
           for (size_t j=0; j<num_tracker_critical_path_measures; j++){
             Stream << std::left << std::setw(25) << factor*it.second[j];
           }
         }
+        Stream << "\n";
+        Stream << std::left << std::setw(25) << "Computation";
+        Stream << std::left << std::setw(25) << "per-process";
+        Stream << std::left << std::setw(25) << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+1)-1];
+        Stream << "\n";
+        Stream << std::left << std::setw(25) << "Idle";
+        Stream << std::left << std::setw(25) << "per-process";
+        Stream << std::left << std::setw(25) << 0.0;	// TODO: Needs replacing
+        Stream << std::left << std::setw(25) << 0.0;
+        for (int j=0; j<list_size; j++){
+          list[j]->set_per_process_costs(breakdown_idx);
+        }
+        for (auto& it : save_info){
+          Stream << "\n";
+          Stream << std::left << std::setw(25) << it.first;
+          Stream << std::left << std::setw(25) << "per-process";
+          Stream << std::left << std::setw(25) << 0.0;
+          Stream << std::left << std::setw(25) << 0.0;
+          for (size_t j=0; j<num_tracker_per_process_measures-1; j++){
+            Stream << std::left << std::setw(25) << factor*it.second[j];
+          }
+        }
+        breakdown_idx++;
         Stream << "\n\n";
       }
       for (int i=0; i<list_size; i++){
@@ -2130,11 +2208,12 @@ void stop(size_t mode, size_t factor){
   internal::critical_path_costs[internal::num_critical_path_measures-1]+=(last_time-internal::computation_timer);	// update critical path runtime
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);	// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);	// update runtime volume
-  for (size_t i=0; i<critical_path_breakdown_size; i++){
+  for (size_t i=0; i<breakdown_size; i++){
     internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer);
   }
 
   internal::complete_propagation(MPI_COMM_WORLD,false,-1,-1);
+  internal::find_per_process_max(MPI_COMM_WORLD);
   internal::compute_volume(MPI_COMM_WORLD);
 
   internal::record(std::cout,factor);
