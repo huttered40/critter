@@ -101,8 +101,8 @@ class bench(object):
                       - outer list must be of length 'numTests'
                       - each inner list holds algorithm class instances in a list, and a string specifying a tag as to what kind of scaling is occuring
         """
-        assert(len(CritterCostModelInfo)==3)
-        assert(len(CritterBreakdownInfo)==5)
+        assert(len(CritterCostModelInfo)==2)
+        assert(len(CritterBreakdownInfo)==9)
         self.CritterPath = CritterPath
         self.MachineType = MachineType
         self.CritterCostModelInfo = CritterCostModelInfo
