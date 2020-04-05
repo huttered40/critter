@@ -37,13 +37,13 @@ constexpr size_t cost_model_size  = 2;					// must match number of bits set in c
 constexpr std::bitset<2> cost_models(0b11);				// alpha-beta butterfly, BSP
 // Note: `breakdown_size` must equal `breakdown.count()`. This will not be checked at compile time.
 constexpr size_t breakdown_size  			= 5;			// must match number of bits set in breakdown (below)
-constexpr std::bitset<5+2*cost_model_size> breakdown(0b110010101);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime,ABSynchCost,BSPsynchCost,ABCommCost,BSPcommCost
+constexpr std::bitset<5+2*cost_model_size> breakdown(0b110010110);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime,ABSynchCost,BSPsynchCost,ABCommCost,BSPcommCost
 constexpr int internal_tag                      	= 1669220;		// arbitrary
 constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
-using p2p_type 						= internal::blocking;	// p2p communication can be tracked as 'synchronous' or 'blocking'
+using p2p_type 						= internal::synchronous;// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 			= 50;			// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       			= 500;			// max number of symbols to be tracked
 
@@ -61,6 +61,8 @@ constexpr auto num_ftimer_measures                      = 2;				// ExclusiveTime
 constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+breakdown_size;
 constexpr auto per_process_costs_size = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+2*breakdown_size;
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
+constexpr auto mode_1_width = 25;
+constexpr auto mode_2_width = 15;
 
 void update_critical_path(double* data);
 void compute_volume(MPI_Comm cm);
@@ -269,15 +271,17 @@ struct int_int_double{
 class ftimer{
   public:
     ftimer() {}
-    ftimer(std::string name_, bool internal=false);
-    void stop();
-    void start();
+    ftimer(std::string name_);
+    void stop(double save_time);
+    void start(double save_time);
     bool operator<(const ftimer& w) const ;
 
     std::string name;
     std::stack<double> start_timer;
-    std::stack<std::unordered_map<std::string,std::array<double,num_critical_path_measures>>> exclusive_contributions;
-    std::stack<std::array<double,num_critical_path_measures>> exclusive_measure;
+    std::unordered_map<std::string,std::array<double,num_critical_path_measures>> cp_exclusive_contributions;
+    std::unordered_map<std::string,std::array<double,num_per_process_measures>> pp_exclusive_contributions;
+    std::deque<std::array<double,num_critical_path_measures>> cp_exclusive_measure;
+    std::stack<std::array<double,num_per_process_measures>> pp_exclusive_measure;
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
     std::array<double*,num_critical_path_measures> cp_incl_measure;
     std::array<double*,num_critical_path_measures> cp_excl_measure;
@@ -312,12 +316,12 @@ extern std::vector<char> synch_pad_recv;
 extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local_cp;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
-extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_pp;
+extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_local_pp;
+extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_global_pp;
 extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_vol;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
 extern std::array<std::string,max_num_symbols> symbol_order;
-extern std::array<std::string,num_critical_path_measures> critical_path_measure_names;
 extern double_int timer_info_sender[num_volume_measures];
 extern double_int timer_info_receiver[num_volume_measures];
 extern bool wait_id;
@@ -328,43 +332,41 @@ extern bool wait_id;
 
 #define TAU_START(ARG) do {\
   if (critter::internal::mode==2){\
-  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
-    critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
-    critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
-    critter::internal::symbol_timers[#ARG].start();\
-  }\
-  else{\
-    critter::internal::symbol_timers[#ARG].start();\
-  }}}while (0);
+    auto save_time = MPI_Wtime();\
+    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+      critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
+      critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
+      critter::internal::symbol_timers[#ARG].start(save_time);\
+    }\
+    else{\
+      critter::internal::symbol_timers[#ARG].start(save_time);\
+    }}}while (0);
 
 #define TAU_FSTART(ARG) do {\
   if (critter::internal::mode==2){\
-  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
-    critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
-    critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
-    critter::internal::symbol_timers[#ARG].start();\
-  }\
-  else{\
-    critter::internal::symbol_timers[#ARG].start();\
-  }}}while (0);
+    auto save_time = MPI_Wtime();\
+    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+      critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
+      critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
+      critter::internal::symbol_timers[#ARG].start(save_time);\
+    }\
+    else{\
+      critter::internal::symbol_timers[#ARG].start(save_time);\
+    }}}while (0);
 
 #define TAU_STOP(ARG) do {\
   if (critter::internal::mode==2){\
-  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
-    assert(0);\
-  }\
-  else{\
-    critter::internal::symbol_timers[#ARG].stop();\
-  }}}while (0);
+    auto save_time = MPI_Wtime();\
+    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
+    else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
+    }}while (0);
 
 #define TAU_FSTOP(ARG) do {\
   if (critter::internal::mode==2){\
-  if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
-    assert(0);\
-  }\
-  else{\
-    critter::internal::symbol_timers[#ARG].stop();\
-  }}}while (0);
+    auto save_time = MPI_Wtime();\
+    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
+    else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
+    }}while (0);
 
 // *****************************************************************************************************************************************************************
 
