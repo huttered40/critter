@@ -412,29 +412,23 @@ void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   this->last_is_root = is_root;
   this->last_is_sender = is_sender;
   this->last_partner1 = partner1;
-  this->last_partner2 = partner2;
+  this->last_partner2 = partner2 == -1 ? partner1 : partner2;
 
   volatile double init_time = MPI_Wtime();
-  if (partner1 == -1){
-    PMPI_Barrier(cm);
-  }
+  if (this->last_partner1 == -1){ PMPI_Barrier(cm); }
   else {
     double sbuf=0.; double rbuf=0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag3, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag3, cm, MPI_STATUS_IGNORE);
-    if ((partner2 != -1) && (partner1 != partner2)) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag3, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag3, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, this->last_partner1, internal_tag3, &rbuf, 1, MPI_DOUBLE, this->last_partner2, internal_tag3, cm, MPI_STATUS_IGNORE);
   }
   this->last_barrier_time = MPI_Wtime() - init_time;
 
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   propagate(cm, this->last_is_sender, this->last_partner1, this->last_partner2);
-  if (partner1 == -1){
-    PMPI_Barrier(cm);
-  } else {
+  if (this->last_partner1 == -1){ PMPI_Barrier(cm); }
+  else {
     double sbuf=0.; double rbuf=0.;
-    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner1, internal_tag4, &rbuf, 1, MPI_DOUBLE, partner1, internal_tag4, cm, MPI_STATUS_IGNORE);
-    if ((partner2 != -1) && (partner1 != partner2)) PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, partner2, internal_tag4, &rbuf, 1, MPI_DOUBLE, partner2, internal_tag4, cm, MPI_STATUS_IGNORE);
+    PMPI_Sendrecv(&sbuf, 1, MPI_DOUBLE, this->last_partner1, internal_tag4, &rbuf, 1, MPI_DOUBLE, this->last_partner2, internal_tag4, cm, MPI_STATUS_IGNORE);
   }
-  // start synchronization timer for communication routine
   this->last_start_time = MPI_Wtime();
 }
 
@@ -948,47 +942,142 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   if (mode == 2){ symbol_timers[symbol_stack.top()].start_timer.top() = this->last_start_time; }
 }
 
+void propagate_timers(int rank, MPI_Comm cm, bool is_sender, int partner1, int partner2){
+  assert(mode==2);
+  int critical_path_runtime_root_rank = timer_info_receiver[num_critical_path_measures-1].second;
+  std::array<int,2> ftimer_size = {0,0};
+  if (rank==critical_path_runtime_root_rank){
+    ftimer_size[0] = symbol_timers.size();// each will carry an integer describing length of symbol
+    for (auto& it : symbol_timers){
+      ftimer_size[1] += it.second.cp_exclusive_measure.size();
+    }
+    if (symbol_stack.size()==0) { ftimer_size[1] = 0; }
+  }
+  if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE,&ftimer_size[0],2,MPI_INT,MPI_SUM,cm); }
+  else{
+    if (rank==critical_path_runtime_root_rank){ if (rank!=partner1) PMPI_Send(&ftimer_size[0],2,MPI_INT,partner1,internal_tag,cm);
+                                                if (rank!= partner1 && partner1 != partner2) PMPI_Send(&ftimer_size[0],2,MPI_INT,partner2,internal_tag,cm); }
+    else { PMPI_Recv(&ftimer_size[0],2,MPI_INT,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE); }
+  }
+
+  std::vector<int> cp_info(2*ftimer_size[0],0);// char counts for each tracked symbol, followed by stack-sizes for each tracked symbol
+  std::vector<double> cp_data((ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,0);
+  if (rank==critical_path_runtime_root_rank){
+    int symbol_offset = 0; int measure_offset = 0;
+    for (auto i=0; i<symbol_timers.size(); i++){
+      cp_info[i] = symbol_order[i].size();
+      cp_info[ftimer_size[0]+i] = symbol_timers[symbol_order[i]].cp_exclusive_measure.size();
+      for (auto j=0; j<cp_info[i]; j++){
+        symbol_pad[symbol_offset+j] = symbol_order[i][j];
+      }
+      for (auto j=0; j<num_critical_path_measures; j++){
+        cp_data[i*num_critical_path_measures+j] = symbol_timers[symbol_order[i]].cp_exclusive_contributions[j];
+      }
+      for (auto j=0; j<symbol_timers[symbol_order[i]].cp_exclusive_measure.size(); j++){
+        for (auto k=0; k<num_critical_path_measures; k++){
+          cp_data[ftimer_size[0]*num_critical_path_measures + measure_offset*num_critical_path_measures+k] = symbol_timers[symbol_order[i]].cp_exclusive_measure.front()[k];
+        }
+        symbol_timers[symbol_order[i]].cp_exclusive_measure.push_back(symbol_timers[symbol_order[i]].cp_exclusive_measure.front());
+        symbol_timers[symbol_order[i]].cp_exclusive_measure.pop_front();
+        measure_offset++;
+      }
+      symbol_offset += cp_info[i];
+    }
+  }
+  if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE,&cp_info[0],2*ftimer_size[0],MPI_INT,MPI_SUM,cm); }
+  else{
+    if (rank==critical_path_runtime_root_rank){ if (rank!=partner1) PMPI_Send(&cp_info[0],2*ftimer_size[0],MPI_INT,partner1,internal_tag,cm);
+                                                if (rank!= partner1 && partner1 != partner2) PMPI_Send(&cp_info[0],2*ftimer_size[0],MPI_INT,partner2,internal_tag,cm); }
+    else{ PMPI_Recv(&cp_info[0],2*ftimer_size[0],MPI_INT,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE); }
+  }
+
+  int num_chars = 0; int num_records = 0;
+  for (auto i=0; i<ftimer_size[0]; i++){ num_chars += cp_info[i]; }
+  if (rank == critical_path_runtime_root_rank){
+    if (partner1 == -1){
+      PMPI_Bcast(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,rank,cm);
+      PMPI_Bcast(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,rank,cm);
+      PMPI_Bcast(&symbol_pad[0],num_chars,MPI_CHAR,rank,cm);
+    }
+    else{
+      if (rank!=partner1) PMPI_Send(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,partner1,internal_tag,cm);
+      if (rank!=partner1) PMPI_Send(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,partner1,internal_tag,cm);
+      if (rank!=partner1) PMPI_Send(&symbol_pad[0],num_chars,MPI_CHAR,partner1,internal_tag,cm);
+      if (rank!= partner1 && partner1 != partner2) PMPI_Send(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,partner2,internal_tag,cm);
+      if (rank!= partner1 && partner1 != partner2) PMPI_Send(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,partner2,internal_tag,cm);
+      if (rank!= partner1 && partner1 != partner2) PMPI_Send(&symbol_pad[0],num_chars,MPI_CHAR,partner2,internal_tag,cm);
+    }
+  }
+  else{
+    if (partner1 == -1){
+      PMPI_Bcast(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,critical_path_runtime_root_rank,cm);
+      PMPI_Bcast(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,cm);
+      PMPI_Bcast(&symbol_pad[0],num_chars,MPI_CHAR,critical_path_runtime_root_rank,cm);
+    }
+    else{
+      PMPI_Recv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&symbol_pad[0],num_chars,MPI_CHAR,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+    }
+    if (rank != partner1){
+      int symbol_offset = 0; int measure_offset=0;
+      for (int i=0; i<ftimer_size[0]; i++){
+        auto reconstructed_symbol = std::string(symbol_pad.begin()+symbol_offset,symbol_pad.begin()+symbol_offset+cp_info[i]);
+        if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+          symbol_timers[reconstructed_symbol] = ftimer(reconstructed_symbol);
+          symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+        }
+        *symbol_timers[reconstructed_symbol].cp_numcalls = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i];
+        for (int j=0; j<num_critical_path_measures; j++){
+          *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*j+1];
+          *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*(j+1)];
+        }
+        symbol_timers[reconstructed_symbol].cp_exclusive_measure.clear();
+        for (int j=0; j<num_critical_path_measures; j++){
+          symbol_timers[reconstructed_symbol].cp_exclusive_contributions[j] = cp_data[i*num_critical_path_measures+j];
+        }
+        for (int j=cp_info[ftimer_size[0]+i]-1; j>=0; j--){
+          std::array<double,num_critical_path_measures> temp; temp.fill(0.0);
+          symbol_timers[reconstructed_symbol].cp_exclusive_measure.push_front(temp);
+          for (int k=0; k<num_critical_path_measures; k++){
+            symbol_timers[reconstructed_symbol].cp_exclusive_measure.front()[k] = cp_data[ftimer_size[0]*num_critical_path_measures+measure_offset+j*num_critical_path_measures+k];
+          }
+        }
+        symbol_timers[reconstructed_symbol].has_been_processed = true;
+        symbol_offset += cp_info[i]; measure_offset+=(cp_info[ftimer_size[0]+i]*num_critical_path_measures);
+      }
+      // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
+      for (auto& it : symbol_timers){
+        if (it.second.has_been_processed){ it.second.has_been_processed = false; }
+        else{
+          *it.second.cp_numcalls = 0;
+          for (int j=0; j<num_critical_path_measures; j++){
+            *it.second.cp_incl_measure[j] = 0;
+            *it.second.cp_excl_measure[j] = 0;
+          }
+        }
+      }
+    }
+  }
+}
+
 void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner2){
-  int rank; MPI_Comm_rank(cm,&rank); int true_rank; MPI_Comm_rank(MPI_COMM_WORLD,&true_rank);
+  int rank; MPI_Comm_rank(cm,&rank);
   if (mode == 2){
     for (int i=0; i<num_critical_path_measures; i++){
       timer_info_sender[i].first = critical_path_costs[i];
       timer_info_sender[i].second = rank;
     }
-    if (partner1 == -1){
-      PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-    }
-    else{
-      if (partner2 == -1){
-        if (is_sender){
-          PMPI_Send(&timer_info_sender[0].first,num_critical_path_measures,MPI_DOUBLE_INT,partner1,internal_tag,cm);
-          for (int i=0; i<num_critical_path_measures; i++){
-            timer_info_receiver[i].first = timer_info_sender[i].first;
-            timer_info_receiver[i].second = timer_info_sender[i].second;
-          }
+    if (partner1 == -1){ PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm); }
+    else {
+      PMPI_Sendrecv(&timer_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner1, internal_tag, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<num_critical_path_measures; i++){
+        if (timer_info_sender[i].first>timer_info_receiver[i].first){timer_info_receiver[i].second = rank;}
+        else if (timer_info_sender[i].first==timer_info_receiver[i].first){
+          if (timer_info_sender[i].second < timer_info_receiver[i].second){ timer_info_receiver[i].second = rank; }
+          else { timer_info_receiver[i].second = partner2; }
         }
-        else{
-          PMPI_Recv(&timer_info_receiver[0].first,num_critical_path_measures,MPI_DOUBLE_INT,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-          for (int i=0; i<num_critical_path_measures; i++){
-            if (timer_info_sender[i].first>timer_info_receiver[i].first){timer_info_receiver[i].second = rank;}
-            else if (timer_info_sender[i].first==timer_info_receiver[i].first){
-              if (timer_info_sender[i].second < timer_info_receiver[i].second){ timer_info_receiver[i].second = rank; }
-              else { timer_info_receiver[i].second = partner1; }
-            }
-            timer_info_receiver[i].first = std::max(timer_info_sender[i].first, timer_info_receiver[i].first);
-          }
-        }
-      }
-      else{
-        PMPI_Sendrecv(&timer_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner1, internal_tag, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
-        for (int i=0; i<num_critical_path_measures; i++){
-          if (timer_info_sender[i].first>timer_info_receiver[i].first){timer_info_receiver[i].second = rank;}
-          else if (timer_info_sender[i].first==timer_info_receiver[i].first){
-            if (timer_info_sender[i].second < timer_info_receiver[i].second){ timer_info_receiver[i].second = rank; }
-            else { timer_info_receiver[i].second = partner2; }
-          }
-          timer_info_receiver[i].first = std::max(timer_info_sender[i].first, timer_info_receiver[i].first);
-        }
+        timer_info_receiver[i].first = std::max(timer_info_sender[i].first, timer_info_receiver[i].first);
       }
     }
   }
@@ -998,155 +1087,12 @@ void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner
     PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
     MPI_Op_free(&op);
   }
-  else if (partner2 == -1){
-    // Sender sends critical path data to receiver. Receiver updates its critical path information.
-    if (is_sender){
-      PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm);
-      // Sender needs not wait for handshake with receiver, can continue back into user code
-    }
-    else{
-      PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-    }
-  }
   else{
     PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag1, &new_cs[0], critical_path_costs.size(),
       MPI_DOUBLE, partner2, internal_tag1, cm, MPI_STATUS_IGNORE);
     update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
   }
-  if (mode == 2){
-    int critical_path_runtime_root_rank = timer_info_receiver[num_critical_path_measures-1].second;
-    std::array<int,2> ftimer_size = {0,0};
-    if (rank==critical_path_runtime_root_rank){
-      ftimer_size[0] = symbol_timers.size();// each will carry an integer describing length of symbol
-      for (auto& it : symbol_timers){
-        ftimer_size[1] += it.second.cp_exclusive_measure.size();
-      }
-      if (symbol_stack.size()==0) { ftimer_size[1] = 0; }
-    }
-    if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE,&ftimer_size[0],2,MPI_INT,MPI_SUM,cm); }
-    else{
-      if (partner2 == -1){
-        if (rank==critical_path_runtime_root_rank){ PMPI_Send(&ftimer_size[0],2,MPI_INT,partner1,internal_tag,cm); }
-        else { PMPI_Recv(&ftimer_size[0],2,MPI_INT,partner1,internal_tag,cm,MPI_STATUS_IGNORE); }
-      }
-      else{
-//        .. does this need to be replaced?
-//        PMPI_Sendrecv(&ftimer_size[0],2,MPI_INT,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-      }
-    }
-
-    std::vector<int> cp_info(2*ftimer_size[0],0);// char counts for each tracked symbol, followed by stack-sizes for each tracked symbol
-    std::vector<double> cp_data((ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,0);
-    if (rank==critical_path_runtime_root_rank){
-      int symbol_offset = 0; int measure_offset = 0;
-      for (auto i=0; i<symbol_timers.size(); i++){
-        cp_info[i] = symbol_order[i].size();
-        cp_info[ftimer_size[0]+i] = symbol_timers[symbol_order[i]].cp_exclusive_measure.size();
-        for (auto j=0; j<cp_info[i]; j++){
-          symbol_pad[symbol_offset+j] = symbol_order[i][j];
-        }
-        for (auto j=0; j<num_critical_path_measures; j++){
-          cp_data[i*num_critical_path_measures+j] = symbol_timers[symbol_order[i]].cp_exclusive_contributions[j];
-        }
-        for (auto j=0; j<symbol_timers[symbol_order[i]].cp_exclusive_measure.size(); j++){
-          for (auto k=0; k<num_critical_path_measures; k++){
-            cp_data[ftimer_size[0]*num_critical_path_measures + measure_offset*num_critical_path_measures+k] = symbol_timers[symbol_order[i]].cp_exclusive_measure.front()[k];
-          }
-          symbol_timers[symbol_order[i]].cp_exclusive_measure.push_back(symbol_timers[symbol_order[i]].cp_exclusive_measure.front());
-          symbol_timers[symbol_order[i]].cp_exclusive_measure.pop_front();
-          measure_offset++;
-        }
-        symbol_offset += cp_info[i];
-      }
-    }
-    if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE,&cp_info[0],2*ftimer_size[0],MPI_INT,MPI_SUM,cm); }
-    else{
-      //if (rank != partner){
-      if (partner2 == -1){
-        if (rank==critical_path_runtime_root_rank){
-          PMPI_Send(&cp_info[0],2*ftimer_size[0],MPI_INT,partner1,internal_tag,cm);
-        }
-        else{
-          PMPI_Recv(&cp_info[0],2*ftimer_size[0],MPI_INT,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-        }
-      }
-      else{
-        //TODO
-      }
-    }
-
-    int num_chars = 0; int num_records = 0;
-    for (auto i=0; i<ftimer_size[0]; i++){ num_chars += cp_info[i]; }
-    //TODO: What about the case for PMPI_Sendrecv (so when partner2 != -1)?
-    if (rank == critical_path_runtime_root_rank){
-      if (partner1 == -1){
-        PMPI_Bcast(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,rank,cm);
-        PMPI_Bcast(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,rank,cm);
-        PMPI_Bcast(&symbol_pad[0],num_chars,MPI_CHAR,rank,cm);
-      }
-      else{
-        if (rank != partner1){
-          PMPI_Send(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,partner1,internal_tag,cm);
-          PMPI_Send(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,partner1,internal_tag,cm);
-          PMPI_Send(&symbol_pad[0],num_chars,MPI_CHAR,partner1,internal_tag,cm);
-        }
-      }
-    }
-    else{
-      if (partner1 == -1){
-        PMPI_Bcast(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,critical_path_runtime_root_rank,cm);
-        PMPI_Bcast(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,cm);
-        PMPI_Bcast(&symbol_pad[0],num_chars,MPI_CHAR,critical_path_runtime_root_rank,cm);
-      }
-      else{
-        if (rank != partner1){
-          PMPI_Recv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-          PMPI_Recv(&cp_data[0],(ftimer_size[0]+ftimer_size[1])*num_critical_path_measures,MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-          PMPI_Recv(&symbol_pad[0],num_chars,MPI_CHAR,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-        }
-      }
-      if (rank != partner1){
-        int symbol_offset = 0; int measure_offset=0;
-        for (int i=0; i<ftimer_size[0]; i++){
-          auto reconstructed_symbol = std::string(symbol_pad.begin()+symbol_offset,symbol_pad.begin()+symbol_offset+cp_info[i]);
-          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
-            symbol_timers[reconstructed_symbol] = ftimer(reconstructed_symbol);
-            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
-          }
-          *symbol_timers[reconstructed_symbol].cp_numcalls = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i];
-          for (int j=0; j<num_critical_path_measures; j++){
-            *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*j+1];
-            *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*(j+1)];
-          }
-          symbol_timers[reconstructed_symbol].cp_exclusive_measure.clear();
-          for (int j=0; j<num_critical_path_measures; j++){
-            symbol_timers[reconstructed_symbol].cp_exclusive_contributions[j] = cp_data[i*num_critical_path_measures+j];
-          }
-          for (int j=cp_info[ftimer_size[0]+i]-1; j>=0; j--){
-            std::array<double,num_critical_path_measures> temp; temp.fill(0.0);
-            symbol_timers[reconstructed_symbol].cp_exclusive_measure.push_front(temp);
-            for (int k=0; k<num_critical_path_measures; k++){
-              symbol_timers[reconstructed_symbol].cp_exclusive_measure.front()[k] = cp_data[ftimer_size[0]*num_critical_path_measures+measure_offset+j*num_critical_path_measures+k];
-            }
-          }
-          symbol_timers[reconstructed_symbol].has_been_processed = true;
-          symbol_offset += cp_info[i]; measure_offset+=(cp_info[ftimer_size[0]+i]*num_critical_path_measures);
-        }
-        // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
-        for (auto& it : symbol_timers){
-          if (it.second.has_been_processed){ it.second.has_been_processed = false; }
-          else{
-            *it.second.cp_numcalls = 0;
-            for (int j=0; j<num_critical_path_measures; j++){
-              *it.second.cp_incl_measure[j] = 0;
-              *it.second.cp_excl_measure[j] = 0;
-            }
-          }
-        }
-      }
-    }
-  }
+  if (mode == 2){ propagate_timers(rank,cm,is_sender,partner1,partner2); }
 }
 
 void synchronous::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
@@ -1154,125 +1100,7 @@ void synchronous::propagate(MPI_Comm cm, bool is_sender, int partner1, int partn
 }
 
 void blocking::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
-  if (mode == 1){
-    if (partner2==-1){
-      // Sender sends critical path data to receiver. Receiver updates its critical path information.
-      if (is_sender){
-        PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm);
-        // Sender needs not wait for handshake with receiver, can continue back into user code
-      }
-      else{
-        PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner1,internal_tag,cm,MPI_STATUS_IGNORE);
-        update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-      }
-    }
-    else{
-      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag1, &new_cs[0], critical_path_costs.size(),
-        MPI_DOUBLE, partner2, internal_tag1, cm, MPI_STATUS_IGNORE);
-      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-    }
-  }
-  else if (mode == 2){
-/*
-    if (is_sender){
-      PMPI_Send(&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,partner,internal_tag,cm);
-      // We consider only critical path runtime
-      std::array<int,2> ftimer_size = {0,0};
-      ftimer_size[0] = symbol_timers.size();
-      ftimer_size[1] = symbol_stack.size() > 0 ? symbol_timers[symbol_stack.top()].cp_exclusive_contributions.top().size() : 0;
-      PMPI_Send(&ftimer_size[0],2,MPI_INT,partner,internal_tag,cm);
-      std::vector<int> symbol_sizes(ftimer_size[0]+ftimer_size[1],0);
-      std::vector<double> cp_exclusive_contributions(ftimer_size[1]*num_critical_path_measures,0);
-      int symbol_offset = 0;
-      for (auto i=0; i<symbol_timers.size(); i++){
-        symbol_sizes[i] = symbol_order[i].size();
-        for (auto j=0; j<symbol_sizes[i]; j++){
-          symbol_pad[symbol_offset+j] = symbol_order[i][j];
-        }
-       symbol_offset += symbol_sizes[i];
-      }
-      if (symbol_stack.size()>0){
-        int index = 0;
-        for (auto& it : symbol_timers[symbol_stack.top()].cp_exclusive_contributions.top()){
-          symbol_sizes[index+symbol_timers.size()] = it.first.size();
-          for (auto j=0; j<it.first.size(); j++){
-            symbol_pad[symbol_offset+j] = it.first[j];
-          }
-          for (auto j=0; j<num_critical_path_measures; j++){
-            cp_exclusive_contributions[index*num_critical_path_measures+j] = it.second[j];
-          }
-          symbol_offset += it.first.size(); index++;
-        }
-      }
-      PMPI_Send(&symbol_sizes[0],ftimer_size[0]+ftimer_size[1],MPI_INT,partner,internal_tag,cm);
-      int num_chars = 0;
-      for (auto i=0; i<ftimer_size[0]+ftimer_size[1]; i++){
-        num_chars += symbol_sizes[i];
-      }
-      PMPI_Send(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,partner,internal_tag,cm);
-      PMPI_Send(&cp_exclusive_contributions[0],ftimer_size[1]*num_critical_path_measures,MPI_DOUBLE,partner,internal_tag,cm);
-      PMPI_Send(&symbol_pad[0],num_chars,MPI_CHAR,partner,internal_tag,cm);
-    }
-    else{
-      PMPI_Recv(&new_cs[0],critical_path_costs.size(),MPI_DOUBLE,partner,internal_tag,cm,MPI_STATUS_IGNORE);
-      bool update_path = critical_path_costs[7] < new_cs[7];	// again, for now, we consider only the runtime critical path, so if receiving process has larger runtime critical path, it does not need to update its critical path
-      for (int i=0; i<num_critical_path_measures; i++){
-        critical_path_costs[i] = std::max(new_cs[i],critical_path_costs[i]);
-      }
-      // We consider only critical path runtime
-      std::array<int,2> ftimer_size = {0,0};
-      PMPI_Recv(&ftimer_size[0],2,MPI_INT,partner,internal_tag,cm,MPI_STATUS_IGNORE);
-      std::vector<int> symbol_sizes(ftimer_size[0]+ftimer_size[1],0);
-      std::vector<double> cp_exclusive_contributions(ftimer_size[1]*num_critical_path_measures,0);
-      PMPI_Recv(&symbol_sizes[0],ftimer_size[0]+ftimer_size[1],MPI_INT,partner,internal_tag,cm,MPI_STATUS_IGNORE);
-      int num_chars = 0;
-      for (auto i=0; i<ftimer_size[0]+ftimer_size[1]; i++){
-        num_chars += symbol_sizes[i];
-      }
-      PMPI_Recv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size[0],MPI_DOUBLE,partner,internal_tag,cm,MPI_STATUS_IGNORE);
-      PMPI_Recv(&cp_exclusive_contributions[0],ftimer_size[1]*num_critical_path_measures,MPI_DOUBLE,partner,internal_tag,cm,MPI_STATUS_IGNORE);
-      PMPI_Recv(&symbol_pad[0],num_chars,MPI_CHAR,partner,internal_tag,cm,MPI_STATUS_IGNORE);
-      if (update_path){
-        int symbol_offset = 0;
-        for (int i=0; i<ftimer_size[0]; i++){
-          auto reconstructed_symbol = std::string(symbol_pad.begin()+symbol_offset,symbol_pad.begin()+symbol_offset+symbol_sizes[i]);
-
-          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
-            symbol_timers[reconstructed_symbol] = ftimer(reconstructed_symbol);
-            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
-          }
-          *symbol_timers[reconstructed_symbol].cp_numcalls = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i];
-          for (int j=0; j<num_critical_path_measures; j++){
-            *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*j+1];
-            *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*(j+1)];
-          }
-          symbol_timers[reconstructed_symbol].has_been_processed = true;
-          symbol_offset += symbol_sizes[i];
-        }
-        if (symbol_stack.size()>0) { symbol_timers[symbol_stack.top()].cp_exclusive_contributions.top().clear(); }
-        for (int i=0; i<ftimer_size[1]; i++){
-          auto reconstructed_symbol = std::string(symbol_pad.begin()+symbol_offset,symbol_pad.begin()+symbol_offset+symbol_sizes[ftimer_size[0]+i]);
-          symbol_timers[symbol_stack.top()].cp_exclusive_contributions.top()[reconstructed_symbol].fill(0.0);
-          for (int j=0; j<num_critical_path_measures; j++){
-            symbol_timers[symbol_stack.top()].cp_exclusive_contributions.top()[reconstructed_symbol][j] = cp_exclusive_contributions[i*num_critical_path_measures+j];
-          }
-          symbol_offset += symbol_sizes[ftimer_size[0]+i];
-        }
-        // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
-        for (auto& it : symbol_timers){
-          if (it.second.has_been_processed){ it.second.has_been_processed = false; }
-          else{
-            *it.second.cp_numcalls = 0;
-            for (int j=0; j<num_critical_path_measures; j++){
-              *it.second.cp_incl_measure[j] = 0;
-              *it.second.cp_excl_measure[j] = 0;
-            }
-          }
-        }
-      }
-    }
-*/
-  }
+  complete_propagation(cm,is_sender,partner1,partner2);
 }
 
 void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm cm, int partner, bool is_sender){
@@ -1284,8 +1112,7 @@ void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm
       update_critical_path(data,&critical_path_costs[0],critical_path_costs_size);
     }
   }
-  else if (mode == 2){
-  }
+//  if (mode == 2){ propagate_timers(rank,cm,is_sender,parter1,partner2); }
 }
 
 
