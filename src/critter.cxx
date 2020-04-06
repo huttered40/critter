@@ -576,7 +576,7 @@ void blocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI
   this->last_is_root = is_root;
   this->last_is_sender = is_sender;
   this->last_partner1 = partner1;
-  this->last_partner2 = partner2;
+  this->last_partner2 = partner2==-1 ? partner1 : partner2;
 
   int el_size,p;
   MPI_Type_size(t, &el_size);
