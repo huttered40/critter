@@ -278,8 +278,8 @@ class ftimer{
 
     std::string name;
     std::stack<double> start_timer;
-    std::unordered_map<std::string,std::array<double,num_critical_path_measures>> cp_exclusive_contributions;
-    std::unordered_map<std::string,std::array<double,num_per_process_measures>> pp_exclusive_contributions;
+    std::array<double,num_critical_path_measures> cp_exclusive_contributions;
+    std::array<double,num_per_process_measures> pp_exclusive_contributions;
     std::deque<std::array<double,num_critical_path_measures>> cp_exclusive_measure;
     std::stack<std::array<double,num_per_process_measures>> pp_exclusive_measure;
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
