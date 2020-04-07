@@ -395,8 +395,8 @@ void synchronous::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
     auto last_symbol_time = curTime - symbol_timers[symbol_stack.top()].start_timer.top();
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += last_symbol_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-1] += last_symbol_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-2] += last_symbol_time;
     *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
@@ -483,8 +483,8 @@ void synchronous::stop(){
       if (cost_models[j]){
         symbol_timers[symbol_stack.top()].cp_exclusive_measure[save] += dcosts[j].second;
         symbol_timers[symbol_stack.top()].cp_exclusive_measure[cost_models.size()+save] += dcosts[j].first;
-        symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[save] += dcosts[j].second;
-        symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[cost_models.size()+save] += dcosts[j].first;
+        symbol_timers[symbol_stack.top()].pp_exclusive_measure[save] += dcosts[j].second;
+        symbol_timers[symbol_stack.top()].pp_exclusive_measure[cost_models.size()+save] += dcosts[j].first;
         *symbol_timers[symbol_stack.top()].cp_excl_measure[save] += dcosts[j].second;
         *symbol_timers[symbol_stack.top()].cp_excl_measure[cost_models.size()+save] += dcosts[j].first;
         *symbol_timers[symbol_stack.top()].pp_excl_measure[save] += dcosts[j].second;
@@ -496,11 +496,11 @@ void synchronous::stop(){
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-4] += this->last_synch_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-3] += datamvt_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += dt;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-6] += this->last_barrier_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-5] += dt;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-4] += this->last_synch_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-3] += datamvt_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] += (dt+this->last_barrier_time);
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-6] += this->last_barrier_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] += dt;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += this->last_synch_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += datamvt_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += (dt+this->last_barrier_time);
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-5] += dt;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-4] += this->last_synch_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-3] += datamvt_time;
@@ -544,8 +544,8 @@ void synchronous::stop(){
 
   if (mode==2){
     // Special handling of excessively large idle time caused by suspected tool interference
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
     *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
     *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
   }
@@ -641,8 +641,8 @@ void blocking::stop(){
       if (cost_models[j]){
         symbol_timers[symbol_stack.top()].cp_exclusive_measure[save] += dcosts[j].second;
         symbol_timers[symbol_stack.top()].cp_exclusive_measure[cost_models.size()+save] += dcosts[j].first;
-        symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[save] += dcosts[j].second;
-        symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[cost_models.size()+save] += dcosts[j].first;
+        symbol_timers[symbol_stack.top()].pp_exclusive_measure[save] += dcosts[j].second;
+        symbol_timers[symbol_stack.top()].pp_exclusive_measure[cost_models.size()+save] += dcosts[j].first;
         *symbol_timers[symbol_stack.top()].cp_excl_measure[save] += dcosts[j].second;
         *symbol_timers[symbol_stack.top()].cp_excl_measure[cost_models.size()+save] += dcosts[j].first;
         *symbol_timers[symbol_stack.top()].pp_excl_measure[save] += dcosts[j].second;
@@ -655,11 +655,11 @@ void blocking::stop(){
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-3] += datamvt_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += this->save_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += this->save_time+dt;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-5] += dt;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-4] += this->last_synch_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-3] += datamvt_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-2] += this->save_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] += this->save_time+dt;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] += dt;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += this->last_synch_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += datamvt_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += this->save_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += this->save_time+dt;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-5] += dt;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-4] += this->last_synch_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-3] += datamvt_time;
@@ -742,8 +742,8 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
     this->save_time = curTime - symbol_timers[symbol_stack.top()].start_timer.top();
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += this->save_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += this->save_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] += this->save_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-2] += this->save_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += this->save_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += this->save_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-1] += this->save_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-2] += this->save_time;
     *symbol_timers[symbol_stack.top()].pp_excl_measure[num_volume_measures-1] += this->save_time;
@@ -855,8 +855,8 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
       if (cost_models[j]){
         symbol_timers[symbol_stack.top()].cp_exclusive_measure[save] += dcosts[j].second;
         symbol_timers[symbol_stack.top()].cp_exclusive_measure[cost_models.size()+save] += dcosts[j].first;
-        symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[save] += dcosts[j].second;
-        symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[cost_models.size()+save] += dcosts[j].first;
+        symbol_timers[symbol_stack.top()].pp_exclusive_measure[save] += dcosts[j].second;
+        symbol_timers[symbol_stack.top()].pp_exclusive_measure[cost_models.size()+save] += dcosts[j].first;
         *symbol_timers[symbol_stack.top()].cp_excl_measure[save] += dcosts[j].second;
         *symbol_timers[symbol_stack.top()].cp_excl_measure[cost_models.size()+save] += dcosts[j].first;
         *symbol_timers[symbol_stack.top()].pp_excl_measure[save] += dcosts[j].second;
@@ -869,11 +869,11 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-3] += comm_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += comp_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += (comp_time+comm_time);
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-5] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-4] += 0;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-3] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-2] += comp_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] += (comp_time+comm_time);
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] += comm_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += 0;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += comm_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += comp_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += (comp_time+comm_time);
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-5] += comm_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-4] += 0;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-3] += comm_time;
@@ -1366,7 +1366,7 @@ ftimer::ftimer(std::string name_){
   }
   this->has_been_processed = false;
   this->cp_exclusive_contributions.fill(0.0); this->pp_exclusive_contributions.fill(0.0);
-  this->cp_exclusive_measure.fill(0.0);
+  this->cp_exclusive_measure.fill(0.0); this->pp_exclusive_measure.fill(0.0);
 }
 
 void ftimer::start(double save_time){
@@ -1374,8 +1374,8 @@ void ftimer::start(double save_time){
     auto last_symbol_time = save_time-symbol_timers[symbol_stack.top()].start_timer.top();
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += last_symbol_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure.top()[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-2] += last_symbol_time;
     *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-1] += last_symbol_time;
     *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
@@ -1390,18 +1390,17 @@ void ftimer::start(double save_time){
   }
   symbol_stack.push(this->name);
   std::array<double,num_per_process_measures> temp2; temp2.fill(0.0);
-  this->pp_exclusive_measure.emplace(temp2);
   computation_timer = MPI_Wtime();
   this->start_timer.push(computation_timer);
 }
 
 void ftimer::stop(double save_time){
-  assert(this->start_timer.size()>0); assert(this->pp_exclusive_measure.size()>0);
+  assert(this->start_timer.size()>0);
   auto last_symbol_time = save_time-this->start_timer.top();
   this->cp_exclusive_measure[num_critical_path_measures-1] += last_symbol_time;
   this->cp_exclusive_measure[num_critical_path_measures-2] += last_symbol_time;
-  this->pp_exclusive_measure.top()[num_per_process_measures-1] += last_symbol_time;
-  this->pp_exclusive_measure.top()[num_per_process_measures-2] += last_symbol_time;
+  this->pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
+  this->pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
   *this->cp_excl_measure[num_critical_path_measures-1] += last_symbol_time;
   *this->cp_excl_measure[num_critical_path_measures-2] += last_symbol_time;
   *this->pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
@@ -1409,11 +1408,10 @@ void ftimer::stop(double save_time){
   *this->cp_numcalls += 1.; *this->pp_numcalls += 1.; *this->vol_numcalls += 1.;
 
   for (auto i=0; i<num_critical_path_measures; i++){ this->cp_exclusive_contributions[i] += this->cp_exclusive_measure[i]; } this->cp_exclusive_measure.fill(0.0);
-  for (auto i=0; i<num_per_process_measures; i++){ this->pp_exclusive_contributions[i] += this->pp_exclusive_measure.top()[i]; }
+  for (auto i=0; i<num_per_process_measures; i++){ this->pp_exclusive_contributions[i] += this->pp_exclusive_measure[i]; } this->pp_exclusive_measure.fill(0.0);
 
   auto save_symbol = symbol_stack.top();
-  this->start_timer.pop();
-  this->pp_exclusive_measure.pop(); symbol_stack.pop();
+  this->start_timer.pop(); symbol_stack.pop();
   if (symbol_stack.size() > 0 && (save_symbol != symbol_stack.top())){
     for (auto i=0; i<num_critical_path_measures; i++){ symbol_timers[symbol_stack.top()].cp_exclusive_contributions[i] += this->cp_exclusive_contributions[i];
                                                        *this->cp_incl_measure[i] += this->cp_exclusive_contributions[i]; }

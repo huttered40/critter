@@ -281,7 +281,7 @@ class ftimer{
     std::array<double,num_critical_path_measures> cp_exclusive_contributions;
     std::array<double,num_per_process_measures> pp_exclusive_contributions;
     std::array<double,num_critical_path_measures> cp_exclusive_measure;
-    std::stack<std::array<double,num_per_process_measures>> pp_exclusive_measure;
+    std::array<double,num_per_process_measures> pp_exclusive_measure;
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
     std::array<double*,num_critical_path_measures> cp_incl_measure;
     std::array<double*,num_critical_path_measures> cp_excl_measure;
