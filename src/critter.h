@@ -43,7 +43,7 @@ constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
-using p2p_type 						= internal::blocking;//synchronous;// p2p communication can be tracked as 'synchronous' or 'blocking'
+using p2p_type 						= internal::synchronous;// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 			= 50;			// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       			= 100;			// max number of symbols to be tracked
 
@@ -280,7 +280,7 @@ class ftimer{
     std::stack<double> start_timer;
     std::array<double,num_critical_path_measures> cp_exclusive_contributions;
     std::array<double,num_per_process_measures> pp_exclusive_contributions;
-    std::deque<std::array<double,num_critical_path_measures>> cp_exclusive_measure;
+    std::array<double,num_critical_path_measures> cp_exclusive_measure;
     std::stack<std::array<double,num_per_process_measures>> pp_exclusive_measure;
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
     std::array<double*,num_critical_path_measures> cp_incl_measure;
