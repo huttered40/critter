@@ -813,8 +813,7 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   double p = comm_data_it->second.second;
   double* data = comm_message_it->second;
 
-  // TODO: For mode==2, I think data will need to be double_int* instead of double*
-  propagate(data,internal_request,cm,partner,is_sender);
+  propagate(data,internal_request,cm,is_sender,partner,partner);
 
   // Both sender and receiver will now update its critical path with the data from the communication
   std::pair<double,double> dcost_bsp  = this->cost_func_bsp(nbytes,p);
@@ -1103,7 +1102,7 @@ void blocking::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2
   complete_propagation(cm,is_sender,partner1,partner2);
 }
 
-void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm cm, int partner, bool is_sender){
+void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm cm, bool is_sender, int partner1, int partner2){
   // First exchange the tracked routine critical path data
   MPI_Status st;
   PMPI_Wait(&internal_request,&st);
@@ -1112,7 +1111,7 @@ void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm
       update_critical_path(data,&critical_path_costs[0],critical_path_costs_size);
     }
   }
-//  if (mode == 2){ propagate_timers(rank,cm,is_sender,parter1,partner2); }
+  complete_propagation(cm,is_sender,partner1,partner2);
 }
 
 
@@ -1795,27 +1794,27 @@ void record(std::ostream& Stream, size_t factor){
         // Exclusive
         Stream << "\n\n\n\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
         Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "cp-excl";
-        Stream << std::left << std::setw(mode_2_width) << "cp-excl %";
         Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "pp-excl";
-        Stream << std::left << std::setw(mode_2_width) << "pp-excl %";
         Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "vol-excl";
-        Stream << std::left << std::setw(mode_2_width) << "vol-excl %";
+        Stream << std::left << std::setw(mode_2_width) << "cp-excl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "pp-excl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-excl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "cp-excl (%)";
+        Stream << std::left << std::setw(mode_2_width) << "pp-excl (%)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-excl (%)";
         double cp_total_exclusive = 0.;
         double pp_total_exclusive = 0.;
         double vol_total_exclusive = 0.;
         for (auto& it : sort_info){
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
           Stream << std::left << std::setw(mode_2_width) << it.second[0];
-          Stream << std::left << std::setw(mode_2_width) << it.second[1];
-          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
           Stream << std::left << std::setw(mode_2_width) << it.second[2];
-          Stream << std::left << std::setw(mode_2_width) << it.second[3];
-          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
           Stream << std::left << std::setw(mode_2_width) << it.second[4];
+          Stream << std::left << std::setw(mode_2_width) << it.second[1];
+          Stream << std::left << std::setw(mode_2_width) << it.second[3];
           Stream << std::left << std::setw(mode_2_width) << it.second[5];
+          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
+          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
           Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
           cp_total_exclusive += it.second[1];
           pp_total_exclusive += it.second[3];
@@ -1823,13 +1822,13 @@ void record(std::ostream& Stream, size_t factor){
         }
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(mode_2_width) << "";
+        Stream << std::left << std::setw(mode_2_width) << "";
+        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << cp_total_exclusive;
-        Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_exclusive/cp_ref;
-        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << pp_total_exclusive;
-        Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_exclusive/pp_ref;
-        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << vol_total_exclusive;
+        Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_exclusive/cp_ref;
+        Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_exclusive/pp_ref;
         Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_exclusive/vol_ref;
         Stream << "\n";
 
@@ -1859,27 +1858,27 @@ void record(std::ostream& Stream, size_t factor){
         // Inclusive
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
         Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "cp-incl";
-        Stream << std::left << std::setw(mode_2_width) << "cp-incl %";
         Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "pp-incl";
-        Stream << std::left << std::setw(mode_2_width) << "pp-incl %";
         Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "vol-incl";
-        Stream << std::left << std::setw(mode_2_width) << "vol-incl %";
+        Stream << std::left << std::setw(mode_2_width) << "cp-incl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "pp-incl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-incl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "cp-incl (%)";
+        Stream << std::left << std::setw(mode_2_width) << "pp-incl (%)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-incl (%)";
         double cp_total_inclusive = 0.;
         double pp_total_inclusive = 0.;
         double vol_total_inclusive = 0.;
         for (auto& it : sort_info){
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
           Stream << std::left << std::setw(mode_2_width) << it.second[0];
-          Stream << std::left << std::setw(mode_2_width) << it.second[1];
-          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
           Stream << std::left << std::setw(mode_2_width) << it.second[2];
-          Stream << std::left << std::setw(mode_2_width) << it.second[3];
-          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
           Stream << std::left << std::setw(mode_2_width) << it.second[4];
+          Stream << std::left << std::setw(mode_2_width) << it.second[1];
+          Stream << std::left << std::setw(mode_2_width) << it.second[3];
           Stream << std::left << std::setw(mode_2_width) << it.second[5];
+          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
+          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
           Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
           cp_total_inclusive = std::max(it.second[1],cp_total_inclusive);
           pp_total_inclusive = std::max(it.second[3],pp_total_inclusive);
@@ -1887,13 +1886,13 @@ void record(std::ostream& Stream, size_t factor){
         }
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(mode_2_width) << "";
+        Stream << std::left << std::setw(mode_2_width) << "";
+        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << cp_total_inclusive;
-        Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_inclusive/cp_ref;
-        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << pp_total_inclusive;
-        Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_inclusive/pp_ref;
-        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << vol_total_inclusive;
+        Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_inclusive/cp_ref;
+        Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_inclusive/pp_ref;
         Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_inclusive/vol_ref;
         Stream << "\n";
       }

@@ -43,9 +43,9 @@ constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
-using p2p_type 						= internal::synchronous;// p2p communication can be tracked as 'synchronous' or 'blocking'
+using p2p_type 						= internal::blocking;//synchronous;// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 			= 50;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       			= 500;			// max number of symbols to be tracked
+constexpr size_t max_num_symbols       			= 100;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************************************************
 namespace internal{
@@ -215,7 +215,7 @@ public:
     /** \brief completes interception of nonblocking communication protocol */
     void stop(MPI_Request* request, double comp_time, double comm_time);
     /** \brief propagates path information */
-    void propagate(double* data, MPI_Request internal_request, MPI_Comm cm, int partner, bool is_sender);
+    void propagate(double* data, MPI_Request internal_request, MPI_Comm cm, bool is_sender, int partner1, int partner2);
 };
 
 extern synchronous
