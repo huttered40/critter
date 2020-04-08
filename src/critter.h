@@ -45,7 +45,7 @@ constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
 using p2p_type 						= internal::synchronous;//blocking;// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 			= 40;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       			= 100;			// max number of symbols to be tracked
+constexpr size_t max_num_symbols       			= 40;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************************************************
 namespace internal{
@@ -314,6 +314,7 @@ extern double scratch_pad;
 extern std::vector<char> synch_pad_send;
 extern std::vector<char> synch_pad_recv;
 extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad;
+extern std::array<int,max_num_symbols> symbol_len_pad;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local_cp;
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
 extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_local_pp;
