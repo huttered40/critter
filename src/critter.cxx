@@ -758,7 +758,7 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
 
   // Nonblocking communication to propogate the critical path from sender to receiver. Avoids tricky deadlock in intercepting MPI_Waitall
   // Unlike blocking protocol, Receiver does not need sender's critical path information to include the contribution from this current routine
-  MPI_Request internal_request;
+  MPI_Request internal_request[5];// only 1 necessary if mode==1, all 5 needed if mode==2
   double* data = (double*)malloc(sizeof(double)*critical_path_costs.size());
   // Save local data instead of immediately adding it to critical path, because this communication is not technically completed yet,
   //   and I do not want to corrupt critical path propogation in future communication that may occur before this nonblocking communication completes.
@@ -767,17 +767,34 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
     MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,0,&op);
     PMPI_Iallreduce(MPI_IN_PLACE,&data[0],critical_path_costs.size(),MPI_DOUBLE,op,cm,&internal_request);
     //MPI_Op_free(&op);
+    if (mode>=2){ assert(0); }
   } else{
     if (is_sender){
       for (int i=0; i<critical_path_costs.size(); i++){ data[i] = critical_path_costs[i]; }
       PMPI_Isend(&data[0],critical_path_costs.size(),MPI_DOUBLE,partner,internal_tag,cm,&internal_request);
+      if (mode>=2){
+        int* envelope = (int*)malloc(sizeof(int)*(1+max_num_symbols));
+        
+        if (rank!=partner1) PMPI_Isend(&envelope[0],1+max_num_symbols,MPI_INT,partner,internal_tag,cm,);
+        .. have to copy that shit below to its own 
+        if (rank!=partner1) PMPI_Isend(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,partner1,internal_tag,cm);
+        if (rank!=partner1) PMPI_Isend(&cp_data[0],2*ftimer_size*num_critical_path_measures,MPI_DOUBLE,partner1,internal_tag,cm);
+        if (rank!=partner1) PMPI_Isend(&symbol_pad[0],num_chars,MPI_CHAR,partner1,internal_tag,cm);
+      }
     }
     else{
       PMPI_Irecv(&data[0],critical_path_costs.size(),MPI_DOUBLE,partner,internal_tag,cm,&internal_request);
+      if (mode>=2){
+        PMPI_Irecv(&ftimer_size,1,MPI_INT,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+        PMPI_Irecv(&symbol_len_pad[0],ftimer_size,MPI_INT,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+        PMPI_Irecv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+        PMPI_Irecv(&cp_data[0],2*ftimer_size*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+        PMPI_Irecv(&symbol_pad[0],num_chars,MPI_CHAR,critical_path_runtime_root_rank,internal_tag,cm,MPI_STATUS_IGNORE);
+      }
     }
   }
   int rank; MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  internal_comm_info[*request] = std::make_pair(internal_request,is_sender);
+  internal_comm_info[*request] = std::make_pair(internal_request[0],internal_request[1],internal_request[2],internal_request[3],internal_request[4],is_sender);
   internal_comm_comm[*request] = std::make_pair(cm,partner);
   internal_comm_message[*request] = data;
   internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
@@ -809,8 +826,11 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   double nbytes = comm_data_it->second.first;
   double p = comm_data_it->second.second;
   double* data = comm_message_it->second;
-
-  propagate(data,internal_request,cm,is_sender,partner,partner);
+  if (mode==1){
+    propagate(data,internal_request,cm,is_sender,partner);
+  } else if (mode==2){
+    .. need to read in more data, because 'data'
+  }
 
   // Both sender and receiver will now update its critical path with the data from the communication
   std::pair<double,double> dcost_bsp  = this->cost_func_bsp(nbytes,p);
@@ -932,6 +952,7 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   internal_comm_message.erase(*request);
   internal_comm_data.erase(*request);
   internal_comm_track.erase(*request);
+  free(data);
 
   this->last_start_time = MPI_Wtime();
   computation_timer = this->last_start_time;
@@ -1083,16 +1104,19 @@ void blocking::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2
   complete_propagation(cm,is_sender,partner1,partner2);
 }
 
-void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm cm, bool is_sender, int partner1, int partner2){
+void nonblocking::propagate(double* data, MPI_Request* internal_request, MPI_Comm cm, bool is_sender, int partner1){
   // First exchange the tracked routine critical path data
   MPI_Status st;
-  PMPI_Wait(&internal_request,&st);
+  PMPI_Wait(internal_request,&st);
   if (mode>=1){
     if (!is_sender){
       update_critical_path(data,&critical_path_costs[0],critical_path_costs_size);
     }
   }
-  //complete_propagation(cm,is_sender,partner1,partner2);
+  if (mode>=2){
+    ..
+    //complete_propagation(cm,is_sender,partner1,partner1);
+  }
 }
 
 

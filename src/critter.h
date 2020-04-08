@@ -215,7 +215,7 @@ public:
     /** \brief completes interception of nonblocking communication protocol */
     void stop(MPI_Request* request, double comp_time, double comm_time);
     /** \brief propagates path information */
-    void propagate(double* data, MPI_Request internal_request, MPI_Comm cm, bool is_sender, int partner1, int partner2);
+    void propagate(double* data, MPI_Request* internal_request, MPI_Comm cm, bool is_sender, int partner1);
 };
 
 extern synchronous
@@ -299,7 +299,7 @@ extern size_t mode;
 extern std::ofstream stream;
 
 extern double computation_timer;
-extern std::map<MPI_Request,std::pair<MPI_Request,bool>> internal_comm_info;
+extern std::map<MPI_Request,std::pair<std::array<MPI_Request,5>,bool>> internal_comm_info;
 extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 extern std::map<MPI_Request,double*> internal_comm_message;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
@@ -983,11 +983,11 @@ extern bool wait_id;
       auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
       auto _critter_comm_info_it = critter::internal::internal_comm_info.find(*req);\
-      MPI_Request _critter_save_request = _critter_comm_info_it->first;\
+      MPI_Request* _critter_save_request_ptr = &_critter_comm_info_it->first[0];\
       volatile double _critter_last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
       _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
-      _critter_comm_track_it->second->stop(&_critter_save_request, _critter_save_comp_time, _critter_save_comm_time);\
+      _critter_comm_track_it->second->stop(_critter_save_request_ptr, _critter_save_comp_time, _critter_save_comm_time);\
     }\
     else{\
       PMPI_Wait(req, stat);\
@@ -1002,10 +1002,10 @@ extern bool wait_id;
       volatile double _critter_last_start_time = MPI_Wtime();\
       PMPI_Waitany(cnt, reqs, indx, stat);\
       _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
-      MPI_Request _critter_request = _critter_pt[*indx];\
-      auto _critter_comm_track_it = critter::internal::internal_comm_track.find(_critter_request);\
+      MPI_Request* _critter_request_ptr = &_critter_pt[*indx];\
+      auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_request_ptr);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
-      _critter_comm_track_it->second->stop(&_critter_request, _critter_save_comp_time, _critter_save_comm_time);\
+      _critter_comm_track_it->second->stop(_critter_request_ptr, _critter_save_comp_time, _critter_save_comm_time);\
     }\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
@@ -1021,10 +1021,10 @@ extern bool wait_id;
       PMPI_Waitsome(incnt, reqs, outcnt, indices, stats);\
       _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
       for (int _critter_i=0; _critter_i<*outcnt; _critter_i++){\
-        MPI_Request _critter_request = _critter_pt[indices[_critter_i]];\
-        auto _critter_comm_track_it = critter::internal::internal_comm_track.find(_critter_request);\
+        MPI_Request* _critter_request_ptr = &_critter_pt[indices[_critter_i]];\
+        auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_request_ptr);\
         assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
-        _critter_comm_track_it->second->stop(&_critter_request, _critter_save_comp_time, _critter_save_comm_time);\
+        _critter_comm_track_it->second->stop(_critter_request_ptr, _critter_save_comp_time, _critter_save_comm_time);\
       }\
     }\
     else{\
