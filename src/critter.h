@@ -43,8 +43,8 @@ constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
-using p2p_type 						= internal::synchronous;// p2p communication can be tracked as 'synchronous' or 'blocking'
-constexpr size_t max_timer_name_length 			= 50;			// max length of a symbol defining a timer
+using p2p_type 						= internal::synchronous;//blocking;// p2p communication can be tracked as 'synchronous' or 'blocking'
+constexpr size_t max_timer_name_length 			= 40;			// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       			= 100;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************************************************
@@ -294,7 +294,7 @@ class ftimer{
 
 
 extern std::string stream_name,file_name;
-extern bool flag,is_first_iter,is_world_root,need_new_line;
+extern bool flag,is_first_iter,is_world_root,need_new_line,print_volume_symbol;
 extern size_t mode;
 extern std::ofstream stream;
 
