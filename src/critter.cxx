@@ -577,7 +577,7 @@ void blocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI
   this->last_is_root = is_root;
   this->last_is_sender = is_sender;
   this->last_partner1 = partner1;
-  this->last_partner2 = partner2==-1 ? partner1 : partner2;
+  this->last_partner2 = partner2;
 
   int el_size,p;
   MPI_Type_size(t, &el_size);
@@ -1041,7 +1041,7 @@ void propagate_timers(int rank, MPI_Comm cm, bool is_sender, int partner1, int p
   }
 }
 
-void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner2){
+void synchronous::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
   int rank; MPI_Comm_rank(cm,&rank);
   if (mode>=2){
     for (int i=0; i<num_critical_path_measures; i++){
@@ -1075,12 +1075,49 @@ void complete_propagation(MPI_Comm cm, bool is_sender, int partner1, int partner
   if (mode>=2){ propagate_timers(rank,cm,is_sender,partner1,partner2); }
 }
 
-void synchronous::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
-  complete_propagation(cm,is_sender,partner1,partner2);
-}
-
 void blocking::propagate(MPI_Comm cm, bool is_sender, int partner1, int partner2){
-  complete_propagation(cm,is_sender,partner1,partner2);
+/*
+  TODO: Potential cause of performance bug could be that we did not take into account the fact that the sender in blocking protocol is not dependent on the receiver, so in fact
+          the receiver always takes into account the sender and checks whether some paths/costs are more expensive on the sender than what it has, since the receiver IS dependent on the sender!
+        In that respect, timer_info_receiver for the sender should always be itself, in which case its the critical_path_*_root.
+		-- Not sure how this works for PMPI_Sendrecv(_replace) tho! It would have to actually do the code below nontrivially in that case. Each process would be both the cp_root_rank and the opposite.
+  int rank; MPI_Comm_rank(cm,&rank);
+  if (mode>=2){
+    for (int i=0; i<num_critical_path_measures; i++){
+      timer_info_sender[i].first = critical_path_costs[i];
+      timer_info_sender[i].second = rank;
+    }
+    if (partner1 == -1){ PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm); }
+    else {
+      PMPI_Sendrecv(&timer_info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner1, internal_tag, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+      for (int i=0; i<num_critical_path_measures; i++){
+        if (timer_info_sender[i].first>timer_info_receiver[i].first){timer_info_receiver[i].second = rank;}
+        else if (timer_info_sender[i].first==timer_info_receiver[i].first){
+          if (timer_info_sender[i].second < timer_info_receiver[i].second){ timer_info_receiver[i].second = rank; }
+          else { timer_info_receiver[i].second = partner2; }
+        }
+        timer_info_receiver[i].first = std::max(timer_info_sender[i].first, timer_info_receiver[i].first);
+      }
+    }
+  }
+*/
+  // Exchange the tracked routine critical path data
+  if (partner1 == -1){assert(0);}
+  if (is_sender){
+    PMPI_Send(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag, cm);
+    if (partner2 != -1){
+      PMPI_Recv(&new_cs[0], critical_path_costs.size(), MPI_DOUBLE, partner2, internal_tag, cm, MPI_STATUS_IGNORE);
+      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
+    }
+  }
+  else {
+    PMPI_Recv(&new_cs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag, cm, MPI_STATUS_IGNORE);
+    update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
+    if (partner2 != -1){
+      assert(0);// should never happen, as MPI_Sendrecv and its variants use is_sender=true
+    }
+  }
+  //if (mode>=2){ propagate_timers(rank,cm,is_sender,partner1,partner2); }
 }
 
 void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm cm, bool is_sender, int partner1, int partner2){
@@ -1092,7 +1129,6 @@ void nonblocking::propagate(double* data, MPI_Request internal_request, MPI_Comm
       update_critical_path(data,&critical_path_costs[0],critical_path_costs_size);
     }
   }
-  //complete_propagation(cm,is_sender,partner1,partner2);
 }
 
 
@@ -1830,7 +1866,17 @@ void stop(size_t mode, size_t factor){
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);			// update runtime volume
   for (size_t i=0; i<breakdown_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
 
-  internal::complete_propagation(MPI_COMM_WORLD,false,-1,-1);
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  if (mode>=2){
+    for (int i=0; i<internal::num_critical_path_measures; i++){
+      internal::timer_info_sender[i].first = internal::critical_path_costs[i];
+      internal::timer_info_sender[i].second = rank;
+    }
+    PMPI_Allreduce(&internal::timer_info_sender[0].first, &internal::timer_info_receiver[0].first, internal::num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD); }
+  MPI_Op op; MPI_Op_create((MPI_User_function*) internal::propagate_critical_path_op,0,&op);
+  PMPI_Allreduce(MPI_IN_PLACE, &internal::critical_path_costs[0], internal::critical_path_costs.size(), MPI_DOUBLE, op, MPI_COMM_WORLD);
+  MPI_Op_free(&op);
+  if (mode>=2){ internal::propagate_timers(rank,MPI_COMM_WORLD,false,-1,-1); }
   internal::find_per_process_max(MPI_COMM_WORLD);
   internal::compute_volume(MPI_COMM_WORLD);
 
