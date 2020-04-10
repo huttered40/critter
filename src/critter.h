@@ -43,9 +43,9 @@ constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
-using p2p_type 						= internal::synchronous;//blocking;// p2p communication can be tracked as 'synchronous' or 'blocking'
-constexpr size_t max_timer_name_length 			= 40;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       			= 40;			// max number of symbols to be tracked
+using p2p_type 						= internal::blocking;// p2p communication can be tracked as 'synchronous' or 'blocking'
+constexpr size_t max_timer_name_length 			= 20;			// max length of a symbol defining a timer
+constexpr size_t max_num_symbols       			= 15;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************************************************
 namespace internal{
@@ -215,7 +215,7 @@ public:
     /** \brief completes interception of nonblocking communication protocol */
     void stop(MPI_Request* request, double comp_time, double comm_time);
     /** \brief propagates path information */
-    void propagate(double* data, MPI_Request* internal_request, MPI_Comm cm, bool is_sender, int partner1);
+    void propagate(std::pair<int*,int*> envelope_int, std::array<double*,3> envelope_double, char* envelope_char, std::array<MPI_Request,6> internal_requests, MPI_Comm cm, bool is_sender, int partner);
 };
 
 extern synchronous
@@ -299,9 +299,11 @@ extern size_t mode;
 extern std::ofstream stream;
 
 extern double computation_timer;
-extern std::map<MPI_Request,std::pair<std::array<MPI_Request,5>,bool>> internal_comm_info;
+extern std::map<MPI_Request,std::pair<std::array<MPI_Request,6>,bool>> internal_comm_info;
 extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
-extern std::map<MPI_Request,double*> internal_comm_message;
+extern std::map<MPI_Request,std::pair<int*,int*>> internal_comm_message_int;
+extern std::map<MPI_Request,std::array<double*,3>> internal_comm_message_double;
+extern std::map<MPI_Request,char*> internal_comm_message_char;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,nonblocking*> internal_comm_track;
 extern bool decisions[breakdown_size];
@@ -343,26 +345,7 @@ extern bool wait_id;
       critter::internal::symbol_timers[#ARG].start(save_time);\
     }}}while (0);
 
-#define TAU_FSTART(ARG) do {\
-  if (critter::internal::mode==2){\
-    auto save_time = MPI_Wtime();\
-    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
-      critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
-      critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
-      critter::internal::symbol_timers[#ARG].start(save_time);\
-    }\
-    else{\
-      critter::internal::symbol_timers[#ARG].start(save_time);\
-    }}}while (0);
-
 #define TAU_STOP(ARG) do {\
-  if (critter::internal::mode==2){\
-    auto save_time = MPI_Wtime();\
-    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
-    else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
-    }}while (0);
-
-#define TAU_FSTOP(ARG) do {\
   if (critter::internal::mode==2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
@@ -983,11 +966,11 @@ extern bool wait_id;
       auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
       auto _critter_comm_info_it = critter::internal::internal_comm_info.find(*req);\
-      MPI_Request* _critter_save_request_ptr = &_critter_comm_info_it->first[0];\
+      MPI_Request _critter_save_request = _critter_comm_info_it->first;\
       volatile double _critter_last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
       _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
-      _critter_comm_track_it->second->stop(_critter_save_request_ptr, _critter_save_comp_time, _critter_save_comm_time);\
+      _critter_comm_track_it->second->stop(&_critter_save_request, _critter_save_comp_time, _critter_save_comm_time);\
     }\
     else{\
       PMPI_Wait(req, stat);\
@@ -1002,10 +985,10 @@ extern bool wait_id;
       volatile double _critter_last_start_time = MPI_Wtime();\
       PMPI_Waitany(cnt, reqs, indx, stat);\
       _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
-      MPI_Request* _critter_request_ptr = &_critter_pt[*indx];\
-      auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_request_ptr);\
+      MPI_Request _critter_request = _critter_pt[*indx];\
+      auto _critter_comm_track_it = critter::internal::internal_comm_track.find(_critter_request);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
-      _critter_comm_track_it->second->stop(_critter_request_ptr, _critter_save_comp_time, _critter_save_comm_time);\
+      _critter_comm_track_it->second->stop(&_critter_request, _critter_save_comp_time, _critter_save_comm_time);\
     }\
     else{\
       PMPI_Waitany(cnt, reqs, indx, stat);\
@@ -1021,10 +1004,10 @@ extern bool wait_id;
       PMPI_Waitsome(incnt, reqs, outcnt, indices, stats);\
       _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
       for (int _critter_i=0; _critter_i<*outcnt; _critter_i++){\
-        MPI_Request* _critter_request_ptr = &_critter_pt[indices[_critter_i]];\
-        auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_request_ptr);\
+        MPI_Request _critter_request = _critter_pt[indices[_critter_i]];\
+        auto _critter_comm_track_it = critter::internal::internal_comm_track.find(_critter_request);\
         assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
-        _critter_comm_track_it->second->stop(_critter_request_ptr, _critter_save_comp_time, _critter_save_comm_time);\
+        _critter_comm_track_it->second->stop(_critter_request, _critter_save_comp_time, _critter_save_comm_time);\
       }\
     }\
     else{\
