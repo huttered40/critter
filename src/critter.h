@@ -43,7 +43,7 @@ constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
-using p2p_type 						= internal::blocking;// p2p communication can be tracked as 'synchronous' or 'blocking'
+using p2p_type 						= internal::synchronous;//blocking;// p2p communication can be tracked as 'synchronous' or 'blocking'
 constexpr size_t max_timer_name_length 			= 20;			// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       			= 15;			// max number of symbols to be tracked
 
@@ -440,6 +440,20 @@ extern bool wait_id;
     }\
     else{\
       PMPI_Barrier(cm);\
+    }\
+  } while (0)
+
+#define MPI_Comm_split(cm,color,key,new_comm)\
+  do {\
+    if (critter::internal::mode>=1){\
+      volatile double _critter_curTime_ = MPI_Wtime();\
+      critter::internal::_MPI_Barrier.start(_critter_curTime_, 0, MPI_CHAR, cm);\
+      PMPI_Comm_split(cm,color,key,new_comm);\
+      critter::internal::_MPI_Barrier.intermediate();\
+      critter::internal::_MPI_Barrier.stop();\
+    }\
+    else{\
+      MPI_Comm_split(cm,color,key,new_comm);\
     }\
   } while (0)
 
