@@ -1570,7 +1570,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
 
 void record(std::ofstream& Stream, size_t factor){
   assert(internal_comm_info.size() == 0);
-  if (mode>=1){
+  if (mode>=0){
     auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
     if (is_world_root){
       auto inputs = parse_file_string();
