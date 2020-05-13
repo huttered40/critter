@@ -295,7 +295,7 @@ class ftimer{
 
 extern std::string stream_name,file_name;
 extern bool flag,is_first_iter,is_world_root,need_new_line,print_volume_symbol;
-extern size_t mode;
+extern size_t mode,stack_id;
 extern std::ofstream stream;
 
 extern double computation_timer;
@@ -360,6 +360,7 @@ extern bool wait_id;
      assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init(argc,argv);\
      critter::internal::mode=0;\
+     critter::internal::stack_id=0;\
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
@@ -392,6 +393,7 @@ extern bool wait_id;
      assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
      critter::internal::mode=0;\
+     critter::internal::stack_id=0;\
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\

@@ -1943,6 +1943,8 @@ void record(std::ostream& Stream, size_t factor){
 };
 
 void start(size_t mode){
+  internal::stack_id++;
+  if (internal::stack_id>1) { return; }
   assert(mode>=0 && mode < 3); assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true; internal::print_volume_symbol=true; internal::mode=mode;
   // TODO: How to allow different number of cost models. Perhaps just put an assert that both cost models must be on? Or don't use these altogether?
@@ -1966,6 +1968,8 @@ void stop(size_t mode, size_t factor){
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);			// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);			// update runtime volume
   for (size_t i=0; i<breakdown_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
+  internal::stack_id--; 
+  if (internal::stack_id>0) { return; }
 
   int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   if (mode>=2){
@@ -1973,7 +1977,8 @@ void stop(size_t mode, size_t factor){
       internal::timer_info_sender[i].first = internal::critical_path_costs[i];
       internal::timer_info_sender[i].second = rank;
     }
-    PMPI_Allreduce(&internal::timer_info_sender[0].first, &internal::timer_info_receiver[0].first, internal::num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD); }
+    PMPI_Allreduce(&internal::timer_info_sender[0].first, &internal::timer_info_receiver[0].first, internal::num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+  }
   MPI_Op op; MPI_Op_create((MPI_User_function*) internal::propagate_critical_path_op,0,&op);
   PMPI_Allreduce(MPI_IN_PLACE, &internal::critical_path_costs[0], internal::critical_path_costs.size(), MPI_DOUBLE, op, MPI_COMM_WORLD);
   MPI_Op_free(&op);
