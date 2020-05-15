@@ -39,8 +39,8 @@ constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
 constexpr int internal_tag5                     	= 1669225;		// arbitrary
-constexpr size_t max_timer_name_length 			= 20;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       			= 15;			// max number of symbols to be tracked
+constexpr size_t max_timer_name_length 			= 40;			// max length of a symbol defining a timer
+constexpr size_t max_num_symbols       			= 75;			// max number of symbols to be tracked
 
 // *****************************************************************************************************************************************************************
 namespace internal{
@@ -214,12 +214,12 @@ extern nonblocking
          _MPI_Ialltoallv;
 
 extern tracker* list[list_size];
+
 struct double_int{
   double_int(){first=0; second=0;}
   double_int(double one, int two){first=one; second=two;}
   double first; int second;
 };
-
 struct int_int_double{
   int_int_double(){first=0; second=0; third=0;}
   int_int_double(int one, int two, double three){first=one; second=two; third=three;}
@@ -264,6 +264,10 @@ extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::map<MPI_Request,nonblocking*> internal_comm_track;
 extern std::vector<std::pair<double*,int>> internal_comm_prop;
 extern std::vector<MPI_Request> internal_comm_prop_req;
+extern std::vector<int*> internal_timer_prop_int;
+extern std::vector<double*> internal_timer_prop_double;
+extern std::vector<char*> internal_timer_prop_char;
+extern std::vector<MPI_Request> internal_timer_prop_req;
 extern bool decisions[breakdown_size];
 extern std::array<double,critical_path_costs_size> critical_path_costs;
 extern std::array<double,per_process_costs_size> max_per_process_costs;
@@ -285,8 +289,8 @@ extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_sym
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
 extern std::array<std::string,max_num_symbols> symbol_order;
-extern double_int timer_info_sender[num_volume_measures];
-extern double_int timer_info_receiver[num_volume_measures];
+extern double_int timer_info_sender[num_critical_path_measures];
+extern double_int timer_info_receiver[num_critical_path_measures];
 extern bool wait_id,waitall_id;
 extern double waitall_comp_time;
 }
