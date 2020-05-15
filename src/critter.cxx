@@ -860,7 +860,12 @@ void propagate(MPI_Comm cm, int tag, bool is_sender, int partner1, int partner2)
       timer_info_sender[i].first = critical_path_costs[i];
       timer_info_sender[i].second = rank;
     }
-    if (partner1 == -1){ PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+    if (partner1 == -1){
+      if (tag < 20){
+        PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+      } else{
+        assert(0);
+      }
     } else{
       if (tag < 18){
         if (rank != partner1){// && (rank != partner2)){
@@ -883,24 +888,22 @@ void propagate(MPI_Comm cm, int tag, bool is_sender, int partner1, int partner2)
   // Exchange the tracked routine critical path data
   if (partner1 == -1){
     MPI_Op op; MPI_Op_create((MPI_User_function*) propagate_critical_path_op,0,&op);
-    PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
-    MPI_Op_free(&op);
+    if (tag < 20){
+      PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, op, cm);
+      MPI_Op_free(&op);
+    } else{
+      MPI_Request req1;
+      double* local_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
+      std::memcpy(local_path_data, &critical_path_costs[0], critical_path_costs.size()*sizeof(double));
+      PMPI_Iallreduce(MPI_IN_PLACE,local_path_data,critical_path_costs.size(),MPI_DOUBLE,op,cm,&req1);
+      //MPI_Op_free(&op);
+      internal_comm_prop.push_back(std::make_pair(local_path_data,true));
+      internal_comm_prop_req.push_back(req1);
+    }
   }
   else{
    if (tag < 18){
-      if ((tag < 14) || (tag > 15)){
-        if ((is_sender) && (rank != partner1)){
-          PMPI_Send(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag2, cm);
-          PMPI_Recv(&new_cs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag2, cm, MPI_STATUS_IGNORE);
-          update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-        }
-        else if ((!is_sender) && (rank != partner1)){
-          PMPI_Recv(&new_cs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag2, cm, MPI_STATUS_IGNORE);
-          PMPI_Send(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag2, cm);
-          update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-        }
-      }
-      else{
+      if (rank != partner1){
         PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, partner1, internal_tag2, cm, MPI_STATUS_IGNORE);
         update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
       }
