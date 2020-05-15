@@ -38,6 +38,7 @@ constexpr int internal_tag1                     	= 1669221;		// arbitrary
 constexpr int internal_tag2                     	= 1669222;		// arbitrary
 constexpr int internal_tag3                     	= 1669223;		// arbitrary
 constexpr int internal_tag4                     	= 1669224;		// arbitrary
+constexpr int internal_tag5                     	= 1669225;		// arbitrary
 constexpr size_t max_timer_name_length 			= 20;			// max length of a symbol defining a timer
 constexpr size_t max_num_symbols       			= 15;			// max number of symbols to be tracked
 
