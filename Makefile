@@ -1,11 +1,14 @@
 include config/config.mk
 
-all: lib/libcritter.a
+all: lib/libcritter.a lib/libcritter.so
 
 test: bin/test_bcast bin/test_bcast bin/test_reduce bin/test_allreduce bin/test_allgather bin/test_sendrecv_replace bin/test_send_recv bin/test_sendrecv
 
 lib/libcritter.a: obj/critter.o
 	ar -crs lib/libcritter.a obj/critter.o
+
+lib/libcritter.so: obj/critter.o
+	gcc -shared -o lib/libcritter.so obj/critter.o
 
 obj/critter.o: src/critter.h src/critter.cxx
 	$(CXX) src/critter.cxx -c -o obj/critter.o $(CXXFLAGS)
