@@ -757,7 +757,6 @@ extern double waitall_comp_time;
       assert(tag != critter::internal_tag);\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
       critter::internal::_MPI_Isend.start(_critter_curTime_, nelem, t, cm, req, true, dest);\
-      critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
@@ -771,7 +770,6 @@ extern double waitall_comp_time;
       assert(tag != critter::internal_tag);\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
       critter::internal::_MPI_Irecv.start(_critter_curTime_, nelem, t, cm, req, false, src);\
-      critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
@@ -784,7 +782,6 @@ extern double waitall_comp_time;
       volatile double _critter_curTime_ = MPI_Wtime();\
       PMPI_Ibcast(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Ibcast.start(_critter_curTime_, nelem, t, cm, req);\
-      critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
       PMPI_Ibcast(buf, nelem, t, root, cm, req);\
@@ -797,7 +794,6 @@ extern double waitall_comp_time;
       volatile double _critter_curTime_ = MPI_Wtime();\
       PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
       critter::internal::_MPI_Iallreduce.start(_critter_curTime_, nelem, t, cm, req);\
-      critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
       PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
@@ -810,7 +806,6 @@ extern double waitall_comp_time;
       volatile double _critter_curTime_ = MPI_Wtime();\
       PMPI_Ireduce(buf, nelem, t, root, cm, req);\
       critter::internal::_MPI_Iallreduce.start(_critter_curTime_, nelem, t, cm, req);\
-      critter::internal::computation_timer = MPI_Wtime();\
     }\
     else{\
       PMPI_Ireduce(sbuf, rbuf, nelem, t, op, root, cm, req);\

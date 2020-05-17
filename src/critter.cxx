@@ -652,6 +652,10 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   internal_comm_comm[*request] = std::make_pair(cm,partner);
   internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
   internal_comm_track[*request] = this;
+
+  this->last_start_time = MPI_Wtime();
+  computation_timer = this->last_start_time;
+  if (mode>=2){ symbol_timers[symbol_stack.top()].start_timer.top() = this->last_start_time; }
 }
 
 void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time){
@@ -963,8 +967,6 @@ void propagate(MPI_Comm cm, int tag, bool is_sender, int partner1, int partner2)
     if (partner1 == -1){
       if (tag < 20){
         PMPI_Allreduce(&timer_info_sender[0].first, &timer_info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
-        std::array<double,num_critical_path_measures> t1; std::array<double,num_critical_path_measures> t2;
-        PMPI_Allreduce(&t1[0], &t2[0], num_critical_path_measures, MPI_DOUBLE, MPI_MAX, cm);
       }
     } else{
       if (tag < 18){
