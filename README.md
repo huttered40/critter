@@ -9,26 +9,26 @@ Welcome! If you are looking for a lightweight tool to analyze the critical path 
 5. estimated communication cost
 6. estimated synchronization cost
 
-`critter` also provides both **per-process** and **volumetric** costs of the measures above.
+`critter` also provides both **per-process** and **volumetric** times and costs of the measures above.
+
+Critical paths through parallel schedules incur contributions from many functions; `critter` can track the contributions (in terms of the measures listed above) of each function and/or any user-defined symbol.
 
 In addition, `critter` can break down each of the critical path measures into the contributions from each MPI routine.
-
-Critical paths through parallel schedules incur contributions from many functions; thus we are currently engineering a way to track the contributions (in terms of the measures listed above) of each function.
 
 See the lists below for an accurate depiction of our current support.
 
 ## Build and use instructions
-`configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library file `./lib/libcritter.a`. Include `critter.h` in all files that use MPI in your application (i.e. replace `include mpi.h`), and link to `./lib/libcritter.a`.
+`configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library files `./lib/libcritter.a` and `./lib/libcritter.so`. Include `critter.h` in all files that use MPI in your application (i.e. replace `include mpi.h`), and link to `./lib/libcritter.a`.
 
-`critter` provides two routines to the user: `critter::start(...)` and `critter::stop(...)`. These create the window within which all MPI routines are intercepted and tracked.
+`critter` provides a few variables to the user inside the `critter` namespace in `src/critter.h`. Along with a few tags `internal_tag*` to prevent critter's internal MPI communication from conflicting with user communication, `critter_breakdown` specifies which, if any, critical path measurement is broken down into contributions from individual MPI routines. `critter_breakdown_size` must match `critter_breakdown.count()`. `max_timer_name_length` and `max_num_symbols` additionally serve as modifiable compile-time variables that must be large enough to support the number of tracked symbols. Understand that increased profiling information comes at a cost of increased internal data transfer necessary to propogate critical path information.
 
-`critter` provies a few variables to the user inside the `critter` namespace in `src/critter.h`. Along with a tag `critter::internal_tag` to prevent critter's internal MPI communication from conflicting with user communication, `critter_breakdown` specifies which, if any, critical path measurement is broken down into contributions from individual MPI routines. Note that this extra information comes at a cost of increased internal data transfer necessary to propogate critical path information. `critter::critter_breakdown_size` must match `critter::critter_breakdown.count()`.
+`critter` borrows from the `tau` syntax in that all instances of `TAU_START(...)` and `TAU_STOP(...)` are intercepted and tracked.
 
-## Design decisions
-Critter will never assume a communication protocol more limiting than what is specified in the MPI Standard to propogate critical paths. As such, it will never break the semantics of your parallel program and limit its forward progress. If and only if the MPI implementation performs a communication protocol more limiting than is necessary (i.e. requiring synchronous handshake between processes calling MPI_Send and MPI_Receive), it may report an erroneous critical path measure.
-1. Critter assumes any blocking collective communication or synchronous p2p communication performs a synchronization at the start, and thereby does not force a limiting communication protocol in using a blocking collective or synchronous p2p routine to propogate the critical paths before the intercepted routine takes place. It allows processes to jump back into the user code without further synchronization once the intercepted collective routine completes, and therefore does not synchronize for the limiting costs of the intercepted routine.
-2. Critter assumes that in any asynchronous p2p communication (including nonblocking and blocking protocols), the sender does not wait on the receiver, and thus needs not accumulate the receiver's critical path information. Unlike critter's support for synchronous protocol, if the intercepted communication is blocking, the receiver will update its critical path after the intercepted routine completes, thus taking into account the limiting costs of the intercepted routine into the propogated critical paths. If the MPI implementation requires a handshake between sender and receiver in a blocking p2p communication routine, critter will accurately 
-3. All nonblocking communication routines, including p2p and collectives, use nonblocking communication to propogate critical paths. The sending process sends a nonblocking message to the receiver after posting its intercepted routine, to be completed directly after the completion of the intercepted routine. The receiver will also post a nonblocking message to retrieve the sender's critical path information, and will compare that against its critical path data after the intercepted routine completes. Such critical path propogation will not use stale sending-process data, as the receiver is not dependent on the sender until exactly when the intercepted routine completion takes place.
+`critter` provides two routines to the user: `critter::start(int mode)` and `critter::stop(int mode)`. These create the window within which all MPI routines are intercepted and tracked. The argument `mode` can be 0, 1, or 2. Each signifies a distinct set of profiling measurements:
+
+0. Mode 0 acts as a simple timer with no profiling output apart from a walltime.
+1. Mode 1 tracks the critical path, per-process, and volumetric measurements for all six measurements listed above along any of the six critical paths. Additionally, `critter` profiles the contributions from each MPI routine.
+2. Mode 2 supersedes mode 1 by tracking the contributions (in terms of the measures listed above) of each function and/or any user-defined symbol. Only symbols enclosed in `TAU_START` and `TAU_STOP` are tracked.
 
 ## Current support
 |     MPI routine         |   tracked   |   tested   |    benchmarks   |     
@@ -59,7 +59,7 @@ Critter will never assume a communication protocol more limiting than what is sp
 | MPI_Ialltoall            |   yes       |   no       |   no            |
 | MPI_Ialltoallv           |   yes       |   no       |   no            |
 | MPI_Send                 |   yes       |   yes       |   yes            |
-| MPI_Ssend                 |   yes       |   no       |   no            |
+| MPI_Ssend                 |   yes       |   yes       |   no            |
 | MPI_Bsend                 |   no       |   no       |   no            |
 | MPI_Rsend                 |   no       |   no       |   no            |
 | MPI_Isend                |   yes       |   yes       |   no            |
@@ -70,3 +70,5 @@ Critter will never assume a communication protocol more limiting than what is sp
 | MPI_Irecv                |   yes       |   yes       |   no            |
 | MPI_Sendrecv             |   yes       |   yes       |   yes            |
 | MPI_Sendrecv_replace     |   yes       |   yes       |   yes            |
+
+`critter` is currently not able to track user-defined symbols in any nonblocking collectives, including p2p nonblocking communications requiring `MPI_Waitany` or `MPI_Waitsome`. In addition, `critter` does not track sendrecv blocking communications in which a process sends and receives from distinct processes.
