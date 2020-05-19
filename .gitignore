@@ -2,4 +2,4 @@ critter.egg-info
 *.pyc
 build*
 dist*
-config.mk
+config.mk.porter

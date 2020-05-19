@@ -11,7 +11,8 @@ int main(int argc, char ** argv){
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   srand48(rank);
-  double* buf = (double*)malloc(msg_size*sizeof(double));
+  double* sendbuf = (double*)malloc(msg_size*sizeof(double));	// big enough for root process to collect the gather
+  double* recvbuf = (double*)malloc(msg_size*sizeof(double));	// big enough for root process to collect the gather
   /*for (int j=0; j<msg_size; j++){ buf[j] = drand48(); }*/
   MPI_Comm sub_comm;
   if (id%2==0) color = rank/sub_comm_size_factor;  // "local" contiguous-rank collective. When sub_comm_size_factor==ppn, each node has its own sub-communicator;
@@ -19,14 +20,14 @@ int main(int argc, char ** argv){
   MPI_Comm_split(MPI_COMM_WORLD, color, rank, &sub_comm);
   for (auto i=0; i<num_iter; i++){
     critter::start();
-    if (id/2==0) MPI_Allreduce(MPI_IN_PLACE, buf, msg_size, MPI_DOUBLE, MPI_SUM, sub_comm);
+    if (id/2==0) MPI_Gather(sendbuf, msg_size/sub_comm_size_factor, MPI_DOUBLE, recvbuf, msg_size/sub_comm_size_factor, MPI_DOUBLE, 0, sub_comm);
     else{
-      if (color==0) MPI_Allreduce(MPI_IN_PLACE, buf, msg_size, MPI_DOUBLE, MPI_SUM, sub_comm);
+      if (color==0) MPI_Gather(sendbuf, msg_size/sub_comm_size_factor, MPI_DOUBLE, recvbuf, msg_size/sub_comm_size_factor, MPI_DOUBLE, 0, sub_comm);
     }
     critter::stop();
   }
   MPI_Comm_free(&sub_comm);
-  free(buf);
+  free(sendbuf); free(recvbuf);
   MPI_Finalize();
   return 0;
 }
