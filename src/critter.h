@@ -301,6 +301,25 @@ extern double waitall_comp_time;
 
 // *****************************************************************************************************************************************************************
 
+#define CRITTER_START(ARG) do {\
+  if (critter::internal::mode==2){\
+    auto save_time = MPI_Wtime();\
+    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
+      critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
+      critter::internal::symbol_order[critter::internal::symbol_timers.size()-1] = #ARG;\
+      critter::internal::symbol_timers[#ARG].start(save_time);\
+    }\
+    else{\
+      critter::internal::symbol_timers[#ARG].start(save_time);\
+    }}}while (0);
+
+#define CRITTER_STOP(ARG) do {\
+  if (critter::internal::mode==2){\
+    auto save_time = MPI_Wtime();\
+    if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
+    else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
+    }}while (0);
+
 #define TAU_START(ARG) do {\
   if (critter::internal::mode==2){\
     auto save_time = MPI_Wtime();\
