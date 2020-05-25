@@ -71,4 +71,4 @@ See the lists below for an accurate depiction of our current support.
 | MPI_Sendrecv             |   yes       |   yes       |   yes            |
 | MPI_Sendrecv_replace     |   yes       |   yes       |   yes            |
 
-`critter` is currently not able to track user-defined symbols in any nonblocking collectives, including p2p nonblocking communications requiring `MPI_Waitany` or `MPI_Waitsome`. In addition, `critter` does not track sendrecv blocking communications in which a process sends and receives from distinct processes.
+`critter` is currently not able to track user-defined symbols in any nonblocking collectives. In addition, `critter` does not track sendrecv blocking communications in which a process sends and receives from distinct processes.
