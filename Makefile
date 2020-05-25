@@ -1,6 +1,6 @@
-include config/config.mk
+include config.mk
 
-all: lib/libcritter.a lib/libcritter.so
+all: lib/libcritter.a
 
 test: bin/test_bcast bin/test_gather bin/test_reduce bin/test_reducescatter bin/test_scatter bin/test_allreduce bin/test_allgather bin/test_alltoall bin/test_sendrecv_replace bin/test_send_recv bin/test_sendrecv
 
@@ -37,4 +37,4 @@ bin/test_sendrecv: lib/libcritter.a bmark/test_sendrecv.cxx
 	$(CXX) bmark/test_sendrecv.cxx -o bin/test_sendrecv $(CXXFLAGS) -L./lib -lcritter $(LDFLAGS)
 
 clean:
-	rm -f obj/critter.o lib/libcritter.a bin/test_bcast bin/test_gather bin/test_reduce bin/test_reducescatter bin/test_scatter bin/test_allreduce bin/test_allgather bin/test_alltoall bin/test_sendrecv_replace bin/test_send_recv bin/test_sendrecv
+	rm -f obj/critter.o lib/libcritter.* bin/test_bcast bin/test_gather bin/test_reduce bin/test_reducescatter bin/test_scatter bin/test_allreduce bin/test_allgather bin/test_alltoall bin/test_sendrecv_replace bin/test_send_recv bin/test_sendrecv
