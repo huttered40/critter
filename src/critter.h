@@ -956,9 +956,7 @@ extern double waitall_comp_time;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
-      std::cout << "What is size of this map - " << critter::internal::internal_comm_track.size() << std::endl;\
       for (auto it = critter::internal::internal_comm_track.begin(); it != critter::internal::internal_comm_track.end(); it++) std::cout << it->first << std::endl;\
-      std::cout << "what is req - " << req << " " << *req << std::endl;\
       auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
       auto _critter_comm_info_it = critter::internal::internal_comm_info.find(*req);\
@@ -993,10 +991,29 @@ extern double waitall_comp_time;
         bool _critter_success=false;\
         for (int _critter_i=0; _critter_i<cnt; _critter_i++){\
           if (*(reqs+_critter_i) != MPI_REQUEST_NULL){\
-            std::cout << "what index is chosen - " << _critter_i << std::endl;\
-            std::cout << "nearby req values - " << *(reqs+_critter_i) << " " << *(reqs+_critter_i+1) << " " << *(reqs+_critter_i+2) << std::endl;\
-            std::cout << "actual address of reqs - " << reqs+_critter_i << std::endl;\
-            MPI_Wait(reqs+_critter_i,stat+_critter_i);\
+            MPI_Request* _critter_req = reqs+_critter_i; MPI_Status* _critter_stat=stat+_critter_i;\
+            volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
+            auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_req);\
+            assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
+            auto _critter_comm_info_it = critter::internal::internal_comm_info.find(*_critter_req);\
+            auto _critter_comm_comm_it = critter::internal::internal_comm_comm.find(*_critter_req);\
+            MPI_Request _critter_save_request = _critter_comm_info_it->first;\
+            int temp_rank; MPI_Comm_rank(_critter_comm_comm_it->second.first,&temp_rank);\
+            if (_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
+              PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first);\
+              PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first);\
+            }\
+            else if (!_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
+              PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+              PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+            }\
+            volatile double _critter_last_start_time = MPI_Wtime();\
+            PMPI_Wait(_critter_req, _critter_stat);\
+            _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
+            _critter_comm_track_it->second->stop(&_critter_save_request, _critter_save_comp_time, _critter_save_comm_time);\
+            critter::internal::complete_path_update();\
+            critter::internal::computation_timer = MPI_Wtime();\
+            if (critter::internal::mode>=2){ critter::internal::symbol_timers[critter::internal::symbol_stack.top()].start_timer.top() = critter::internal::computation_timer; }\
             *indx=_critter_i;\
             _critter_success=true;\
             break;\
@@ -1027,7 +1044,29 @@ extern double waitall_comp_time;
     if (critter::internal::mode>=1){\
       for (int _critter_i=0; _critter_i<incnt; _critter_i++){\
         if (*(reqs+_critter_i) != MPI_REQUEST_NULL){\
-          MPI_Wait(reqs+_critter_i,stat+_critter_i);\
+          MPI_Request* _critter_req = reqs+_critter_i; MPI_Status* _critter_stat=stat+_critter_i;\
+          volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
+          auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_req);\
+          assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
+          auto _critter_comm_info_it = critter::internal::internal_comm_info.find(*_critter_req);\
+          auto _critter_comm_comm_it = critter::internal::internal_comm_comm.find(*_critter_req);\
+          MPI_Request _critter_save_request = _critter_comm_info_it->first;\
+          int temp_rank; MPI_Comm_rank(_critter_comm_comm_it->second.first,&temp_rank);\
+          if (_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
+            PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first);\
+            PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first);\
+          }\
+          else if (!_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
+            PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+            PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+          }\
+          volatile double _critter_last_start_time = MPI_Wtime();\
+          PMPI_Wait(_critter_req, _critter_stat);\
+          _critter_curTime = MPI_Wtime(); double _critter_save_comm_time = _critter_curTime - _critter_last_start_time;\
+          _critter_comm_track_it->second->stop(&_critter_save_request, _critter_save_comp_time, _critter_save_comm_time);\
+          critter::internal::complete_path_update();\
+          critter::internal::computation_timer = MPI_Wtime();\
+          if (critter::internal::mode>=2){ critter::internal::symbol_timers[critter::internal::symbol_stack.top()].start_timer.top() = critter::internal::computation_timer; }\
           indices[0]=_critter_i;\
           *outcnt=1;\
         }\

@@ -15,24 +15,19 @@ int main(int argc, char **argv){
 
   critter::start(id);
   if (rank == 0){
-    for (i=0; i<size * 10; i++)
-      buffer[i] = i/10;
-      for (i=0; i<size-1; i++){
-        MPI_Isend(&buffer[i*10], 10, MPI_INT, i+1, 123, MPI_COMM_WORLD, &requests[i]);
-      }
-      for (i=0; i<size-1; i++){
-        std::cout << "request before - " << requests[i] << std::endl;
-        MPI_Waitany(size-1, &requests[0], &index, &statuses[0]);
-        std::cout << "request after - " << requests[i] << std::endl;
-        std::cout << "index - " << index << std::endl;
-      }
+    for (i=0; i<size * 10; i++){ buffer[i] = i/10; }
+    for (i=0; i<size-1; i++){
+      MPI_Isend(&buffer[i*10], 10, MPI_INT, i+1, 123, MPI_COMM_WORLD, &requests[i]);
     }
-    else{
-      MPI_Recv(&buffer[0], 10, MPI_INT, 0, 123, MPI_COMM_WORLD, &statuses[0]);
-      //printf("%d: buffer[0] = %d\n", rank, buffer[0]);fflush(stdout);
+    for (i=0; i<size-1; i++){
+      MPI_Waitany(size-1, &requests[0], &index, &statuses[0]);
     }
-    critter::stop(id);
+  }
+  else{
+    MPI_Recv(&buffer[0], 10, MPI_INT, 0, 123, MPI_COMM_WORLD, &statuses[0]);
+  }
+  critter::stop(id);
 
-    MPI_Finalize();
-    return 0;
+  MPI_Finalize();
+  return 0;
 }
