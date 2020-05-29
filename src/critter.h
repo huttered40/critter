@@ -1010,7 +1010,7 @@ extern double waitall_comp_time;
         bool _critter_success=false;\
         for (int _critter_i=0; _critter_i<cnt; _critter_i++){\
           if (*(reqs+_critter_i) != MPI_REQUEST_NULL){\
-            MPI_Request* _critter_req = reqs+_critter_i; MPI_Status* _critter_stat=stat+_critter_i;\
+            MPI_Request* _critter_req = (MPI_Request*)reqs+_critter_i; MPI_Status* _critter_stat=(MPI_Status*)stat+_critter_i;\
             volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
             auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_req);\
             assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
