@@ -46,14 +46,14 @@ constexpr size_t max_num_symbols       			= 75;			// max number of symbols to be
 namespace internal{
 
 constexpr auto list_size 				= 32;				// numbers of tracked MPI routines
-constexpr auto num_critical_path_measures 		= 5+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
+constexpr auto num_critical_path_measures 		= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_per_process_measures 		= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_volume_measures 			= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 constexpr auto num_tracker_critical_path_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
 constexpr auto num_tracker_per_process_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime,
 constexpr auto num_tracker_volume_measures 		= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime,
 constexpr auto num_ftimer_measures                      = 2;				// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
-constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+breakdown_size;
+constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+2*breakdown_size;
 constexpr auto per_process_costs_size = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+2*breakdown_size;
 constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
 constexpr auto mode_1_width = 25;
@@ -1010,7 +1010,7 @@ extern double waitall_comp_time;
         bool _critter_success=false;\
         for (int _critter_i=0; _critter_i<cnt; _critter_i++){\
           if (*(reqs+_critter_i) != MPI_REQUEST_NULL){\
-            MPI_Request* _critter_req = reqs+_critter_i; MPI_Status* _critter_stat=stat+_critter_i;\
+            MPI_Request* _critter_req = reqs+_critter_i; MPI_Status* _critter_stat=(MPI_Status*)stat+_critter_i;\
             volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
             auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_req);\
             assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\

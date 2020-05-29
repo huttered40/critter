@@ -629,9 +629,7 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-2]        += this->save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += this->save_comp_time;		// update local runtime
-  for (size_t i=0; i<breakdown_size; i++){
-    critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time;
-  }
+  for (size_t i=0; i<breakdown_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += this->save_comp_time; }
   if (mode>=2){
     assert(symbol_stack.size()>0);
     assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
@@ -755,7 +753,7 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   int save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      critical_path_costs[save]                  += dcosts[j].second;		// update critical path estimated communication cost
+      critical_path_costs[save]                 += dcosts[j].second;		// update critical path estimated communication cost
       critical_path_costs[cost_model_size+save] += dcosts[j].first;		// update critical path estimated synchronization cost
       save++;
     }
@@ -772,7 +770,7 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      volume_costs[save]                  += dcosts[j].second;		// update local estimated communication cost
+      volume_costs[save]                 += dcosts[j].second;		// update local estimated communication cost
       volume_costs[cost_model_size+save] += dcosts[j].first;		// update local estimated synchronization cost
       save++;
     }
@@ -1097,7 +1095,7 @@ void find_per_process_max(MPI_Comm cm){
   PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_DOUBLE, MPI_MAX, cm);
   PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
   size_t save=0;
-  for (size_t i=0; i<num_per_process_measures-1; i++){// don't consider idle time an option
+  for (size_t i=0; i<breakdown.size(); i++){
     if (breakdown[i] == 0) continue;
     size_t z = i<(2*cost_model_size) ? i : i+1;	// careful indexing to avoid idle time
     if (rank == buffer[z].second){
@@ -1295,9 +1293,7 @@ void ftimer::start(double save_time){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-  for (size_t i=0; i<breakdown_size; i++){
-    critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);;
-  }
+  for (size_t i=0; i<breakdown_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer); }
   symbol_stack.push(this->name);
   std::array<double,num_per_process_measures> temp2; temp2.fill(0.0);
   computation_timer = MPI_Wtime();
@@ -1411,7 +1407,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
     Stream << "Input";
   }
   print_cost_model_header_file(Stream);
-  Stream << "\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// critical path
+  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// critical path
   print_cost_model_header_file(Stream);
   Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
@@ -1455,7 +1451,7 @@ void record(std::ofstream& Stream, size_t factor){
         }
       }
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_per_process_measures-1; i++){	// no idle time
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1466,18 +1462,19 @@ void record(std::ofstream& Stream, size_t factor){
             Stream << "\t" << factor*it.second[j];
           }
         }
-        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];
-        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];	// CompTime
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];	// IdleTime
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
-        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];
+        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];	// CompTime
+        Stream << "\t" << 0;											// IdleTime
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1510,7 +1507,7 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n\n";
       Stream << std::left << std::setw(mode_1_width) << "Critical path:";
       print_cost_model_header(Stream);
-      Stream << std::left << std::setw(mode_1_width) << "";
+      Stream << std::left << std::setw(mode_1_width) << "IdleTime";
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
       Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
@@ -1518,11 +1515,10 @@ void record(std::ostream& Stream, size_t factor){
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(mode_1_width) << "                  ";
-      for (size_t i=0; i<num_critical_path_measures+1; i++){//+1 for blank space
-        if (i==(2*cost_model_size)) Stream << std::left << std::setw(mode_1_width) << "";
-        else if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[i/2];
+      for (size_t i=0; i<num_critical_path_measures; i++){
+        if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[i/2];
         else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[(i-1)/2+cost_model_size];
-        else Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[i-1];
+        else Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[i];
       }
       Stream << "\n\n";
 
@@ -1561,7 +1557,7 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n\n";
 
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
         if (i==0){
           Stream << std::left << std::setw(mode_1_width) << "BSPCommCost max:";
@@ -1676,8 +1672,6 @@ void record(std::ostream& Stream, size_t factor){
         std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
         if (i==2*cost_model_size){
           cp_ref = 1.;
-        } else if (i>2*cost_model_size){
-          cp_ref = critical_path_costs[i-1];
         } else{
           cp_ref = critical_path_costs[i];
         }
@@ -1742,8 +1736,6 @@ void record(std::ostream& Stream, size_t factor){
         std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
         if (i==2*cost_model_size){
           cp_ref = 100.;
-        } else if (i>2*cost_model_size){
-          cp_ref = critical_path_costs[i-1];
         } else{
           cp_ref = critical_path_costs[i];
         }

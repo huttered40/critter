@@ -448,8 +448,6 @@ class bench(object):
 
         self.WriteHeader(self.PlotInstructionsFile)
         self.WriteHeader(self.CollectInstructionsFile)
-        self.PlotInstructionsFile.write(str(self.MachineType.PeakNodePerformance)+"\n")
-        self.PlotInstructionsFile.write(str(self.MachineType.PeakNetworkInjectionRate)+"\n")
 
         self.PortalDict = {}
         for TestIndex in range(0,self.numTests):
