@@ -622,9 +622,9 @@ void blocking::stop(){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner){
+void nonblocking::start(volatile double curTime, volatile double iTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner){
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-  this->save_comp_time = curTime - computation_timer;
+  this->save_comp_time = curTime - computation_timer + iTime;
   critical_path_costs[num_critical_path_measures-2] += this->save_comp_time;		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += this->save_comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-2]        += this->save_comp_time;		// update local computation time
@@ -635,7 +635,7 @@ void nonblocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, 
   if (mode>=2){
     assert(symbol_stack.size()>0);
     assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
-    this->save_time = curTime - symbol_timers[symbol_stack.top()].start_timer.top();
+    this->save_time = curTime - symbol_timers[symbol_stack.top()].start_timer.top()+iTime;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += this->save_time;
     symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += this->save_time;
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += this->save_time;
@@ -1664,7 +1664,7 @@ void record(std::ostream& Stream, size_t factor){
         size_t j=0;
         double cp_ref,pp_ref,vol_ref;
         for (auto& it : symbol_timers){
-          if (it.second.start_timer.size() == 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
+          if (it.second.start_timer.size() != 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
           if (i==2*cost_model_size){
             sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls,*it.second.vol_excl_measure[i]});
           } else if (i>2*cost_model_size){
