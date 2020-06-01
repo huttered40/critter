@@ -1690,8 +1690,10 @@ void record(std::ostream& Stream, size_t factor){
         Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
         Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
         if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "cp-excl (s)";
-        Stream << std::left << std::setw(mode_2_width) << "pp-excl (s)";
+        if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "cp-excl (s)";
+        else Stream << std::left << std::setw(mode_2_width) << "cp-excl";
+        if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "pp-excl (s)";
+        else Stream << std::left << std::setw(mode_2_width) << "pp-excl";
         if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-excl (s)";
         Stream << std::left << std::setw(mode_2_width) << "cp-excl (%)";
         Stream << std::left << std::setw(mode_2_width) << "pp-excl (%)";
@@ -1756,8 +1758,10 @@ void record(std::ostream& Stream, size_t factor){
         Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
         Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
         if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
-        Stream << std::left << std::setw(mode_2_width) << "cp-incl (s)";
-        Stream << std::left << std::setw(mode_2_width) << "pp-incl (s)";
+        if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "cp-incl (s)";
+        else Stream << std::left << std::setw(mode_2_width) << "cp-incl";
+        if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "pp-incl (s)";
+        else Stream << std::left << std::setw(mode_2_width) << "pp-incl";
         if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-incl (s)";
         Stream << std::left << std::setw(mode_2_width) << "cp-incl (%)";
         Stream << std::left << std::setw(mode_2_width) << "pp-incl (%)";
