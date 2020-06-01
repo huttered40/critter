@@ -1,48 +1,7 @@
-#ifndef __CRITTER_H__
-#define __CRITTER_H__
-
-#include <mpi.h>
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <algorithm>
-#include <utility>
-#include <iomanip>
-#include <vector>
-#include <stack>
-#include <array>
-#include <stdint.h>
-#include <functional>
-#include <map>
-#include <unordered_map>
-#include <bitset>
-#include <cmath>
-#include <assert.h>
+#ifndef __CRITTER_SRC_H__
+#define __CRITTER_SRC_H__
 
 namespace critter{
-
-// *****************************************************************************************************************************************************************
-// User functions
-void start(size_t mode = 1);
-void stop(size_t mode = 1, size_t factor = 1);
-
-// User variables
-// Note: `cost_model_size` must equal `cost_models.count()`. This will not be checked at compile time.
-constexpr size_t cost_model_size  = 2;					// must match number of bits set in cost_model (below)
-constexpr std::bitset<2> cost_models(0b11);				// alpha-beta butterfly, BSP
-// Note: `breakdown_size` must equal `breakdown.count()`. This will not be checked at compile time.
-constexpr size_t breakdown_size  			= 5;			// must match number of bits set in breakdown (below)
-constexpr std::bitset<5+2*cost_model_size> breakdown(0b110010101);  		// RunTime,CompTime,DataMvtTime,SynchTime,CommTime,ABSynchCost,BSPsynchCost,ABCommCost,BSPcommCost
-constexpr int internal_tag                      	= 1669220;		// arbitrary
-constexpr int internal_tag1                     	= 1669221;		// arbitrary
-constexpr int internal_tag2                     	= 1669222;		// arbitrary
-constexpr int internal_tag3                     	= 1669223;		// arbitrary
-constexpr int internal_tag4                     	= 1669224;		// arbitrary
-constexpr int internal_tag5                     	= 1669225;		// arbitrary
-constexpr size_t max_timer_name_length 			= 40;			// max length of a symbol defining a timer
-constexpr size_t max_num_symbols       			= 75;			// max number of symbols to be tracked
-
-// *****************************************************************************************************************************************************************
 namespace internal{
 
 constexpr auto list_size 				= 32;				// numbers of tracked MPI routines
@@ -174,7 +133,7 @@ public:
     /** \brief copy constructor */
     nonblocking(nonblocking const& t);
     /** \brief starts tracking of nonblocking MPI communication of nelem elements of type t over communicator cm */
-    void start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender=false, int partner=-1);
+    void start(volatile double curTime, volatile double iTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender=false, int partner=-1);
     /** \brief completes interception of nonblocking communication protocol */
     void stop(MPI_Request* internal_request, double comp_time, double comm_time);
 };
@@ -779,8 +738,10 @@ extern double waitall_comp_time;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
-      critter::internal::_MPI_Isend.start(_critter_curTime_, nelem, t, cm, req, true, dest);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Isend.start(_critter_curTime_, _critter_iTime_, nelem, t, cm, req, true, dest);\
     }\
     else{\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
@@ -792,8 +753,10 @@ extern double waitall_comp_time;
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(tag != critter::internal_tag);\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
-      critter::internal::_MPI_Irecv.start(_critter_curTime_, nelem, t, cm, req, false, src);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Irecv.start(_critter_curTime_, _critter_iTime_, nelem, t, cm, req, false, src);\
     }\
     else{\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
@@ -804,8 +767,10 @@ extern double waitall_comp_time;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Ibcast(buf, nelem, t, root, cm, req);\
-      critter::internal::_MPI_Ibcast.start(_critter_curTime_, nelem, t, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Ibcast.start(_critter_curTime_, _critter_iTime_, nelem, t, cm, req);\
     }\
     else{\
       PMPI_Ibcast(buf, nelem, t, root, cm, req);\
@@ -816,8 +781,10 @@ extern double waitall_comp_time;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
-      critter::internal::_MPI_Iallreduce.start(_critter_curTime_, nelem, t, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Iallreduce.start(_critter_curTime_, _critter_iTime_, nelem, t, cm, req);\
     }\
     else{\
       PMPI_Iallreduce(sbuf, rbuf, nelem, t, op, cm, req);\
@@ -828,8 +795,10 @@ extern double waitall_comp_time;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Ireduce(buf, nelem, t, root, cm, req);\
-      critter::internal::_MPI_Iallreduce.start(_critter_curTime_, nelem, t, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Iallreduce.start(_critter_curTime_, _critter_iTime_, nelem, t, cm, req);\
     }\
     else{\
       PMPI_Ireduce(sbuf, rbuf, nelem, t, op, root, cm, req);\
@@ -843,8 +812,10 @@ extern double waitall_comp_time;
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
       int64_t _critter_recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * _critter_np;\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
-      critter::internal::_MPI_Igather.start(_critter_curTime_, _critter_recvBufferSize, st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Igather.start(_critter_curTime_, _critter_iTime_, _critter_recvBufferSize, st, cm, req);\
     }\
     else{\
       PMPI_Igather(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
@@ -858,8 +829,10 @@ extern double waitall_comp_time;
       assert(rt==st);\
       int64_t _critter_tot_recv=0; int _critter_rank, _critter_npp; MPI_Comm_rank(cm, &_critter_rank); MPI_Comm_size(cm, &_critter_np);\
       if (_critter_rank == root) for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_recv += ((int*)rcounts)[_critter_i]; }\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req);\
-      critter::internal::_MPI_Igatherv.start(_critter_curTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Igatherv.start(_critter_curTime_, _critter_iTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm, req);\
     }\
     else{\
       PMPI_Igatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, root, cm, req);\
@@ -872,8 +845,10 @@ extern double waitall_comp_time;
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np); int64_t _critter_recvBufferSize = std::max((int64_t)scount,(int64_t)rcount) * _critter_np;\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
-      critter::internal::_MPI_Iallgather.start(_critter_curTime_, _critter_recvBufferSize, st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Iallgather.start(_critter_curTime_, _critter_iTime_, _critter_recvBufferSize, st, cm, req);\
     }\
     else{\
       PMPI_Iallgather(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
@@ -887,8 +862,10 @@ extern double waitall_comp_time;
       assert(rt==st);\
       int64_t _critter_tot_recv=0; int _critter_np; MPI_Comm_size(cm, &_critter_np);\
       for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_recv += rcounts[_critter_i]; }\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req);\
-      critter::internal::_MPI_Iallgatherv.start(_critter_curTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Iallgatherv.start(_critter_curTime_, _critter_iTime_, std::max((int64_t)scount,_critter_tot_recv), st, cm, req);\
     }\
     else{\
       PMPI_Iallgatherv(sbuf, scount, st, rbuf, rcounts, rdispsls, rt, cm, req);\
@@ -902,8 +879,10 @@ extern double waitall_comp_time;
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
       int64_t _critter_sendBufferSize = std::max((int64_t)scount,(int64_t)rcount) * _critter_np;\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
-      critter::internal::_MPI_Iscatter.start(_critter_curTime_, _critter_sendBufferSize, st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Iscatter.start(_critter_curTime_, _critter_iTime_, _critter_sendBufferSize, st, cm, req);\
     }\
     else{\
       PMPI_Iscatter(sbuf, scount, st, rbuf, rcount, rt, root, cm, req);\
@@ -918,8 +897,10 @@ extern double waitall_comp_time;
       int64_t _critter_tot_send=0;\
       int _critter_rank, _critter_np; MPI_Comm_rank(cm, &_critter_rank); MPI_Comm_size(cm, &_critter_np);\
       if (_critter_rank == root) for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_send += ((int*)scounts)[_critter_i]; } \
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req);\
-      critter::internal::_MPI_Iscatterv.start(_critter_curTime_, std::max(_critter_tot_send,(int64_t)rcount), st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Iscatterv.start(_critter_curTime_, _critter_iTime_, std::max(_critter_tot_send,(int64_t)rcount), st, cm, req);\
     }\
     else{\
       PMPI_Iscatterv(sbuf, scounts, sdispls, st, rbuf, rcount, rt, root, cm, req);\
@@ -933,8 +914,10 @@ extern double waitall_comp_time;
       int64_t _critter_tot_recv=0;\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
       for (int _critter_i=0; _critter_i<_critter_np; _critter_i++){ _critter_tot_recv += rcounts[_critter_i]; }\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req);\
-      critter::internal::_MPI_Ireduce_scatter.start(_critter_curTime_, _critter_tot_recv, t, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Ireduce_scatter.start(_critter_curTime_, _critter_iTime_, _critter_tot_recv, t, cm, req);\
     }\
     else{\
       PMPI_Ireduce_scatter(sbuf, rbuf, rcounts, t, op, cm, req);\
@@ -947,8 +930,10 @@ extern double waitall_comp_time;
       volatile double _critter_curTime_ = MPI_Wtime();\
       assert(rt==st);\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
-      critter::internal::_MPI_Ialltoall.start(_critter_curTime_, std::max((int64_t)scount,(int64_t)rcount)*_critter_np, st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Ialltoall.start(_critter_curTime_, _critter_iTime_, std::max((int64_t)scount,(int64_t)rcount)*_critter_np, st, cm, req);\
     }\
     else{\
       PMPI_Ialltoall(sbuf, scount, st, rbuf, rcount, rt, cm, req);\
@@ -963,8 +948,10 @@ extern double waitall_comp_time;
       int64_t _critter_tot_send=0, _critter_tot_recv=0;\
       int _critter_np; MPI_Comm_size(cm, &_critter_np);\
       for (int _critter_i=0; _critter_i<_criter_np; _critter_i++){ _critter_tot_send += scounts[_critter_i]; _critter_tot_recv += rcounts[_critter_i]; }\
+      volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req);\
-      critter::internal::_MPI_Ialltoallv.start(_critter_curTime_, std::max(_critter_tot_send,_critter_tot_recv), st, cm, req);\
+      _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
+      critter::internal::_MPI_Ialltoallv.start(_critter_curTime_, _critter_iTime_, std::max(_critter_tot_send,_critter_tot_recv), st, cm, req);\
     }\
     else{\
       PMPI_Ialltoallv(sbuf, scounts, sdispls, st, rbuf, rcounts, rdispsls, rt, cm, req);\
@@ -1010,7 +997,7 @@ extern double waitall_comp_time;
         bool _critter_success=false;\
         for (int _critter_i=0; _critter_i<cnt; _critter_i++){\
           if (*(reqs+_critter_i) != MPI_REQUEST_NULL){\
-            MPI_Request* _critter_req = reqs+_critter_i; MPI_Status* _critter_stat=(MPI_Status*)stat+_critter_i;\
+            MPI_Request* _critter_req = (MPI_Request*)reqs+_critter_i; MPI_Status* _critter_stat=(MPI_Status*)stat+_critter_i;\
             volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
             auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*_critter_req);\
             assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
@@ -1145,4 +1132,4 @@ extern double waitall_comp_time;
     }\
   } while (0)
 
-#endif /*CRITTER_H_*/
+#endif /*CRITTER_SRC_H_*/
