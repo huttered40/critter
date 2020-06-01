@@ -755,7 +755,7 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   int save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      critical_path_costs[save]                  += dcosts[j].second;		// update critical path estimated communication cost
+      critical_path_costs[save]                 += dcosts[j].second;		// update critical path estimated communication cost
       critical_path_costs[cost_model_size+save] += dcosts[j].first;		// update critical path estimated synchronization cost
       save++;
     }
@@ -772,7 +772,7 @@ void nonblocking::stop(MPI_Request* request, double comp_time, double comm_time)
   save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]){
-      volume_costs[save]                  += dcosts[j].second;		// update local estimated communication cost
+      volume_costs[save]                 += dcosts[j].second;		// update local estimated communication cost
       volume_costs[cost_model_size+save] += dcosts[j].first;		// update local estimated synchronization cost
       save++;
     }
@@ -1097,7 +1097,7 @@ void find_per_process_max(MPI_Comm cm){
   PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_DOUBLE, MPI_MAX, cm);
   PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
   size_t save=0;
-  for (size_t i=0; i<num_per_process_measures-1; i++){// don't consider idle time an option
+  for (size_t i=0; i<breakdown.size(); i++){// don't consider idle time an option
     if (breakdown[i] == 0) continue;
     size_t z = i<(2*cost_model_size) ? i : i+1;	// careful indexing to avoid idle time
     if (rank == buffer[z].second){
@@ -1411,7 +1411,7 @@ void print_header(StreamType& Stream, size_t num_inputs){
     Stream << "Input";
   }
   print_cost_model_header_file(Stream);
-  Stream << "\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// critical path
+  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// critical path
   print_cost_model_header_file(Stream);
   Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
@@ -1455,7 +1455,7 @@ void record(std::ofstream& Stream, size_t factor){
         }
       }
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_per_process_measures-1; i++){	// no idle time
+      for (auto i=0; i<breakdown.size(); i++){	// no idle time
         if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1466,18 +1466,19 @@ void record(std::ofstream& Stream, size_t factor){
             Stream << "\t" << factor*it.second[j];
           }
         }
-        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];
-        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];// comp time
+        Stream << "\t" << factor*max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];// idle time
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
-        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];
+        Stream << "\t" << factor*critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];// comp time
+        Stream << "\t" << 0;// idle time
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
@@ -1510,7 +1511,7 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n\n";
       Stream << std::left << std::setw(mode_1_width) << "Critical path:";
       print_cost_model_header(Stream);
-      Stream << std::left << std::setw(mode_1_width) << "";
+      Stream << std::left << std::setw(mode_1_width) << "IdleTime";
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
       Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
@@ -1518,8 +1519,8 @@ void record(std::ostream& Stream, size_t factor){
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(mode_1_width) << "                  ";
-      for (size_t i=0; i<num_critical_path_measures+1; i++){//+1 for blank space
-        if (i==(2*cost_model_size)) Stream << std::left << std::setw(mode_1_width) << "";
+      for (size_t i=0; i<num_critical_path_measures+1; i++){//+1 for idle time (which is not present in 'num_critical_path_measures'
+        if (i==(2*cost_model_size)) Stream << std::left << std::setw(mode_1_width) << "0";
         else if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[i/2];
         else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[(i-1)/2+cost_model_size];
         else Stream << std::left << std::setw(mode_1_width) << factor*critical_path_costs[i-1];
@@ -1561,7 +1562,7 @@ void record(std::ostream& Stream, size_t factor){
       Stream << "\n\n";
 
       size_t breakdown_idx=0;
-      for (auto i=0; i<num_critical_path_measures; i++){
+      for (auto i=0; i<breakdown.size(); i++){
         if (!breakdown[i]) continue;
         if (i==0){
           Stream << std::left << std::setw(mode_1_width) << "BSPCommCost max:";
@@ -1658,7 +1659,7 @@ void record(std::ostream& Stream, size_t factor){
     if (is_world_root){
       Stream << "***********************************************************************************************************************";
       std::vector<std::pair<std::string,std::array<double,6>>> sort_info(symbol_timers.size());
-      for (int i=num_per_process_measures-1; i>=0; i--){
+      for (int i=breakdown.size(); i>=0; i--){
         sort_info.clear(); sort_info.resize(symbol_timers.size());
         // Reset symbol timers and sort
         size_t j=0;
