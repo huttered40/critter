@@ -1664,7 +1664,7 @@ void record(std::ostream& Stream, size_t factor){
         size_t j=0;
         double cp_ref,pp_ref,vol_ref;
         for (auto& it : symbol_timers){
-          assert(it.second.start_timer.size() == 0);
+          if (it.second.start_timer.size() == 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
           if (i==2*cost_model_size){
             sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls,*it.second.vol_excl_measure[i]});
           } else if (i>2*cost_model_size){
