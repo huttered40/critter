@@ -1,4 +1,4 @@
-#include "../src/critter.h"
+#include "critter.hpp"
 #include <random>
 
 int main(int argc, char ** argv){

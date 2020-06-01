@@ -10,7 +10,7 @@ lib/libcritter.a: obj/critter.o
 lib/libcritter.so: obj/critter.o
 	gcc -shared -o lib/libcritter.so obj/critter.o
 
-obj/critter.o: src/critter.h src/critter.cxx
+obj/critter.o: src/critter.cxx
 	$(CXX) src/critter.cxx -c -o obj/critter.o $(CXXFLAGS)
 
 bin/test_bcast: lib/libcritter.a bmark/test_bcast.cxx
