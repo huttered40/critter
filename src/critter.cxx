@@ -232,7 +232,7 @@ tracker* list[list_size] = {
 
 std::string stream_name,file_name;
 std::ofstream stream;
-bool flag,is_world_root,is_first_iter,need_new_line,print_volume_symbol;
+bool flag,is_world_root,is_first_iter,need_new_line;
 size_t mode,stack_id;
 
 double computation_timer;
@@ -266,7 +266,8 @@ std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_sym
 std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
 std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_local_pp;
 std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_global_pp;
-std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_vol;
+std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_local_vol;
+std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_global_vol;
 std::unordered_map<std::string,ftimer> symbol_timers;
 std::stack<std::string> symbol_stack;
 std::array<std::string,max_num_symbols> symbol_order;
@@ -1117,6 +1118,9 @@ void find_per_process_max(MPI_Comm cm){
   }
   // For now, buffer[num_per_process_measures-1].second holds the rank of the process with the max per-process runtime
   if (mode>=2){
+    // copy data to volume buffers to avoid corruption
+    std::memcpy(&symbol_timer_pad_local_vol[0], &symbol_timer_pad_local_pp[0], (num_ftimer_measures*num_volume_measures+1)*max_num_symbols*sizeof(double));
+
     int per_process_runtime_root_rank = buffer[num_per_process_measures-1].second;
     // We consider only critical path runtime
     int ftimer_size = 0;
@@ -1181,12 +1185,71 @@ void find_per_process_max(MPI_Comm cm){
 }
 
 void compute_volume(MPI_Comm cm){
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   if (mode>=1){
     PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
-    int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
     for (int i=0; i<volume_costs.size(); i++){ volume_costs[i] /= (1.*world_size); }
   }
-  if (mode>=2){ print_volume_symbol=false; }
+  if (mode>=2){
+    size_t active_size = world_size;
+    size_t active_rank = world_rank;
+    size_t active_mult = 1;
+    while (active_size>1){
+      if (active_rank % 2 == 1){
+        int partner = (active_rank-1)*active_mult;
+        int ftimer_size = symbol_timers.size();
+        PMPI_Send(&ftimer_size, 1, MPI_INT, partner, internal_tag, cm);
+        symbol_len_pad_cp.fill(0);
+        int symbol_offset = 0;
+        for (auto i=0; i<symbol_timers.size(); i++){
+          symbol_len_pad_cp[i] = symbol_order[i].size();
+          for (auto j=0; j<symbol_len_pad_cp[i]; j++){
+            symbol_pad_cp[symbol_offset+j] = symbol_order[i][j];
+          }
+          symbol_offset += symbol_len_pad_cp[i];
+        }
+        PMPI_Send(&symbol_len_pad_cp[0],ftimer_size,MPI_INT,partner,internal_tag1,cm);
+        int num_chars = 0;
+        for (auto i=0; i<ftimer_size; i++){
+          num_chars += symbol_len_pad_cp[i];
+        }
+        PMPI_Send(&symbol_timer_pad_local_vol[0],(num_ftimer_measures*num_volume_measures+1)*ftimer_size,MPI_DOUBLE,partner,internal_tag2,cm);
+        PMPI_Send(&symbol_pad_cp[0],num_chars,MPI_CHAR,partner,internal_tag3,cm);
+        break;
+      }
+      else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+        int partner = (active_rank+1)*active_mult;
+        int ftimer_size_foreign;
+        PMPI_Recv(&ftimer_size_foreign, 1, MPI_INT, partner, internal_tag, cm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&symbol_len_pad_cp[0],ftimer_size_foreign,MPI_INT,partner, internal_tag1, cm, MPI_STATUS_IGNORE);
+        int num_chars = 0;
+        for (auto i=0; i<ftimer_size_foreign; i++){
+          num_chars += symbol_len_pad_cp[i];
+        }
+        PMPI_Recv(&symbol_timer_pad_global_vol[0],(num_ftimer_measures*num_volume_measures+1)*ftimer_size_foreign,MPI_DOUBLE,partner,internal_tag2,cm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&symbol_pad_cp[0],num_chars,MPI_CHAR,partner, internal_tag3,cm, MPI_STATUS_IGNORE);
+        int symbol_offset = 0;
+        for (int i=0; i<ftimer_size_foreign; i++){
+          auto reconstructed_symbol = std::string(symbol_pad_cp.begin()+symbol_offset,symbol_pad_cp.begin()+symbol_offset+symbol_len_pad_cp[i]);
+          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+            symbol_timers[reconstructed_symbol] = ftimer(reconstructed_symbol);
+            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+          }
+          *symbol_timers[reconstructed_symbol].vol_numcalls += symbol_timer_pad_global_vol[(num_ftimer_measures*num_per_process_measures+1)*i];
+          for (int j=0; j<num_volume_measures; j++){
+            *symbol_timers[reconstructed_symbol].vol_incl_measure[j] += symbol_timer_pad_global_vol[(num_ftimer_measures*num_volume_measures+1)*i+2*j+1];
+            *symbol_timers[reconstructed_symbol].vol_excl_measure[j] += symbol_timer_pad_global_vol[(num_ftimer_measures*num_volume_measures+1)*i+2*(j+1)];
+          }
+          symbol_timers[reconstructed_symbol].has_been_processed = true;
+          symbol_offset += symbol_len_pad_cp[i];
+        }
+      }
+      active_size = active_size/2 + active_size%2;
+      active_rank /= 2;
+      active_mult *= 2;
+    }
+  }
 }
 
 void tracker::set_header(){
@@ -1261,7 +1324,7 @@ ftimer::ftimer(std::string name_){
   this->name = std::move(name_);
   this->cp_numcalls = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)]; *this->cp_numcalls = 0;
   this->pp_numcalls = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(num_ftimer_measures*num_per_process_measures+1)]; *this->pp_numcalls = 0;
-  this->vol_numcalls = &symbol_timer_pad_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)]; *this->vol_numcalls = 0;
+  this->vol_numcalls = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)]; *this->vol_numcalls = 0;
   for (auto i=0; i<num_critical_path_measures; i++){
     this->cp_incl_measure[i] = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*i+1]; *cp_incl_measure[i] = 0.;
     this->cp_excl_measure[i] = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*(i+1)]; *cp_excl_measure[i] = 0.;
@@ -1271,8 +1334,8 @@ ftimer::ftimer(std::string name_){
     this->pp_excl_measure[i] = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(num_ftimer_measures*num_per_process_measures+1)+2*(i+1)]; *pp_excl_measure[i] = 0.;
   }
   for (auto i=0; i<num_volume_measures; i++){
-    this->vol_incl_measure[i] = &symbol_timer_pad_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)+2*i+1]; *vol_incl_measure[i] = 0.;
-    this->vol_excl_measure[i] = &symbol_timer_pad_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)+2*(i+1)]; *vol_excl_measure[i] = 0.;
+    this->vol_incl_measure[i] = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)+2*i+1]; *vol_incl_measure[i] = 0.;
+    this->vol_excl_measure[i] = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)+2*(i+1)]; *vol_excl_measure[i] = 0.;
   }
   this->has_been_processed = false;
   this->cp_exclusive_contributions.fill(0.0); this->pp_exclusive_contributions.fill(0.0);
@@ -1497,6 +1560,7 @@ void record(std::ofstream& Stream, size_t factor){
 
 void record(std::ostream& Stream, size_t factor){
   assert(internal_comm_info.size() == 0);
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   if (mode==0){
     if (is_world_root){
       Stream << std::left << std::setw(mode_1_width) << "Runtime:";
@@ -1667,11 +1731,11 @@ void record(std::ostream& Stream, size_t factor){
         for (auto& it : symbol_timers){
           if (it.second.start_timer.size() != 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
           if (i==2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls,*it.second.vol_excl_measure[i]});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_excl_measure[i]/world_size});
           } else if (i>2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i-1],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls,*it.second.vol_excl_measure[i]});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i-1],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_excl_measure[i]/world_size});
           } else{
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls,*it.second.vol_excl_measure[i]});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_excl_measure[i]/world_size});
           }
         }
         std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
@@ -1690,15 +1754,15 @@ void record(std::ostream& Stream, size_t factor){
         Stream << "\n\n\n\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
         Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
         Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
+        Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
         if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "cp-excl (s)";
         else Stream << std::left << std::setw(mode_2_width) << "cp-excl";
         if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "pp-excl (s)";
         else Stream << std::left << std::setw(mode_2_width) << "pp-excl";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-excl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-excl (s)";
         Stream << std::left << std::setw(mode_2_width) << "cp-excl (%)";
         Stream << std::left << std::setw(mode_2_width) << "pp-excl (%)";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-excl (%)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-excl (%)";
         double cp_total_exclusive = 0.;
         double pp_total_exclusive = 0.;
         double vol_total_exclusive = 0.;
@@ -1706,13 +1770,13 @@ void record(std::ostream& Stream, size_t factor){
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
           Stream << std::left << std::setw(mode_2_width) << it.second[0];
           Stream << std::left << std::setw(mode_2_width) << it.second[2];
-          if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << it.second[4];
+          Stream << std::left << std::setw(mode_2_width) << it.second[4];
           Stream << std::left << std::setw(mode_2_width) << it.second[1];
           Stream << std::left << std::setw(mode_2_width) << it.second[3];
-          if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << it.second[5];
+          Stream << std::left << std::setw(mode_2_width) << it.second[5];
           Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
           Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
-          if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
+          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
           cp_total_exclusive += it.second[1];
           pp_total_exclusive += it.second[3];
           vol_total_exclusive += it.second[5];
@@ -1720,13 +1784,13 @@ void record(std::ostream& Stream, size_t factor){
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << "";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "";
+        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << cp_total_exclusive;
         Stream << std::left << std::setw(mode_2_width) << pp_total_exclusive;
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << vol_total_exclusive;
+        Stream << std::left << std::setw(mode_2_width) << vol_total_exclusive;
         Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_exclusive/cp_ref;
         Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_exclusive/pp_ref;
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_exclusive/vol_ref;
+        Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_exclusive/vol_ref;
         Stream << "\n";
 
         // Reset symbol timers and sort
@@ -1735,11 +1799,11 @@ void record(std::ostream& Stream, size_t factor){
         for (auto& it : symbol_timers){
           assert(it.second.start_timer.size() == 0);
           if (i==2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls,*it.second.vol_incl_measure[i]});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_incl_measure[i]/world_size});
           } else if (i>2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i-1],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls,*it.second.vol_incl_measure[i]});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i-1],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_incl_measure[i]/world_size});
           } else{
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls,*it.second.vol_incl_measure[i]});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_incl_measure[i]/world_size});
           }
         }
         std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
@@ -1758,15 +1822,15 @@ void record(std::ostream& Stream, size_t factor){
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
         Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
         Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
+        Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
         if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "cp-incl (s)";
         else Stream << std::left << std::setw(mode_2_width) << "cp-incl";
         if (i>=2*cost_model_size) Stream << std::left << std::setw(mode_2_width) << "pp-incl (s)";
         else Stream << std::left << std::setw(mode_2_width) << "pp-incl";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-incl (s)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-incl (s)";
         Stream << std::left << std::setw(mode_2_width) << "cp-incl (%)";
         Stream << std::left << std::setw(mode_2_width) << "pp-incl (%)";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "vol-incl (%)";
+        Stream << std::left << std::setw(mode_2_width) << "vol-incl (%)";
         double cp_total_inclusive = 0.;
         double pp_total_inclusive = 0.;
         double vol_total_inclusive = 0.;
@@ -1774,13 +1838,13 @@ void record(std::ostream& Stream, size_t factor){
           Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
           Stream << std::left << std::setw(mode_2_width) << it.second[0];
           Stream << std::left << std::setw(mode_2_width) << it.second[2];
-          if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << it.second[4];
+          Stream << std::left << std::setw(mode_2_width) << it.second[4];
           Stream << std::left << std::setw(mode_2_width) << it.second[1];
           Stream << std::left << std::setw(mode_2_width) << it.second[3];
-          if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << it.second[5];
+          Stream << std::left << std::setw(mode_2_width) << it.second[5];
           Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
           Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
-          if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
+          Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
           cp_total_inclusive = std::max(it.second[1],cp_total_inclusive);
           pp_total_inclusive = std::max(it.second[3],pp_total_inclusive);
           vol_total_inclusive = std::max(it.second[5],vol_total_inclusive);
@@ -1788,13 +1852,13 @@ void record(std::ostream& Stream, size_t factor){
         Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
         Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << "";
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << "";
+        Stream << std::left << std::setw(mode_2_width) << "";
         Stream << std::left << std::setw(mode_2_width) << cp_total_inclusive;
         Stream << std::left << std::setw(mode_2_width) << pp_total_inclusive;
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << vol_total_inclusive;
+        Stream << std::left << std::setw(mode_2_width) << vol_total_inclusive;
         Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_inclusive/cp_ref;
         Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_inclusive/pp_ref;
-        if (print_volume_symbol) Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_inclusive/vol_ref;
+        Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_inclusive/vol_ref;
         Stream << "\n";
       }
     }
@@ -1806,7 +1870,7 @@ void start(size_t mode){
   internal::stack_id++;
   if (internal::stack_id>1) { return; }
   assert(mode>=0 && mode < 3); assert(internal::internal_comm_info.size() == 0);
-  internal::wait_id=true; internal::waitall_id=false; internal::print_volume_symbol=true; internal::mode=mode;
+  internal::wait_id=true; internal::waitall_id=false; internal::mode=mode;
   // TODO: How to allow different number of cost models. Perhaps just put an assert that both cost models must be on? Or don't use these altogether?
   for (int i=0; i<internal::list_size; i++){ internal::list[i]->init(); }
   if (internal::is_world_root){

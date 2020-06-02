@@ -212,7 +212,7 @@ class ftimer{
 
 
 extern std::string stream_name,file_name;
-extern bool flag,is_first_iter,is_world_root,need_new_line,print_volume_symbol;
+extern bool flag,is_first_iter,is_world_root,need_new_line;
 extern size_t mode,stack_id;
 extern std::ofstream stream;
 
@@ -247,7 +247,8 @@ extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_
 extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
 extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_local_pp;
 extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_global_pp;
-extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_vol;
+extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_local_vol;
+extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_global_vol;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
 extern std::array<std::string,max_num_symbols> symbol_order;
