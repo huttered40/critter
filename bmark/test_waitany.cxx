@@ -1,4 +1,4 @@
-#include "critter.hpp"
+#include "critter.h"
 #include <stdio.h>
 
 int main(int argc, char **argv){
