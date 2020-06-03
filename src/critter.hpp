@@ -18,6 +18,8 @@ constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measur
 constexpr auto mode_1_width = 25;
 constexpr auto mode_2_width = 15;
 
+void init();
+void finalize();
 void complete_path_update();
 void update_critical_path(double* data);
 void compute_volume(MPI_Comm cm);
@@ -325,34 +327,7 @@ extern double waitall_comp_time;
      assert(critter::breakdown_size == critter::breakdown.count());\
      assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init(argc,argv);\
-     critter::internal::mode=0;\
-     critter::internal::stack_id=0;\
-     critter::internal::flag = 0;\
-     critter::internal::file_name="";\
-     critter::internal::stream_name="";\
-     if (std::getenv("CRITTER_VIZ_FILE") != NULL){\
-       critter::internal::flag = 1;\
-       critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
-       critter::internal::stream_name = critter::internal::file_name + ".txt";\
-     }\
-     critter::internal::is_first_iter = true;\
-     critter::internal::need_new_line = false;\
-     int _critter_rank,_critter_size;\
-     MPI_Comm_rank(MPI_COMM_WORLD,&_critter_rank);\
-     MPI_Comm_size(MPI_COMM_WORLD,&_critter_size);\
-     critter::internal::synch_pad_send.resize(_critter_size);\
-     critter::internal::synch_pad_recv.resize(_critter_size);\
-     critter::internal::barrier_pad_send.resize(_critter_size);\
-     critter::internal::barrier_pad_recv.resize(_critter_size);\
-     if (_critter_rank == 0){\
-       critter::internal::is_world_root = true;\
-     } else {critter::internal::is_world_root=false;}\
-     if (critter::internal::flag == 1){\
-       if (_critter_rank==0){\
-         critter::internal::stream.open(critter::internal::stream_name.c_str());\
-       }\
-     } else{\
-     }\
+     critter::internal::init();\
   } while (0)
 
 #define MPI_Init_thread(argc, argv, required, provided)\
@@ -360,43 +335,12 @@ extern double waitall_comp_time;
      assert(critter::breakdown_size == critter::breakdown.count());\
      assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
-     critter::internal::mode=0;\
-     critter::internal::stack_id=0;\
-     critter::internal::flag = 0;\
-     critter::internal::file_name="";\
-     critter::internal::stream_name="";\
-     if (std::getenv("CRITTER_VIZ_FILE") != NULL){\
-       critter::internal::flag = 1;\
-       critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
-       critter::internal::stream_name = critter::internal::file_name + ".txt";\
-     }\
-     critter::internal::is_first_iter = true;\
-     critter::internal::need_new_line = false;\
-     int _critter_rank,_critter_size;\
-     MPI_Comm_rank(MPI_COMM_WORLD,&_critter_rank);\
-     MPI_Comm_size(MPI_COMM_WORLD,&_critter_size);\
-     critter::internal::synch_pad_send.resize(_critter_size);\
-     critter::internal::synch_pad_recv.resize(_critter_size);\
-     critter::internal::barrier_pad_send.resize(_critter_size);\
-     critter::internal::barrier_pad_recv.resize(_critter_size);\
-     if (_critter_rank == 0){\
-       critter::internal::is_world_root = true;\
-     } else {critter::internal::is_world_root=false;}\
-     if (critter::internal::flag == 1){\
-       if (_critter_rank==0){\
-         critter::internal::stream.open(critter::internal::stream_name.c_str());\
-       }\
-     } else{\
-     }\
+     critter::internal::init();\
    } while (0)
 
 #define MPI_Finalize()\
   do {\
-    if (critter::internal::is_world_root){\
-      if (critter::internal::flag == 1){\
-        critter::internal::stream.close();\
-      }\
-    }\
+    critter::internal::finalize();\
     PMPI_Finalize();\
     } while (0)
 

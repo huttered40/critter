@@ -1,4 +1,8 @@
 #include "critter.h"
+#include <cstring>
+#include <cmath>
+#include <fstream>
+#include <iostream>
 
 namespace critter{
 namespace internal{
@@ -275,6 +279,44 @@ double_int timer_info_sender[num_critical_path_measures];
 double_int timer_info_receiver[num_critical_path_measures];
 bool wait_id,waitall_id;
 double waitall_comp_time;
+
+void init(){
+  mode=0;
+  stack_id=0;
+  flag = 0;
+  file_name="";
+  stream_name="";
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    flag = 1;
+    file_name = std::getenv("CRITTER_VIZ_FILE");
+    stream_name = file_name + ".txt";
+  }
+  is_first_iter = true;
+  need_new_line = false;
+  int _critter_rank,_critter_size;
+  MPI_Comm_rank(MPI_COMM_WORLD,&_critter_rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&_critter_size);
+  synch_pad_send.resize(_critter_size);
+  synch_pad_recv.resize(_critter_size);
+  barrier_pad_send.resize(_critter_size);
+  barrier_pad_recv.resize(_critter_size);
+  if (_critter_rank == 0){
+    is_world_root = true;
+  } else {is_world_root=false;}
+  if (flag == 1){
+    if (_critter_rank==0){
+      stream.open(stream_name.c_str());
+    }
+  } else{}
+}
+
+void finalize(){
+  if (is_world_root){
+    if (flag == 1){
+      stream.close();
+    }
+  }
+}
 
 void tracker::init(){
   this->last_start_time  = -1.;

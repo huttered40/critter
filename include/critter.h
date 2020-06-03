@@ -2,9 +2,6 @@
 #define __CRITTER_H__
 
 #include <mpi.h>
-#include <cstring>
-#include <fstream>
-#include <iostream>
 #include <algorithm>
 #include <utility>
 #include <iomanip>
@@ -16,7 +13,6 @@
 #include <map>
 #include <unordered_map>
 #include <bitset>
-#include <cmath>
 #include <assert.h>
 
 namespace critter{
