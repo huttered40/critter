@@ -432,16 +432,18 @@ void complete_path_update(){
 
 void blocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int partner1, int partner2){
 
-  bool is_p2p = this->tag>=13;
-  if (comm_pattern_table1.find(std::make_pair(this->tag,cm)) == comm_pattern_table1.end()){
-    comm_pattern_table1.insert(std::make_pair(this->tag,cm));
-  }
-  if (is_p2p){
-    if (p2p_table.find(std::make_pair(cm,partner1)) == p2p_table.end()){
-      p2p_table.insert(std::make_pair(cm,partner1));
+  if (mode>=3){
+    bool is_p2p = this->tag>=13;
+    if (comm_pattern_table1.find(std::make_pair(this->tag,cm)) == comm_pattern_table1.end()){
+      comm_pattern_table1.insert(std::make_pair(this->tag,cm));
     }
+    if (is_p2p){
+      if (p2p_table.find(std::make_pair(cm,partner1)) == p2p_table.end()){
+        p2p_table.insert(std::make_pair(cm,partner1));
+      }
+    }
+    comm_pattern_seq.push_back(std::make_pair(std::make_pair(this->tag,cm),partner1));
   }
-  comm_pattern_seq.push_back(std::make_pair(std::make_pair(this->tag,cm),partner1));
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   this->save_comp_time    = curTime - computation_timer;
@@ -640,16 +642,18 @@ void blocking::stop(){
 // Called by both nonblocking p2p and nonblocking collectives
 void nonblocking::start(volatile double curTime, volatile double iTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner){
 
-  bool is_p2p = this->tag<20;
-  if (comm_pattern_table1.find(std::make_pair(this->tag,cm)) == comm_pattern_table1.end()){
-    comm_pattern_table1.insert(std::make_pair(this->tag,cm));
-  }
-  if (is_p2p){
-    if (p2p_table.find(std::make_pair(cm,partner)) == p2p_table.end()){
-      p2p_table.insert(std::make_pair(cm,partner));
+  if (mode>=3){
+    bool is_p2p = this->tag<20;
+    if (comm_pattern_table1.find(std::make_pair(this->tag,cm)) == comm_pattern_table1.end()){
+      comm_pattern_table1.insert(std::make_pair(this->tag,cm));
     }
+    if (is_p2p){
+      if (p2p_table.find(std::make_pair(cm,partner)) == p2p_table.end()){
+        p2p_table.insert(std::make_pair(cm,partner));
+      }
+    }
+    comm_pattern_seq.push_back(std::make_pair(std::make_pair(this->tag,cm),partner));
   }
-  comm_pattern_seq.push_back(std::make_pair(std::make_pair(this->tag,cm),partner));
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   this->save_comp_time = curTime - computation_timer + iTime;
