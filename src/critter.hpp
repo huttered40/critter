@@ -211,10 +211,10 @@ class ftimer{
 };
 
 
-extern std::string stream_name,file_name;
+extern std::string stream_name,pattern_stream_name,file_name;
 extern bool flag,is_first_iter,is_world_root,need_new_line;
 extern size_t mode,stack_id;
-extern std::ofstream stream;
+extern std::ofstream stream,pattern_stream;
 
 extern double computation_timer;
 extern std::map<MPI_Request,bool> internal_comm_info;
@@ -256,6 +256,9 @@ extern double_int timer_info_sender[num_critical_path_measures];
 extern double_int timer_info_receiver[num_critical_path_measures];
 extern bool wait_id,waitall_id;
 extern double waitall_comp_time;
+extern std::set<std::pair<int,int>> comm_pattern_table1;
+extern std::set<std::pair<int,int>> p2p_table;
+extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
 }
 }
 
@@ -330,10 +333,12 @@ extern double waitall_comp_time;
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
+     critter::internal::pattern_stream_name="";\
      if (std::getenv("CRITTER_VIZ_FILE") != NULL){\
        critter::internal::flag = 1;\
        critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
        critter::internal::stream_name = critter::internal::file_name + ".txt";\
+       critter::internal::pattern_stream_name = critter::internal::file_name + "_pattern.txt";\
      }\
      critter::internal::is_first_iter = true;\
      critter::internal::need_new_line = false;\
@@ -350,6 +355,7 @@ extern double waitall_comp_time;
      if (critter::internal::flag == 1){\
        if (_critter_rank==0){\
          critter::internal::stream.open(critter::internal::stream_name.c_str());\
+         critter::internal::pattern_stream.open(critter::internal::pattern_stream_name.c_str());\
        }\
      } else{\
      }\
@@ -365,10 +371,12 @@ extern double waitall_comp_time;
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
+     critter::internal::pattern_stream_name="";\
      if (std::getenv("CRITTER_VIZ_FILE") != NULL){\
        critter::internal::flag = 1;\
        critter::internal::file_name = std::getenv("CRITTER_VIZ_FILE");\
        critter::internal::stream_name = critter::internal::file_name + ".txt";\
+       critter::internal::pattern_stream_name = critter::internal::file_name + "_pattern.txt";\
      }\
      critter::internal::is_first_iter = true;\
      critter::internal::need_new_line = false;\
@@ -385,6 +393,7 @@ extern double waitall_comp_time;
      if (critter::internal::flag == 1){\
        if (_critter_rank==0){\
          critter::internal::stream.open(critter::internal::stream_name.c_str());\
+         critter::internal::pattern_stream.open(critter::internal::pattern_stream_name.c_str());\
        }\
      } else{\
      }\
@@ -395,6 +404,7 @@ extern double waitall_comp_time;
     if (critter::internal::is_world_root){\
       if (critter::internal::flag == 1){\
         critter::internal::stream.close();\
+        critter::internal::pattern_stream.close();\
       }\
     }\
     PMPI_Finalize();\

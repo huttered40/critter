@@ -230,8 +230,8 @@ tracker* list[list_size] = {
         &_MPI_Ialltoall,
         &_MPI_Ialltoallv};
 
-std::string stream_name,file_name;
-std::ofstream stream;
+std::string stream_name,pattern_stream_name,file_name;
+std::ofstream stream,pattern_stream;
 bool flag,is_world_root,is_first_iter,need_new_line;
 size_t mode,stack_id;
 
@@ -275,6 +275,9 @@ double_int timer_info_sender[num_critical_path_measures];
 double_int timer_info_receiver[num_critical_path_measures];
 bool wait_id,waitall_id;
 double waitall_comp_time;
+std::set<std::pair<int,int>> comm_pattern_table1;
+std::set<std::pair<int,int>> p2p_table;
+std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
 
 void tracker::init(){
   this->last_start_time  = -1.;
@@ -428,6 +431,18 @@ void complete_path_update(){
 }
 
 void blocking::start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender, int partner1, int partner2){
+
+  bool is_p2p = this->tag>=13;
+  if (comm_pattern_table1.find(std::make_pair(this->tag,cm)) == comm_pattern_table1.end()){
+    comm_pattern_table1.insert(std::make_pair(this->tag,cm));
+  }
+  if (is_p2p){
+    if (p2p_table.find(std::make_pair(cm,partner1)) == p2p_table.end()){
+      p2p_table.insert(std::make_pair(cm,partner1));
+    }
+  }
+  comm_pattern_seq.push_back(std::make_pair(std::make_pair(this->tag,cm),partner1));
+
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   this->save_comp_time    = curTime - computation_timer;
   critical_path_costs[num_critical_path_measures-2] += this->save_comp_time;	// update critical path computation time
@@ -624,6 +639,18 @@ void blocking::stop(){
 
 // Called by both nonblocking p2p and nonblocking collectives
 void nonblocking::start(volatile double curTime, volatile double iTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner){
+
+  bool is_p2p = this->tag<20;
+  if (comm_pattern_table1.find(std::make_pair(this->tag,cm)) == comm_pattern_table1.end()){
+    comm_pattern_table1.insert(std::make_pair(this->tag,cm));
+  }
+  if (is_p2p){
+    if (p2p_table.find(std::make_pair(cm,partner)) == p2p_table.end()){
+      p2p_table.insert(std::make_pair(cm,partner));
+    }
+  }
+  comm_pattern_seq.push_back(std::make_pair(std::make_pair(this->tag,cm),partner));
+
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   this->save_comp_time = curTime - computation_timer + iTime;
   critical_path_costs[num_critical_path_measures-2] += this->save_comp_time;		// update critical path computation time
@@ -1491,6 +1518,24 @@ void record(std::ofstream& Stream, size_t factor){
   if (mode>=0){
     auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
     if (is_world_root){
+      if (mode>=3){
+        pattern_stream << "\n\n";
+        pattern_stream << "Number of unique communication patterns for rank 0: " << comm_pattern_table1.size() << std::endl;
+        pattern_stream << "Number of unique p2p communication patterns for rank 0: " << p2p_table.size() << std::endl;
+        for (auto& it : comm_pattern_table1){
+          pattern_stream << "\t" << it.first << " " << it.second << std::endl;
+          if (it.first >= 13){
+            for (auto& it_p2p : p2p_table){
+              pattern_stream << "\t\t" << it_p2p.first << " " << it_p2p.second << std::endl;
+            }
+          }
+        }
+        pattern_stream << "Number of communication events for rank 0: " << comm_pattern_seq.size() << std::endl;
+        for (auto& it : comm_pattern_seq){
+          pattern_stream << it.first.first << " " << it.first.second << " " << it.second << std::endl;
+        }
+      }
+
       auto inputs = parse_file_string();
       for (int i=0; i<list_size; i++){
         list[i]->set_header();
@@ -1869,7 +1914,7 @@ void record(std::ostream& Stream, size_t factor){
 void start(size_t mode){
   internal::stack_id++;
   if (internal::stack_id>1) { return; }
-  assert(mode>=0 && mode < 3); assert(internal::internal_comm_info.size() == 0);
+  assert(mode>=0 && mode<=3); assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true; internal::waitall_id=false; internal::mode=mode;
   // TODO: How to allow different number of cost models. Perhaps just put an assert that both cost models must be on? Or don't use these altogether?
   for (int i=0; i<internal::list_size; i++){ internal::list[i]->init(); }
@@ -1906,6 +1951,7 @@ void stop(size_t mode, size_t factor){
   for (auto i=0; i<internal::critical_path_costs.size(); i++){ internal::critical_path_costs[i]=0.; }
   for (auto i=0; i<internal::max_per_process_costs.size(); i++){ internal::max_per_process_costs[i]=0.; }
   for (auto i=0; i<internal::volume_costs.size(); i++){ internal::volume_costs[i]=0.; }
+  internal::comm_pattern_table1.clear(); internal::p2p_table.clear(); internal::comm_pattern_seq.clear();
   internal::need_new_line=false; internal::symbol_timers.clear();
 }
 };
