@@ -4,20 +4,6 @@
 namespace critter{
 namespace internal{
 
-constexpr auto list_size 				= 32;				// numbers of tracked MPI routines
-constexpr auto num_critical_path_measures 		= 5+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
-constexpr auto num_per_process_measures 		= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
-constexpr auto num_volume_measures 			= 6+2*cost_model_size;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
-constexpr auto num_tracker_critical_path_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
-constexpr auto num_tracker_per_process_measures 	= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime,
-constexpr auto num_tracker_volume_measures 		= 3+2*cost_model_size;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime,
-constexpr auto num_ftimer_measures                      = 2;				// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
-constexpr auto critical_path_costs_size = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+breakdown_size;
-constexpr auto per_process_costs_size = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+2*breakdown_size;
-constexpr auto volume_costs_size = num_volume_measures+num_tracker_volume_measures*list_size;
-constexpr auto mode_1_width = 25;
-constexpr auto mode_2_width = 15;
-
 void complete_path_update();
 void update_critical_path(double* data);
 void compute_volume(MPI_Comm cm);
@@ -172,6 +158,7 @@ extern nonblocking
          _MPI_Ialltoall,
          _MPI_Ialltoallv;
 
+constexpr auto list_size=32;
 extern tracker* list[list_size];
 
 struct double_int{
@@ -196,26 +183,43 @@ class ftimer{
 
     std::string name;
     std::stack<double> start_timer;
-    std::array<double,num_critical_path_measures> cp_exclusive_contributions;
-    std::array<double,num_per_process_measures> pp_exclusive_contributions;
-    std::array<double,num_critical_path_measures> cp_exclusive_measure;
-    std::array<double,num_per_process_measures> pp_exclusive_measure;
+    std::vector<double> cp_exclusive_contributions;
+    std::vector<double> pp_exclusive_contributions;
+    std::vector<double> cp_exclusive_measure;
+    std::vector<double> pp_exclusive_measure;
     double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
-    std::array<double*,num_critical_path_measures> cp_incl_measure;
-    std::array<double*,num_critical_path_measures> cp_excl_measure;
-    std::array<double*,num_per_process_measures> pp_incl_measure;
-    std::array<double*,num_per_process_measures> pp_excl_measure;
-    std::array<double*,num_volume_measures> vol_incl_measure;
-    std::array<double*,num_volume_measures> vol_excl_measure;
+    std::vector<double*> cp_incl_measure;
+    std::vector<double*> cp_excl_measure;
+    std::vector<double*> pp_incl_measure;
+    std::vector<double*> pp_excl_measure;
+    std::vector<double*> vol_incl_measure;
+    std::vector<double*> vol_excl_measure;
     bool has_been_processed;
 };
 
 
+extern size_t num_ftimer_measures;			// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
+extern size_t mode_1_width;
+extern size_t mode_2_width;
+extern size_t max_num_symbols;
+extern size_t max_timer_name_length;
+extern size_t cost_model_size;
+extern size_t breakdown_size;
+extern std::vector<char> cost_models;
+extern std::vector<char> breakdown;
+extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
+extern size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
+extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
+extern size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
+extern size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
+extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
+extern size_t critical_path_costs_size;
+extern size_t per_process_costs_size;
+extern size_t volume_costs_size;
 extern std::string stream_name,pattern_stream_name,file_name;
 extern bool flag,is_first_iter,is_world_root,need_new_line;
 extern size_t mode,stack_id;
 extern std::ofstream stream,pattern_stream;
-
 extern double computation_timer;
 extern std::map<MPI_Request,bool> internal_comm_info;
 extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
@@ -228,37 +232,43 @@ extern std::vector<double*> internal_timer_prop_double;
 extern std::vector<double_int*> internal_timer_prop_double_int;
 extern std::vector<char*> internal_timer_prop_char;
 extern std::vector<MPI_Request> internal_timer_prop_req;
-extern bool decisions[breakdown_size];
-extern std::array<double,critical_path_costs_size> critical_path_costs;
-extern std::array<double,per_process_costs_size> max_per_process_costs;
-extern std::array<double,volume_costs_size> volume_costs;
+extern std::vector<bool> decisions;
+extern std::vector<double> critical_path_costs;
+extern std::vector<double> max_per_process_costs;
+extern std::vector<double> volume_costs;
 extern std::map<std::string,std::vector<double>> save_info;
-extern double new_cs[critical_path_costs_size];
+extern std::vector<double> new_cs;
 extern double scratch_pad;
 extern std::vector<char> synch_pad_send;
 extern std::vector<char> synch_pad_recv;
 extern std::vector<char> barrier_pad_send;
 extern std::vector<char> barrier_pad_recv;
-extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad_cp;
-extern std::array<char,max_timer_name_length*max_num_symbols> symbol_pad_ncp;
-extern std::array<int,max_num_symbols> symbol_len_pad_cp;
-extern std::array<int,max_num_symbols> symbol_len_pad_ncp;
-extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_local_cp;
-extern std::array<double,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols> symbol_timer_pad_global_cp;
-extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_local_pp;
-extern std::array<double,(num_ftimer_measures*num_per_process_measures+1)*max_num_symbols> symbol_timer_pad_global_pp;
-extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_local_vol;
-extern std::array<double,(num_ftimer_measures*num_volume_measures+1)*max_num_symbols> symbol_timer_pad_global_vol;
+extern std::vector<char> symbol_pad_cp;
+extern std::vector<char> symbol_pad_ncp;
+extern std::vector<int> symbol_len_pad_cp;
+extern std::vector<int> symbol_len_pad_ncp;
+extern std::vector<double> symbol_timer_pad_local_cp;
+extern std::vector<double> symbol_timer_pad_global_cp;
+extern std::vector<double> symbol_timer_pad_local_pp;
+extern std::vector<double> symbol_timer_pad_global_pp;
+extern std::vector<double> symbol_timer_pad_local_vol;
+extern std::vector<double> symbol_timer_pad_global_vol;
 extern std::unordered_map<std::string,ftimer> symbol_timers;
 extern std::stack<std::string> symbol_stack;
-extern std::array<std::string,max_num_symbols> symbol_order;
-extern double_int timer_info_sender[num_critical_path_measures];
-extern double_int timer_info_receiver[num_critical_path_measures];
+extern std::vector<std::string> symbol_order;
+extern std::vector<double_int> timer_info_sender;
+extern std::vector<double_int> timer_info_receiver;
 extern bool wait_id,waitall_id;
 extern double waitall_comp_time;
 extern std::set<std::pair<int,int>> comm_pattern_table1;
 extern std::set<std::pair<int,int>> p2p_table;
 extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
+extern int internal_tag;
+extern int internal_tag1;
+extern int internal_tag2;
+extern int internal_tag3;
+extern int internal_tag4;
+extern int internal_tag5;
 }
 }
 
@@ -274,7 +284,8 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
     }\
     else{\
       critter::internal::symbol_timers[#ARG].start(save_time);\
-    }}}while (0);
+    }\
+    }}while (0);
 
 #define CRITTER_STOP(ARG) do {\
   if (critter::internal::mode==2){\
@@ -325,11 +336,18 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
 
 #define MPI_Init(argc, argv)\
   do {\
-     assert(critter::breakdown_size == critter::breakdown.count());\
-     assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init(argc,argv);\
      critter::internal::mode=0;\
      critter::internal::stack_id=0;\
+     critter::internal::num_ftimer_measures = 2;\
+     critter::internal::mode_1_width = 25;\
+     critter::internal::mode_2_width = 15;\
+     critter::internal::internal_tag = 31133;\
+     critter::internal::internal_tag1 = critter::internal::internal_tag+1;\
+     critter::internal::internal_tag2 = critter::internal::internal_tag+2;\
+     critter::internal::internal_tag3 = critter::internal::internal_tag+3;\
+     critter::internal::internal_tag4 = critter::internal::internal_tag+4;\
+     critter::internal::internal_tag5 = critter::internal::internal_tag+5;\
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
@@ -363,11 +381,18 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
 
 #define MPI_Init_thread(argc, argv, required, provided)\
   do{\
-     assert(critter::breakdown_size == critter::breakdown.count());\
-     assert(critter::cost_model_size == critter::cost_models.count());\
      PMPI_Init_thread(argc,argv,required,provided);\
      critter::internal::mode=0;\
      critter::internal::stack_id=0;\
+     critter::internal::num_ftimer_measures = 2;\
+     critter::internal::mode_1_width = 25;\
+     critter::internal::mode_2_width = 15;\
+     critter::internal::internal_tag = 31133;\
+     critter::internal::internal_tag1 = critter::internal::internal_tag+1;\
+     critter::internal::internal_tag2 = critter::internal::internal_tag+2;\
+     critter::internal::internal_tag3 = critter::internal::internal_tag+3;\
+     critter::internal::internal_tag4 = critter::internal::internal_tag+4;\
+     critter::internal::internal_tag5 = critter::internal::internal_tag+5;\
      critter::internal::flag = 0;\
      critter::internal::file_name="";\
      critter::internal::stream_name="";\
@@ -668,9 +693,9 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(st == rt); assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
+      assert(st == rt); assert(stag != critter::internal::internal_tag); assert(rtag != critter::internal::internal_tag);\
       critter::internal::_MPI_Sendrecv.start(_critter_curTime_, std::max(scnt,rcnt), st, cm, true, dest, src);\
-      PMPI_Sendrecv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status);\
+      PMPI_Sendrecv(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal::internal_tag, &critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal::internal_tag, cm, status);\
       critter::internal::_MPI_Sendrecv.intermediate();\
       PMPI_Sendrecv(sbuf, scnt, st, dest, stag, rbuf, rcnt, rt, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv.stop();\
@@ -684,9 +709,9 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(stag != critter::internal_tag); assert(rtag != critter::internal_tag);\
+      assert(stag != critter::internal::internal_tag); assert(rtag != critter::internal::internal_tag);\
       critter::internal::_MPI_Sendrecv_replace.start(_critter_curTime_, scnt, st, cm, true, dest, src);\
-      PMPI_Sendrecv_replace(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, src, critter::internal_tag, cm, status);\
+      PMPI_Sendrecv_replace(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal::internal_tag, src, critter::internal::internal_tag, cm, status);\
       critter::internal::_MPI_Sendrecv_replace.intermediate();\
       PMPI_Sendrecv_replace(sbuf, scnt, st, dest, stag, src, rtag, cm, status);\
       critter::internal::_MPI_Sendrecv_replace.stop();\
@@ -700,9 +725,9 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(tag != critter::internal_tag);\
+      assert(tag != critter::internal::internal_tag);\
       critter::internal::_MPI_Ssend.start(_critter_curTime_, nelem, t, cm, true, dest);\
-      PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, cm);\
+      PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal::internal_tag, cm);\
       critter::internal::_MPI_Ssend.intermediate();\
       PMPI_Ssend(buf, nelem, t, dest, tag, cm);\
       critter::internal::_MPI_Ssend.stop();\
@@ -716,9 +741,9 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(tag != critter::internal_tag);\
+      assert(tag != critter::internal::internal_tag);\
       critter::internal::_MPI_Send.start(_critter_curTime_, nelem, t, cm, true, dest);\
-      PMPI_Send(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal_tag, cm);\
+      PMPI_Send(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, dest, critter::internal::internal_tag, cm);\
       critter::internal::_MPI_Send.intermediate();\
       PMPI_Send(buf, nelem, t, dest, tag, cm);\
       critter::internal::_MPI_Send.stop();\
@@ -732,9 +757,9 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(tag != critter::internal_tag);\
+      assert(tag != critter::internal::internal_tag);\
       critter::internal::_MPI_Recv.start(_critter_curTime_, nelem, t, cm, false, src);\
-      PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal_tag, cm, status);\
+      PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, src, critter::internal::internal_tag, cm, status);\
       critter::internal::_MPI_Recv.intermediate();\
       PMPI_Recv(buf, nelem, t, src, tag, cm, status);\
       critter::internal::_MPI_Recv.stop();\
@@ -748,7 +773,7 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(tag != critter::internal_tag);\
+      assert(tag != critter::internal::internal_tag);\
       volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Isend(buf, nelem, t, dest, tag, cm, req);\
       _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
@@ -763,7 +788,7 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime_ = MPI_Wtime();\
-      assert(tag != critter::internal_tag);\
+      assert(tag != critter::internal::internal_tag);\
       volatile double _critter_iTime_ = MPI_Wtime();\
       PMPI_Irecv(buf, nelem, t, src, tag, cm, req);\
       _critter_iTime_ = MPI_Wtime()-_critter_iTime_;\
@@ -973,7 +998,6 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
   do {\
     if (critter::internal::mode>=1){\
       volatile double _critter_curTime = MPI_Wtime(); double _critter_save_comp_time = _critter_curTime - critter::internal::computation_timer;\
-      for (auto it = critter::internal::internal_comm_track.begin(); it != critter::internal::internal_comm_track.end(); it++) std::cout << it->first << std::endl;\
       auto _critter_comm_track_it = critter::internal::internal_comm_track.find(*req);\
       assert(_critter_comm_track_it != critter::internal::internal_comm_track.end());\
       auto _critter_comm_info_it = critter::internal::internal_comm_info.find(*req);\
@@ -981,12 +1005,12 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
       MPI_Request _critter_save_request = _critter_comm_info_it->first;\
       int temp_rank; MPI_Comm_rank(_critter_comm_comm_it->second.first,&temp_rank);\
       if (_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
-        PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first);\
-        PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first);\
+        PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3, _critter_comm_comm_it->second.first);\
+        PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag, _critter_comm_comm_it->second.first);\
       }\
       else if (!_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
-        PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
-        PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+        PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+        PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
       }\
       volatile double _critter_last_start_time = MPI_Wtime();\
       PMPI_Wait(req, stat);\
@@ -1017,12 +1041,12 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
             MPI_Request _critter_save_request = _critter_comm_info_it->first;\
             int temp_rank; MPI_Comm_rank(_critter_comm_comm_it->second.first,&temp_rank);\
             if (_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
-              PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first);\
-              PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first);\
+              PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3, _critter_comm_comm_it->second.first);\
+              PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag, _critter_comm_comm_it->second.first);\
             }\
             else if (!_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
-              PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
-              PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+              PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+              PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
             }\
             volatile double _critter_last_start_time = MPI_Wtime();\
             PMPI_Wait(_critter_req, _critter_stat);\
@@ -1070,12 +1094,12 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
           MPI_Request _critter_save_request = _critter_comm_info_it->first;\
           int temp_rank; MPI_Comm_rank(_critter_comm_comm_it->second.first,&temp_rank);\
           if (_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
-            PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first);\
-            PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first);\
+            PMPI_Ssend(&critter::internal::barrier_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3, _critter_comm_comm_it->second.first);\
+            PMPI_Ssend(&critter::internal::synch_pad_send[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag, _critter_comm_comm_it->second.first);\
           }\
           else if (!_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1 && temp_rank != _critter_comm_comm_it->second.second){\
-            PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
-            PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+            PMPI_Recv(&critter::internal::barrier_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
+            PMPI_Recv(&critter::internal::synch_pad_recv[0], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag, _critter_comm_comm_it->second.first, MPI_STATUS_IGNORE);\
           }\
           volatile double _critter_last_start_time = MPI_Wtime();\
           PMPI_Wait(_critter_req, _critter_stat);\
@@ -1113,15 +1137,15 @@ extern std::vector<std::pair<std::pair<int,int>,int>> comm_pattern_seq;
         auto _critter_comm_comm_it = critter::internal::internal_comm_comm.find(*(reqs+_critter_i));\
         assert(_critter_comm_comm_it != critter::internal::internal_comm_comm.end());\
         if (_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1){\
-          PMPI_Isend(&critter::internal::barrier_pad_send[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3,\
+          PMPI_Isend(&critter::internal::barrier_pad_send[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3,\
             _critter_comm_comm_it->second.first, &_critter_internal_requests[2*_critter_i]);\
-          PMPI_Isend(&critter::internal::synch_pad_send[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag,\
+          PMPI_Isend(&critter::internal::synch_pad_send[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag,\
             _critter_comm_comm_it->second.first, &_critter_internal_requests[2*_critter_i+1]);\
         }\
         else if (!_critter_comm_info_it->second && _critter_comm_comm_it->second.second != -1){\
-          PMPI_Irecv(&critter::internal::barrier_pad_recv[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag3,\
+          PMPI_Irecv(&critter::internal::barrier_pad_recv[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag3,\
             _critter_comm_comm_it->second.first, &_critter_internal_requests[2*_critter_i]);\
-          PMPI_Irecv(&critter::internal::synch_pad_recv[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal_tag,\
+          PMPI_Irecv(&critter::internal::synch_pad_recv[_critter_i], 1, MPI_CHAR, _critter_comm_comm_it->second.second, critter::internal::internal_tag,\
             _critter_comm_comm_it->second.first, &_critter_internal_requests[2*_critter_i+1]);\
         }\
       }\
