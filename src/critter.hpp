@@ -275,7 +275,7 @@ extern int internal_tag5;
 // *****************************************************************************************************************************************************************
 
 #define CRITTER_START(ARG) do {\
-  if (critter::internal::mode==2){\
+  if (critter::internal::mode>=2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
       critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
@@ -288,14 +288,14 @@ extern int internal_tag5;
     }}while (0);
 
 #define CRITTER_STOP(ARG) do {\
-  if (critter::internal::mode==2){\
+  if (critter::internal::mode>=2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
     else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
     }}while (0);
 
 #define TAU_START(ARG) do {\
-  if (critter::internal::mode==2){\
+  if (critter::internal::mode>=2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
       critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
@@ -307,14 +307,14 @@ extern int internal_tag5;
     }}}while (0);
 
 #define TAU_STOP(ARG) do {\
-  if (critter::internal::mode==2){\
+  if (critter::internal::mode>=2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
     else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
     }}while (0);
 
 #define TAU_FSTART(ARG) do {\
-  if (critter::internal::mode==2){\
+  if (critter::internal::mode>=2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){\
       critter::internal::symbol_timers[#ARG] = critter::internal::ftimer(#ARG);\
@@ -326,7 +326,7 @@ extern int internal_tag5;
     }}}while (0);
 
 #define TAU_FSTOP(ARG) do {\
-  if (critter::internal::mode==2){\
+  if (critter::internal::mode>=2){\
     auto save_time = MPI_Wtime();\
     if (critter::internal::symbol_timers.find(#ARG) == critter::internal::symbol_timers.end()){ assert(0); }\
     else{ critter::internal::symbol_timers[#ARG].stop(save_time); }\
