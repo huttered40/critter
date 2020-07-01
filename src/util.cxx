@@ -61,8 +61,8 @@ std::vector<double> symbol_timer_pad_local_vol;
 std::vector<double> symbol_timer_pad_global_vol;
 std::stack<std::string> symbol_stack;
 std::vector<std::string> symbol_order;
-std::vector<double_int> timer_info_sender;
-std::vector<double_int> timer_info_receiver;
+std::vector<double_int> info_sender;
+std::vector<double_int> info_receiver;
 bool wait_id,waitall_id;
 double waitall_comp_time;
 std::set<std::pair<int,int>> comm_pattern_table1;
@@ -74,5 +74,7 @@ int internal_tag2;
 int internal_tag3;
 int internal_tag4;
 int internal_tag5;
+size_t track_collective;
+size_t track_p2p;
 }
 }

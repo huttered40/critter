@@ -29,36 +29,41 @@ void complete(blocking& tracker){
   }
 }
 
-void wait(double curtime, MPI_Request* request, MPI_Status* status){
+void complete(double curtime, MPI_Request* request, MPI_Status* status){
   switch (mechanism){
     case 0:
-      forward_pass::wait(curtime,request,status);
+      forward_pass::complete(curtime,request,status);
       break;
   }
 }
 
-void wait(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+void complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   switch (mechanism){
     case 0:
-      forward_pass::wait(curtime,count,array_of_requests,indx,status);
+      forward_pass::complete(curtime,count,array_of_requests,indx,status);
       break;
   }
 }
 
-void wait(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+void complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
-      forward_pass::wait(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      forward_pass::complete(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
       break;
   }
 }
 
-void wait(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
-      forward_pass::wait(curtime,count,array_of_requests,array_of_statuses);
+      forward_pass::complete(curtime,count,array_of_requests,array_of_statuses);
       break;
   }
+}
+
+void propagate(MPI_Comm comm){
+  _MPI_Barrier.comm = comm;
+  forward_pass::propagate(_MPI_Barrier);
 }
 
 }

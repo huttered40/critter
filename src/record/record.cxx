@@ -54,8 +54,8 @@ void print_cost_model_header(std::ostream& Stream){
     Stream << std::left << std::setw(mode_1_width) << "BSPSynchCost";
   }
   if (cost_models[1]=='1'){
-    Stream << std::left << std::setw(mode_1_width) << "ABbutterflyCommCost";
-    Stream << std::left << std::setw(mode_1_width) << "ABbutterflySynchCost";
+    Stream << std::left << std::setw(mode_1_width) << "ABCommCost";
+    Stream << std::left << std::setw(mode_1_width) << "ABSynchCost";
   }
 }
 
@@ -65,8 +65,8 @@ void print_cost_model_header_file(std::ofstream& Stream){
     Stream << "\tBSPSynchCost";
   }
   if (cost_models[1]=='1'){
-    Stream << "\tABbutterflyCommCost";
-    Stream << "\tABbutterflySynchCost";
+    Stream << "\tABCommCost";
+    Stream << "\tABSynchCost";
   }
 }
 

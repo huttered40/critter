@@ -12,10 +12,11 @@ void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Dat
 void initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
               MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender=false, int partner=-1);
 void complete(blocking& tracker);
-void wait(double curtime, MPI_Request* request, MPI_Status* status);
-void wait(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
-void wait(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
-void wait(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
+void complete(double curtime, MPI_Request* request, MPI_Status* status);
+void complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
+void complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
+void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
+void propagate(MPI_Comm comm);
 
 }
 }

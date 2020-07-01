@@ -8,22 +8,23 @@ namespace internal{
 
 class forward_pass{
 public:
-  static void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+  static void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                        bool is_sender, int partner1, int partner2);
   static void initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
-                       MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner);
+                       MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner);
   static void complete(blocking& tracker);
-  static void wait(double curtime, MPI_Request* request, MPI_Status* status);
-  static void wait(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
-  static void wait(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
-  static void wait(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
-  static void propagate(MPI_Comm cm, int tag, bool is_sender, int partner1, int partner2);
+  static void complete(double curtime, MPI_Request* request, MPI_Status* status);
+  static void complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
+  static void complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
+  static void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
+  static void propagate(blocking& tracker);
+  static void propagate(nonblocking& tracker);
 
 private:
-  static void wait(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
+  static void complete(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
   static void complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time);
-  static void initiate_timers(int rank, int tag, MPI_Comm cm, int partner1, int partner2);
-  static void propagate_timers(int rank, int tag, MPI_Comm cm, int partner1, int partner2);
+  static void propagate_symbols(blocking& tracker, int rank);
+  static void propagate_symbols(nonblocking& tracker, int rank);
 };
 
 }

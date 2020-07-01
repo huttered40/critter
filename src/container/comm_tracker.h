@@ -35,30 +35,28 @@ class comm_tracker{
     double* critical_path_wrd_count;
     /* \brief function for cost model of MPI routine in bsp cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<double,double>(int64_t,int) > cost_func_bsp;
-    /* \brief function for cost model of MPI routine in alpha-beta butterfly cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
-    std::function< std::pair<double,double>(int64_t,int) > cost_func_alphabeta_butterfly;
+    /* \brief function for cost model of MPI routine in alpha-beta cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
+    std::function< std::pair<double,double>(int64_t,int) > cost_func_alphabeta;
     /* \brief duration of computation time for each call made locally, used to save the local computation time between calls to ::start and ::stop variants */
-    double save_comp_time;
-    /* \brief variable to save time across start and stop tracking */
-    volatile double save_time;
+    double comp_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile double last_start_time;
+    volatile double start_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile double last_synch_time;
+    volatile double synch_time;
     /* \brief save barrier time across start_synch */
-    volatile double last_barrier_time;
+    volatile double barrier_time;
     /* \brief cm with which start() was last called */
-    MPI_Comm last_cm;
+    MPI_Comm comm;
     /* \brief partner with which start() was last called */
-    int last_partner1;
+    int partner1;
     /* \brief partner with which start() was last called */
-    int last_partner2;
+    int partner2;
     /* \brief nbytes with which start() was last called */
-    int64_t last_nbytes;
+    int64_t nbytes;
     /* \brief process count with which start() was last called */
-    int last_p;
+    int comm_size;
     /* \brief is_sender bool with which start() was last called */
-    bool last_is_sender;
+    bool is_sender;
     /** \brief initialization of state called by construtors */
     void init();
     /** */
@@ -80,13 +78,13 @@ public:
      * \param[in] name symbol name of MPI routine
      * \param[in] tag integer id of MPI routine
      * \param[in] cost_func_bsp function for simple cost model of MPI routine
-     * \param[in] cost_func_alphabeta_butterfly function for alpha-beta cost model of MPI routine assuming butterfly algorithms
+     * \param[in] cost_func_alphabeta function for alpha-beta cost model of MPI routine assuming (synchronization-efficient collective communication algorithms)
      */
     blocking(std::string name, int tag,
             std::function< std::pair<double,double>(int64_t,int)> 
               cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
+              cost_func_alphabeta = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
             );
     /** \brief copy constructor */
     blocking(blocking const& t);
@@ -105,13 +103,13 @@ public:
      * \param[in] name symbol name of MPI routine
      * \param[in] tag integer id of MPI routine
      * \param[in] cost_func_bsp function for simple cost model of MPI routine
-     * \param[in] cost_func_alphabeta_butterfly function for alpha-beta cost model of MPI routine assuming butterfly algorithms
+     * \param[in] cost_func_alphabeta function for alpha-beta cost model of MPI routine assuming (synchronization-efficient collective communication algorithms)
      */
     nonblocking(std::string name, int tag,
             std::function< std::pair<double,double>(int64_t,int)> 
               cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
             std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta_butterfly = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
+              cost_func_alphabeta = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
                );
     /** \brief copy constructor */
     nonblocking(nonblocking const& t);

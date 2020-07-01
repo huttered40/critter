@@ -234,8 +234,10 @@ comm_tracker* list[list_size] = {
 
 void comm_tracker::init(){
   this->set_cost_pointers();
-  this->last_start_time  = -1.;
-  this->save_comp_time   = 0.;
+  this->start_time  = -1.;
+  this->comp_time   = 0.;
+  this->partner1    = -1;
+  this->partner2    = -1;
 }
 
 void comm_tracker::set_cost_pointers(){
@@ -328,31 +330,31 @@ void comm_tracker::set_per_process_costs(size_t idx){
 }
 
 blocking::blocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly){
+                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta){
   this->cost_func_bsp              = cost_func_bsp;
-  this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
+  this->cost_func_alphabeta = cost_func_alphabeta;
   this->name = std::move(name_);
   this->tag = tag;
 }
 
 blocking::blocking(blocking const& t){
   this->cost_func_bsp                 = t.cost_func_bsp;
-  this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
+  this->cost_func_alphabeta = t.cost_func_alphabeta;
   this->name = t.name;
   this->tag = t.tag;
 }
 
 nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta_butterfly){
+                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta){
   this->cost_func_bsp                 = cost_func_bsp;
-  this->cost_func_alphabeta_butterfly = cost_func_alphabeta_butterfly;
+  this->cost_func_alphabeta = cost_func_alphabeta;
   this->name = std::move(name_);
   this->tag = tag;
 }
 
 nonblocking::nonblocking(nonblocking const& t){
   this->cost_func_bsp                 = t.cost_func_bsp;
-  this->cost_func_alphabeta_butterfly = t.cost_func_alphabeta_butterfly;
+  this->cost_func_alphabeta = t.cost_func_alphabeta;
   this->name = t.name;
   this->tag = t.tag;
 }

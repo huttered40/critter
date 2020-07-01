@@ -90,8 +90,8 @@ extern std::vector<double> symbol_timer_pad_local_vol;
 extern std::vector<double> symbol_timer_pad_global_vol;
 extern std::stack<std::string> symbol_stack;
 extern std::vector<std::string> symbol_order;
-extern std::vector<double_int> timer_info_sender;
-extern std::vector<double_int> timer_info_receiver;
+extern std::vector<double_int> info_sender;
+extern std::vector<double_int> info_receiver;
 extern bool wait_id,waitall_id;
 extern double waitall_comp_time;
 extern std::set<std::pair<int,int>> comm_pattern_table1;
@@ -103,6 +103,8 @@ extern int internal_tag2;
 extern int internal_tag3;
 extern int internal_tag4;
 extern int internal_tag5;
+extern size_t track_collective;
+extern size_t track_p2p;
 }
 }
 
