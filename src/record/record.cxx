@@ -83,7 +83,7 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
   Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
   Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// volume
-  for (auto i=0; i<num_tracker_critical_path_measures*breakdown_size+num_tracker_per_process_measures*breakdown_size+num_tracker_volume_measures;i++){
+  for (auto i=0; i<num_tracker_critical_path_measures*comm_path_select_size+num_tracker_per_process_measures*comm_path_select_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
     }
@@ -140,8 +140,8 @@ void record(std::ofstream& Stream){
         }
       }
       size_t breakdown_idx=0;
-      for (auto i=0; i<breakdown.size(); i++){	// no idle time
-        if (breakdown[i]=='0') continue;
+      for (auto i=0; i<comm_path_select.size(); i++){	// no idle time
+        if (comm_path_select[i]=='0') continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
           list[j]->set_per_process_costs(breakdown_idx);
@@ -156,15 +156,15 @@ void record(std::ofstream& Stream){
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<breakdown.size(); i++){
-        if (breakdown[i]=='0') continue;
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];// comp time
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-2*breakdown_size+breakdown_idx];// idle time
+      for (auto i=0; i<comm_path_select.size(); i++){
+        if (comm_path_select[i]=='0') continue;
+        Stream << "\t" << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];// comp time
+        Stream << "\t" << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];// idle time
         breakdown_idx++;
       }
       breakdown_idx=0;
-      for (auto i=0; i<breakdown.size(); i++){
-        if (breakdown[i]=='0') continue;
+      for (auto i=0; i<comm_path_select.size(); i++){
+        if (comm_path_select[i]=='0') continue;
         // Save the critter information before printing
         for (size_t j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
@@ -248,8 +248,8 @@ void record(std::ostream& Stream){
       Stream << "\n\n";
 
       size_t breakdown_idx=0;
-      for (auto i=0; i<breakdown.size(); i++){
-        if (breakdown[i]=='0') continue;
+      for (auto i=0; i<comm_path_select.size(); i++){
+        if (comm_path_select[i]=='0') continue;
         if (i==0){
           Stream << std::left << std::setw(mode_1_width) << "BSPCommCost max:";
         } else if (i==1){
@@ -279,12 +279,12 @@ void record(std::ostream& Stream){
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "Computation";
         Stream << std::left << std::setw(mode_1_width) << "path";
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-breakdown_size+breakdown_idx];
+        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "Idle";
         Stream << std::left << std::setw(mode_1_width) << "path";
         Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-2*breakdown_size+breakdown_idx];
+        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];
         for (int j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
         }
@@ -345,7 +345,7 @@ void record(std::ostream& Stream){
     if (is_world_root){
       Stream << "***********************************************************************************************************************";
       std::vector<std::pair<std::string,std::array<double,6>>> sort_info(symbol_timers.size());
-      for (int i=breakdown.size(); i>=0; i--){
+      for (int i=comm_path_select.size(); i>=0; i--){// We just iterate over all measures regardless of whether they are set or not.
         sort_info.clear(); sort_info.resize(symbol_timers.size());
         // Reset symbol timers and sort
         size_t j=0;

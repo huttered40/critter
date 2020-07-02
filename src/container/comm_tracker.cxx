@@ -247,13 +247,13 @@ void comm_tracker::set_cost_pointers(){
   this->my_comm_time             = &volume_costs[volume_costs_idx+2*cost_model_size];
   this->my_synch_time            = &volume_costs[volume_costs_idx+2*cost_model_size+1];
   this->my_datamvt_time          = &volume_costs[volume_costs_idx+2*cost_model_size+2];
-  if (breakdown_size>0){
-    size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*breakdown_size*num_tracker_critical_path_measures;
+  if (comm_path_select_size>0){
+    size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*comm_path_select_size*num_tracker_critical_path_measures;
     this->critical_path_wrd_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx] : &scratch_pad;
-    this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*breakdown_size] : &scratch_pad;
-    this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+2*breakdown_size*cost_model_size];
-    this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+2*breakdown_size*cost_model_size+breakdown_size];
-    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+2*breakdown_size*cost_model_size+2*breakdown_size];
+    this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*comm_path_select_size] : &scratch_pad;
+    this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+2*comm_path_select_size*cost_model_size];
+    this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+2*comm_path_select_size*cost_model_size+comm_path_select_size];
+    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+2*comm_path_select_size*cost_model_size+2*comm_path_select_size];
   } else{
     this->critical_path_wrd_count    = &scratch_pad;
     this->critical_path_msg_count    = &scratch_pad;
@@ -292,13 +292,13 @@ void comm_tracker::set_header(){
 
 void comm_tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if ((*this->my_comm_time != 0) && (breakdown_size>0)){
+  if ((*this->my_comm_time != 0) && (comm_path_select_size>0)){
     std::vector<double> vec(num_tracker_critical_path_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]=='1'){
-        vec[2*save] = *(this->critical_path_wrd_count+idx+save*breakdown_size);
-        vec[2*save+1] = *(this->critical_path_msg_count+idx+save*breakdown_size);
+        vec[2*save] = *(this->critical_path_wrd_count+idx+save*comm_path_select_size);
+        vec[2*save+1] = *(this->critical_path_msg_count+idx+save*comm_path_select_size);
         save++;
       }
     }
@@ -311,7 +311,7 @@ void comm_tracker::set_critical_path_costs(size_t idx){
 
 void comm_tracker::set_per_process_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
-  if ((*this->my_comm_time != 0) && (breakdown_size>0)){
+  if ((*this->my_comm_time != 0) && (comm_path_select_size>0)){
     std::vector<double> vec(num_tracker_per_process_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){

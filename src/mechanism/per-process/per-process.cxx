@@ -17,8 +17,8 @@ void per_process::collect(MPI_Comm cm){
   PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_DOUBLE, MPI_MAX, cm);
   PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
   size_t save=0;
-  for (size_t i=0; i<breakdown.size(); i++){// don't consider idle time an option
-    if (breakdown[i] == '0') continue;
+  for (size_t i=0; i<comm_path_select.size(); i++){// don't consider idle time an option
+    if (comm_path_select[i] == '0') continue;
     size_t z = i<(2*cost_model_size) ? i : i+1;	// careful indexing to avoid idle time
     if (rank == buffer[z].second){
       for (size_t j=0; j<num_tracker_per_process_measures*list_size; j++){

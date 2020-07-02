@@ -37,12 +37,14 @@ extern size_t mode_1_width;
 extern size_t mode_2_width;
 extern size_t max_num_symbols;
 extern size_t max_timer_name_length;
-extern std::string _cost_models_,_breakdown_;
+extern std::string _cost_models_,_symbol_path_select_,_comm_path_select_;
 extern size_t cost_model_size;
-extern size_t breakdown_size;
+extern size_t symbol_path_select_size;
+extern size_t comm_path_select_size;
 extern size_t auto_capture;
 extern std::vector<char> cost_models;
-extern std::vector<char> breakdown;
+extern std::vector<char> symbol_path_select;
+extern std::vector<char> comm_path_select;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 extern size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime

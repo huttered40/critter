@@ -8,12 +8,14 @@ size_t mode_1_width;
 size_t mode_2_width;
 size_t max_num_symbols;
 size_t max_timer_name_length;
-std::string _cost_models_,_breakdown_;
+std::string _cost_models_,_symbol_path_select_,_comm_path_select_;
 size_t cost_model_size;
-size_t breakdown_size;
+size_t symbol_path_select_size;
+size_t comm_path_select_size;
 size_t auto_capture;
 std::vector<char> cost_models;
-std::vector<char> breakdown;
+std::vector<char> symbol_path_select;
+std::vector<char> comm_path_select;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime

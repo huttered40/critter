@@ -46,7 +46,7 @@ void stop(){
   internal::critical_path_costs[internal::num_critical_path_measures-1]+=(last_time-internal::computation_timer);	// update critical path runtime
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);			// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);			// update runtime volume
-  for (size_t i=0; i<internal::breakdown_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
+  for (size_t i=0; i<internal::comm_path_select_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::propagate(MPI_COMM_WORLD);
   internal::per_process::collect(MPI_COMM_WORLD);
@@ -92,10 +92,15 @@ void _init(int* argc, char*** argv){
   } else{
     _cost_models_ = "11";
   }
-  if (std::getenv("CRITTER_PATH_SELECT") != NULL){
-    _breakdown_ = std::getenv("CRITTER_PATH_SELECT");
+  if (std::getenv("CRITTER_SYMBOL_PATH_SELECT") != NULL){
+    _symbol_path_select_ = std::getenv("CRITTER_SYMBOL_PATH_SELECT");
   } else{
-    _breakdown_ = "000000000";
+    _symbol_path_select_ = "000000000";
+  }
+  if (std::getenv("CRITTER_COMM_PATH_SELECT") != NULL){
+    _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
+  } else{
+    _comm_path_select_ = "000000000";
   }
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
     flag = 1;
@@ -130,7 +135,7 @@ void _init(int* argc, char*** argv){
     track_p2p = 1;
   }
   assert(mode>=0 && mode<=3);
-  cost_model_size=0; breakdown_size=0;
+  cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   is_first_iter = true;
   need_new_line = false;
   int _critter_rank,_critter_size;
@@ -154,8 +159,12 @@ void _init(int* argc, char*** argv){
     cost_models.push_back(_cost_models_[i]);
   } 
   for (auto i=0; i<9; i++){
-    if (_breakdown_[i] == '1'){ breakdown_size++; }
-    breakdown.push_back(_breakdown_[i]);
+    if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; }
+    symbol_path_select.push_back(_symbol_path_select_[i]);
+  } 
+  for (auto i=0; i<9; i++){
+    if (_comm_path_select_[i] == '1'){ comm_path_select_size++; }
+    comm_path_select.push_back(_comm_path_select_[i]);
   } 
 
   num_critical_path_measures 		= 5+2*cost_model_size;
@@ -164,11 +173,11 @@ void _init(int* argc, char*** argv){
   num_tracker_critical_path_measures 	= 3+2*cost_model_size;
   num_tracker_per_process_measures 	= 3+2*cost_model_size;
   num_tracker_volume_measures 	= 3+2*cost_model_size;
-  critical_path_costs_size            = num_critical_path_measures+num_tracker_critical_path_measures*breakdown_size*list_size+2*breakdown_size;
-  per_process_costs_size              = num_per_process_measures+num_tracker_per_process_measures*breakdown_size*list_size+2*breakdown_size;
+  critical_path_costs_size            = num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
+  per_process_costs_size              = num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
   volume_costs_size                   = num_volume_measures+num_tracker_volume_measures*list_size;
 
-  decisions.resize(breakdown_size);
+  decisions.resize(comm_path_select_size);
   critical_path_costs.resize(critical_path_costs_size);
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
@@ -701,7 +710,8 @@ void waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_sta
 void finalize(){
   if (auto_capture) stop();
   cost_models.clear();
-  breakdown.clear();
+  symbol_path_select.clear();
+  comm_path_select.clear();
   decisions.clear();
   critical_path_costs.clear();
   max_per_process_costs.clear();

@@ -57,7 +57,7 @@ void symbol_tracker::start(double save_time){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-  for (size_t i=0; i<breakdown_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer); }
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer); }
   symbol_stack.push(this->name);
   computation_timer = MPI_Wtime();
   this->start_timer.push(computation_timer);
@@ -101,7 +101,7 @@ void symbol_tracker::stop(double save_time){
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
   volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-  for (size_t i=0; i<breakdown_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer); }
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer); }
   computation_timer = MPI_Wtime();
   if (symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
