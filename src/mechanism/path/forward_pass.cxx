@@ -138,10 +138,10 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
   // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
   //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
 
-  MPI_Request barrier_reqs[3]; int barrier_count=0;
   volatile double init_time = MPI_Wtime();
   if (partner1 == -1){ PMPI_Barrier(comm); }
   else {
+    MPI_Request barrier_reqs[3]; int barrier_count=0;
     char sbuf='H'; char rbuf='H';
     if ((is_sender) && (rank != partner1)){
       PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
@@ -156,9 +156,30 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
   }
   tracker.barrier_time = MPI_Wtime() - init_time;
 
-  //TODO: We want to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
-  //      Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
-  //      This would require use of the DOUBLE_INT 2-stage propagation mechanism, which is where I want to go next. I think its more efficient as well. See notes.
+  // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
+  // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
+  // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
+  // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
+  double min_idle_time=tracker.barrier_time;
+  double recv_idle_time1=std::numeric_limits<double>::max();
+  double recv_idle_time2=std::numeric_limits<double>::max();
+  if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
+  else {
+    MPI_Request barrier_reqs[3]; int barrier_count=0;
+    if ((is_sender) && (rank != partner1)){
+      PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    if ((!is_sender) && (rank != partner1)){
+      PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    if ((partner2 != -1) && (rank != partner2)){
+      PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
+    min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
+  }
+  tracker.barrier_time -= min_idle_time;
+
   for (size_t i=0; i<breakdown_size; i++){ critical_path_costs[critical_path_costs_size-1-i-breakdown_size] += tracker.barrier_time; }
 
   // Use the user communication routine to measre synchronization time.
@@ -222,7 +243,7 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
       PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
       break;
     case 16:
-      PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);// forced usage of synchronous send to avoid eager sends for large messages.
+      PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);// forced usage of synchronous send to avoid eager sends for large messages. Not ideal for small user communications that would leverage eager protocol.
       break;
     case 17:
       PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner1, internal_tag, comm, MPI_STATUS_IGNORE);
@@ -331,6 +352,9 @@ void forward_pass::complete(blocking& tracker){
   volume_costs[num_volume_measures-3] += datamvt_time;				// update local data mvt time
   volume_costs[num_volume_measures-1] += (tracker.barrier_time+comm_time);	// update local runtime with idle time and comm time
 
+  // Note that this block of code below is left in solely for blocking communication to avoid over-counting the idle time
+  //   (which does not get subtracted by the min idle time any one process incurs due to efficiency complications with matching nonblocking+blocking p2p communications).
+  //   Its handled correctly for blocking collectives.
   // If per-process execution-time gets larger than execution-time along the execution-time critical path, subtract out the difference from idle time.
   volume_costs[num_volume_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
   if (mode>=2 && symbol_stack.size()>0){
@@ -431,27 +455,27 @@ void forward_pass::complete(nonblocking& tracker, MPI_Request* request, double c
   int save=0;
   for (int j=0; j<cost_models.size(); j++){
     if (cost_models[j]=='1'){
-      critical_path_costs[save]                 += costs[j].second;		// update critical path estimated communication cost
-      critical_path_costs[cost_model_size+save] += costs[j].first;		// update critical path estimated synchronization cost
+      critical_path_costs[save]                 += costs[j].second;	// update critical path estimated communication cost
+      critical_path_costs[cost_model_size+save] += costs[j].first;	// update critical path estimated synchronization cost
       volume_costs[save]                 += costs[j].second;		// update local estimated communication cost
       volume_costs[cost_model_size+save] += costs[j].first;		// update local estimated synchronization cost
       save++;
     }
   }
-  critical_path_costs[num_critical_path_measures-5] += comm_time;				// update critical path communication time (for what this process has seen thus far)
+  critical_path_costs[num_critical_path_measures-5] += comm_time;			// update critical path communication time (for what this process has seen thus far)
   critical_path_costs[num_critical_path_measures-4] += 0.;				// update critical path synchronization time
-  critical_path_costs[num_critical_path_measures-3] += comm_time;				// update critical path runtime
-  critical_path_costs[num_critical_path_measures-2] += comp_time;				// update critical path runtime
-  critical_path_costs[num_critical_path_measures-1] += comp_time+comm_time;				// update critical path runtime
+  critical_path_costs[num_critical_path_measures-3] += comm_time;			// update critical path runtime
+  critical_path_costs[num_critical_path_measures-2] += comp_time;			// update critical path runtime
+  critical_path_costs[num_critical_path_measures-1] += comp_time+comm_time;		// update critical path runtime
   for (size_t i=0; i<breakdown_size; i++){
     critical_path_costs[critical_path_costs_size-1-i] += comp_time;
   }
 
   volume_costs[num_volume_measures-5] += comm_time;				// update local communication time (not volume until after the completion of the program)
-  volume_costs[num_volume_measures-4] += 0.;		// update local synchronization time
-  volume_costs[num_volume_measures-3] += comm_time;			// update local data mvt time
+  volume_costs[num_volume_measures-4] += 0.;					// update local synchronization time
+  volume_costs[num_volume_measures-3] += comm_time;				// update local data mvt time
   volume_costs[num_volume_measures-2] += comp_time;				// update local runtime
-  volume_costs[num_volume_measures-1] += comp_time+comm_time;				// update local runtime
+  volume_costs[num_volume_measures-1] += comp_time+comm_time;			// update local runtime
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
   volume_costs[num_volume_measures-5] = volume_costs[num_volume_measures-5] > critical_path_costs[num_critical_path_measures-5]
                                           ? critical_path_costs[num_critical_path_measures-5] : volume_costs[num_volume_measures-5];
@@ -548,12 +572,15 @@ void forward_pass::complete(double curtime, MPI_Request* request, MPI_Status* st
   auto comm_comm_it = internal_comm_comm.find(*request);
   MPI_Request save_request = comm_info_it->first;
   int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
+  double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
   if (comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
     PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
+    PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
     PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
   }
   else if (!comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
     PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+    PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
     PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
   }
   volatile double last_start_time = MPI_Wtime();
@@ -578,12 +605,15 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
       auto comm_comm_it = internal_comm_comm.find(*req);
       MPI_Request save_request = comm_info_it->first;
       int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
+      double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
       if (comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
         PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
+        PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
         PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
       }
       else if (!comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
         PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+        PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
         PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
       }
       volatile double last_start_time = MPI_Wtime();
@@ -611,7 +641,7 @@ void forward_pass::complete(int count, MPI_Request array_of_requests[], int* ind
   assert(comm_track_it != internal_comm_track.end());
   complete(*comm_track_it->second, &request, waitall_comp_time, save_comm_time);
   waitall_comp_time=0;
-  if (!waitall_id){ complete_path_update(); }
+//  if (!waitall_id){ complete_path_update(); }
 }
 
 void forward_pass::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
@@ -626,12 +656,15 @@ void forward_pass::complete(double curtime, int incount, MPI_Request array_of_re
       auto comm_comm_it = internal_comm_comm.find(*req);
       MPI_Request save_request = comm_info_it->first;
       int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
+      double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
       if (comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
         PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
+        PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
         PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
       }
       else if (!comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
         PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+        PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
         PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
       }
       volatile double last_start_time = MPI_Wtime();
@@ -651,7 +684,7 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   waitall_comp_time = curtime - computation_timer;
   wait_id=true;
   waitall_id=true;
-  std::vector<MPI_Request> internal_requests(2*int(count),MPI_REQUEST_NULL);
+  std::vector<MPI_Request> internal_requests(3*int(count),MPI_REQUEST_NULL);
   if (count > barrier_pad_send.size()){
     barrier_pad_send.resize(count);
     barrier_pad_recv.resize(count);
@@ -660,22 +693,28 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   }
   // Issue all barrier/synch communications at once because request order is not guaranteed to be sequenced together on all processes.
   // Necessary to avoid corruption of idle time calculation that would occur if sending out in some sequence after each request is completed.
+  double max_barrier_time = std::numeric_limits<double>::max();
   for (int i=0; i<count; i++){
     auto comm_info_it = internal_comm_info.find(*(array_of_requests+i));
     assert(comm_info_it != internal_comm_info.end());
     auto comm_comm_it = internal_comm_comm.find(*(array_of_requests+i));
     assert(comm_comm_it != internal_comm_comm.end());
+    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
     if (comm_info_it->second && comm_comm_it->second.second != -1){
       PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
-        comm_comm_it->second.first, &internal_requests[2*i]);
+        comm_comm_it->second.first, &internal_requests[3*i]);
+      PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+        comm_comm_it->second.first, &internal_requests[3*i+1]);
       PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
-        comm_comm_it->second.first, &internal_requests[2*i+1]);
+        comm_comm_it->second.first, &internal_requests[3*i+2]);
     }
     else if (!comm_info_it->second && comm_comm_it->second.second != -1){
       PMPI_Irecv(&barrier_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
-        comm_comm_it->second.first, &internal_requests[2*i]);
+        comm_comm_it->second.first, &internal_requests[3*i]);
+      PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+        comm_comm_it->second.first, &internal_requests[3*i+1]);
       PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
-        comm_comm_it->second.first, &internal_requests[2*i+1]);
+        comm_comm_it->second.first, &internal_requests[3*i+2]);
     }
   }
   PMPI_Waitall(internal_requests.size(), &internal_requests[0], MPI_STATUSES_IGNORE);

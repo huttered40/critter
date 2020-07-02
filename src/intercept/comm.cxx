@@ -33,6 +33,7 @@ void start(){
   for (auto i=0; i<internal::max_per_process_costs.size(); i++){ internal::max_per_process_costs[i]=0.; }
   for (auto i=0; i<internal::volume_costs.size(); i++){ internal::volume_costs[i]=0.; }
 
+  PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer=MPI_Wtime();
 }
 
@@ -46,6 +47,7 @@ void stop(){
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);			// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);			// update runtime volume
   for (size_t i=0; i<internal::breakdown_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
+  PMPI_Barrier(MPI_COMM_WORLD);
   internal::propagate(MPI_COMM_WORLD);
   internal::per_process::collect(MPI_COMM_WORLD);
   internal::volumetric::collect(MPI_COMM_WORLD);
