@@ -38,7 +38,7 @@ void per_process::collect(MPI_Comm cm){
   // For now, buffer[num_per_process_measures-1].second holds the rank of the process with the max per-process runtime
   if (mode>=2){
     // copy data to volume buffers to avoid corruption
-    std::memcpy(&symbol_timer_pad_local_vol[0], &symbol_timer_pad_local_pp[0], (symbol_class_count*num_volume_measures+1)*max_num_symbols*sizeof(double));
+    std::memcpy(&symbol_timer_pad_local_vol[0], &symbol_timer_pad_local_pp[0], (vol_symbol_class_count*num_volume_measures+1)*max_num_symbols*sizeof(double));
 
     int per_process_runtime_root_rank = buffer[num_per_process_measures-1].second;
     // We consider only critical path runtime
@@ -65,13 +65,12 @@ void per_process::collect(MPI_Comm cm){
     for (auto i=0; i<ftimer_size; i++){
       num_chars += symbol_len_pad_cp[i];
     }
-    //TODO: What about the case for PMPI_Sendrecv (so when partner2 != -1)?
     if (rank == per_process_runtime_root_rank){
-      PMPI_Bcast(&symbol_timer_pad_local_pp[0],(symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_DOUBLE,rank,cm);
+      PMPI_Bcast(&symbol_timer_pad_local_pp[0],(pp_symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_DOUBLE,rank,cm);
       PMPI_Bcast(&symbol_pad_cp[0],num_chars,MPI_CHAR,rank,cm);
     }
     else{
-      PMPI_Bcast(&symbol_timer_pad_global_pp[0],(symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_DOUBLE,per_process_runtime_root_rank,cm);
+      PMPI_Bcast(&symbol_timer_pad_global_pp[0],(pp_symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_DOUBLE,per_process_runtime_root_rank,cm);
       PMPI_Bcast(&symbol_pad_cp[0],num_chars,MPI_CHAR,per_process_runtime_root_rank,cm);
       int symbol_offset = 0;
       for (int i=0; i<ftimer_size; i++){
@@ -80,10 +79,10 @@ void per_process::collect(MPI_Comm cm){
           symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
           symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
         }
-        *symbol_timers[reconstructed_symbol].pp_numcalls = symbol_timer_pad_global_pp[(symbol_class_count*num_per_process_measures+1)*i];
+        *symbol_timers[reconstructed_symbol].pp_numcalls = symbol_timer_pad_global_pp[(pp_symbol_class_count*num_per_process_measures+1)*i];
         for (int j=0; j<num_per_process_measures; j++){
-          *symbol_timers[reconstructed_symbol].pp_incl_measure[j] = symbol_timer_pad_global_pp[(symbol_class_count*num_per_process_measures+1)*i+2*j+1];
-          *symbol_timers[reconstructed_symbol].pp_excl_measure[j] = symbol_timer_pad_global_pp[(symbol_class_count*num_per_process_measures+1)*i+2*(j+1)];
+          symbol_timers[reconstructed_symbol].pp_incl_measure[j] = symbol_timer_pad_global_pp[(pp_symbol_class_count*num_per_process_measures+1)*i+j+1];
+          symbol_timers[reconstructed_symbol].pp_excl_measure[j] = symbol_timer_pad_global_pp[(pp_symbol_class_count*num_per_process_measures+1)*i+num_per_process_measures+j+1];
         }
         symbol_timers[reconstructed_symbol].has_been_processed = true;
         symbol_offset += symbol_len_pad_cp[i];
@@ -94,8 +93,8 @@ void per_process::collect(MPI_Comm cm){
         else{
           *it.second.pp_numcalls = 0;
           for (int j=0; j<num_per_process_measures; j++){
-            *it.second.pp_incl_measure[j] = 0;
-            *it.second.pp_excl_measure[j] = 0;
+            it.second.pp_incl_measure[j] = 0;
+            it.second.pp_excl_measure[j] = 0;
           }
         }
       }

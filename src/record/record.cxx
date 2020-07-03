@@ -353,11 +353,11 @@ void record(std::ostream& Stream){
         for (auto& it : symbol_timers){
           if (it.second.start_timer.size() != 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
           if (i==2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_excl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_excl_measure[i]/world_size});
           } else if (i>2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i-1],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_excl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,it.second.cp_excl_measure[i-1],*it.second.pp_numcalls,it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_excl_measure[i]/world_size});
           } else{
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_excl_measure[i],*it.second.pp_numcalls,*it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_excl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,it.second.cp_excl_measure[i],*it.second.pp_numcalls,it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_excl_measure[i]/world_size});
           }
         }
         std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
@@ -421,11 +421,11 @@ void record(std::ostream& Stream){
         for (auto& it : symbol_timers){
           assert(it.second.start_timer.size() == 0);
           if (i==2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_incl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,0.,*it.second.pp_numcalls,it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_incl_measure[i]/world_size});
           } else if (i>2*cost_model_size){
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i-1],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_incl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,it.second.cp_incl_measure[i-1],*it.second.pp_numcalls,it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_incl_measure[i]/world_size});
           } else{
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,*it.second.cp_incl_measure[i],*it.second.pp_numcalls,*it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,*it.second.vol_incl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{*it.second.cp_numcalls,it.second.cp_incl_measure[i],*it.second.pp_numcalls,it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_incl_measure[i]/world_size});
           }
         }
         std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});

@@ -3,7 +3,9 @@
 namespace critter{
 namespace internal{
 
-size_t symbol_class_count;			// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
+size_t cp_symbol_class_count;
+size_t pp_symbol_class_count;
+size_t vol_symbol_class_count;
 size_t mode_1_width;
 size_t mode_2_width;
 size_t max_num_symbols;

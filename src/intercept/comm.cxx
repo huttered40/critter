@@ -69,7 +69,9 @@ void _init(int* argc, char*** argv){
   PMPI_Init(argc,argv);\
   mode=0;
   stack_id=0;
-  symbol_class_count = 2;
+  cp_symbol_class_count = 4;
+  pp_symbol_class_count = 4;
+  vol_symbol_class_count = 4;
   mode_1_width = 25;
   mode_2_width = 15;
   internal_tag = 31133;
@@ -169,13 +171,13 @@ void _init(int* argc, char*** argv){
 
   num_critical_path_measures 		= 5+2*cost_model_size;
   num_per_process_measures 		= 6+2*cost_model_size;
-  num_volume_measures 		= 6+2*cost_model_size;
+  num_volume_measures 			= 6+2*cost_model_size;
   num_tracker_critical_path_measures 	= 3+2*cost_model_size;
   num_tracker_per_process_measures 	= 3+2*cost_model_size;
-  num_tracker_volume_measures 	= 3+2*cost_model_size;
-  critical_path_costs_size            = num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  per_process_costs_size              = num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  volume_costs_size                   = num_volume_measures+num_tracker_volume_measures*list_size;
+  num_tracker_volume_measures 		= 3+2*cost_model_size;
+  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
+  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
+  volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
 
   decisions.resize(comm_path_select_size);
   critical_path_costs.resize(critical_path_costs_size);
@@ -186,12 +188,12 @@ void _init(int* argc, char*** argv){
   symbol_pad_ncp.resize(max_timer_name_length*max_num_symbols);
   symbol_len_pad_cp.resize(max_num_symbols);
   symbol_len_pad_ncp.resize(max_num_symbols);
-  symbol_timer_pad_local_cp.resize((symbol_class_count*num_critical_path_measures+1)*max_num_symbols);
-  symbol_timer_pad_global_cp.resize((symbol_class_count*num_critical_path_measures+1)*max_num_symbols);
-  symbol_timer_pad_local_pp.resize((symbol_class_count*num_per_process_measures+1)*max_num_symbols);
-  symbol_timer_pad_global_pp.resize((symbol_class_count*num_per_process_measures+1)*max_num_symbols);
-  symbol_timer_pad_local_vol.resize((symbol_class_count*num_volume_measures+1)*max_num_symbols);
-  symbol_timer_pad_global_vol.resize((symbol_class_count*num_volume_measures+1)*max_num_symbols);
+  symbol_timer_pad_local_cp.resize((cp_symbol_class_count*num_critical_path_measures+1)*max_num_symbols,0.);
+  symbol_timer_pad_global_cp.resize((cp_symbol_class_count*num_critical_path_measures+1)*max_num_symbols,0.);
+  symbol_timer_pad_local_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
+  symbol_timer_pad_global_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
+  symbol_timer_pad_local_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
+  symbol_timer_pad_global_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
   symbol_order.resize(max_num_symbols);
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
