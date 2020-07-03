@@ -29,10 +29,14 @@ void start(){
   }
 
   for (auto i=0; i<internal::list_size; i++){ internal::list[i]->init(); }
+  memset(&internal::critical_path_costs[0],0,sizeof(double)*internal::critical_path_costs.size());
+  memset(&internal::max_per_process_costs[0],0,sizeof(double)*internal::max_per_process_costs.size());
+  memset(&internal::volume_costs[0],0,sizeof(double)*internal::volume_costs.size());
+/*
   for (auto i=0; i<internal::critical_path_costs.size(); i++){ internal::critical_path_costs[i]=0.; }
   for (auto i=0; i<internal::max_per_process_costs.size(); i++){ internal::max_per_process_costs[i]=0.; }
   for (auto i=0; i<internal::volume_costs.size(); i++){ internal::volume_costs[i]=0.; }
-
+*/
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer=MPI_Wtime();
 }

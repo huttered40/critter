@@ -11,7 +11,7 @@ symbol_tracker::symbol_tracker(std::string name_){
   assert(name_.size() <= max_timer_name_length);
   assert(symbol_timers.size() < max_num_symbols);
   this->name = std::move(name_);
-  size_t cp_offset = (symbol_timers.size()-1)*(cp_symbol_class_count*num_critical_path_measures+1);
+  size_t cp_offset = (symbol_timers.size()-1)*symbol_path_select_size*(cp_symbol_class_count*num_critical_path_measures+1);
   size_t pp_offset = (symbol_timers.size()-1)*(pp_symbol_class_count*num_per_process_measures+1);
   size_t vol_offset = (symbol_timers.size()-1)*(vol_symbol_class_count*num_volume_measures+1);
   this->cp_numcalls = &symbol_timer_pad_local_cp[cp_offset];
@@ -27,6 +27,10 @@ symbol_tracker::symbol_tracker(std::string name_){
   this->cp_exclusive_measure = &symbol_timer_pad_local_cp[cp_offset+3*num_critical_path_measures+1];
   this->pp_exclusive_contributions = &symbol_timer_pad_local_pp[pp_offset+2*num_per_process_measures+1];
   this->pp_exclusive_measure = &symbol_timer_pad_local_pp[pp_offset+3*num_per_process_measures+1];
+  memset(&symbol_timer_pad_local_cp[cp_offset],0,sizeof(double)*(cp_symbol_class_count*num_critical_path_measures+1));
+  memset(&symbol_timer_pad_local_pp[cp_offset],0,sizeof(double)*(pp_symbol_class_count*num_critical_path_measures+1));
+  memset(&symbol_timer_pad_local_vol[vol_offset],0,sizeof(double)*(vol_symbol_class_count*num_critical_path_measures+1));
+/*
   for (auto i=0; i<4*num_critical_path_measures+1; i++){
     symbol_timer_pad_local_cp[cp_offset+i] = 0.;
   }
@@ -36,6 +40,7 @@ symbol_tracker::symbol_tracker(std::string name_){
   for (auto i=0; i<2*num_volume_measures+1; i++){
     symbol_timer_pad_local_vol[vol_offset+i] = 0.;
   }
+*/
   this->has_been_processed = false;
 }
 
@@ -75,10 +80,13 @@ void symbol_tracker::stop(double save_time){
   *this->cp_numcalls += 1.; *this->pp_numcalls += 1.; *this->vol_numcalls += 1.;
 
   for (auto i=0; i<num_critical_path_measures; i++){ this->cp_exclusive_contributions[i] += this->cp_exclusive_measure[i]; }
-  for (auto i=0; i<num_critical_path_measures; i++){ this->cp_exclusive_measure[i]=0.; }
   for (auto i=0; i<num_per_process_measures; i++){ this->pp_exclusive_contributions[i] += this->pp_exclusive_measure[i]; }
+  memset(this->cp_exclusive_measure,0,sizeof(double)*num_critical_path_measures);
+  memset(this->pp_exclusive_measure,0,sizeof(double)*num_per_process_measures);
+/*
+  for (auto i=0; i<num_critical_path_measures; i++){ this->cp_exclusive_measure[i]=0.; }
   for (auto i=0; i<num_per_process_measures; i++){ this->pp_exclusive_measure[i]=0.; }
-
+*/
   auto save_symbol = symbol_stack.top();
   this->start_timer.pop(); symbol_stack.pop();
   if (symbol_stack.size() > 0 && (save_symbol != symbol_stack.top())){
@@ -86,13 +94,21 @@ void symbol_tracker::stop(double save_time){
                                                        this->cp_incl_measure[i] += this->cp_exclusive_contributions[i]; }
     for (auto i=0; i<num_per_process_measures; i++){ symbol_timers[symbol_stack.top()].pp_exclusive_contributions[i] += this->pp_exclusive_contributions[i];
                                                      this->pp_incl_measure[i] += this->pp_exclusive_contributions[i]; }
+/*
     for (auto i=0; i<num_critical_path_measures; i++){ this->cp_exclusive_contributions[i]=0.; }
     for (auto i=0; i<num_per_process_measures; i++){ this->pp_exclusive_contributions[i]=0.; }
+*/
+    memset(this->cp_exclusive_contributions,0,sizeof(double)*num_critical_path_measures);
+    memset(this->pp_exclusive_contributions,0,sizeof(double)*num_per_process_measures);
   } else if (symbol_stack.size() == 0){
     for (auto i=0; i<num_critical_path_measures; i++){ this->cp_incl_measure[i] += this->cp_exclusive_contributions[i]; }
     for (auto i=0; i<num_per_process_measures; i++){ this->pp_incl_measure[i] += this->pp_exclusive_contributions[i]; }
+/*
     for (auto i=0; i<num_critical_path_measures; i++){ this->cp_exclusive_contributions[i]=0.; }
     for (auto i=0; i<num_per_process_measures; i++){ this->pp_exclusive_contributions[i]=0.; }
+*/
+    memset(this->cp_exclusive_contributions,0,sizeof(double)*num_critical_path_measures);
+    memset(this->pp_exclusive_contributions,0,sizeof(double)*num_per_process_measures);
   }
 
   critical_path_costs[num_critical_path_measures-2] += (save_time - computation_timer);		// update critical path computation time
