@@ -53,10 +53,10 @@ static void complete_timers(double* remote_path_data, size_t msg_id){
         symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
         symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
       }
-      *symbol_timers[reconstructed_symbol].cp_numcalls = envelope_double[1][(num_ftimer_measures*num_critical_path_measures+1)*i];
+      *symbol_timers[reconstructed_symbol].cp_numcalls = envelope_double[1][(symbol_class_count*num_critical_path_measures+1)*i];
       for (int j=0; j<num_critical_path_measures; j++){
-        *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = envelope_double[1][(num_ftimer_measures*num_critical_path_measures+1)*i+2*j+1];
-        *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = envelope_double[1][(num_ftimer_measures*num_critical_path_measures+1)*i+2*(j+1)];
+        *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = envelope_double[1][(symbol_class_count*num_critical_path_measures+1)*i+2*j+1];
+        *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = envelope_double[1][(symbol_class_count*num_critical_path_measures+1)*i+2*(j+1)];
       }
       for (int j=0; j<symbol_timers[reconstructed_symbol].cp_exclusive_measure.size(); j++){ symbol_timers[reconstructed_symbol].cp_exclusive_measure[j]=0.; }
       for (int j=0; j<num_critical_path_measures; j++){
@@ -96,35 +96,6 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
-  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
-  critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
-  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += tracker.comp_time; }// update each metric's critical path's computation time
-  if (mode>=2 && symbol_stack.size()>0){
-    // Get the current symbol's execution-time since last communication routine or its inception.
-    // Accumulate as both execution-time and computation time into both the execution-time critical path data structures and the per-process data structures.
-    auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
-    symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
-    *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-1] += last_symbol_time;
-    *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-2] += last_symbol_time;
-    *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
-    *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
-  }
-
-  // Save caller communication attributes into reference object for use in corresponding static method 'complete'
-  int word_size,np,rank; MPI_Type_size(t, &word_size);
-  int64_t nbytes = word_size * nelem;
-  MPI_Comm_size(comm, &np); MPI_Comm_rank(comm, &rank);
-  tracker.nbytes = nbytes;
-  tracker.comm = comm;
-  tracker.comm_size = np;
-  tracker.is_sender = is_sender;
-  tracker.partner1 = partner1;
-  tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
 
   // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
   // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
@@ -138,6 +109,7 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
   // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
   //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
 
+  int rank; MPI_Comm_rank(comm, &rank);
   volatile double init_time = MPI_Wtime();
   if (partner1 == -1){ PMPI_Barrier(comm); }
   else {
@@ -179,8 +151,37 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
     min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
   }
   tracker.barrier_time -= min_idle_time;
-
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.barrier_time; }
+
+  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
+  critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
+  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
+  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += tracker.comp_time; }// update each metric's critical path's computation time
+  if (mode>=2 && symbol_stack.size()>0){
+    // Get the current symbol's execution-time since last communication routine or its inception.
+    // Accumulate as both execution-time and computation time into both the execution-time critical path data structures and the per-process data structures.
+    auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
+    symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-1] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].cp_exclusive_measure[num_critical_path_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
+    *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-1] += last_symbol_time;
+    *symbol_timers[symbol_stack.top()].cp_excl_measure[num_critical_path_measures-2] += last_symbol_time;
+    *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
+    *symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
+  }
+
+  // Save caller communication attributes into reference object for use in corresponding static method 'complete'
+  int word_size,np; MPI_Type_size(t, &word_size);
+  int64_t nbytes = word_size * nelem;
+  MPI_Comm_size(comm, &np);
+  tracker.nbytes = nbytes;
+  tracker.comm = comm;
+  tracker.comm_size = np;
+  tracker.is_sender = is_sender;
+  tracker.partner1 = partner1;
+  tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
 
   // Use the user communication routine to measre synchronization time.
   // Note the following consequences of using a tiny 1-byte message (note that 0-byte is trivially handled by most MPI implementations) on measuring synchronization time:
@@ -684,7 +685,7 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   waitall_comp_time = curtime - computation_timer;
   wait_id=true;
   waitall_id=true;
-  std::vector<MPI_Request> internal_requests(3*int(count),MPI_REQUEST_NULL);
+  std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
   if (count > barrier_pad_send.size()){
     barrier_pad_send.resize(count);
     barrier_pad_recv.resize(count);
@@ -693,13 +694,19 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   }
   // Issue all barrier/synch communications at once because request order is not guaranteed to be sequenced together on all processes.
   // Necessary to avoid corruption of idle time calculation that would occur if sending out in some sequence after each request is completed.
-  double max_barrier_time = std::numeric_limits<double>::max();
+  // Presumably the sending communications will utilize the eager protocol, but as the Waitall is issued immediately following the loop, its irrelevant.
+  // TODO: Staging nonblocking receives with nonblocking sends might be a problem because the Sends will likely use the eager protocol (since 1-byte messages),
+  //         while the Recvs will block until the message buffer is available. This will force the matching blocking receives of the nonblocking senders to possibely start counting communication time while
+  //         the sender is stuck in the Waitall loop with the other sends and receives, thus corrupting the measurement of communication time. I propose that the Sends issue their 3-messages together followed
+  //         by a Waitall. At this point, the choice is whether to issue the user-communication sends one-by-one via Waitany loop, issue the nonblocking recv 3-messages together followed by waitall,
+  //         or actually issue a Waitall for the user communication rather than a loop over Waits. I am now leaning towards supporting the user-communication Waitall instead, as that might be a source of overhead
+  //         with CTF. Each process can utilize its timer and record the same communication time, and then issue the exchange of path information via nonblocking communications.
+  double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
   for (int i=0; i<count; i++){
     auto comm_info_it = internal_comm_info.find(*(array_of_requests+i));
     assert(comm_info_it != internal_comm_info.end());
     auto comm_comm_it = internal_comm_comm.find(*(array_of_requests+i));
     assert(comm_comm_it != internal_comm_comm.end());
-    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
     if (comm_info_it->second && comm_comm_it->second.second != -1){
       PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
         comm_comm_it->second.first, &internal_requests[3*i]);
@@ -740,7 +747,7 @@ void forward_pass::propagate_symbols(nonblocking& tracker, int rank){
   for (int i=0; i<ftimer_size; i++) { num_chars += symbol_order[i].size(); }
   send_envelope1 = (int*)malloc(sizeof(int)); *send_envelope1 = ftimer_size;
   send_envelope2 = (int*)malloc(sizeof(int)*(ftimer_size));
-  send_envelope3 = (double*)malloc(sizeof(double)*(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size);
+  send_envelope3 = (double*)malloc(sizeof(double)*(symbol_class_count*num_critical_path_measures+1)*ftimer_size);
   send_envelope4 = (double*)malloc(sizeof(double)*2*ftimer_size*num_critical_path_measures);
   send_envelope5 = (char*)malloc(sizeof(char)*num_chars);
   int symbol_offset = 0;
@@ -757,21 +764,21 @@ void forward_pass::propagate_symbols(nonblocking& tracker, int rank){
     }
     symbol_offset += symbol_order[i].size();
   }
-  for (int i=0; i<(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size; i++){ send_envelope3[i] = symbol_timer_pad_local_cp[i]; }
+  for (int i=0; i<(symbol_class_count*num_critical_path_measures+1)*ftimer_size; i++){ send_envelope3[i] = symbol_timer_pad_local_cp[i]; }
   PMPI_Isend(&send_envelope1[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
   PMPI_Isend(&send_envelope2[0],ftimer_size,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
-  PMPI_Isend(&send_envelope3[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
+  PMPI_Isend(&send_envelope3[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
   PMPI_Isend(&send_envelope4[0],2*ftimer_size*num_critical_path_measures,MPI_DOUBLE,tracker.partner1,internal_tag4,tracker.comm,&internal_request[3]);
   PMPI_Isend(&send_envelope5[0],symbol_offset,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[4]);
 
   recv_envelope1 = (int*)malloc(sizeof(int));
   recv_envelope2 = (int*)malloc(sizeof(int)*(max_num_symbols));
-  recv_envelope3 = (double*)malloc(sizeof(double)*(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols);
+  recv_envelope3 = (double*)malloc(sizeof(double)*(symbol_class_count*num_critical_path_measures+1)*max_num_symbols);
   recv_envelope4 = (double*)malloc(sizeof(double)*2*max_num_symbols*num_critical_path_measures);
   recv_envelope5 = (char*)malloc(sizeof(char)*max_timer_name_length*max_num_symbols);
   PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[5]);
   PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[6]);
-  PMPI_Irecv(recv_envelope3,(num_ftimer_measures*num_critical_path_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[7]);
+  PMPI_Irecv(recv_envelope3,(symbol_class_count*num_critical_path_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[7]);
   PMPI_Irecv(recv_envelope4,2*max_num_symbols*num_critical_path_measures,MPI_DOUBLE,tracker.partner1,internal_tag4,tracker.comm,&internal_request[8]);
   PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[9]);
 
@@ -867,23 +874,23 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
 
   if (rank == critical_path_runtime_root_rank){
     if (tracker.partner1 == -1){
-      PMPI_Bcast(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,rank,tracker.comm);
+      PMPI_Bcast(&symbol_timer_pad_local_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,rank,tracker.comm);
       PMPI_Bcast(&cp_data[0],2*ftimer_size_cp*num_critical_path_measures,MPI_DOUBLE,rank,tracker.comm);
       PMPI_Bcast(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,rank,tracker.comm);
     }
     else{
       MPI_Request symbol_exchance_reqs[12]; int exchange_count=0;
-      PMPI_Isend(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+      PMPI_Isend(&symbol_timer_pad_local_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Isend(&cp_data[0],2*ftimer_size_cp*num_critical_path_measures,MPI_DOUBLE,tracker.partner1,internal_tag4,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Isend(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-      PMPI_Irecv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+      PMPI_Irecv(&symbol_timer_pad_global_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Irecv(&ncp_data[0],2*ftimer_size_ncp*num_critical_path_measures,MPI_DOUBLE,tracker.partner1,internal_tag4,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Irecv(&symbol_pad_ncp[0],num_chars_ncp,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       if (tracker.partner1 != tracker.partner2){
-        PMPI_Isend(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,tracker.partner2,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+        PMPI_Isend(&symbol_timer_pad_local_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,tracker.partner2,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
         PMPI_Isend(&cp_data[0],2*ftimer_size_cp*num_critical_path_measures,MPI_DOUBLE,tracker.partner2,internal_tag4,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
         PMPI_Isend(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,tracker.partner2,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-        PMPI_Irecv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,tracker.partner2,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+        PMPI_Irecv(&symbol_timer_pad_global_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,tracker.partner2,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
         PMPI_Irecv(&ncp_data[0],2*ftimer_size_ncp*num_critical_path_measures,MPI_DOUBLE,tracker.partner2,internal_tag4,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
         PMPI_Irecv(&symbol_pad_ncp[0],num_chars_ncp,MPI_CHAR,tracker.partner2,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       }
@@ -892,16 +899,16 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
   }
   else{
     if (tracker.partner1 == -1){
-      PMPI_Bcast(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,critical_path_runtime_root_rank,tracker.comm);
+      PMPI_Bcast(&symbol_timer_pad_global_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,critical_path_runtime_root_rank,tracker.comm);
       PMPI_Bcast(&cp_data[0],2*ftimer_size_cp*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,tracker.comm);
       PMPI_Bcast(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,critical_path_runtime_root_rank,tracker.comm);
     }
     else{
       MPI_Request symbol_exchance_reqs[6]; int exchange_count=0;
-      PMPI_Irecv(&symbol_timer_pad_global_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+      PMPI_Irecv(&symbol_timer_pad_global_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Irecv(&cp_data[0],2*ftimer_size_cp*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag4,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Irecv(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,critical_path_runtime_root_rank,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-      PMPI_Isend(&symbol_timer_pad_local_cp[0],(num_ftimer_measures*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+      PMPI_Isend(&symbol_timer_pad_local_cp[0],(symbol_class_count*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Isend(&cp_data[0],2*ftimer_size_ncp*num_critical_path_measures,MPI_DOUBLE,critical_path_runtime_root_rank,internal_tag4,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Isend(&symbol_pad_ncp[0],num_chars_ncp,MPI_CHAR,critical_path_runtime_root_rank,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Waitall(exchange_count,&symbol_exchance_reqs[0],MPI_STATUSES_IGNORE);
@@ -915,10 +922,10 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
           symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
           symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
         }
-        *symbol_timers[reconstructed_symbol].cp_numcalls = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i];
+        *symbol_timers[reconstructed_symbol].cp_numcalls = symbol_timer_pad_global_cp[(symbol_class_count*num_critical_path_measures+1)*i];
         for (int j=0; j<num_critical_path_measures; j++){
-          *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*j+1];
-          *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = symbol_timer_pad_global_cp[(num_ftimer_measures*num_critical_path_measures+1)*i+2*(j+1)];
+          *symbol_timers[reconstructed_symbol].cp_incl_measure[j] = symbol_timer_pad_global_cp[(symbol_class_count*num_critical_path_measures+1)*i+2*j+1];
+          *symbol_timers[reconstructed_symbol].cp_excl_measure[j] = symbol_timer_pad_global_cp[(symbol_class_count*num_critical_path_measures+1)*i+2*(j+1)];
         }
         for (int j=0; j<symbol_timers[reconstructed_symbol].cp_exclusive_measure.size(); j++){ symbol_timers[reconstructed_symbol].cp_exclusive_measure[j]=0.; }
         for (int j=0; j<num_critical_path_measures; j++){
@@ -988,7 +995,7 @@ void forward_pass::propagate(blocking& tracker){
     MPI_Op_free(&op);
   }
   else{
-    // Note that a blocking sendrecv allows exchanges even when the other party issued a request via nonblocking communication.
+    // Note that a blocking sendrecv allows exchanges even when the other party issued a request via nonblocking communication, as the process with the nonblocking request posts both sends and receives.
     PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
     update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
     if (tracker.partner2 != tracker.partner1){

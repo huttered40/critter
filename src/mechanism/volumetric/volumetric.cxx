@@ -35,7 +35,7 @@ void volumetric::collect(MPI_Comm cm){
         for (auto i=0; i<ftimer_size; i++){
           num_chars += symbol_len_pad_cp[i];
         }
-        PMPI_Send(&symbol_timer_pad_local_vol[0],(num_ftimer_measures*num_volume_measures+1)*ftimer_size,MPI_DOUBLE,partner,internal_tag2,cm);
+        PMPI_Send(&symbol_timer_pad_local_vol[0],(symbol_class_count*num_volume_measures+1)*ftimer_size,MPI_DOUBLE,partner,internal_tag2,cm);
         PMPI_Send(&symbol_pad_cp[0],num_chars,MPI_CHAR,partner,internal_tag3,cm);
         break;
       }
@@ -48,7 +48,7 @@ void volumetric::collect(MPI_Comm cm){
         for (auto i=0; i<ftimer_size_foreign; i++){
           num_chars += symbol_len_pad_cp[i];
         }
-        PMPI_Recv(&symbol_timer_pad_global_vol[0],(num_ftimer_measures*num_volume_measures+1)*ftimer_size_foreign,MPI_DOUBLE,partner,internal_tag2,cm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&symbol_timer_pad_global_vol[0],(symbol_class_count*num_volume_measures+1)*ftimer_size_foreign,MPI_DOUBLE,partner,internal_tag2,cm, MPI_STATUS_IGNORE);
         PMPI_Recv(&symbol_pad_cp[0],num_chars,MPI_CHAR,partner, internal_tag3,cm, MPI_STATUS_IGNORE);
         int symbol_offset = 0;
         for (int i=0; i<ftimer_size_foreign; i++){
@@ -57,10 +57,10 @@ void volumetric::collect(MPI_Comm cm){
             symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
             symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
           }
-          *symbol_timers[reconstructed_symbol].vol_numcalls += symbol_timer_pad_global_vol[(num_ftimer_measures*num_per_process_measures+1)*i];
+          *symbol_timers[reconstructed_symbol].vol_numcalls += symbol_timer_pad_global_vol[(symbol_class_count*num_per_process_measures+1)*i];
           for (int j=0; j<num_volume_measures; j++){
-            *symbol_timers[reconstructed_symbol].vol_incl_measure[j] += symbol_timer_pad_global_vol[(num_ftimer_measures*num_volume_measures+1)*i+2*j+1];
-            *symbol_timers[reconstructed_symbol].vol_excl_measure[j] += symbol_timer_pad_global_vol[(num_ftimer_measures*num_volume_measures+1)*i+2*(j+1)];
+            *symbol_timers[reconstructed_symbol].vol_incl_measure[j] += symbol_timer_pad_global_vol[(symbol_class_count*num_volume_measures+1)*i+2*j+1];
+            *symbol_timers[reconstructed_symbol].vol_excl_measure[j] += symbol_timer_pad_global_vol[(symbol_class_count*num_volume_measures+1)*i+2*(j+1)];
           }
           symbol_timers[reconstructed_symbol].has_been_processed = true;
           symbol_offset += symbol_len_pad_cp[i];

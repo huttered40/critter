@@ -4,6 +4,7 @@
 namespace critter{
 namespace internal{
 
+// Global namespace variable 'symbol_timers' must be defined here, rather than in src/util.cxx with the rest, to avoid circular dependence between this file and src/util.h
 std::unordered_map<std::string,symbol_tracker> symbol_timers;
 
 symbol_tracker::symbol_tracker(std::string name_){
@@ -23,20 +24,20 @@ symbol_tracker::symbol_tracker(std::string name_){
   this->vol_excl_measure.resize(num_volume_measures);
  
   this->name = std::move(name_);
-  this->cp_numcalls = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)]; *this->cp_numcalls = 0;
-  this->pp_numcalls = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(num_ftimer_measures*num_per_process_measures+1)]; *this->pp_numcalls = 0;
-  this->vol_numcalls = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)]; *this->vol_numcalls = 0;
+  this->cp_numcalls = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(symbol_class_count*num_critical_path_measures+1)]; *this->cp_numcalls = 0;
+  this->pp_numcalls = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(symbol_class_count*num_per_process_measures+1)]; *this->pp_numcalls = 0;
+  this->vol_numcalls = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(symbol_class_count*num_volume_measures+1)]; *this->vol_numcalls = 0;
   for (auto i=0; i<num_critical_path_measures; i++){
-    this->cp_incl_measure[i] = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*i+1]; *cp_incl_measure[i] = 0.;
-    this->cp_excl_measure[i] = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(num_ftimer_measures*num_critical_path_measures+1)+2*(i+1)]; *cp_excl_measure[i] = 0.;
+    this->cp_incl_measure[i] = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(symbol_class_count*num_critical_path_measures+1)+2*i+1]; *cp_incl_measure[i] = 0.;
+    this->cp_excl_measure[i] = &symbol_timer_pad_local_cp[(symbol_timers.size()-1)*(symbol_class_count*num_critical_path_measures+1)+2*(i+1)]; *cp_excl_measure[i] = 0.;
   }
   for (auto i=0; i<num_per_process_measures; i++){
-    this->pp_incl_measure[i] = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(num_ftimer_measures*num_per_process_measures+1)+2*i+1]; *pp_incl_measure[i] = 0.;
-    this->pp_excl_measure[i] = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(num_ftimer_measures*num_per_process_measures+1)+2*(i+1)]; *pp_excl_measure[i] = 0.;
+    this->pp_incl_measure[i] = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(symbol_class_count*num_per_process_measures+1)+2*i+1]; *pp_incl_measure[i] = 0.;
+    this->pp_excl_measure[i] = &symbol_timer_pad_local_pp[(symbol_timers.size()-1)*(symbol_class_count*num_per_process_measures+1)+2*(i+1)]; *pp_excl_measure[i] = 0.;
   }
   for (auto i=0; i<num_volume_measures; i++){
-    this->vol_incl_measure[i] = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)+2*i+1]; *vol_incl_measure[i] = 0.;
-    this->vol_excl_measure[i] = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(num_ftimer_measures*num_volume_measures+1)+2*(i+1)]; *vol_excl_measure[i] = 0.;
+    this->vol_incl_measure[i] = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(symbol_class_count*num_volume_measures+1)+2*i+1]; *vol_incl_measure[i] = 0.;
+    this->vol_excl_measure[i] = &symbol_timer_pad_local_vol[(symbol_timers.size()-1)*(symbol_class_count*num_volume_measures+1)+2*(i+1)]; *vol_excl_measure[i] = 0.;
   }
   this->has_been_processed = false;
 }

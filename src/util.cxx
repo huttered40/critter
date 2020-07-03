@@ -3,7 +3,7 @@
 namespace critter{
 namespace internal{
 
-size_t num_ftimer_measures;			// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
+size_t symbol_class_count;			// ExclusiveTime/Cost, InclusiveTime/Cost (NumCalls separate so as to avoid replication)
 size_t mode_1_width;
 size_t mode_2_width;
 size_t max_num_symbols;
