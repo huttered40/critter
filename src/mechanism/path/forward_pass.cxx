@@ -53,6 +53,7 @@ static void complete_timers(double* remote_path_data, size_t msg_id){
         symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
         symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
       }
+/*
       *symbol_timers[reconstructed_symbol].cp_numcalls = envelope_double[1][(cp_symbol_class_count*num_critical_path_measures+1)*i];
       for (int j=0; j<num_critical_path_measures; j++){
         symbol_timers[reconstructed_symbol].cp_incl_measure[j] = envelope_double[1][(cp_symbol_class_count*num_critical_path_measures+1)+j+1];
@@ -60,6 +61,8 @@ static void complete_timers(double* remote_path_data, size_t msg_id){
         symbol_timers[reconstructed_symbol].cp_exclusive_contributions[j] = envelope_double[1][(cp_symbol_class_count*num_critical_path_measures+1)*i+2*num_critical_path_measures+j+1];
         symbol_timers[reconstructed_symbol].cp_exclusive_measure[j] = envelope_double[1][(cp_symbol_class_count*num_critical_path_measures+1)*i+3*num_critical_path_measures+j+1];
       }
+*/
+      std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls,&symbol_timer_pad_global_cp[(cp_symbol_class_count*num_critical_path_measures+1)*i],sizeof(double)*(4*num_critical_path_measures+1));
       symbol_timers[reconstructed_symbol].has_been_processed = true;
       symbol_offset += envelope_int[1][i];
     }
@@ -848,7 +851,7 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
       PMPI_Bcast(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,rank,tracker.comm);
     }
     else{
-      MPI_Request symbol_exchance_reqs[12]; int exchange_count=0;
+      MPI_Request symbol_exchance_reqs[8]; int exchange_count=0;
       PMPI_Isend(&symbol_timer_pad_local_cp[0],(cp_symbol_class_count*num_critical_path_measures+1)*ftimer_size_cp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Isend(&symbol_pad_cp[0],num_chars_cp,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
       PMPI_Irecv(&symbol_timer_pad_global_cp[0],(cp_symbol_class_count*num_critical_path_measures+1)*ftimer_size_ncp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
@@ -884,6 +887,7 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
           symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
           symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
         }
+/*
         *symbol_timers[reconstructed_symbol].cp_numcalls = symbol_timer_pad_global_cp[(cp_symbol_class_count*num_critical_path_measures+1)*i];
         for (int j=0; j<num_critical_path_measures; j++){
           symbol_timers[reconstructed_symbol].cp_incl_measure[j] = symbol_timer_pad_global_cp[(cp_symbol_class_count*num_critical_path_measures+1)*i+j+1];
@@ -891,6 +895,8 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
           symbol_timers[reconstructed_symbol].cp_exclusive_contributions[j] = symbol_timer_pad_global_cp[(cp_symbol_class_count*num_critical_path_measures+1)*i+2*num_critical_path_measures+j+1];
           symbol_timers[reconstructed_symbol].cp_exclusive_measure[j] = symbol_timer_pad_global_cp[(cp_symbol_class_count*num_critical_path_measures+1)*i+3*num_critical_path_measures+j+1];
         }
+*/
+        std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls,&symbol_timer_pad_global_cp[(cp_symbol_class_count*num_critical_path_measures+1)*i],sizeof(double)*(4*num_critical_path_measures+1));
         symbol_timers[reconstructed_symbol].has_been_processed = true;
         symbol_offset += symbol_len_pad_cp[i];
       }
