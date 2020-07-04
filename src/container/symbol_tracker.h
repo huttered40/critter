@@ -17,27 +17,15 @@ class symbol_tracker{
 
     std::string name;
     std::stack<double> start_timer;
-    double* cp_exclusive_contributions;
+    std::vector<double*> cp_exclusive_contributions;
     double* pp_exclusive_contributions;
-    double* cp_exclusive_measure;
+    std::vector<double*> cp_exclusive_measure;
     double* pp_exclusive_measure;
-/*
-    std::vector<double> cp_exclusive_contributions;
-    std::vector<double> pp_exclusive_contributions;
-    std::vector<double> cp_exclusive_measure;
-    std::vector<double> pp_exclusive_measure;
-*/
-    double* cp_numcalls; double* pp_numcalls; double* vol_numcalls;
-/*
+    std::vector<double*> cp_numcalls;
+    double* pp_numcalls;
+    double* vol_numcalls;
     std::vector<double*> cp_incl_measure;
     std::vector<double*> cp_excl_measure;
-    std::vector<double*> pp_incl_measure;
-    std::vector<double*> pp_excl_measure;
-    std::vector<double*> vol_incl_measure;
-    std::vector<double*> vol_excl_measure;
-*/
-    double* cp_incl_measure;
-    double* cp_excl_measure;
     double* pp_incl_measure;
     double* pp_excl_measure;
     double* vol_incl_measure;

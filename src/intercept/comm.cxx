@@ -16,15 +16,15 @@ void start(){
   } else{
     internal::mode = 0;
   }
-  assert(internal::mode>=0 && internal::mode<=3);
+  assert(internal::mode>=0 && internal::mode<=2);
   internal::stack_id++;
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true; internal::waitall_id=false;
-  // TODO: How to allow different number of cost models. Perhaps just put an assert that both cost models must be on? Or don't use these altogether?
   if (internal::is_world_root){
     if (!internal::is_first_iter){
-      if (internal::flag) {internal::stream << "\n";} else {std::cout << "\n";}
+      if (internal::flag)
+        {internal::stream << "\n";} else {std::cout << "\n";}
     }
   }
 
@@ -32,11 +32,10 @@ void start(){
   memset(&internal::critical_path_costs[0],0,sizeof(double)*internal::critical_path_costs.size());
   memset(&internal::max_per_process_costs[0],0,sizeof(double)*internal::max_per_process_costs.size());
   memset(&internal::volume_costs[0],0,sizeof(double)*internal::volume_costs.size());
-/*
-  for (auto i=0; i<internal::critical_path_costs.size(); i++){ internal::critical_path_costs[i]=0.; }
-  for (auto i=0; i<internal::max_per_process_costs.size(); i++){ internal::max_per_process_costs[i]=0.; }
-  for (auto i=0; i<internal::volume_costs.size(); i++){ internal::volume_costs[i]=0.; }
-*/
+  memset(&internal::symbol_timer_pad_local_cp[0],0,sizeof(double)*internal::symbol_timer_pad_local_cp.size());
+  memset(&internal::symbol_timer_pad_local_pp[0],0,sizeof(double)*internal::symbol_timer_pad_local_pp.size());
+  memset(&internal::symbol_timer_pad_local_vol[0],0,sizeof(double)*internal::symbol_timer_pad_local_vol.size());
+  // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer=MPI_Wtime();
 }
@@ -45,37 +44,34 @@ void stop(){
   volatile double last_time = MPI_Wtime();
   internal::stack_id--; 
   if (internal::stack_id>0) { return; }
+  PMPI_Barrier(MPI_COMM_WORLD);
   assert(internal::internal_comm_info.size() == 0);
   internal::critical_path_costs[internal::num_critical_path_measures-2]+=(last_time-internal::computation_timer);	// update critical path computation time
   internal::critical_path_costs[internal::num_critical_path_measures-1]+=(last_time-internal::computation_timer);	// update critical path runtime
   internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);			// update computation time volume
   internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);			// update runtime volume
+  // update the computation time (i.e. time between last MPI synchronization point and this function invocation) along all paths decomposed by MPI communication routine
   for (size_t i=0; i<internal::comm_path_select_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
-  PMPI_Barrier(MPI_COMM_WORLD);
   internal::propagate(MPI_COMM_WORLD);
   internal::per_process::collect(MPI_COMM_WORLD);
   internal::volumetric::collect(MPI_COMM_WORLD);
-
   internal::record(std::cout);
   if (internal::flag) {internal::record(internal::stream);}
-
   internal::mode = 0; internal::wait_id=false; internal::waitall_id=false; internal::is_first_iter = false;
-  internal::save_info.clear(); internal::comm_pattern_table1.clear(); internal::p2p_table.clear(); internal::comm_pattern_seq.clear();
-  internal::need_new_line=false; internal::symbol_timers.clear();
+  internal::symbol_timers.clear();
 }
 
 
 namespace internal{
 
-// The goal with these routines is to have them be agnostic to mechanism. This might take some tweaking on a few of them.
+// These routines aim to achieve agnosticity to mechanism.
 
 void _init(int* argc, char*** argv){
-  PMPI_Init(argc,argv);\
   mode=0;
   stack_id=0;
   cp_symbol_class_count = 4;
   pp_symbol_class_count = 4;
-  vol_symbol_class_count = 4;
+  vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
   mode_1_width = 25;
   mode_2_width = 15;
   internal_tag = 31133;
@@ -87,7 +83,6 @@ void _init(int* argc, char*** argv){
   flag = 0;
   file_name="";
   stream_name="";
-  pattern_stream_name="";
   if (std::getenv("CRITTER_MECHANISM") != NULL){
     mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
   } else{
@@ -112,7 +107,6 @@ void _init(int* argc, char*** argv){
     flag = 1;
     file_name = std::getenv("CRITTER_VIZ_FILE");
     stream_name = file_name + ".txt";
-    pattern_stream_name = file_name + "_pattern.txt";
   }
   mode = 0;
   if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
@@ -140,32 +134,32 @@ void _init(int* argc, char*** argv){
   } else{
     track_p2p = 1;
   }
-  assert(mode>=0 && mode<=3);
-  cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
-  is_first_iter = true;
-  need_new_line = false;
-  int _critter_rank,_critter_size;
-  MPI_Comm_rank(MPI_COMM_WORLD,&_critter_rank);
-  MPI_Comm_size(MPI_COMM_WORLD,&_critter_size);
-  synch_pad_send.resize(_critter_size);
-  synch_pad_recv.resize(_critter_size);
-  barrier_pad_send.resize(_critter_size);
-  barrier_pad_recv.resize(_critter_size);
-  if (_critter_rank == 0){
-    is_world_root = true;
-  } else {is_world_root=false;}
+  assert(mode>=0 && mode<=2);
+  assert(_cost_models_.size()==2);
+  assert(_comm_path_select_.size()==9);
+  assert(_symbol_path_select_.size()==9);
+  cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0; is_first_iter = true;
+  int _world_rank,_world_size;
+  MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
+  MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
+  synch_pad_send.resize(_world_size);
+  synch_pad_recv.resize(_world_size);
+  barrier_pad_send.resize(_world_size);
+  barrier_pad_recv.resize(_world_size);
+  if (_world_rank == 0){ is_world_root = true; }
+  else                 { is_world_root = false; }
   if (flag == 1){
-    if (_critter_rank==0){
+    if (_world_rank==0){
       stream.open(stream_name.c_str());
-      pattern_stream.open(pattern_stream_name.c_str());
     }
   }
+  //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
   for (auto i=0; i<2; i++){
     if (_cost_models_[i] == '1'){ cost_model_size++; }
     cost_models.push_back(_cost_models_[i]);
   } 
   for (auto i=0; i<9; i++){
-    if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; }
+    if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; symbol_path_select_index.push_back(i);}
     symbol_path_select.push_back(_symbol_path_select_[i]);
   } 
   for (auto i=0; i<9; i++){
@@ -173,12 +167,13 @@ void _init(int* argc, char*** argv){
     comm_path_select.push_back(_comm_path_select_[i]);
   } 
 
-  num_critical_path_measures 		= 5+2*cost_model_size;
+  num_critical_path_measures 		= 5+2*cost_model_size;// Reason for '5' instead of '6' is because we are not interested in the critical-path idle time.
   num_per_process_measures 		= 6+2*cost_model_size;
   num_volume_measures 			= 6+2*cost_model_size;
   num_tracker_critical_path_measures 	= 3+2*cost_model_size;
   num_tracker_per_process_measures 	= 3+2*cost_model_size;
   num_tracker_volume_measures 		= 3+2*cost_model_size;
+  // The '2*comm_path_select_size' used below are used to track the computation time and idle time along each of the 'comm_path_select_size' paths.
   critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
   per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
   volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
@@ -187,13 +182,19 @@ void _init(int* argc, char*** argv){
   critical_path_costs.resize(critical_path_costs_size);
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
-  new_cs.resize(critical_path_costs_size);  
-  symbol_pad_cp.resize(max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp.resize(max_timer_name_length*max_num_symbols);
-  symbol_len_pad_cp.resize(max_num_symbols);
-  symbol_len_pad_ncp.resize(max_num_symbols);
-  symbol_timer_pad_local_cp.resize((cp_symbol_class_count*num_critical_path_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_cp.resize((cp_symbol_class_count*num_critical_path_measures+1)*max_num_symbols,0.);
+  new_cs.resize(critical_path_costs_size);
+  // The reason 'symbol_pad_cp' and 'symbol_len_pad_cp' are a factor 'symbol_path_select_size' larger than the 'ncp*'
+  //   variants is because those variants are used solely for p2p, in which we simply transfer a process's path data, rather than reduce it using a special multi-root trick.
+  symbol_pad_cp.resize(symbol_path_select_size*max_timer_name_length*max_num_symbols);
+  symbol_pad_ncp1.resize(max_timer_name_length*max_num_symbols);
+  symbol_pad_ncp2.resize(max_timer_name_length*max_num_symbols);
+  symbol_len_pad_cp.resize(symbol_path_select_size*max_num_symbols);
+  symbol_len_pad_ncp1.resize(max_num_symbols);
+  symbol_len_pad_ncp2.resize(max_num_symbols);
+  // Note: we use 'num_per_process_measures' rather than 'num_critical_path_measures' for specifying the
+  //   length of 'symbol_timer_pad_*_cp' because we want to track idle time contribution of each symbol along a path.
+  symbol_timer_pad_local_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
+  symbol_timer_pad_global_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
   symbol_timer_pad_local_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
   symbol_timer_pad_global_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
   symbol_timer_pad_local_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
@@ -207,10 +208,12 @@ void _init(int* argc, char*** argv){
 
 
 void init(int* argc, char*** argv){
+  PMPI_Init(argc,argv);
   _init(argc, argv);
 }
 
 void init_thread(int* argc, char*** argv, int required, int* provided){
+  PMPI_Init_thread(argc,argv,required,provided);
   _init(argc, argv);
 }
 
@@ -291,7 +294,7 @@ void allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* 
 }
 
 void scatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){\
+  if (mode>=1 && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t sendbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -717,6 +720,7 @@ void finalize(){
   if (auto_capture) stop();
   cost_models.clear();
   symbol_path_select.clear();
+  symbol_path_select_index.clear();
   comm_path_select.clear();
   decisions.clear();
   critical_path_costs.clear();
@@ -724,11 +728,14 @@ void finalize(){
   volume_costs.clear();
   new_cs.clear();
   symbol_pad_cp.clear();
-  symbol_pad_ncp.clear();
+  symbol_pad_ncp1.clear();
+  symbol_pad_ncp2.clear();
   symbol_len_pad_cp.clear();
-  symbol_len_pad_ncp.clear();
+  symbol_len_pad_ncp1.clear();
+  symbol_len_pad_ncp2.clear();
   symbol_timer_pad_local_cp.clear();
   symbol_timer_pad_global_cp.clear();
+  symbol_timer_pad_global_cp2.clear();
   symbol_timer_pad_local_pp.clear();
   symbol_timer_pad_global_pp.clear();
   symbol_timer_pad_local_vol.clear();
@@ -739,7 +746,6 @@ void finalize(){
   if (is_world_root){
     if (flag == 1){
       stream.close();
-      pattern_stream.close();
     }
   }
   PMPI_Finalize();
