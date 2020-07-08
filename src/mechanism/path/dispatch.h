@@ -2,7 +2,7 @@
 #define CRITTER__MECHANISMS__PATH__DISPATCH_H_
 
 #include "../../container/comm_tracker.h"
-#include "forward_pass.h"
+#include "decomposition.h"
 
 namespace critter{
 namespace internal{

@@ -15,12 +15,12 @@ lib/libcritter.a:\
 		obj/mechanism_volumetric_volumetric.o\
 		obj/mechanism_per-process_per-process.o\
 		obj/mechanism_path_dispatch.o\
-		obj/mechanism_path_forward_pass.o\
+		obj/mechanism_path_decomposition.o\
 		obj/intercept_symbol.o
 	ar -crs lib/libcritter.a obj/util.o obj/intercept_comm.o obj/intercept_symbol.o obj/intercept_symbol.o obj/record_record.o\
 					obj/container_comm_tracker.o obj/container_symbol_tracker.o\
 					obj/mechanism_volumetric_volumetric.o obj/mechanism_per-process_per-process.o\
-					obj/mechanism_path_dispatch.o obj/mechanism_path_forward_pass.o obj/intercept_symbol.o
+					obj/mechanism_path_dispatch.o obj/mechanism_path_decomposition.o obj/intercept_symbol.o
 
 lib/libcritter.so: obj/critter.o
 	gcc -shared -o lib/libcritter.so obj util.o obj/critter.o
@@ -52,8 +52,8 @@ obj/mechanism_per-process_per-process.o: src/mechanism/per-process/per-process.c
 obj/mechanism_path_dispatch.o: src/mechanism/path/dispatch.cxx
 	$(CXX) src/mechanism/path/dispatch.cxx -c -o obj/mechanism_path_dispatch.o $(CXXFLAGS)
 
-obj/mechanism_path_forward_pass.o: src/mechanism/path/forward_pass.cxx
-	$(CXX) src/mechanism/path/forward_pass.cxx -c -o obj/mechanism_path_forward_pass.o $(CXXFLAGS)
+obj/mechanism_path_decomposition.o: src/mechanism/path/decomposition.cxx
+	$(CXX) src/mechanism/path/decomposition.cxx -c -o obj/mechanism_path_decomposition.o $(CXXFLAGS)
 
 clean:
 	rm -f obj/*.o lib/libcritter.a lib/libcritter.so

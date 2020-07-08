@@ -1,4 +1,4 @@
-#include "forward_pass.h"
+#include "decomposition.h"
 #include "../../container/symbol_tracker.h"
 #include "../../util.h"
 
@@ -96,7 +96,7 @@ static void complete_path_update(){
 }
 
 
-void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                             bool is_sender, int partner1, int partner2){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
@@ -264,7 +264,7 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
-void forward_pass::complete(blocking& tracker){
+void decomposition::complete(blocking& tracker){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   double datamvt_time = std::max(0.,(comm_time-tracker.synch_time));	// prevents negative datamvt time if synchronization time is greater (TODO: datamvt_time is completely derived from comm_time and synch_time and thus can be removed)
   std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
@@ -405,7 +405,7 @@ void forward_pass::complete(blocking& tracker){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void forward_pass::initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
+void decomposition::initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
                             MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
@@ -447,7 +447,7 @@ void forward_pass::initiate(nonblocking& tracker, volatile double curtime, volat
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
 }
 
-void forward_pass::complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+void decomposition::complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
   auto comm_info_it = internal_comm_info.find(*request);
   auto comm_comm_it = internal_comm_comm.find(*request);
   auto comm_data_it = internal_comm_data.find(*request);
@@ -592,7 +592,7 @@ void forward_pass::complete(nonblocking& tracker, MPI_Request* request, double c
   tracker.start_time = MPI_Wtime();
 }
 
-void forward_pass::complete(double curtime, MPI_Request* request, MPI_Status* status){
+void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* status){
   double comp_time = curtime - computation_timer;
   auto comm_track_it = internal_comm_track.find(*request);
   assert(comm_track_it != internal_comm_track.end());
@@ -620,7 +620,7 @@ void forward_pass::complete(double curtime, MPI_Request* request, MPI_Status* st
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void forward_pass::complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   bool success=false;
   for (int i=0; i<count; i++){
     if (*(array_of_requests+i) != MPI_REQUEST_NULL){
@@ -659,7 +659,7 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   if (!success) { *indx=MPI_UNDEFINED; }
 }
 
-void forward_pass::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+void decomposition::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
   for (int i=0; i<incount; i++){
     if (*(array_of_requests+i) != MPI_REQUEST_NULL){
@@ -695,7 +695,7 @@ void forward_pass::complete(double curtime, int incount, MPI_Request array_of_re
   }
 }
 
-void forward_pass::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   double waitall_comp_time = curtime - computation_timer;
   wait_id=true;
   std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
@@ -757,7 +757,7 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void forward_pass::propagate_symbols(nonblocking& tracker, int rank){
+void decomposition::propagate_symbols(nonblocking& tracker, int rank){
   MPI_Request internal_request[8];
   int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
   int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
@@ -804,7 +804,7 @@ void forward_pass::propagate_symbols(nonblocking& tracker, int rank){
  Its important to note here that a blocking p2p call will already know whether its the cp root or not, regardless of whether its partner used a nonblocking p2p routine.
    But, because that potential nonblocking partner does not have this knowledge, and thus posted both sends and recvs, the blocking partner also has to do so as well, even if its partner (unknown to him) used a blocking p2p routine.
 */
-void forward_pass::propagate_symbols(blocking& tracker, int rank){
+void decomposition::propagate_symbols(blocking& tracker, int rank){
   std::vector<int> ftimer_size_cp(symbol_path_select_size,0);
   int ftimer_size_ncp1=0;
   int ftimer_size_ncp2=0;
@@ -1036,7 +1036,7 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
   }
 }
 
-void forward_pass::propagate(blocking& tracker){
+void decomposition::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
   if (symbol_path_select_size>0){
@@ -1090,7 +1090,7 @@ void forward_pass::propagate(blocking& tracker){
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
 }
 
-void forward_pass::propagate(nonblocking& tracker){
+void decomposition::propagate(nonblocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if (rank == tracker.partner1) { return; } 
   if (symbol_path_select_size>0){

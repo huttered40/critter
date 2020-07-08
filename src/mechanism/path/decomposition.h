@@ -1,12 +1,12 @@
-#ifndef CRITTER__MECHANISM__PATH__FORWARD_PASS_H_
-#define CRITTER__MECHANISM__PATH__FORWARD_PASS_H_
+#ifndef CRITTER__MECHANISM__PATH__DECOMPOSITION_H_
+#define CRITTER__MECHANISM__PATH__DECOMPOSITION_H_
 
 #include "../../container/comm_tracker.h"
 
 namespace critter{
 namespace internal{
 
-class forward_pass{
+class decomposition{
 public:
   static void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                        bool is_sender, int partner1, int partner2);
@@ -29,4 +29,4 @@ private:
 }
 }
 
-#endif /*CRITTER__MECHANISM__PATH__FORWARD_PASS_H_*/
+#endif /*CRITTER__MECHANISM__PATH__DECOMPOSITION_H_*/
