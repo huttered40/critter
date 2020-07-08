@@ -14,9 +14,8 @@ void start(){
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{
-    internal::mode = 0;
+    internal::mode = 1;
   }
-  assert(internal::mode>=0 && internal::mode<=2);
   internal::stack_id++;
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
@@ -108,7 +107,6 @@ void _init(int* argc, char*** argv){
     file_name = std::getenv("CRITTER_VIZ_FILE");
     stream_name = file_name + ".txt";
   }
-  mode = 0;
   if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
     max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));
   } else{
@@ -134,7 +132,6 @@ void _init(int* argc, char*** argv){
   } else{
     track_p2p = 1;
   }
-  assert(mode>=0 && mode<=2);
   assert(_cost_models_.size()==2);
   assert(_comm_path_select_.size()==9);
   assert(_symbol_path_select_.size()==9);
@@ -218,7 +215,7 @@ void init_thread(int* argc, char*** argv, int required, int* provided){
 }
 
 void barrier(MPI_Comm comm){
-  if (mode>=1){
+  if (mode){
     volatile double curtime = MPI_Wtime();
     initiate(_MPI_Barrier,curtime, 0, MPI_CHAR, comm);
     PMPI_Barrier(comm);
@@ -230,7 +227,7 @@ void barrier(MPI_Comm comm){
 }
 
 void bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     initiate(_MPI_Bcast,curtime, count, datatype, comm);
     PMPI_Bcast(buffer, count, datatype, root, comm);
@@ -242,7 +239,7 @@ void bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm co
 }
 
 void reduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     initiate(_MPI_Reduce,curtime, count, datatype, comm);
     PMPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
@@ -254,7 +251,7 @@ void reduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype
 }
 
 void allreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     initiate(_MPI_Allreduce,curtime, count, datatype, comm);
     PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
@@ -266,7 +263,7 @@ void allreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datat
 }
 
 void gather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -280,7 +277,7 @@ void gather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* rec
 }
 
 void allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -294,7 +291,7 @@ void allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* 
 }
 
 void scatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t sendbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -308,7 +305,7 @@ void scatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* re
 }
 
 void reduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], MPI_Datatype datatype, MPI_Op op, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0;
     int comm_size; MPI_Comm_size(comm, &comm_size);
@@ -323,7 +320,7 @@ void reduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], 
 }
 
 void alltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -338,7 +335,7 @@ void alltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* r
 
 void gatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int* recvcounts, const int* displs,
              MPI_Datatype recvtype, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_recv += ((int*)recvcounts)[i]; }
@@ -353,7 +350,7 @@ void gatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* re
 
 void allgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int* recvcounts, const int* displs,
              MPI_Datatype recvtype, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_recv += recvcounts[i]; }
@@ -368,7 +365,7 @@ void allgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void*
 
 void scatterv(const void* sendbuf, const int* sendcounts, const int* displs, MPI_Datatype sendtype,
               void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0; int comm_size;MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_send += ((int*)sendcounts)[i]; } 
@@ -383,7 +380,7 @@ void scatterv(const void* sendbuf, const int* sendcounts, const int* displs, MPI
 
 void alltoallv(const void* sendbuf, const int* sendcounts, const int* sdispls, MPI_Datatype sendtype, void* recvbuf,
                const int* recvcounts, const int* rdispls, MPI_Datatype recvtype, MPI_Comm comm){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0, tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_send += sendcounts[i]; tot_recv += recvcounts[i]; }
@@ -398,7 +395,7 @@ void alltoallv(const void* sendbuf, const int* sendcounts, const int* sdispls, M
 
 void sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int dest, int sendtag, void* recvbuf, int recvcount,
               MPI_Datatype recvtype, int source, int recvtag, MPI_Comm comm, MPI_Status* status){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     initiate(_MPI_Sendrecv,curtime, std::max(sendcount,recvcount), sendtype, comm, true, dest, source);
@@ -412,7 +409,7 @@ void sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int des
 
 void sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int sendtag, int source, int recvtag,
                       MPI_Comm comm, MPI_Status* status){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     initiate(_MPI_Sendrecv_replace,curtime, count, datatype, comm, true, dest, source);
@@ -425,7 +422,7 @@ void sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int
 }
 
 void ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(tag != internal_tag);
     initiate(_MPI_Ssend,curtime, count, datatype, comm, true, dest);
@@ -438,7 +435,7 @@ void ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
 }
 
 void send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(tag != internal_tag);
     initiate(_MPI_Send,curtime, count, datatype, comm, true, dest);
@@ -451,7 +448,7 @@ void send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, 
 }
 
 void recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status* status){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(tag != internal_tag);
     initiate(_MPI_Recv,curtime, count, datatype, comm, false, source);
@@ -464,7 +461,7 @@ void recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_
 }
 
 void isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(tag != internal_tag);
     volatile double itime = MPI_Wtime();
@@ -478,7 +475,7 @@ void isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
 }
 
 void irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     assert(tag != internal_tag);
     volatile double itime = MPI_Wtime();
@@ -492,7 +489,7 @@ void irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI
 }
 
 void ibcast(void* buf, int count, MPI_Datatype datatype, int root, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     volatile double itime = MPI_Wtime();
     PMPI_Ibcast(buf, count, datatype, root, comm, request);
@@ -506,7 +503,7 @@ void ibcast(void* buf, int count, MPI_Datatype datatype, int root, MPI_Comm comm
 
 void iallreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
                 MPI_Request *request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     volatile double itime = MPI_Wtime();
     PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request);
@@ -519,7 +516,7 @@ void iallreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype data
 }
 
 void ireduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     volatile double itime = MPI_Wtime();
     PMPI_Ireduce(sendbuf, recvbuf, count, datatype, op, root, comm, request);
@@ -533,7 +530,7 @@ void ireduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatyp
 
 void igather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
              int root, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -549,7 +546,7 @@ void igather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* re
 
 void igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int displs[],
               MPI_Datatype recvtype, int root, MPI_Comm comm, MPI_Request *request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_rank,comm_size; MPI_Comm_rank(comm, &comm_rank); MPI_Comm_size(comm, &comm_size);
     if (comm_rank == root) for (int i=0; i<comm_size; i++){ tot_recv += ((int*)recvcounts)[i]; }
@@ -565,7 +562,7 @@ void igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *r
 
 void iallgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
                 MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size); int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
     volatile double itime = MPI_Wtime();
@@ -580,7 +577,7 @@ void iallgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void*
 
 void iallgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int recvcounts[], const int displs[],
                  MPI_Datatype recvtype, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_recv += recvcounts[i]; }
@@ -596,7 +593,7 @@ void iallgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void
 
 void iscatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
               MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t sendbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
@@ -612,7 +609,7 @@ void iscatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* r
 
 void iscatterv(const void* sendbuf, const int sendcounts[], const int displs[], MPI_Datatype sendtype, void* recvbuf, int recvcount,
                MPI_Datatype recvtype, int root, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0;
     int comm_rank, comm_size; MPI_Comm_rank(comm, &comm_rank); MPI_Comm_size(comm, &comm_size);
@@ -629,7 +626,7 @@ void iscatterv(const void* sendbuf, const int sendcounts[], const int displs[], 
 
 void ireduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], MPI_Datatype datatype, MPI_Op op,
                      MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0;
     int comm_size; MPI_Comm_size(comm, &comm_size);
@@ -646,7 +643,7 @@ void ireduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[],
 
 void ialltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
                MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     volatile double itime = MPI_Wtime();
@@ -661,7 +658,7 @@ void ialltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* 
 
 void ialltoallv(const void* sendbuf, const int sendcounts[], const int sdispls[], MPI_Datatype sendtype, void* recvbuf,
                 const int recvcounts[], const int rdispls[], MPI_Datatype recvtype, MPI_Comm comm, MPI_Request* request){
-  if (mode>=1 && track_collective){
+  if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0, tot_recv=0;
     int comm_size; MPI_Comm_size(comm, &comm_size);
@@ -677,7 +674,7 @@ void ialltoallv(const void* sendbuf, const int sendcounts[], const int sdispls[]
 }
 
 void wait(MPI_Request* request, MPI_Status* status){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     complete(curtime,request, status);
   }
@@ -687,7 +684,7 @@ void wait(MPI_Request* request, MPI_Status* status){
 }
 
 void waitany(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     complete(curtime, count, array_of_requests, indx, status);
   }
@@ -697,7 +694,7 @@ void waitany(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* 
 }
 
 void waitsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     complete(curtime, incount, array_of_requests, outcount, array_of_indices, array_of_statuses);
   }
@@ -707,7 +704,7 @@ void waitsome(int incount, MPI_Request array_of_requests[], int* outcount, int a
 }
 
 void waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
-  if (mode>=1 && track_p2p){
+  if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     complete(curtime,count,array_of_requests,array_of_statuses);
   }

@@ -8,11 +8,11 @@ namespace internal{
 void volumetric::collect(MPI_Comm cm){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (mode>=1){
+  if (mode){
     PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
     for (int i=0; i<volume_costs.size(); i++){ volume_costs[i] /= (1.*world_size); }
   }
-  if (mode>=2){
+  if (mode && symbol_path_select_size>0){
     size_t active_size = world_size;
     size_t active_rank = world_rank;
     size_t active_mult = 1;

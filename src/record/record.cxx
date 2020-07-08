@@ -92,7 +92,7 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
 
 void record(std::ofstream& Stream){
   assert(internal_comm_info.size() == 0);
-  if (mode>=0){
+  if (mode){
     auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
     if (is_world_root){
       auto inputs = parse_file_string();
@@ -174,7 +174,7 @@ void record(std::ostream& Stream){
       Stream << "\n\n";
     }
   }
-  if (mode>=1){
+  if (mode){
     if (is_world_root){
       Stream << "\n\n";
       Stream << std::left << std::setw(mode_1_width) << "Critical path:";
@@ -323,7 +323,7 @@ void record(std::ostream& Stream){
       Stream << "\n";
     }
   }
-  if (mode>=2 && symbol_timers.size()>0){
+  if ((mode) && (symbol_path_select_size>0) && (symbol_timers.size()>0)){
     if (is_world_root){
       for (auto z=0; z<symbol_path_select_size; z++){
         Stream << "***********************************************************************************************************************";

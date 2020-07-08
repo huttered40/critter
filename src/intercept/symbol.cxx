@@ -6,7 +6,7 @@ namespace critter{
 namespace internal{
 
 void symbol_start(const char* symbol){
-  if (mode>=2){
+  if (mode && symbol_path_select_size>0){
     volatile double save_time = MPI_Wtime();
     if (symbol_timers.find(symbol) == symbol_timers.end()){
       symbol_timers[symbol] = symbol_tracker(symbol);
@@ -20,7 +20,7 @@ void symbol_start(const char* symbol){
 }
 
 void symbol_stop(const char* symbol){
-  if (mode>=2){
+  if (mode && symbol_path_select_size>0){
     volatile double save_time = MPI_Wtime();
     if (symbol_timers.find(symbol) == symbol_timers.end()){
       assert(0);

@@ -36,7 +36,7 @@ void per_process::collect(MPI_Comm cm){
     save++;
   }
   // For now, buffer[num_per_process_measures-1].second holds the rank of the process with the max per-process runtime
-  if (mode>=2){
+  if (mode && symbol_path_select_size>0){
     // copy data to volume buffers to avoid corruption
     std::memcpy(&symbol_timer_pad_local_vol[0], &symbol_timer_pad_local_pp[0], (vol_symbol_class_count*num_volume_measures+1)*max_num_symbols*sizeof(double));
 

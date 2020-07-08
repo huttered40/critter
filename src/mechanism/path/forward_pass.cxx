@@ -78,11 +78,11 @@ static void complete_timers(double* remote_path_data, size_t msg_id){
 
 static void complete_path_update(){
   PMPI_Waitall(internal_comm_prop_req.size(), &internal_comm_prop_req[0], MPI_STATUSES_IGNORE);
-  if (mode>=2) { PMPI_Waitall(internal_timer_prop_req.size(), &internal_timer_prop_req[0], MPI_STATUSES_IGNORE); }
+  if (symbol_path_select_size>0) { PMPI_Waitall(internal_timer_prop_req.size(), &internal_timer_prop_req[0], MPI_STATUSES_IGNORE); }
   size_t msg_id=0;
   for (auto& it : internal_comm_prop){
     if (!it.second){
-      if (mode>=2) complete_timers(it.first,msg_id++);
+      if (symbol_path_select_size>0) complete_timers(it.first,msg_id++);
       update_critical_path(it.first,&critical_path_costs[0],critical_path_costs_size);
     }
     free(it.first);
@@ -163,7 +163,7 @@ void forward_pass::initiate(blocking& tracker, volatile double curtime, int64_t 
   volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += tracker.comp_time; }// update each metric's critical path's computation time
-  if (mode>=2 && symbol_stack.size()>0){
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){
     // Get the current symbol's execution-time since last communication routine or its inception.
     // Accumulate as both execution-time and computation time into both the execution-time critical path data structures and the per-process data structures.
     auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
@@ -301,7 +301,7 @@ void forward_pass::complete(blocking& tracker){
   }
 
   // Decompose measurements along multiple paths by symbol
-  if (mode>=2 && symbol_stack.size()>0){
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){
     for (auto i=0; i<symbol_path_select_size; i++){
       // update all communication-related measures for the top symbol in stack
       size_t save=0;
@@ -375,7 +375,7 @@ void forward_pass::complete(blocking& tracker){
   //   Its handled correctly for blocking collectives.
   // If per-process execution-time gets larger than execution-time along the execution-time critical path, subtract out the difference from idle time.
   volume_costs[num_volume_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
-  if (mode>=2 && symbol_stack.size()>0){
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){
     // Special handling of excessively large idle time caused by suspected tool interference
     // Specifically, this interference is caused by not subtracting out the barrier time of the last process to enter the barrier (which ideally is 0).
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
@@ -401,7 +401,7 @@ void forward_pass::complete(blocking& tracker){
   // Prepare to leave interception and re-enter user code by restarting computation timers.
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
-  if (mode>=2 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
@@ -415,7 +415,7 @@ void forward_pass::initiate(nonblocking& tracker, volatile double curtime, volat
   volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += tracker.comp_time; }
-  if (mode>=2 && symbol_stack.size()>0){
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){
     assert(symbol_stack.size()>0);
     assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
     double save_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top()+itime;
@@ -444,7 +444,7 @@ void forward_pass::initiate(nonblocking& tracker, volatile double curtime, volat
 
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
-  if (mode>=2 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
 }
 
 void forward_pass::complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
@@ -536,7 +536,7 @@ void forward_pass::complete(nonblocking& tracker, MPI_Request* request, double c
   }
 
   // Decompose measurements along multiple paths by symbol
-  if (mode>=2 && symbol_stack.size()>0){
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){
     for (auto i=0; i<symbol_path_select_size; i++){
       // update all communication-related measures for the top symbol in stack
       size_t save=0;
@@ -617,7 +617,7 @@ void forward_pass::complete(double curtime, MPI_Request* request, MPI_Status* st
   complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
   complete_path_update();
   computation_timer = MPI_Wtime();
-  if (mode>=2){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
 void forward_pass::complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
@@ -650,7 +650,7 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
       complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
       complete_path_update();
       computation_timer = MPI_Wtime();
-      if (mode>=2){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+      if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
       *indx=i;
       success=true;
       break;
@@ -701,7 +701,7 @@ void forward_pass::complete(double curtime, int incount, MPI_Request array_of_re
       complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
       complete_path_update();
       computation_timer = MPI_Wtime();
-      if (mode>=2){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+      if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
       array_of_indices[0]=i;
       *outcount=1;
     }
@@ -762,7 +762,7 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   complete_path_update();
   waitall_id=false;
   computation_timer = MPI_Wtime();
-  if (mode>=2){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
 void forward_pass::propagate_symbols(nonblocking& tracker, int rank){
@@ -1047,7 +1047,7 @@ void forward_pass::propagate_symbols(blocking& tracker, int rank){
 void forward_pass::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
-  if (mode>=2){
+  if (symbol_path_select_size>0){
     //TODO: Idea for 2-stage reduction: move this out of the mode>=2 if statement, and then after this, scan the critical_path_costs and zero out what is not defining a critical path and then post a MPI_Allreduce (via multi-root hack)
     for (int i=0; i<num_critical_path_measures; i++){
       info_sender[i].first = critical_path_costs[i];
@@ -1095,13 +1095,13 @@ void forward_pass::propagate(blocking& tracker){
       update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
     }
   }
-  if (mode >= 2) { propagate_symbols(tracker,rank); }
+  if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
 }
 
 void forward_pass::propagate(nonblocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if (rank == tracker.partner1) { return; } 
-  if (mode>=2){
+  if (symbol_path_select_size>0){
     for (int i=0; i<num_critical_path_measures; i++){
       info_sender[i].first = critical_path_costs[i];
       info_sender[i].second = rank;
@@ -1155,7 +1155,7 @@ void forward_pass::propagate(nonblocking& tracker){
       internal_comm_prop_req.push_back(req2);
     }
   }
-  if (mode>=2) { propagate_symbols(tracker,rank); }
+  if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
 }
 
 }
