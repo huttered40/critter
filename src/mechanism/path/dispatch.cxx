@@ -21,10 +21,10 @@ void initiate(nonblocking& tracker, volatile double curtime, volatile double iti
   }
 }
 
-void complete(blocking& tracker){
+void complete(blocking& tracker, int recv_source){
   switch (mechanism){
     case 0:
-      decomposition::complete(tracker);
+      decomposition::complete(tracker,recv_source);
       break;
   }
 }

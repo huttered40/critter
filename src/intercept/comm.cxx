@@ -404,7 +404,7 @@ void sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int des
     assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     initiate(_MPI_Sendrecv,curtime, std::max(sendcount,recvcount), sendtype, comm, true, dest, source);
     PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
-    complete(_MPI_Sendrecv);
+    complete(_MPI_Sendrecv,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
   }
   else{
     PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
@@ -418,7 +418,7 @@ void sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int
     assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     initiate(_MPI_Sendrecv_replace,curtime, count, datatype, comm, true, dest, source);
     PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
-    complete(_MPI_Sendrecv_replace);
+    complete(_MPI_Sendrecv_replace,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
    }
   else{
     PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
@@ -457,7 +457,7 @@ void recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_
     assert(tag != internal_tag);
     initiate(_MPI_Recv,curtime, count, datatype, comm, false, source);
     PMPI_Recv(buf, count, datatype, source, tag, comm, status);
-    complete(_MPI_Recv);
+    complete(_MPI_Recv,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
   }
   else{
     PMPI_Recv(buf, count, datatype, source, tag, comm, status);

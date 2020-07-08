@@ -105,6 +105,9 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
   int rank; MPI_Comm_rank(comm, &rank);
   tracker.barrier_time=0.;// might get updated below
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
+    assert(partner1 != MPI_ANY_SOURCE);
+    if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
+
     // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
     // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
     // Note that unlike the execution-time critical path, critical paths defined by other metrics besides execution-time can incur idle time.
@@ -195,6 +198,9 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
   tracker.synch_time = 0.;// might get updated below
 
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
+    assert(partner1 != MPI_ANY_SOURCE);
+    if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
+
     // Use the user communication routine to measre synchronization time.
     // Note the following consequences of using a tiny 1-byte message (note that 0-byte is trivially handled by most MPI implementations) on measuring synchronization time:
     // 	1) The collective communication algorithm is likely different for small messages than large messages.
@@ -270,7 +276,17 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
-void decomposition::complete(blocking& tracker){
+void decomposition::complete(blocking& tracker, int recv_source){
+  // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
+  if (recv_source != -1){
+    if ((tracker.tag == 13) || (tracker.tag == 14)){
+      tracker.partner2=recv_source;
+    }
+    else{
+      assert(tracker.tag==17);
+      tracker.partner1=recv_source;
+    }
+  }
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   double datamvt_time = std::max(0.,(comm_time-tracker.synch_time));	// prevents negative datamvt time if synchronization time is greater (TODO: datamvt_time is completely derived from comm_time and synch_time and thus can be removed)
   std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
@@ -444,7 +460,7 @@ void decomposition::initiate(nonblocking& tracker, volatile double curtime, vola
   int rank; MPI_Comm_rank(comm, &rank);
 
   internal_comm_info[*request] = is_sender;
-  internal_comm_comm[*request] = std::make_pair(comm,partner);
+  internal_comm_comm[*request] = std::make_pair(comm,partner);// Note 'partner' might be MPI_ANY_SOURCE
   internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
   internal_comm_track[*request] = &tracker;
 
@@ -622,6 +638,7 @@ void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* s
   volatile double last_start_time = MPI_Wtime();
   PMPI_Wait(request, status);
   curtime = MPI_Wtime(); double save_comm_time = curtime - last_start_time;
+  if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
   complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
   complete_path_update();
   computation_timer = MPI_Wtime();
@@ -629,82 +646,58 @@ void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* s
 }
 
 void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
-  bool success=false;
-  for (int i=0; i<count; i++){
-    if (*(array_of_requests+i) != MPI_REQUEST_NULL){
-      MPI_Request* req = (MPI_Request*)array_of_requests+i;
-      MPI_Status* stat=(MPI_Status*)status+i;
-      double comp_time = (i==0 ? curtime - computation_timer : 0);// avoid over-counting.
-      auto comm_track_it = internal_comm_track.find(*req);
-      assert(comm_track_it != internal_comm_track.end());
-      auto comm_info_it = internal_comm_info.find(*req);
-      auto comm_comm_it = internal_comm_comm.find(*req);
-      MPI_Request save_request = comm_info_it->first;
-      if ((comm_comm_it->second.second!=-1) && (track_p2p_idle==1)){// if p2p and idle time is requested to be tracked (first case prevents nonblocking collectives
-        int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
-        double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-        if (comm_info_it->second && comm_rank != comm_comm_it->second.second){
-          PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-          PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-          PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
-        }
-        else if (!comm_info_it->second && comm_rank != comm_comm_it->second.second){
-          PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-          PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-          PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-        }
-      }
-      volatile double last_start_time = MPI_Wtime();
-      PMPI_Wait(req, stat);
-      curtime = MPI_Wtime(); double save_comm_time = curtime - last_start_time;
-      complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
-      complete_path_update();
-      computation_timer = MPI_Wtime();
-      if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
-      *indx=i;
-      success=true;
-      break;
-    }
-  }
-  if (!success) { *indx=MPI_UNDEFINED; }
+
+  double waitany_comp_time = curtime - computation_timer;
+  // We must force 'track_p2p_idle' to be zero because we don't know which request the MPI implementation will choose before
+  //   it chooses it. Note that this is a not a problem for MPI_Waitall because all requests are chosen.
+  //   Thus, we cannot participate in any idle/synch time exchanges. This is not a big deal at all if MPI_Waitany
+  //   is used for both sender and receiver side, as idle/synch time are zero anyways. This decision is limiting in the sense that
+  //   if MPI_Waitany is used to close nonblocking requests on both the sender and receiver side, then we forfeit tracking of idle/synch
+  //   time caused by blocking send/recv.
+  // TODO: For that reason alone, it may make sense to remove the assert and inform the user about the possibility of a hang if disobeying our rules.
+  assert(track_p2p_idle==0);
+  // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
+  std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
+  volatile double last_start_time = MPI_Wtime();
+  PMPI_Waitany(count,array_of_requests,indx,status);
+  double waitany_comm_time = MPI_Wtime() - last_start_time;
+  MPI_Request request = pt[*indx];
+  auto comm_track_it = internal_comm_track.find(request);
+  auto comm_comm_it = internal_comm_comm.find(request);
+  assert(comm_track_it != internal_comm_track.end());
+  if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
+  complete(*comm_track_it->second, &request, waitany_comp_time, waitany_comm_time);
+  complete_path_update();
+  computation_timer = MPI_Wtime();
+  if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
 void decomposition::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
-  for (int i=0; i<incount; i++){
-    if (*(array_of_requests+i) != MPI_REQUEST_NULL){
-      MPI_Request* req = array_of_requests+i; MPI_Status* stat=array_of_statuses+i;
-      double comp_time = i==0 ? curtime - computation_timer : 0;
-      auto comm_track_it = internal_comm_track.find(*req);
-      assert(comm_track_it != internal_comm_track.end());
-      auto comm_info_it = internal_comm_info.find(*req);
-      auto comm_comm_it = internal_comm_comm.find(*req);
-      MPI_Request save_request = comm_info_it->first;
-      if ((comm_comm_it->second.second!=-1) && (track_p2p_idle==1)){// if p2p and idle time is requested to be tracked (first case prevents nonblocking collectives
-        int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
-        double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-        if (comm_info_it->second && comm_rank != comm_comm_it->second.second){
-          PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-          PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-          PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
-        }
-        else if (!comm_info_it->second && comm_rank != comm_comm_it->second.second){
-          PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-          PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-          PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-        }
-      }
-      volatile double last_start_time = MPI_Wtime();
-      PMPI_Wait(req, stat);
-      curtime = MPI_Wtime(); double save_comm_time = curtime - last_start_time;
-      complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
-      complete_path_update();
-      computation_timer = MPI_Wtime();
-      if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
-      array_of_indices[0]=i;
-      *outcount=1;
-    }
+
+  double waitsome_comp_time = curtime - computation_timer;
+  wait_id=true;
+  // Read comment in function above. Same ideas apply for Waitsome.
+  assert(track_p2p_idle==0);
+  // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
+  std::vector<MPI_Request> pt(incount); for (int i=0;i<incount;i++){pt[i]=(array_of_requests)[i];}
+  volatile double last_start_time = MPI_Wtime();
+  PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+  double waitsome_comm_time = MPI_Wtime() - last_start_time;
+  for (int i=0; i<*outcount; i++){
+    MPI_Request request = pt[(array_of_indices)[i]];
+    auto comm_track_it = internal_comm_track.find(request);
+    auto comm_comm_it = internal_comm_comm.find(request);
+    assert(comm_track_it != internal_comm_track.end());
+    if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+    complete(*comm_track_it->second, &request, waitsome_comp_time, waitsome_comm_time);
+    waitsome_comp_time=0;
+    waitsome_comm_time=0;
+    if (i==0){wait_id=false;}
   }
+  complete_path_update();
+  computation_timer = MPI_Wtime();
+  if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
 void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
@@ -733,6 +726,7 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
       assert(comm_info_it != internal_comm_info.end());
       auto comm_comm_it = internal_comm_comm.find(*(array_of_requests+i));
       assert(comm_comm_it != internal_comm_comm.end());
+      assert(comm_comm_it->second.second != MPI_ANY_SOURCE);
       if (comm_info_it->second && comm_comm_it->second.second != -1){
         PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
           comm_comm_it->second.first, &internal_requests[3*i]);
@@ -752,13 +746,17 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
     }
     PMPI_Waitall(internal_requests.size(), &internal_requests[0], MPI_STATUSES_IGNORE);
   }
+  // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
+  PMPI_Waitall(count,array_of_requests,array_of_statuses);
   double waitall_comm_time = MPI_Wtime() - last_start_time;
   for (int i=0; i<count; i++){
     MPI_Request request = pt[i];
     auto comm_track_it = internal_comm_track.find(request);
+    auto comm_comm_it = internal_comm_comm.find(request);
     assert(comm_track_it != internal_comm_track.end());
+    if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
     complete(*comm_track_it->second, &request, waitall_comp_time, waitall_comm_time);
     // Although we have to exchange the path data for each request, we do not want to double-count the computation time nor the communicaion time
     waitall_comp_time=0;
