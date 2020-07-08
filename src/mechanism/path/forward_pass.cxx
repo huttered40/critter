@@ -659,19 +659,6 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
   if (!success) { *indx=MPI_UNDEFINED; }
 }
 
-void forward_pass::complete(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
-  std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
-  volatile double last_start_time = MPI_Wtime();
-  PMPI_Waitany(count, array_of_requests, indx, status);
-  volatile double curtime = MPI_Wtime(); double save_comm_time = curtime - last_start_time;
-  MPI_Request request = pt[*indx];
-  auto comm_track_it = internal_comm_track.find(request);
-  assert(comm_track_it != internal_comm_track.end());
-  complete(*comm_track_it->second, &request, waitall_comp_time, save_comm_time);
-  waitall_comp_time=0;
-//  if (!waitall_id){ complete_path_update(); }
-}
-
 void forward_pass::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
   for (int i=0; i<incount; i++){
@@ -709,9 +696,8 @@ void forward_pass::complete(double curtime, int incount, MPI_Request array_of_re
 }
 
 void forward_pass::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
-  waitall_comp_time = curtime - computation_timer;
+  double waitall_comp_time = curtime - computation_timer;
   wait_id=true;
-  waitall_id=true;
   std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
   if (count > barrier_pad_send.size()){
     barrier_pad_send.resize(count);
@@ -752,15 +738,21 @@ void forward_pass::complete(double curtime, int count, MPI_Request array_of_requ
     }
   }
   PMPI_Waitall(internal_requests.size(), &internal_requests[0], MPI_STATUSES_IGNORE);
-  int indx; MPI_Status stat;
+  std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
+  volatile double last_start_time = MPI_Wtime();
+  double waitall_comm_time = MPI_Wtime() - last_start_time;
   for (int i=0; i<count; i++){
-    complete(count, array_of_requests, &indx, &stat);
+    MPI_Request request = pt[i];
+    auto comm_track_it = internal_comm_track.find(request);
+    assert(comm_track_it != internal_comm_track.end());
+    complete(*comm_track_it->second, &request, waitall_comp_time, waitall_comm_time);
+    // Although we have to exchange the path data for each request, we do not want to double-count the computation time nor the communicaion time
+    waitall_comp_time=0;
+    waitall_comm_time=0;
     if (i==0){wait_id=false;}
-    if ((MPI_Status*)array_of_statuses != (MPI_Status*)MPI_STATUSES_IGNORE) ((MPI_Status*)array_of_statuses)[indx] = stat;
   }
   wait_id=true;
   complete_path_update();
-  waitall_id=false;
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }

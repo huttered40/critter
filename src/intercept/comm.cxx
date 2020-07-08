@@ -19,7 +19,7 @@ void start(){
   internal::stack_id++;
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
-  internal::wait_id=true; internal::waitall_id=false;
+  internal::wait_id=true;
   if (internal::is_world_root){
     if (!internal::is_first_iter){
       if (internal::flag)
@@ -56,7 +56,7 @@ void stop(){
   internal::volumetric::collect(MPI_COMM_WORLD);
   internal::record(std::cout);
   if (internal::flag) {internal::record(internal::stream);}
-  internal::mode = 0; internal::wait_id=false; internal::waitall_id=false; internal::is_first_iter = false;
+  internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
   internal::symbol_timers.clear();
 }
 

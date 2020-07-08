@@ -21,7 +21,6 @@ public:
   static void propagate(nonblocking& tracker);
 
 private:
-  static void complete(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
   static void complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time);
   static void propagate_symbols(blocking& tracker, int rank);
   static void propagate_symbols(nonblocking& tracker, int rank);
