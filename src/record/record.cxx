@@ -213,7 +213,7 @@ void record(std::ostream& Stream){
       }
       Stream << "\n\n";
 
-      Stream << std::left << std::setw(mode_1_width) << "Volume:";
+      Stream << std::left << std::setw(mode_1_width) << "Volumetric avg:";
       print_cost_model_header(Stream);
       Stream << std::left << std::setw(mode_1_width) << "IdleTime";
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
@@ -309,7 +309,7 @@ void record(std::ostream& Stream){
       for (int i=0; i<list_size; i++){
         list[i]->set_volume_costs();
       }
-      Stream << std::left << std::setw(mode_1_width) << "Volume:";
+      Stream << std::left << std::setw(mode_1_width) << "Volumetric avg:";
       print_cost_model_header(Stream);
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
