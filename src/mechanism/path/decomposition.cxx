@@ -102,61 +102,64 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
 
-  // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
-  // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
-  // Note that unlike the execution-time critical path, critical paths defined by other metrics besides execution-time can incur idle time.
-
-  // Note that the only reason we separate out the blocking p2p idle time communication is due to the possibility that the other side being nonblocking.
-  // Nonblocking sends can not utilize sendrecv because they may be embedded within a Waitall that does not guarantee ordering.
-  // To account for this for blocking sends, we use the synchronous send to avoid automatic eager-protocol (which would have allowed early exit from p2p barrier).
-  // The only reason we do not always issue a sendrecv with partners 1&2 is because of the possibility in which the other side issued a nonblocking communication request and our handling for idle time there
-  //   is for a nonblocking sender to issue a send and a nonblocking receiver to issue a recv, rather than both. This also is more aligned with a future goal of utilizing eager sends, which might be constitute a different mechanism.
-  // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
-  //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
-
   int rank; MPI_Comm_rank(comm, &rank);
-  volatile double init_time = MPI_Wtime();
-  if (partner1 == -1){ PMPI_Barrier(comm); }
-  else {
-    MPI_Request barrier_reqs[3]; int barrier_count=0;
-    char sbuf='H'; char rbuf='H';
-    if ((is_sender) && (rank != partner1)){
-      PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
-    }
-    if ((!is_sender) && (rank != partner1)){
-      PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
-    }
-    if ((partner2 != -1) && (rank != partner2)){
-      PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner2, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
-    }
-    PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
-  }
-  tracker.barrier_time = MPI_Wtime() - init_time;
+  tracker.barrier_time=0.;// might get updated below
+  if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
+    // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
+    // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
+    // Note that unlike the execution-time critical path, critical paths defined by other metrics besides execution-time can incur idle time.
 
-  // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
-  // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
-  // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
-  // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
-  double min_idle_time=tracker.barrier_time;
-  double recv_idle_time1=std::numeric_limits<double>::max();
-  double recv_idle_time2=std::numeric_limits<double>::max();
-  if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
-  else {
-    MPI_Request barrier_reqs[3]; int barrier_count=0;
-    if ((is_sender) && (rank != partner1)){
-      PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+    // Note that the only reason we separate out the blocking p2p idle time communication is due to the possibility that the other side being nonblocking.
+    // Nonblocking sends can not utilize sendrecv because they may be embedded within a Waitall that does not guarantee ordering.
+    // To account for this for blocking sends, we use the synchronous send to avoid automatic eager-protocol (which would have allowed early exit from p2p barrier).
+    // The only reason we do not always issue a sendrecv with partners 1&2 is because of the possibility in which the other side issued a nonblocking communication request and our handling for idle time there
+    //   is for a nonblocking sender to issue a send and a nonblocking receiver to issue a recv, rather than both. This also is more aligned with a future goal of utilizing eager sends, which might be constitute a different mechanism.
+    // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
+    //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
+
+    volatile double init_time = MPI_Wtime();
+    if (partner1 == -1){ PMPI_Barrier(comm); }
+    else {
+      MPI_Request barrier_reqs[3]; int barrier_count=0;
+      char sbuf='H'; char rbuf='H';
+      if ((is_sender) && (rank != partner1)){
+        PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
+      }
+      if ((!is_sender) && (rank != partner1)){
+        PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
+      }
+      if ((partner2 != -1) && (rank != partner2)){
+        PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner2, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
+      }
+      PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
     }
-    if ((!is_sender) && (rank != partner1)){
-      PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+    tracker.barrier_time = MPI_Wtime() - init_time;
+
+    // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
+    // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
+    // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
+    // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
+    double min_idle_time=tracker.barrier_time;
+    double recv_idle_time1=std::numeric_limits<double>::max();
+    double recv_idle_time2=std::numeric_limits<double>::max();
+    if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
+    else {
+      MPI_Request barrier_reqs[3]; int barrier_count=0;
+      if ((is_sender) && (rank != partner1)){
+        PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+      }
+      if ((!is_sender) && (rank != partner1)){
+        PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+      }
+      if ((partner2 != -1) && (rank != partner2)){
+        PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+      }
+      PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
+      min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
     }
-    if ((partner2 != -1) && (rank != partner2)){
-      PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-    }
-    PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
-    min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
+    tracker.barrier_time -= min_idle_time;
+    for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.barrier_time; }
   }
-  tracker.barrier_time -= min_idle_time;
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.barrier_time; }
 
   critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
@@ -189,76 +192,79 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
   tracker.is_sender = is_sender;
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
+  tracker.synch_time = 0.;// might get updated below
 
-  // Use the user communication routine to measre synchronization time.
-  // Note the following consequences of using a tiny 1-byte message (note that 0-byte is trivially handled by most MPI implementations) on measuring synchronization time:
-  // 	1) The collective communication algorithm is likely different for small messages than large messages.
-  // 	2) The eager sending protocol will be utilized, which would incur a potentially significant difference in synchronization time than if rendezvous protocol was invoked.
-  // 		On second thought. I will force usage of Ssend. TODO: Check whether this breaks any correctness semantics.
+  if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
+    // Use the user communication routine to measre synchronization time.
+    // Note the following consequences of using a tiny 1-byte message (note that 0-byte is trivially handled by most MPI implementations) on measuring synchronization time:
+    // 	1) The collective communication algorithm is likely different for small messages than large messages.
+    // 	2) The eager sending protocol will be utilized, which would incur a potentially significant difference in synchronization time than if rendezvous protocol was invoked.
+    // 		On second thought. I will force usage of Ssend. TODO: Check whether this breaks any correctness semantics.
 
-  // Special arrays for use in the collective -v routines as well as Reduce_scatter.
-  std::vector<int> counts(np,1); std::vector<int> disp(np,0);// TODO: could be moved as global variables
-  if (tracker.tag>=9 && tracker.tag<=12) for (int i=1; i<np; i++) disp[i]=disp[i-1]+1;
-  // start synchronization timer for communication routine
-  tracker.start_time = MPI_Wtime();
-  switch (tracker.tag){
-    case 0:
-      PMPI_Barrier(comm);
-      break;
-    case 1:
-      PMPI_Bcast(&synch_pad_send[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
-      break;
-    case 2:
-      PMPI_Reduce(&synch_pad_send[0], &synch_pad_recv[0], 1, MPI_CHAR, MPI_MAX, 0, comm);// arbitrary root 0
-      break;
-    case 3:
-      PMPI_Allreduce(MPI_IN_PLACE, &synch_pad_send[0], 1, MPI_CHAR, MPI_MAX, comm);
-      break;
-    case 4:
-      PMPI_Gather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
-      break;
-    case 5:
-      PMPI_Allgather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, comm);
-      break;
-    case 6:
-      PMPI_Scatter(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
-      break;
-    case 7:
-      PMPI_Reduce_scatter(&synch_pad_send[0], &synch_pad_recv[0], &counts[0], MPI_CHAR, MPI_MAX, comm);
-      break;
-    case 8:
-      PMPI_Alltoall(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, comm);
-      break;
-    case 9:
-      PMPI_Gatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, 0, comm);// arbitrary root 0
-      break;
-    case 10:
-      PMPI_Allgatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, comm);
-      break;
-    case 11:
-      PMPI_Scatterv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
-      break;
-    case 12:
-      PMPI_Alltoallv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, comm);
-      break;
-    case 13:
-      PMPI_Sendrecv(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, &synch_pad_recv[0], 1, MPI_CHAR, partner2, internal_tag, comm, MPI_STATUS_IGNORE);
-      break;
-    case 14:
-      PMPI_Sendrecv_replace(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, partner2, internal_tag, comm, MPI_STATUS_IGNORE);
-      break;
-    case 15:
-      PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
-      break;
-    case 16:
-      PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);// forced usage of synchronous send to avoid eager sends for large messages. Not ideal for small user communications that would leverage eager protocol.
-      break;
-    case 17:
-      PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner1, internal_tag, comm, MPI_STATUS_IGNORE);
-      break;
+    // Special arrays for use in the collective -v routines as well as Reduce_scatter.
+    std::vector<int> counts(np,1); std::vector<int> disp(np,0);// TODO: could be moved as global variables
+    if (tracker.tag>=9 && tracker.tag<=12) for (int i=1; i<np; i++) disp[i]=disp[i-1]+1;
+    // start synchronization timer for communication routine
+    tracker.start_time = MPI_Wtime();
+    switch (tracker.tag){
+      case 0:
+        PMPI_Barrier(comm);
+        break;
+      case 1:
+        PMPI_Bcast(&synch_pad_send[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        break;
+      case 2:
+        PMPI_Reduce(&synch_pad_send[0], &synch_pad_recv[0], 1, MPI_CHAR, MPI_MAX, 0, comm);// arbitrary root 0
+        break;
+      case 3:
+        PMPI_Allreduce(MPI_IN_PLACE, &synch_pad_send[0], 1, MPI_CHAR, MPI_MAX, comm);
+        break;
+      case 4:
+        PMPI_Gather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        break;
+      case 5:
+        PMPI_Allgather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, comm);
+        break;
+      case 6:
+        PMPI_Scatter(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        break;
+      case 7:
+        PMPI_Reduce_scatter(&synch_pad_send[0], &synch_pad_recv[0], &counts[0], MPI_CHAR, MPI_MAX, comm);
+        break;
+      case 8:
+        PMPI_Alltoall(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, comm);
+        break;
+      case 9:
+        PMPI_Gatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, 0, comm);// arbitrary root 0
+        break;
+      case 10:
+        PMPI_Allgatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, comm);
+        break;
+      case 11:
+        PMPI_Scatterv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        break;
+      case 12:
+        PMPI_Alltoallv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, comm);
+        break;
+      case 13:
+        PMPI_Sendrecv(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, &synch_pad_recv[0], 1, MPI_CHAR, partner2, internal_tag, comm, MPI_STATUS_IGNORE);
+        break;
+      case 14:
+        PMPI_Sendrecv_replace(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, partner2, internal_tag, comm, MPI_STATUS_IGNORE);
+        break;
+      case 15:
+        PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
+        break;
+      case 16:
+        PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);// forced usage of synchronous send to avoid eager sends for large messages. Not ideal for small user communications that would leverage eager protocol.
+        break;
+      case 17:
+        PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner1, internal_tag, comm, MPI_STATUS_IGNORE);
+        break;
+    }
+    tracker.synch_time = MPI_Wtime()-tracker.start_time;
   }
 
-  tracker.synch_time = MPI_Wtime()-tracker.start_time;
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
 }
@@ -599,17 +605,19 @@ void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* s
   auto comm_info_it = internal_comm_info.find(*request);
   auto comm_comm_it = internal_comm_comm.find(*request);
   MPI_Request save_request = comm_info_it->first;
-  int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
-  double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-  if (comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
-    PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-    PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-    PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
-  }
-  else if (!comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
-    PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-    PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-    PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+  if ((comm_comm_it->second.second!=-1) && (track_p2p_idle==1)){// if p2p and idle time is requested to be tracked (first case prevents nonblocking collectives
+    int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank); 
+    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
+    if (comm_info_it->second && comm_rank != comm_comm_it->second.second){
+      PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
+      PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
+      PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
+    }
+    else if (!comm_info_it->second && comm_rank != comm_comm_it->second.second){
+      PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+      PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+      PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+    }
   }
   volatile double last_start_time = MPI_Wtime();
   PMPI_Wait(request, status);
@@ -632,17 +640,19 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
       auto comm_info_it = internal_comm_info.find(*req);
       auto comm_comm_it = internal_comm_comm.find(*req);
       MPI_Request save_request = comm_info_it->first;
-      int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
-      double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-      if (comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
-        PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-        PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-        PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
-      }
-      else if (!comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
-        PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-        PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-        PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+      if ((comm_comm_it->second.second!=-1) && (track_p2p_idle==1)){// if p2p and idle time is requested to be tracked (first case prevents nonblocking collectives
+        int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
+        double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
+        if (comm_info_it->second && comm_rank != comm_comm_it->second.second){
+          PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
+          PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
+          PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
+        }
+        else if (!comm_info_it->second && comm_rank != comm_comm_it->second.second){
+          PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+          PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+          PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+        }
       }
       volatile double last_start_time = MPI_Wtime();
       PMPI_Wait(req, stat);
@@ -670,17 +680,19 @@ void decomposition::complete(double curtime, int incount, MPI_Request array_of_r
       auto comm_info_it = internal_comm_info.find(*req);
       auto comm_comm_it = internal_comm_comm.find(*req);
       MPI_Request save_request = comm_info_it->first;
-      int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
-      double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-      if (comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
-        PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-        PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-        PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
-      }
-      else if (!comm_info_it->second && comm_comm_it->second.second != -1 && comm_rank != comm_comm_it->second.second){
-        PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-        PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-        PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+      if ((comm_comm_it->second.second!=-1) && (track_p2p_idle==1)){// if p2p and idle time is requested to be tracked (first case prevents nonblocking collectives
+        int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank);
+        double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
+        if (comm_info_it->second && comm_rank != comm_comm_it->second.second){
+          PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
+          PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
+          PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
+        }
+        else if (!comm_info_it->second && comm_rank != comm_comm_it->second.second){
+          PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+          PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+          PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+        }
       }
       volatile double last_start_time = MPI_Wtime();
       PMPI_Wait(req, stat);
@@ -698,46 +710,48 @@ void decomposition::complete(double curtime, int incount, MPI_Request array_of_r
 void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   double waitall_comp_time = curtime - computation_timer;
   wait_id=true;
-  std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
-  if (count > barrier_pad_send.size()){
-    barrier_pad_send.resize(count);
-    barrier_pad_recv.resize(count);
-    synch_pad_send.resize(count);
-    synch_pad_recv.resize(count);
-  }
-  // Issue all barrier/synch communications at once because request order is not guaranteed to be sequenced together on all processes.
-  // Necessary to avoid corruption of idle time calculation that would occur if sending out in some sequence after each request is completed.
-  // Presumably the sending communications will utilize the eager protocol, but as the Waitall is issued immediately following the loop, its irrelevant.
-  // TODO: Staging nonblocking receives with nonblocking sends might be a problem because the Sends will likely use the eager protocol (since 1-byte messages),
-  //         while the Recvs will block until the message buffer is available. This will force the matching blocking receives of the nonblocking senders to possibely start counting communication time while
-  //         the sender is stuck in the Waitall loop with the other sends and receives, thus corrupting the measurement of communication time. I propose that the Sends issue their 3-messages together followed
-  //         by a Waitall. At this point, the choice is whether to issue the user-communication sends one-by-one via Waitany loop, issue the nonblocking recv 3-messages together followed by waitall,
-  //         or actually issue a Waitall for the user communication rather than a loop over Waits. I am now leaning towards supporting the user-communication Waitall instead, as that might be a source of overhead
-  //         with CTF. Each process can utilize its timer and record the same communication time, and then issue the exchange of path information via nonblocking communications.
-  double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-  for (int i=0; i<count; i++){
-    auto comm_info_it = internal_comm_info.find(*(array_of_requests+i));
-    assert(comm_info_it != internal_comm_info.end());
-    auto comm_comm_it = internal_comm_comm.find(*(array_of_requests+i));
-    assert(comm_comm_it != internal_comm_comm.end());
-    if (comm_info_it->second && comm_comm_it->second.second != -1){
-      PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
-        comm_comm_it->second.first, &internal_requests[3*i]);
-      PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
-        comm_comm_it->second.first, &internal_requests[3*i+1]);
-      PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
-        comm_comm_it->second.first, &internal_requests[3*i+2]);
+  if (track_p2p_idle==1){// nonblocking collectives won't pass the if statements below anyway.
+    std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
+    if (count > barrier_pad_send.size()){
+      barrier_pad_send.resize(count);
+      barrier_pad_recv.resize(count);
+      synch_pad_send.resize(count);
+      synch_pad_recv.resize(count);
     }
-    else if (!comm_info_it->second && comm_comm_it->second.second != -1){
-      PMPI_Irecv(&barrier_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
-        comm_comm_it->second.first, &internal_requests[3*i]);
-      PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
-        comm_comm_it->second.first, &internal_requests[3*i+1]);
-      PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
-        comm_comm_it->second.first, &internal_requests[3*i+2]);
+    // Issue all barrier/synch communications at once because request order is not guaranteed to be sequenced together on all processes.
+    // Necessary to avoid corruption of idle time calculation that would occur if sending out in some sequence after each request is completed.
+    // Presumably the sending communications will utilize the eager protocol, but as the Waitall is issued immediately following the loop, its irrelevant.
+    // TODO: Staging nonblocking receives with nonblocking sends might be a problem because the Sends will likely use the eager protocol (since 1-byte messages),
+    //         while the Recvs will block until the message buffer is available. This will force the matching blocking receives of the nonblocking senders to possibely start counting communication time while
+    //         the sender is stuck in the Waitall loop with the other sends and receives, thus corrupting the measurement of communication time. I propose that the Sends issue their 3-messages together followed
+    //         by a Waitall. At this point, the choice is whether to issue the user-communication sends one-by-one via Waitany loop, issue the nonblocking recv 3-messages together followed by waitall,
+    //         or actually issue a Waitall for the user communication rather than a loop over Waits. I am now leaning towards supporting the user-communication Waitall instead, as that might be a source of overhead
+    //         with CTF. Each process can utilize its timer and record the same communication time, and then issue the exchange of path information via nonblocking communications.
+    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
+    for (int i=0; i<count; i++){
+      auto comm_info_it = internal_comm_info.find(*(array_of_requests+i));
+      assert(comm_info_it != internal_comm_info.end());
+      auto comm_comm_it = internal_comm_comm.find(*(array_of_requests+i));
+      assert(comm_comm_it != internal_comm_comm.end());
+      if (comm_info_it->second && comm_comm_it->second.second != -1){
+        PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
+          comm_comm_it->second.first, &internal_requests[3*i]);
+        PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+          comm_comm_it->second.first, &internal_requests[3*i+1]);
+        PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
+          comm_comm_it->second.first, &internal_requests[3*i+2]);
+      }
+      else if (!comm_info_it->second && comm_comm_it->second.second != -1){
+        PMPI_Irecv(&barrier_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
+          comm_comm_it->second.first, &internal_requests[3*i]);
+        PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+          comm_comm_it->second.first, &internal_requests[3*i+1]);
+        PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
+          comm_comm_it->second.first, &internal_requests[3*i+2]);
+      }
     }
+    PMPI_Waitall(internal_requests.size(), &internal_requests[0], MPI_STATUSES_IGNORE);
   }
-  PMPI_Waitall(internal_requests.size(), &internal_requests[0], MPI_STATUSES_IGNORE);
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
   double waitall_comm_time = MPI_Wtime() - last_start_time;

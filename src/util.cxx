@@ -80,5 +80,7 @@ int internal_tag4;
 int internal_tag5;
 size_t track_collective;
 size_t track_p2p;
+size_t track_p2p_idle;
+size_t eager_p2p;
 }
 }

@@ -126,6 +126,16 @@ void _init(int* argc, char*** argv){
   } else{
     track_p2p = 1;
   }
+  if (std::getenv("CRITTER_TRACK_P2P_IDLE") != NULL){
+    track_p2p_idle = atoi(std::getenv("CRITTER_TRACK_P2P_IDLE"));
+  } else{
+    track_p2p_idle = 1;
+  }
+  if (std::getenv("CRITTER_EAGER_P2P") != NULL){
+    eager_p2p = atoi(std::getenv("CRITTER_EAGER_P2P"));
+  } else{
+    eager_p2p = 1;
+  }
   assert(_cost_models_.size()==2);
   assert(_comm_path_select_.size()==9);
   assert(_symbol_path_select_.size()==9);
