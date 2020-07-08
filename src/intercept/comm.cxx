@@ -20,12 +20,6 @@ void start(){
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true;
-  if (internal::is_world_root){
-    if (!internal::is_first_iter){
-      if (internal::flag)
-        {internal::stream << "\n";} else {std::cout << "\n";}
-    }
-  }
 
   for (auto i=0; i<internal::list_size; i++){ internal::list[i]->init(); }
   memset(&internal::critical_path_costs[0],0,sizeof(double)*internal::critical_path_costs.size());

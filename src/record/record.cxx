@@ -158,6 +158,7 @@ void record(std::ofstream& Stream){
         }
         breakdown_idx++;
       }
+      Stream << "\n";
     }
   }
 }
