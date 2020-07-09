@@ -1,74 +1,84 @@
 
 # critter
-Welcome! If you are looking for a lightweight tool to analyze the critical path costs of your distributed-memory MPI program, you have come to the right place. `critter` **seeks to understand the critical paths of your MPI program**, and tracks the critical path of each of the following measurements:
+Welcome! If you are looking for a lightweight tool to analyze the critical path costs of your distributed-memory MPI program, you have come to the right place. `critter` **seeks to understand the critical paths of your MPI program**, and decomposes critical paths defined by the following metrics:
 
-1. total runtime
-2. communication time
-3. computation time
-4. number of bytes communicated
-5. estimated communication cost
-6. estimated synchronization cost
+1. execution time
+2. computation time
+3. communication time
+4. synchronization time
+5. estimated communication cost (in either BSP or alpha-beta models)
+6. estimated synchronization cost (in either BSP or alpha-beta models)
+
+For example, the communication-time critical path is the schedule path that incurs the maximum communication time. This path will not necessarily incur the maximum execution time.
 
 `critter` also provides both **per-process** and **volumetric** times and costs of the measures above.
 
-Critical paths through parallel schedules incur contributions from many functions; `critter` can track the contributions (in terms of the measures listed above) of each function and/or any user-defined symbol.
-
-In addition, `critter` can break down each of the critical path measures into the contributions from each MPI routine.
+`critter` decomposes parallel schedule paths into contributions from MPI routines and user-defined kernels. User-defined kernels must be defined manually inside source code via CRITTER_START(kernel_name) and CRITTER_STOP(kernel_name).
 
 See the lists below for an accurate depiction of our current support.
 
 ## Build and use instructions
-`configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library files `./lib/libcritter.a` and `./lib/libcritter.so`. Include `critter.h` in all files that use MPI in your application (i.e. replace `include mpi.h`), and link to `./lib/libcritter.a`.
+`configure` compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library files `./lib/libcritter.a`. Include `critter.h` in all files that use MPI in your application (i.e. replace `include mpi.h`), and link to `./lib/libcritter.a`. Shared library `./lib/libcritter.so` is currently not generated.
 
-`critter` provides a few variables to the user inside the `critter` namespace in `src/critter.h`. Along with a few tags `internal_tag*` to prevent critter's internal MPI communication from conflicting with user communication, `critter_breakdown` specifies which, if any, critical path measurement is broken down into contributions from individual MPI routines. `critter_breakdown_size` must match `critter_breakdown.count()`. `max_timer_name_length` and `max_num_symbols` additionally serve as modifiable compile-time variables that must be large enough to support the number of tracked symbols. Understand that increased profiling information comes at a cost of increased internal data transfer necessary to propogate critical path information.
+`critter` provides two routines to the user: `critter::start()` and `critter::stop()`. These create the window within which all MPI routines are intercepted and tracked. These routines are not strictly needed, as one can set the environment variable `CRITTER_AUTO=1` to enable `critter` to start tracking immediately within `MPI_Init` or `MPI_Init_thread`. See the other environment variables below for all customization options.
 
-`critter` borrows from the `tau` syntax in that all instances of `TAU_START(...)` and `TAU_STOP(...)` are intercepted and tracked.
-
-`critter` provides two routines to the user: `critter::start(int mode)` and `critter::stop(int mode)`. These create the window within which all MPI routines are intercepted and tracked. The argument `mode` can be 0, 1, or 2. Each signifies a distinct set of profiling measurements:
-
-0. Mode 0 acts as a simple timer with no profiling output apart from a walltime.
-1. Mode 1 tracks the critical path, per-process, and volumetric measurements for all six measurements listed above along any of the six critical paths. Additionally, `critter` profiles the contributions from each MPI routine.
-2. Mode 2 supersedes mode 1 by tracking the contributions (in terms of the measures listed above) of each function and/or any user-defined symbol. Only symbols enclosed in `TAU_START` and `TAU_STOP` are tracked.
+## Environment variables
+|     Env variable        |   description   |   default value   |    
+| ----------------------- | ----------- | ---------- |
+| CRITTER_MODE            | serves as switch to enable `critter`; set to 1 to activate; set to 0 for simple timer with no user code interception          |   0       |
+| CRITTER_AUTO            | activates `critter` inside MPI initialization; prevents need for manually inserting `critter::start()` and `critter::stop()` inside user code; set to 1 to activate          |   0       |
+| CRITTER_SYMBOL_PATH_SELECT   | specifies which critical paths are decomposed by user-defined kernel; order: (estimated communication in BSP model, esimated communication in alpha-beta model, estimated synchronization in BSP model, estimated synchronization in alpha-beta model, communication time, synchronization time, bandwidth time, computation time, execution time); as an example, specify 000000001 to decompose the execution-time critical path; specified string length must be 9          |   000000000       |
+| CRITTER_COMM_PATH_SELECT   | specifies which critical paths are decomposed by MPI routines and computation/idle time; specify 000000001 to decompose the execution-time critical path; specified string length must be 9 |   000000000       |
+| CRITTER_TRACK_COLLECTIVE   | intercepts blocking collective routines called within user library; set to 0 to disable          |   1       |
+| CRITTER_TRACK_P2P   | intercepts p2p (blocking and nonblocking) routines called within user library; set to 0 to disable          |   1       |
+| CRITTER_TRACK_P2P_IDLE   | enables idle time and synchronization time calculation for p2p communication; set to 0 to disable          |   1       |
+| CRITTER_EAGER_P2P   | enforces buffered internal communication when propagating path data; set to 0 to enforce rendezvous protocol          |   1       |
+| CRITTER_MAX_NUM_SYMBOLS   | max number of user-defined kernels set inside user library          |   15       |
+| CRITTER_MAX_SYMBOL_LENGTH   | max length of any kernel name specified in user library          |   25       |
 
 ## Current support
-|     MPI routine         |   tracked   |   tested   |    benchmarks   |     
-| ----------------------- | ----------- | ---------- | --------------- |
-| MPI_Barrier              |   yes       |   yes       |   no            |
-| MPI_Bcast                |   yes       |   yes      |   yes           |
-| MPI_Reduce               |   yes       |   yes      |   yes           |
-| MPI_Allreduce            |   yes       |   yes      |   yes           |
-| MPI_Gather               |   yes       |   yes       |   no            |
-| MPI_Gatherv              |   yes       |   yes       |   no            |
-| MPI_Allgather            |   yes       |   yes      |   yes           |
-| MPI_Allgatherv           |   yes       |   yes      |   no           |
-| MPI_Scatter              |   yes       |   yes       |   no            |
-| MPI_Scatterv             |   yes       |   yes       |   no            |
-| MPI_Reduce_Scatter       |   yes       |   yes       |   no            |
-| MPI_Alltoall             |   yes       |   yes       |   no            |
-| MPI_Alltoallv            |   yes       |   yes       |   no            |
-| MPI_Ibcast               |   yes       |   no      |   no           |
-| MPI_Ireduce              |   yes       |   no      |   no           |
-| MPI_Iallreduce           |   yes       |   no      |   no           |
-| MPI_Igather              |   yes       |   no       |   no            |
-| MPI_Igatherv             |   yes       |   no       |   no            |
-| MPI_Iallgather           |   yes       |   no      |   no           |
-| MPI_Iallgatherv          |   yes       |   no      |   no           |
-| MPI_Iscatter             |   yes       |   no       |   no            |
-| MPI_Iscatterv            |   yes       |   no       |   no            |
-| MPI_Ireduce_Scatter      |   yes       |   no       |   no            |
-| MPI_Ialltoall            |   yes       |   no       |   no            |
-| MPI_Ialltoallv           |   yes       |   no       |   no            |
-| MPI_Send                 |   yes       |   yes       |   yes            |
-| MPI_Ssend                 |   yes       |   yes       |   no            |
-| MPI_Bsend                 |   no       |   no       |   no            |
-| MPI_Rsend                 |   no       |   no       |   no            |
-| MPI_Isend                |   yes       |   yes       |   no            |
-| MPI_Issend                 |   no       |   no       |   no            |
-| MPI_Ibsend                 |   no       |   no       |   no            |
-| MPI_Irsend                 |   no       |   no       |   no            |
-| MPI_Recv                 |   yes       |   yes       |   yes            |
-| MPI_Irecv                |   yes       |   yes       |   no            |
-| MPI_Sendrecv             |   yes       |   yes       |   yes            |
-| MPI_Sendrecv_replace     |   yes       |   yes       |   yes            |
+|     MPI routine         |   tracked   |   tested   |    
+| ----------------------- | ----------- | ---------- |
+| MPI_Barrier              |   yes       |   yes       |
+| MPI_Bcast                |   yes       |   yes      |
+| MPI_Reduce               |   yes       |   yes      |
+| MPI_Allreduce            |   yes       |   yes      |
+| MPI_Gather               |   yes       |   yes       |
+| MPI_Gatherv              |   yes       |   yes       |
+| MPI_Allgather            |   yes       |   yes      |
+| MPI_Allgatherv           |   yes       |   yes      |
+| MPI_Scatter              |   yes       |   yes       |
+| MPI_Scatterv             |   yes       |   yes       |
+| MPI_Reduce_Scatter       |   yes       |   yes       |
+| MPI_Alltoall             |   yes       |   yes       |
+| MPI_Alltoallv            |   yes       |   yes       |
+| MPI_Ibcast               |   yes       |   yes      |
+| MPI_Ireduce              |   yes       |   no      |
+| MPI_Iallreduce           |   yes       |   yes      |
+| MPI_Igather              |   yes       |   no       |
+| MPI_Igatherv             |   yes       |   no       |
+| MPI_Iallgather           |   yes       |   no      |
+| MPI_Iallgatherv          |   yes       |   no      |
+| MPI_Iscatter             |   yes       |   no       |
+| MPI_Iscatterv            |   yes       |   no       |
+| MPI_Ireduce_Scatter      |   yes       |   no       |
+| MPI_Ialltoall            |   yes       |   no       |
+| MPI_Ialltoallv           |   yes       |   no       |
+| MPI_Send                 |   yes       |   yes       |
+| MPI_Ssend                 |   yes       |   yes       |
+| MPI_Bsend                 |   yes       |   no       |
+| MPI_Rsend                 |   no       |   no       |
+| MPI_Isend                |   yes       |   yes       |
+| MPI_Issend                 |   no       |   no       |
+| MPI_Ibsend                 |   no       |   no       |
+| MPI_Irsend                 |   no       |   no       |
+| MPI_Recv                 |   yes       |   yes       |
+| MPI_Irecv                |   yes       |   yes       |
+| MPI_Sendrecv             |   yes       |   yes       |
+| MPI_Sendrecv_replace     |   yes       |   yes       |
 
-`critter` is currently not able to track user-defined symbols in any nonblocking collectives. In addition, `critter` does not track sendrecv blocking communications in which a process sends and receives from distinct processes.
+## Warnings
+1. `critter` is currently not able to track user-defined symbols in any nonblocking collectives.
+2. `critter` incurs large overhead when intercepting personalized collectives.
+3. Any usage of `MPI_Waitany`, `MPI_Waitsome`, or `MPI_ANY_SOURCE` requires setting the environment variable `CRITTER_TRACK_P2P_IDLE=0`.
+4. `critter` cannot track user programs with `MPI_THREAD_MULTIPLE`.
