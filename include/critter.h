@@ -101,6 +101,11 @@
     critter::internal::ssend(buf,nelem,t,dest,tag,cm);\
   } while (0)
 
+#define MPI_Bsend(buf, nelem, t, dest, tag, cm)\
+  do {\
+    critter::internal::bsend(buf,nelem,t,dest,tag,cm);\
+  } while (0)
+
 #define MPI_Send(buf, nelem, t, dest, tag, cm)\
   do {\
     critter::internal::send(buf,nelem,t,dest,tag,cm);\

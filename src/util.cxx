@@ -42,6 +42,7 @@ std::vector<double*> internal_timer_prop_double;
 std::vector<double_int*> internal_timer_prop_double_int;
 std::vector<char*> internal_timer_prop_char;
 std::vector<MPI_Request> internal_timer_prop_req;
+std::vector<bool> internal_timer_prop_sender;
 std::vector<bool> decisions;
 std::vector<double> critical_path_costs;
 std::vector<double> max_per_process_costs;
@@ -82,5 +83,6 @@ size_t track_collective;
 size_t track_p2p;
 size_t track_p2p_idle;
 size_t eager_p2p;
+std::vector<char> eager_pad;
 }
 }

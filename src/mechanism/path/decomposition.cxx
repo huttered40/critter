@@ -41,34 +41,73 @@ static void propagate_critical_path_op(double* in, double* inout, int* len, MPI_
 }
 
 static void complete_timers(double* remote_path_data, size_t msg_id){
-  int* envelope_int[2] = { internal_timer_prop_int[4*msg_id+2], internal_timer_prop_int[4*msg_id+3] };
-  double* envelope_double[2] = { remote_path_data, internal_timer_prop_double[2*msg_id+1] };
-  char* envelope_char = internal_timer_prop_char[2*msg_id+1];
-  for (auto k=0; k<symbol_path_select_size; k++){
-    // Up until this very point, we had no idea whether we, or our partner rank, determined the path for a specific metric.
-    if (envelope_double[0][symbol_path_select_index[k]] > critical_path_costs[symbol_path_select_index[k]]){
-      int ftimer_size = *envelope_int[0];
-      int symbol_offset = 0;
-      for (int i=0; i<ftimer_size; i++){
-        auto reconstructed_symbol = std::string(envelope_char+symbol_offset,envelope_char+symbol_offset+envelope_int[1][i]);
-        if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
-          symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
-          symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+  if (eager_p2p==0){
+    int* envelope_int[2] = { internal_timer_prop_int[4*msg_id+2], internal_timer_prop_int[4*msg_id+3] };
+    double* envelope_double[2] = { remote_path_data, internal_timer_prop_double[2*msg_id+1] };
+    char* envelope_char = internal_timer_prop_char[2*msg_id+1];
+    for (auto k=0; k<symbol_path_select_size; k++){
+      // Up until this very point, we had no idea whether we, or our partner rank, determined the path for a specific metric.
+      if (envelope_double[0][symbol_path_select_index[k]] > critical_path_costs[symbol_path_select_index[k]]){
+        int ftimer_size = *envelope_int[0];
+        int symbol_offset = 0;
+        for (int i=0; i<ftimer_size; i++){
+          auto reconstructed_symbol = std::string(envelope_char+symbol_offset,envelope_char+symbol_offset+envelope_int[1][i]);
+          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+            symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
+            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+          }
+          std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
+                      &envelope_double[1][(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
+                      sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
+          symbol_timers[reconstructed_symbol].has_been_processed = true;
+          symbol_offset += envelope_int[1][i];
         }
-        std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
-                    &envelope_double[1][(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
-                    sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
-        symbol_timers[reconstructed_symbol].has_been_processed = true;
-        symbol_offset += envelope_int[1][i];
+        // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
+        for (auto& it : symbol_timers){
+          if (it.second.has_been_processed){ it.second.has_been_processed = false; }
+          else{
+            it.second.cp_numcalls[k][0] = 0;
+            for (int j=0; j<num_per_process_measures; j++){
+              it.second.cp_incl_measure[k][j] = 0;
+              it.second.cp_excl_measure[k][j] = 0;
+            }
+          }
+        }
       }
-      // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
-      for (auto& it : symbol_timers){
-        if (it.second.has_been_processed){ it.second.has_been_processed = false; }
-        else{
-          it.second.cp_numcalls[k][0] = 0;
-          for (int j=0; j<num_per_process_measures; j++){
-            it.second.cp_incl_measure[k][j] = 0;
-            it.second.cp_excl_measure[k][j] = 0;
+    }
+  } else{
+    bool is_sender = internal_timer_prop_sender[msg_id];
+    if (is_sender){
+      int* envelope_int[2] = { internal_timer_prop_int[2*msg_id], internal_timer_prop_int[2*msg_id+1] };
+      double* envelope_double[2] = { remote_path_data, internal_timer_prop_double[msg_id] };
+      char* envelope_char = internal_timer_prop_char[msg_id];
+      for (auto k=0; k<symbol_path_select_size; k++){
+        // Up until this very point, we had no idea whether we, or our partner rank, determined the path for a specific metric.
+        if (envelope_double[0][symbol_path_select_index[k]] > critical_path_costs[symbol_path_select_index[k]]){
+          int ftimer_size = *envelope_int[0];
+          int symbol_offset = 0;
+          for (int i=0; i<ftimer_size; i++){
+            auto reconstructed_symbol = std::string(envelope_char+symbol_offset,envelope_char+symbol_offset+envelope_int[1][i]);
+            if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+              symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
+              symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+            }
+            std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
+                        &envelope_double[1][(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
+                        sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
+            symbol_timers[reconstructed_symbol].has_been_processed = true;
+            symbol_offset += envelope_int[1][i];
+          }
+          // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
+          for (auto& it : symbol_timers){
+            if (it.second.has_been_processed){ it.second.has_been_processed = false; }
+            else{
+              it.second.cp_numcalls[k][0] = 0;
+              for (int j=0; j<num_per_process_measures; j++){
+                it.second.cp_incl_measure[k][j] = 0;
+                it.second.cp_excl_measure[k][j] = 0;
+              }
+            }
           }
         }
       }
@@ -92,7 +131,8 @@ static void complete_path_update(){
   for (auto& it : internal_timer_prop_double){ free(it); }
   for (auto& it : internal_timer_prop_double_int){ free(it); }
   for (auto& it : internal_timer_prop_char){ free(it); }
-  internal_timer_prop_int.clear(); internal_timer_prop_double.clear(); internal_timer_prop_double_int.clear(); internal_timer_prop_char.clear(); internal_timer_prop_req.clear();
+  internal_timer_prop_int.clear(); internal_timer_prop_double.clear(); internal_timer_prop_double_int.clear();
+  internal_timer_prop_char.clear(); internal_timer_prop_req.clear(); internal_timer_prop_sender.clear();
 }
 
 
@@ -103,6 +143,13 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
   tracker.comp_time = curtime - computation_timer;
 
   int rank; MPI_Comm_rank(comm, &rank);
+  // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
+  // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
+  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
+  if (true_eager_p2p){
+    MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+  }
+
   tracker.barrier_time=0.;// might get updated below
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
     assert(partner1 != MPI_ANY_SOURCE);
@@ -126,7 +173,8 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
       MPI_Request barrier_reqs[3]; int barrier_count=0;
       char sbuf='H'; char rbuf='H';
       if ((is_sender) && (rank != partner1)){
-        PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
+        if (true_eager_p2p) { PMPI_Bsend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm); }
+        else                { PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++; }
       }
       if ((!is_sender) && (rank != partner1)){
         PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
@@ -138,29 +186,33 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
     }
     tracker.barrier_time = MPI_Wtime() - init_time;
 
-    // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
-    // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
-    // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
-    // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
-    double min_idle_time=tracker.barrier_time;
-    double recv_idle_time1=std::numeric_limits<double>::max();
-    double recv_idle_time2=std::numeric_limits<double>::max();
-    if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
-    else {
-      MPI_Request barrier_reqs[3]; int barrier_count=0;
-      if ((is_sender) && (rank != partner1)){
-        PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+    // If eager protocol is enabled, its assumed that any message latency the sender incurs is negligable, and thus the receiver incurs its true idle time above
+    // Again, the gray-area is with Sendrecv variants, and we assume they are treated without eager protocol
+    if (!true_eager_p2p){
+      // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
+      // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
+      // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
+      // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
+      double min_idle_time=tracker.barrier_time;
+      double recv_idle_time1=std::numeric_limits<double>::max();
+      double recv_idle_time2=std::numeric_limits<double>::max();
+      if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
+      else {
+        MPI_Request barrier_reqs[3]; int barrier_count=0;
+        if ((is_sender) && (rank != partner1)){
+          PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+        }
+        if ((!is_sender) && (rank != partner1)){
+          PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+        }
+        if ((partner2 != -1) && (rank != partner2)){
+          PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
+        }
+        PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
+        min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
       }
-      if ((!is_sender) && (rank != partner1)){
-        PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-      }
-      if ((partner2 != -1) && (rank != partner2)){
-        PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-      }
-      PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
-      min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
+      tracker.barrier_time -= min_idle_time;
     }
-    tracker.barrier_time -= min_idle_time;
     for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.barrier_time; }
   }
 
@@ -262,10 +314,14 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
         PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
         break;
       case 16:
-        PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);// forced usage of synchronous send to avoid eager sends for large messages. Not ideal for small user communications that would leverage eager protocol.
+        if (true_eager_p2p) { PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm); }
+        else            { PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm); }// forced usage of synchronous send to avoid eager sends for large messages.
         break;
       case 17:
         PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner1, internal_tag, comm, MPI_STATUS_IGNORE);
+        break;
+      case 32:
+        PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
         break;
     }
     tracker.synch_time = MPI_Wtime()-tracker.start_time;
@@ -464,6 +520,9 @@ void decomposition::initiate(nonblocking& tracker, volatile double curtime, vola
   internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
   internal_comm_track[*request] = &tracker;
 
+  bool true_eager_p2p = eager_p2p == 1;
+  if (!true_eager_p2p) { propagate(tracker); }
+
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
@@ -605,7 +664,9 @@ void decomposition::complete(nonblocking& tracker, MPI_Request* request, double 
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += (comp_time+comm_time);
   }
 
-  propagate(tracker);
+  bool true_eager_p2p = eager_p2p == 1;
+  if (!true_eager_p2p) { propagate(tracker); }
+
   internal_comm_info.erase(*request);
   internal_comm_comm.erase(*request);
   internal_comm_data.erase(*request);
@@ -637,10 +698,11 @@ void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* s
   }
   volatile double last_start_time = MPI_Wtime();
   PMPI_Wait(request, status);
-  curtime = MPI_Wtime(); double save_comm_time = curtime - last_start_time;
+  double save_comm_time = MPI_Wtime() - last_start_time;
+  if (eager_p2p==1) { complete_path_update(); }
   if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
   complete(*comm_track_it->second, &save_request, comp_time, save_comm_time);
-  complete_path_update();
+  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -661,13 +723,14 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
   volatile double last_start_time = MPI_Wtime();
   PMPI_Waitany(count,array_of_requests,indx,status);
   double waitany_comm_time = MPI_Wtime() - last_start_time;
+  if (eager_p2p==1) { complete_path_update(); }
   MPI_Request request = pt[*indx];
   auto comm_track_it = internal_comm_track.find(request);
   auto comm_comm_it = internal_comm_comm.find(request);
   assert(comm_track_it != internal_comm_track.end());
   if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
   complete(*comm_track_it->second, &request, waitany_comp_time, waitany_comm_time);
-  complete_path_update();
+  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -684,6 +747,7 @@ void decomposition::complete(double curtime, int incount, MPI_Request array_of_r
   volatile double last_start_time = MPI_Wtime();
   PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   double waitsome_comm_time = MPI_Wtime() - last_start_time;
+  if (eager_p2p==1) { complete_path_update(); }
   for (int i=0; i<*outcount; i++){
     MPI_Request request = pt[(array_of_indices)[i]];
     auto comm_track_it = internal_comm_track.find(request);
@@ -695,7 +759,7 @@ void decomposition::complete(double curtime, int incount, MPI_Request array_of_r
     waitsome_comm_time=0;
     if (i==0){wait_id=false;}
   }
-  complete_path_update();
+  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -730,16 +794,16 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
       if (comm_info_it->second && comm_comm_it->second.second != -1){
         PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
           comm_comm_it->second.first, &internal_requests[3*i]);
-        PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
-          comm_comm_it->second.first, &internal_requests[3*i+1]);
+        if (eager_p2p==0) { PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+          comm_comm_it->second.first, &internal_requests[3*i+1]); }
         PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
           comm_comm_it->second.first, &internal_requests[3*i+2]);
       }
       else if (!comm_info_it->second && comm_comm_it->second.second != -1){
         PMPI_Irecv(&barrier_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
           comm_comm_it->second.first, &internal_requests[3*i]);
-        PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
-          comm_comm_it->second.first, &internal_requests[3*i+1]);
+        if (eager_p2p==0) { PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+          comm_comm_it->second.first, &internal_requests[3*i+1]); }
         PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
           comm_comm_it->second.first, &internal_requests[3*i+2]);
       }
@@ -751,6 +815,7 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
   volatile double last_start_time = MPI_Wtime();
   PMPI_Waitall(count,array_of_requests,array_of_statuses);
   double waitall_comm_time = MPI_Wtime() - last_start_time;
+  if (eager_p2p==1) { complete_path_update(); }
   for (int i=0; i<count; i++){
     MPI_Request request = pt[i];
     auto comm_track_it = internal_comm_track.find(request);
@@ -764,52 +829,106 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
     if (i==0){wait_id=false;}
   }
   wait_id=true;
-  complete_path_update();
+  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
 void decomposition::propagate_symbols(nonblocking& tracker, int rank){
-  MPI_Request internal_request[8];
-  int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
-  int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
-  int ftimer_size = symbol_timers.size();
-  int data_len_size = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size;
-  int num_chars = 0;
-  for (int i=0; i<ftimer_size; i++) { num_chars += symbol_order[i].size(); }
-  send_envelope1 = (int*)malloc(sizeof(int)); *send_envelope1 = ftimer_size;
-  send_envelope2 = (int*)malloc(sizeof(int)*(ftimer_size));
-  send_envelope3 = (double*)malloc(sizeof(double)*data_len_size);
-  send_envelope5 = (char*)malloc(sizeof(char)*num_chars);
-  int symbol_offset = 0;
-  for (auto i=0; i<ftimer_size; i++){
-    send_envelope2[i] = symbol_order[i].size();
-    for (auto j=0; j<symbol_order[i].size(); j++){
-      send_envelope5[symbol_offset+j] = symbol_order[i][j];
+  if (eager_p2p==0){
+    MPI_Request internal_request[8];
+    int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
+    int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
+    int ftimer_size = symbol_timers.size();
+    int data_len_size = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size;
+    int num_chars = 0;
+    for (int i=0; i<ftimer_size; i++) { num_chars += symbol_order[i].size(); }
+    send_envelope1 = (int*)malloc(sizeof(int)); *send_envelope1 = ftimer_size;
+    send_envelope2 = (int*)malloc(sizeof(int)*(ftimer_size));
+    send_envelope3 = (double*)malloc(sizeof(double)*data_len_size);
+    send_envelope5 = (char*)malloc(sizeof(char)*num_chars);
+    int symbol_offset = 0;
+    for (auto i=0; i<ftimer_size; i++){
+      send_envelope2[i] = symbol_order[i].size();
+      for (auto j=0; j<symbol_order[i].size(); j++){
+        send_envelope5[symbol_offset+j] = symbol_order[i][j];
+      }
+      symbol_offset += symbol_order[i].size();
     }
-    symbol_offset += symbol_order[i].size();
+    std::memcpy(send_envelope3,&symbol_timer_pad_local_cp[0],sizeof(double)*data_len_size);
+    PMPI_Isend(&send_envelope1[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
+    PMPI_Isend(&send_envelope2[0],ftimer_size,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
+    PMPI_Isend(&send_envelope3[0],data_len_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
+    PMPI_Isend(&send_envelope5[0],symbol_offset,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
+
+    recv_envelope1 = (int*)malloc(sizeof(int));
+    recv_envelope2 = (int*)malloc(sizeof(int)*(max_num_symbols));
+    recv_envelope3 = (double*)malloc(sizeof(double)*symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols);
+    recv_envelope5 = (char*)malloc(sizeof(char)*max_timer_name_length*max_num_symbols);
+    PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[4]);
+    PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[5]);
+    PMPI_Irecv(recv_envelope3,symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[6]);
+    PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[7]);
+
+    for (int i=0; i<8; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
+    internal_timer_prop_int.push_back(send_envelope1); internal_timer_prop_int.push_back(send_envelope2);
+    internal_timer_prop_int.push_back(recv_envelope1); internal_timer_prop_int.push_back(recv_envelope2);
+    internal_timer_prop_double.push_back(send_envelope3);
+    internal_timer_prop_double.push_back(recv_envelope3);
+    internal_timer_prop_char.push_back(send_envelope5); internal_timer_prop_char.push_back(recv_envelope5);
+    internal_timer_prop_sender.push_back(tracker.is_sender);
+  } else{
+    if (tracker.is_sender){
+      MPI_Request internal_request[4];
+      int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
+      int ftimer_size = symbol_timers.size();
+      int data_len_size = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size;
+      int num_chars = 0;
+      for (int i=0; i<ftimer_size; i++) { num_chars += symbol_order[i].size(); }
+      send_envelope1 = (int*)malloc(sizeof(int)); *send_envelope1 = ftimer_size;
+      send_envelope2 = (int*)malloc(sizeof(int)*(ftimer_size));
+      send_envelope3 = (double*)malloc(sizeof(double)*data_len_size);
+      send_envelope5 = (char*)malloc(sizeof(char)*num_chars);
+      int symbol_offset = 0;
+      for (auto i=0; i<ftimer_size; i++){
+        send_envelope2[i] = symbol_order[i].size();
+        for (auto j=0; j<symbol_order[i].size(); j++){
+          send_envelope5[symbol_offset+j] = symbol_order[i][j];
+        }
+        symbol_offset += symbol_order[i].size();
+      }
+      std::memcpy(send_envelope3,&symbol_timer_pad_local_cp[0],sizeof(double)*data_len_size);
+      PMPI_Isend(&send_envelope1[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
+      PMPI_Isend(&send_envelope2[0],ftimer_size,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
+      PMPI_Isend(&send_envelope3[0],data_len_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
+      PMPI_Isend(&send_envelope5[0],symbol_offset,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
+
+      for (int i=0; i<4; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
+      internal_timer_prop_int.push_back(send_envelope1);
+      internal_timer_prop_int.push_back(send_envelope2);
+      internal_timer_prop_double.push_back(send_envelope3);
+      internal_timer_prop_char.push_back(send_envelope5);
+      internal_timer_prop_sender.push_back(tracker.is_sender);
+    } else{
+      MPI_Request internal_request[4];
+      int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
+      recv_envelope1 = (int*)malloc(sizeof(int));
+      recv_envelope2 = (int*)malloc(sizeof(int)*(max_num_symbols));
+      recv_envelope3 = (double*)malloc(sizeof(double)*symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols);
+      recv_envelope5 = (char*)malloc(sizeof(char)*max_timer_name_length*max_num_symbols);
+      PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[4]);
+      PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[5]);
+      PMPI_Irecv(recv_envelope3,symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[6]);
+      PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[7]);
+
+      for (int i=0; i<4; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
+      internal_timer_prop_int.push_back(recv_envelope1);
+      internal_timer_prop_int.push_back(recv_envelope2);
+      internal_timer_prop_double.push_back(recv_envelope3);
+      internal_timer_prop_char.push_back(recv_envelope5);
+      internal_timer_prop_sender.push_back(tracker.is_sender);
+    }
   }
-  std::memcpy(send_envelope3,&symbol_timer_pad_local_cp[0],sizeof(double)*data_len_size);
-  PMPI_Isend(&send_envelope1[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
-  PMPI_Isend(&send_envelope2[0],ftimer_size,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
-  PMPI_Isend(&send_envelope3[0],data_len_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
-  PMPI_Isend(&send_envelope5[0],symbol_offset,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
-
-  recv_envelope1 = (int*)malloc(sizeof(int));
-  recv_envelope2 = (int*)malloc(sizeof(int)*(max_num_symbols));
-  recv_envelope3 = (double*)malloc(sizeof(double)*symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols);
-  recv_envelope5 = (char*)malloc(sizeof(char)*max_timer_name_length*max_num_symbols);
-  PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[4]);
-  PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[5]);
-  PMPI_Irecv(recv_envelope3,symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[6]);
-  PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[7]);
-
-  for (int i=0; i<8; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
-  internal_timer_prop_int.push_back(send_envelope1); internal_timer_prop_int.push_back(send_envelope2);
-  internal_timer_prop_int.push_back(recv_envelope1); internal_timer_prop_int.push_back(recv_envelope2);
-  internal_timer_prop_double.push_back(send_envelope3);
-  internal_timer_prop_double.push_back(recv_envelope3);
-  internal_timer_prop_char.push_back(send_envelope5); internal_timer_prop_char.push_back(recv_envelope5);
 }
 
 /*
@@ -817,6 +936,7 @@ void decomposition::propagate_symbols(nonblocking& tracker, int rank){
    But, because that potential nonblocking partner does not have this knowledge, and thus posted both sends and recvs, the blocking partner also has to do so as well, even if its partner (unknown to him) used a blocking p2p routine.
 */
 void decomposition::propagate_symbols(blocking& tracker, int rank){
+  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   std::vector<int> ftimer_size_cp(symbol_path_select_size,0);
   int ftimer_size_ncp1=0;
   int ftimer_size_ncp2=0;
@@ -829,25 +949,10 @@ void decomposition::propagate_symbols(blocking& tracker, int rank){
     }
   }
 
-  if (tracker.partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE,&ftimer_size_cp[0],symbol_path_select_size,MPI_INT,MPI_SUM,tracker.comm); }
-  else{
-    // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
-    //   Its simply an exchange. Note that this allows each process to only send the bare minimum. As an example, each process need only send
-    //     a single integer representing its symbol size. There is no need to send symbol_path_select_size integers with the same value.
-    MPI_Request symbol_exchance_reqs[4]; int exchange_count=0;
-    PMPI_Isend(&ftimer_size_cp[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-    PMPI_Irecv(&ftimer_size_ncp1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-    if (tracker.partner1 != tracker.partner2){ PMPI_Isend(&ftimer_size_cp[0],1,MPI_INT,tracker.partner2,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-                                               PMPI_Irecv(&ftimer_size_ncp2,1,MPI_INT,tracker.partner2,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-                                             }
-    PMPI_Waitall(exchange_count,&symbol_exchance_reqs[0],MPI_STATUSES_IGNORE);
-  }
-
-  memset(&symbol_len_pad_cp[0],0,sizeof(int)*symbol_len_pad_cp.size());// not as simple as 'ftimer_size_cp' for blocking collectives. Dependent on the entries in that array
-  memset(&symbol_len_pad_ncp1[0],0,sizeof(int)*ftimer_size_ncp1);
-  memset(&symbol_len_pad_ncp2[0],0,sizeof(int)*ftimer_size_ncp2);
-  size_t symbol_offset_cp = 0; size_t symbol_offset_ncp1 = 0; size_t symbol_offset_ncp2 = 0;
   if (tracker.partner1 == -1){
+    PMPI_Allreduce(MPI_IN_PLACE,&ftimer_size_cp[0],symbol_path_select_size,MPI_INT,MPI_SUM,tracker.comm);
+    memset(&symbol_len_pad_cp[0],0,sizeof(int)*symbol_len_pad_cp.size());// not as simple as 'ftimer_size_cp' for blocking collectives. Dependent on the entries in that array
+    size_t symbol_offset_cp = 0;
     for (auto k=0; k<symbol_path_select_size; k++){
       // Only the roots determining each path will write the symbol length for its symbols.
       //   The rest must keep the zero set above in the memset, but they will still increment the symbol offset counter.
@@ -860,32 +965,10 @@ void decomposition::propagate_symbols(blocking& tracker, int rank){
         symbol_offset_cp += ftimer_size_cp[k];
       }
     }
-  }
-  else{
-    // Each process will determine the symbol length for each of its symbols first
-    //   while incrementing simply the counters to prepare to receive.
-    for (auto i=0; i<ftimer_size_cp[0]; i++){
-      symbol_len_pad_cp[i] = symbol_order[i].size();
-    }
-  }
-
-  if (tracker.partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE,&symbol_len_pad_cp[0],symbol_offset_cp,MPI_INT,MPI_SUM,tracker.comm); }
-  else{
-    // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
-    //   Its simply an exchange.
-    MPI_Request symbol_exchance_reqs[4]; int exchange_count=0;
-    PMPI_Isend(&symbol_len_pad_cp[0],ftimer_size_cp[0],MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-    PMPI_Irecv(&symbol_len_pad_ncp1[0],ftimer_size_ncp1,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-    if (tracker.partner1 != tracker.partner2){ PMPI_Isend(&symbol_len_pad_cp[0],ftimer_size_cp[0],MPI_INT,tracker.partner2,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-                                               PMPI_Irecv(&symbol_len_pad_ncp2[0],ftimer_size_ncp2,MPI_INT,tracker.partner2,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
-                                             }
-    PMPI_Waitall(exchange_count,&symbol_exchance_reqs[0],MPI_STATUSES_IGNORE);
-  }
-
-  symbol_offset_cp = 0; symbol_offset_ncp1 = 0; symbol_offset_ncp2 = 0;
-  int char_count_cp = 0; int char_count_ncp1 = 0; int char_count_ncp2 = 0;
-  size_t pad_global_offset = 0;
-  if (tracker.partner1 == -1){
+    PMPI_Allreduce(MPI_IN_PLACE,&symbol_len_pad_cp[0],symbol_offset_cp,MPI_INT,MPI_SUM,tracker.comm);
+    symbol_offset_cp = 0;
+    int char_count_cp = 0; int char_count_ncp1 = 0; int char_count_ncp2 = 0;
+    size_t pad_global_offset = 0;
     for (auto k=0; k<symbol_path_select_size; k++){
       // Only the roots determining each path will write the symbol length for its symbols.
       //   The rest must keep the zero set above in the memset, but they will still increment the symbol offset counter.
@@ -911,27 +994,6 @@ void decomposition::propagate_symbols(blocking& tracker, int rank){
         }
       }
     }
-  }
-  else{
-    // Each process will determine the symbol length for each of its symbols first
-    //   while incrementing simply the counters to prepare to receive.
-    for (auto i=0; i<ftimer_size_cp[0]; i++){
-      for (auto j=0; j<symbol_len_pad_cp[symbol_offset_cp]; j++){
-        symbol_pad_cp[char_count_cp+j] = symbol_order[i][j];
-      }
-      char_count_cp += symbol_len_pad_cp[symbol_offset_cp++];
-    }
-    for (auto i=0; i<ftimer_size_ncp1; i++){
-      char_count_ncp1 += symbol_len_pad_ncp1[symbol_offset_ncp1++];
-    }
-    if (tracker.partner1 != tracker.partner2){
-      for (auto i=0; i<ftimer_size_ncp2; i++){
-        char_count_ncp2 += symbol_len_pad_ncp2[symbol_offset_ncp2++];
-      }
-    }
-  }
-
-  if (tracker.partner1 == -1){
     PMPI_Allreduce(MPI_IN_PLACE,&symbol_timer_pad_global_cp[0],pad_global_offset,MPI_DOUBLE,MPI_SUM,tracker.comm);
     PMPI_Allreduce(MPI_IN_PLACE,&symbol_pad_cp[0],char_count_cp,MPI_CHAR,MPI_SUM,tracker.comm);
     pad_global_offset = 0;
@@ -973,10 +1035,57 @@ void decomposition::propagate_symbols(blocking& tracker, int rank){
       }
     }
   }
-  else{
+  else if (!true_eager_p2p){
+    // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
+    //   Its simply an exchange. Note that this allows each process to only send the bare minimum. As an example, each process need only send
+    //     a single integer representing its symbol size. There is no need to send symbol_path_select_size integers with the same value.
+    MPI_Request symbol_exchance_reqs[8]; int exchange_count=0;
+    PMPI_Isend(&ftimer_size_cp[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+    PMPI_Irecv(&ftimer_size_ncp1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+    if (tracker.partner1 != tracker.partner2){ PMPI_Isend(&ftimer_size_cp[0],1,MPI_INT,tracker.partner2,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+                                               PMPI_Irecv(&ftimer_size_ncp2,1,MPI_INT,tracker.partner2,internal_tag1,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+                                             }
+    PMPI_Waitall(exchange_count,&symbol_exchance_reqs[0],MPI_STATUSES_IGNORE);
+    memset(&symbol_len_pad_cp[0],0,sizeof(int)*symbol_len_pad_cp.size());// not as simple as 'ftimer_size_cp' for blocking collectives. Dependent on the entries in that array
+    memset(&symbol_len_pad_ncp1[0],0,sizeof(int)*ftimer_size_ncp1);
+    memset(&symbol_len_pad_ncp2[0],0,sizeof(int)*ftimer_size_ncp2);
+    size_t symbol_offset_cp = 0; size_t symbol_offset_ncp1 = 0; size_t symbol_offset_ncp2 = 0;
+    // Each process will determine the symbol length for each of its symbols first
+    //   while incrementing simply the counters to prepare to receive.
+    for (auto i=0; i<ftimer_size_cp[0]; i++){
+      symbol_len_pad_cp[i] = symbol_order[i].size();
+    }
+    // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
+    //   Its simply an exchange.
+    exchange_count=0;
+    PMPI_Isend(&symbol_len_pad_cp[0],ftimer_size_cp[0],MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+    PMPI_Irecv(&symbol_len_pad_ncp1[0],ftimer_size_ncp1,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+    if (tracker.partner1 != tracker.partner2){ PMPI_Isend(&symbol_len_pad_cp[0],ftimer_size_cp[0],MPI_INT,tracker.partner2,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+                                               PMPI_Irecv(&symbol_len_pad_ncp2[0],ftimer_size_ncp2,MPI_INT,tracker.partner2,internal_tag2,tracker.comm,&symbol_exchance_reqs[exchange_count]); exchange_count++;
+                                             }
+    PMPI_Waitall(exchange_count,&symbol_exchance_reqs[0],MPI_STATUSES_IGNORE);
+    symbol_offset_cp = 0; symbol_offset_ncp1 = 0; symbol_offset_ncp2 = 0;
+    int char_count_cp = 0; int char_count_ncp1 = 0; int char_count_ncp2 = 0;
+    size_t pad_global_offset = 0;
+    // Each process will determine the symbol length for each of its symbols first
+    //   while incrementing simply the counters to prepare to receive.
+    for (auto i=0; i<ftimer_size_cp[0]; i++){
+      for (auto j=0; j<symbol_len_pad_cp[symbol_offset_cp]; j++){
+        symbol_pad_cp[char_count_cp+j] = symbol_order[i][j];
+      }
+      char_count_cp += symbol_len_pad_cp[symbol_offset_cp++];
+    }
+    for (auto i=0; i<ftimer_size_ncp1; i++){
+      char_count_ncp1 += symbol_len_pad_ncp1[symbol_offset_ncp1++];
+    }
+    if (tracker.partner1 != tracker.partner2){
+      for (auto i=0; i<ftimer_size_ncp2; i++){
+        char_count_ncp2 += symbol_len_pad_ncp2[symbol_offset_ncp2++];
+      }
+    }
     // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
     //   Its simply an exchange. No special copying is needed as in collectives case.
-    MPI_Request symbol_exchance_reqs[8]; int exchange_count=0;
+    exchange_count=0;
     int data_len_cp = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size_cp[0];
     int data_len_ncp1 = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size_ncp1;
     int data_len_ncp2 = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size_ncp2;
@@ -1046,11 +1155,82 @@ void decomposition::propagate_symbols(blocking& tracker, int rank){
       }
     }
   }
+  else{
+    // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
+    //   Its simply an exchange. Note that this allows each process to only send the bare minimum. As an example, each process need only send
+    //     a single integer representing its symbol size. There is no need to send symbol_path_select_size integers with the same value.
+    if (tracker.is_sender){
+      PMPI_Bsend(&ftimer_size_cp[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm);
+      memset(&symbol_len_pad_cp[0],0,sizeof(int)*symbol_len_pad_cp.size());// not as simple as 'ftimer_size_cp' for blocking collectives. Dependent on the entries in that array
+      // Each process will determine the symbol length for each of its symbols first
+      //   while incrementing simply the counters to prepare to receive.
+      for (auto i=0; i<ftimer_size_cp[0]; i++){
+        symbol_len_pad_cp[i] = symbol_order[i].size();
+      }
+      PMPI_Bsend(&symbol_len_pad_cp[0],ftimer_size_cp[0],MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
+      int char_count_cp = 0;
+      size_t pad_global_offset = 0;
+      // Each process will determine the symbol length for each of its symbols first
+      //   while incrementing simply the counters to prepare to receive.
+      for (auto i=0; i<ftimer_size_cp[0]; i++){
+        for (auto j=0; j<symbol_len_pad_cp[i]; j++){
+          symbol_pad_cp[char_count_cp+j] = symbol_order[i][j];
+        }
+        char_count_cp += symbol_len_pad_cp[i];
+      }
+      int data_len_cp = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size_cp[0];
+      PMPI_Bsend(&symbol_timer_pad_local_cp[0],data_len_cp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm);
+      PMPI_Bsend(&symbol_pad_cp[0],char_count_cp,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm);
+    } else{
+      PMPI_Recv(&ftimer_size_cp[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,MPI_STATUS_IGNORE);
+      memset(&symbol_len_pad_cp[0],0,sizeof(int)*symbol_len_pad_cp.size());// not as simple as 'ftimer_size_cp' for blocking collectives. Dependent on the entries in that array
+      PMPI_Recv(&symbol_len_pad_cp[0],ftimer_size_cp[0],MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      int char_count_cp = 0;
+      size_t pad_global_offset = 0;
+      for (auto i=0; i<ftimer_size_cp[0]; i++){
+        char_count_cp += symbol_len_pad_cp[i];
+      }
+      int data_len_cp = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size_cp[0];
+      PMPI_Recv(&symbol_timer_pad_global_cp[0],data_len_cp,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&symbol_pad_cp[0],char_count_cp,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,MPI_STATUS_IGNORE);
+    }
+    for (auto k=0; k<symbol_path_select_size; k++){
+      if (info_sender[symbol_path_select_index[k]].second < info_receiver[symbol_path_select_index[k]].second){
+        size_t symbol_pad_offset = 0;
+        size_t symbol_len_pad_offset=0;
+        std::string reconstructed_symbol;
+        for (int i=0; i<ftimer_size_cp[0]; i++){
+          reconstructed_symbol = std::string(symbol_pad_cp.begin()+symbol_pad_offset,symbol_pad_cp.begin()+symbol_pad_offset+symbol_len_pad_cp[symbol_len_pad_offset]);
+          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+            symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
+            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
+          }
+          std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
+                      &symbol_timer_pad_global_cp[(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
+                      sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
+          symbol_timers[reconstructed_symbol].has_been_processed = true;
+          symbol_pad_offset += symbol_len_pad_cp[symbol_len_pad_offset++];
+        }
+      }
+      // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
+      for (auto& it : symbol_timers){
+        if (it.second.has_been_processed){ it.second.has_been_processed = false; }
+        else{
+          it.second.cp_numcalls[k][0] = 0;
+          for (int j=0; j<num_per_process_measures; j++){
+            it.second.cp_incl_measure[k][j] = 0;
+            it.second.cp_excl_measure[k][j] = 0;
+          }
+        }
+      }
+    }
+  }
 }
 
 void decomposition::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
+  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   if (symbol_path_select_size>0){
     //TODO: Idea for 2-stage reduction: move this out of the mode>=2 if statement, and then after this, scan the critical_path_costs and zero out what is not defining a critical path and then post a MPI_Allreduce (via multi-root hack)
     for (int i=0; i<num_critical_path_measures; i++){
@@ -1061,25 +1241,34 @@ void decomposition::propagate(blocking& tracker){
       PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, tracker.comm);
     }
     else{
-      PMPI_Sendrecv(&info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag,
-                    &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
-      for (int i=0; i<num_critical_path_measures; i++){
-        if (info_sender[i].first>info_receiver[i].first){info_receiver[i].second = rank;}
-        else if (info_sender[i].first==info_receiver[i].first){ info_receiver[i].second = std::min(rank,tracker.partner1); }
-        info_receiver[i].first = std::max(info_sender[i].first, info_receiver[i].first);
-      }
-      if (tracker.partner2 != tracker.partner1){
-        // Assuming the sender is always dependent on the receiver (not necessarily true or eager protocol, but we make this assumption), this condition signifies a 3-process exchange.
-        for (int i=0; i<num_critical_path_measures; i++){
-          info_sender[i].first = info_receiver[i].first;
-          info_sender[i].second = info_receiver[i].second;
-        }
-        PMPI_Sendrecv(&info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner2, internal_tag,
-                      &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
+      if (!true_eager_p2p){
+        PMPI_Sendrecv(&info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag,
+                      &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
         for (int i=0; i<num_critical_path_measures; i++){
           if (info_sender[i].first>info_receiver[i].first){info_receiver[i].second = rank;}
           else if (info_sender[i].first==info_receiver[i].first){ info_receiver[i].second = std::min(rank,tracker.partner1); }
           info_receiver[i].first = std::max(info_sender[i].first, info_receiver[i].first);
+        }
+        if (tracker.partner2 != tracker.partner1){
+          // Assuming the sender is always dependent on the receiver (not necessarily true or eager protocol, but we make this assumption), this condition signifies a 3-process exchange.
+          for (int i=0; i<num_critical_path_measures; i++){
+            info_sender[i].first = info_receiver[i].first;
+            info_sender[i].second = info_receiver[i].second;
+          }
+          PMPI_Sendrecv(&info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner2, internal_tag,
+                        &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
+          for (int i=0; i<num_critical_path_measures; i++){
+            if (info_sender[i].first>info_receiver[i].first){info_receiver[i].second = rank;}
+            else if (info_sender[i].first==info_receiver[i].first){ info_receiver[i].second = std::min(rank,tracker.partner1); }
+            info_receiver[i].first = std::max(info_sender[i].first, info_receiver[i].first);
+          }
+        }
+      }
+      else{
+        if (tracker.is_sender){
+          PMPI_Bsend(&info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm);
+        } else{
+          PMPI_Recv(&info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
         }
       }
     }
@@ -1092,14 +1281,23 @@ void decomposition::propagate(blocking& tracker){
   }
   else{
     // Note that a blocking sendrecv allows exchanges even when the other party issued a request via nonblocking communication, as the process with the nonblocking request posts both sends and receives.
-    PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+    if (true_eager_p2p){ PMPI_Bsend(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm); }
+    else { PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(),
+                         MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE); }
     update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
     if (tracker.partner2 != tracker.partner1){
+      // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
       PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner2, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
     }
   }
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
+  if (true_eager_p2p){
+    void* temp_buf; int temp_size;
+    // Forces buffered messages to send. Ideally we should wait till the next invocation of 'decomposition::initiate(blocking&,...)' to call this,
+    //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
+    MPI_Buffer_detach(&temp_buf,&temp_size);
+  }
 }
 
 void decomposition::propagate(nonblocking& tracker){
@@ -1111,7 +1309,7 @@ void decomposition::propagate(nonblocking& tracker){
       info_sender[i].second = rank;
     }
     if (tracker.partner1 == -1){ assert(0); }
-    else{
+    else if (eager_p2p==0){
       MPI_Request req1,req2;
       double_int* send_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
       double_int* recv_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
@@ -1120,6 +1318,22 @@ void decomposition::propagate(nonblocking& tracker){
       PMPI_Irecv(&recv_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req2);
       internal_timer_prop_req.push_back(req1); internal_timer_prop_req.push_back(req2);
       internal_timer_prop_double_int.push_back(send_pathdata); internal_timer_prop_double_int.push_back(recv_pathdata);
+    }
+    else{
+      if (tracker.is_sender){
+        MPI_Request req1;
+        double_int* send_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
+        memcpy(&send_pathdata[0].first, &info_sender[0].first, num_critical_path_measures*sizeof(double_int));
+        PMPI_Isend(&send_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req1);
+        internal_timer_prop_req.push_back(req1);
+        internal_timer_prop_double_int.push_back(send_pathdata);
+      } else{
+        MPI_Request req1;
+        double_int* recv_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
+        PMPI_Irecv(&recv_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req1);
+        internal_timer_prop_req.push_back(req1);
+        internal_timer_prop_double_int.push_back(recv_pathdata);
+      }
     }
   }
   // Exchange the tracked routine critical path data
@@ -1133,30 +1347,32 @@ void decomposition::propagate(nonblocking& tracker){
     internal_comm_prop.push_back(std::make_pair(local_path_data,true));
     internal_comm_prop_req.push_back(req1);
   }
-  else{
+  else if (eager_p2p==0){
     MPI_Request req1,req2;
+    double* local_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
+    std::memcpy(local_path_data, &critical_path_costs[0], critical_path_costs.size()*sizeof(double));
+    double* remote_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
+    PMPI_Isend(local_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req1);
+    PMPI_Irecv(remote_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req2);
+    internal_comm_prop.push_back(std::make_pair(local_path_data,true));
+    internal_comm_prop_req.push_back(req1);
+    internal_comm_prop.push_back(std::make_pair(remote_path_data,false));
+    internal_comm_prop_req.push_back(req2);
+  }
+  else{
+    MPI_Request req1;
     if (tracker.is_sender){
       double* local_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
       std::memcpy(local_path_data, &critical_path_costs[0], critical_path_costs.size()*sizeof(double));
-      //TODO: Can I keep sending out `critical_path_costs` or must I make copies and send that out?
       PMPI_Isend(local_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req1);
-      double* remote_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
-      PMPI_Irecv(remote_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req2);
       internal_comm_prop.push_back(std::make_pair(local_path_data,true));
       internal_comm_prop_req.push_back(req1);
-      internal_comm_prop.push_back(std::make_pair(remote_path_data,false));
-      internal_comm_prop_req.push_back(req2);
     }
     else{
-      double* local_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
-      std::memcpy(local_path_data, &critical_path_costs[0], critical_path_costs.size()*sizeof(double));
       double* remote_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
-      PMPI_Irecv(remote_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req2);
-      PMPI_Isend(local_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req1);
-      internal_comm_prop.push_back(std::make_pair(local_path_data,true));
-      internal_comm_prop_req.push_back(req1);
+      PMPI_Irecv(remote_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req1);
       internal_comm_prop.push_back(std::make_pair(remote_path_data,false));
-      internal_comm_prop_req.push_back(req2);
+      internal_comm_prop_req.push_back(req1);
     }
   }
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }

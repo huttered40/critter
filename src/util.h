@@ -71,6 +71,7 @@ extern std::vector<double*> internal_timer_prop_double;
 extern std::vector<double_int*> internal_timer_prop_double_int;
 extern std::vector<char*> internal_timer_prop_char;
 extern std::vector<MPI_Request> internal_timer_prop_req;
+extern std::vector<bool> internal_timer_prop_sender;
 extern std::vector<bool> decisions;
 extern std::vector<double> critical_path_costs;
 extern std::vector<double> max_per_process_costs;
@@ -111,6 +112,7 @@ extern size_t track_collective;
 extern size_t track_p2p;
 extern size_t track_p2p_idle;
 extern size_t eager_p2p;
+extern std::vector<char> eager_pad;
 }
 }
 

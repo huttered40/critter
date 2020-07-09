@@ -122,6 +122,7 @@ public:
 extern blocking
          _MPI_Send,
          _MPI_Ssend,
+         _MPI_Bsend,
          _MPI_Recv,
          _MPI_Sendrecv,
          _MPI_Sendrecv_replace,
@@ -153,7 +154,7 @@ extern nonblocking
          _MPI_Ireduce_scatter,
          _MPI_Ialltoall,
          _MPI_Ialltoallv;
-constexpr auto list_size=32;
+constexpr auto list_size=33;
 extern comm_tracker* list[list_size];
 extern std::map<MPI_Request,nonblocking*> internal_comm_track;
 

@@ -104,12 +104,12 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
     max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));
   } else{
-    max_num_symbols = 40;
+    max_num_symbols = 15;
   }
   if (std::getenv("CRITTER_MAX_SYMBOL_LENGTH") != NULL){
     max_timer_name_length = atoi(std::getenv("CRITTER_MAX_SYMBOL_LENGTH"));
   } else{
-    max_timer_name_length = 40;
+    max_timer_name_length = 25;
   }
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
@@ -203,6 +203,21 @@ void _init(int* argc, char*** argv){
   symbol_order.resize(max_num_symbols);
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
+
+  if (eager_p2p){
+    int eager_msg_sizes[8];
+    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[0]);
+    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[1]);
+    MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,MPI_COMM_WORLD,&eager_msg_sizes[2]);
+    MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,MPI_COMM_WORLD,&eager_msg_sizes[3]);
+    MPI_Pack_size(1,MPI_INT,MPI_COMM_WORLD,&eager_msg_sizes[4]);
+    MPI_Pack_size(max_num_symbols,MPI_INT,MPI_COMM_WORLD,&eager_msg_sizes[5]);
+    MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[6]);
+    MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,MPI_COMM_WORLD,&eager_msg_sizes[7]);
+    int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
+    for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
+    eager_pad.resize(eager_pad_size);
+  }
 
   if (auto_capture) start();
 }
@@ -432,6 +447,19 @@ void ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
     initiate(_MPI_Ssend,curtime, count, datatype, comm, true, dest);
     PMPI_Ssend(buf, count, datatype, dest, tag, comm);
     complete(_MPI_Ssend);
+  }
+  else{
+    PMPI_Ssend(buf, count, datatype, dest, tag, comm);
+  }
+}
+
+void bsend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+  if (mode && track_p2p){
+    volatile double curtime = MPI_Wtime();
+    assert(tag != internal_tag);
+    initiate(_MPI_Bsend,curtime, count, datatype, comm, true, dest);
+    PMPI_Bsend(buf, count, datatype, dest, tag, comm);
+    complete(_MPI_Bsend);
   }
   else{
     PMPI_Ssend(buf, count, datatype, dest, tag, comm);

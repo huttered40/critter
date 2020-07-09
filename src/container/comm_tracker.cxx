@@ -197,6 +197,12 @@ nonblocking _MPI_Ialltoallv("MPI_Ialltoallv",31,
                           [](int64_t n, int p){
                             return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
                            );
+blocking _MPI_Bsend("MPI_Bsend",32,
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1.,n);},
+                          [](int64_t n, int p){
+                            return std::pair<double,double>(1.,n);}
+                      );
 
 comm_tracker* list[list_size] = {
         &_MPI_Barrier,
@@ -230,7 +236,8 @@ comm_tracker* list[list_size] = {
         &_MPI_Iscatterv,
         &_MPI_Ireduce_scatter,
         &_MPI_Ialltoall,
-        &_MPI_Ialltoallv};
+        &_MPI_Ialltoallv,
+        &_MPI_Bsend};
 
 void comm_tracker::init(){
   this->set_cost_pointers();
@@ -335,6 +342,7 @@ blocking::blocking(std::string name_, int tag, std::function<std::pair<double,do
   this->cost_func_alphabeta = cost_func_alphabeta;
   this->name = std::move(name_);
   this->tag = tag;
+  this->is_sender = tag < 17 ? true : false;
 }
 
 blocking::blocking(blocking const& t){
@@ -342,6 +350,7 @@ blocking::blocking(blocking const& t){
   this->cost_func_alphabeta = t.cost_func_alphabeta;
   this->name = t.name;
   this->tag = t.tag;
+  this->is_sender = t.is_sender;
 }
 
 nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
@@ -350,6 +359,7 @@ nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<dou
   this->cost_func_alphabeta = cost_func_alphabeta;
   this->name = std::move(name_);
   this->tag = tag;
+  this->is_sender = tag==18 ? true : false;
 }
 
 nonblocking::nonblocking(nonblocking const& t){
@@ -357,6 +367,7 @@ nonblocking::nonblocking(nonblocking const& t){
   this->cost_func_alphabeta = t.cost_func_alphabeta;
   this->name = t.name;
   this->tag = t.tag;
+  this->is_sender = t.is_sender;
 }
 
 }
