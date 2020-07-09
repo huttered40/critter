@@ -39,12 +39,7 @@ void stop(){
   if (internal::stack_id>0) { return; }
   PMPI_Barrier(MPI_COMM_WORLD);
   assert(internal::internal_comm_info.size() == 0);
-  internal::critical_path_costs[internal::num_critical_path_measures-2]+=(last_time-internal::computation_timer);	// update critical path computation time
-  internal::critical_path_costs[internal::num_critical_path_measures-1]+=(last_time-internal::computation_timer);	// update critical path runtime
-  internal::volume_costs[internal::num_volume_measures-2]+=(last_time-internal::computation_timer);			// update computation time volume
-  internal::volume_costs[internal::num_volume_measures-1]+=(last_time-internal::computation_timer);			// update runtime volume
-  // update the computation time (i.e. time between last MPI synchronization point and this function invocation) along all paths decomposed by MPI communication routine
-  for (size_t i=0; i<internal::comm_path_select_size; i++){ internal::critical_path_costs[internal::critical_path_costs_size-1-i] += (last_time-internal::computation_timer); }
+  internal::final_accumulate(last_time); 
   internal::propagate(MPI_COMM_WORLD);
   internal::per_process::collect(MPI_COMM_WORLD);
   internal::volumetric::collect(MPI_COMM_WORLD);
@@ -62,9 +57,6 @@ namespace internal{
 void _init(int* argc, char*** argv){
   mode=0;
   stack_id=0;
-  cp_symbol_class_count = 4;
-  pp_symbol_class_count = 4;
-  vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
   mode_1_width = 25;
   mode_2_width = 15;
   internal_tag = 31133;
@@ -174,50 +166,8 @@ void _init(int* argc, char*** argv){
   num_tracker_critical_path_measures 	= 3+2*cost_model_size;
   num_tracker_per_process_measures 	= 3+2*cost_model_size;
   num_tracker_volume_measures 		= 3+2*cost_model_size;
-  // The '2*comm_path_select_size' used below are used to track the computation time and idle time along each of the 'comm_path_select_size' paths.
-  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
 
-  decisions.resize(comm_path_select_size);
-  critical_path_costs.resize(critical_path_costs_size);
-  max_per_process_costs.resize(per_process_costs_size);
-  volume_costs.resize(volume_costs_size);
-  new_cs.resize(critical_path_costs_size);
-  // The reason 'symbol_pad_cp' and 'symbol_len_pad_cp' are a factor 'symbol_path_select_size' larger than the 'ncp*'
-  //   variants is because those variants are used solely for p2p, in which we simply transfer a process's path data, rather than reduce it using a special multi-root trick.
-  symbol_pad_cp.resize(symbol_path_select_size*max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp1.resize(max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp2.resize(max_timer_name_length*max_num_symbols);
-  symbol_len_pad_cp.resize(symbol_path_select_size*max_num_symbols);
-  symbol_len_pad_ncp1.resize(max_num_symbols);
-  symbol_len_pad_ncp2.resize(max_num_symbols);
-  // Note: we use 'num_per_process_measures' rather than 'num_critical_path_measures' for specifying the
-  //   length of 'symbol_timer_pad_*_cp' because we want to track idle time contribution of each symbol along a path.
-  symbol_timer_pad_local_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_local_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_local_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
-  symbol_order.resize(max_num_symbols);
-  info_sender.resize(num_critical_path_measures);
-  info_receiver.resize(num_critical_path_measures);
-
-  if (eager_p2p){
-    int eager_msg_sizes[8];
-    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[0]);
-    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[1]);
-    MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,MPI_COMM_WORLD,&eager_msg_sizes[2]);
-    MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,MPI_COMM_WORLD,&eager_msg_sizes[3]);
-    MPI_Pack_size(1,MPI_INT,MPI_COMM_WORLD,&eager_msg_sizes[4]);
-    MPI_Pack_size(max_num_symbols,MPI_INT,MPI_COMM_WORLD,&eager_msg_sizes[5]);
-    MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[6]);
-    MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,MPI_COMM_WORLD,&eager_msg_sizes[7]);
-    int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
-    for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
-    eager_pad.resize(eager_pad_size);
-  }
+  allocate();
 
   if (auto_capture) start();
 }
@@ -747,31 +697,6 @@ void waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_sta
 
 void finalize(){
   if (auto_capture) stop();
-  cost_models.clear();
-  symbol_path_select.clear();
-  symbol_path_select_index.clear();
-  comm_path_select.clear();
-  decisions.clear();
-  critical_path_costs.clear();
-  max_per_process_costs.clear();
-  volume_costs.clear();
-  new_cs.clear();
-  symbol_pad_cp.clear();
-  symbol_pad_ncp1.clear();
-  symbol_pad_ncp2.clear();
-  symbol_len_pad_cp.clear();
-  symbol_len_pad_ncp1.clear();
-  symbol_len_pad_ncp2.clear();
-  symbol_timer_pad_local_cp.clear();
-  symbol_timer_pad_global_cp.clear();
-  symbol_timer_pad_global_cp2.clear();
-  symbol_timer_pad_local_pp.clear();
-  symbol_timer_pad_global_pp.clear();
-  symbol_timer_pad_local_vol.clear();
-  symbol_timer_pad_global_vol.clear();
-  symbol_order.clear();
-  info_sender.clear();
-  info_receiver.clear();
   if (is_world_root){
     if (flag == 1){
       stream.close();

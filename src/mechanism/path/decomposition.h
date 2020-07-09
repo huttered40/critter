@@ -8,6 +8,7 @@ namespace internal{
 
 class decomposition{
 public:
+  static void allocate();
   static void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                        bool is_sender, int partner1, int partner2);
   static void initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
@@ -19,6 +20,7 @@ public:
   static void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
   static void propagate(blocking& tracker);
   static void propagate(nonblocking& tracker);
+  static void final_accumulate(double last_time);
 
 private:
   static void complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time);

@@ -7,6 +7,7 @@
 namespace critter{
 namespace internal{
 
+void allocate();
 void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender=false, int partner1=-1, int partner2=-1);
 void initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
@@ -17,6 +18,7 @@ void complete(double curtime, int count, MPI_Request array_of_requests[], int* i
 void complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
 void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
 void propagate(MPI_Comm comm);
+void final_accumulate(double last_time);
 
 }
 }
