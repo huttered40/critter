@@ -15,8 +15,6 @@ class comm_tracker{
     int tag;
     /* \brief local duration of synchronization time */
     double* my_synch_time;
-    /* \brief local duration of data mvt time */
-    double* my_datamvt_time;
     /* \brief local duration of communication time */
     double* my_comm_time;
     /* \brief local comm cost in #messages */
@@ -25,8 +23,6 @@ class comm_tracker{
     double* my_wrd_count;
     /* \brief duration of synchronization time along a critical path */
     double* critical_path_synch_time;
-    /* \brief number of time spent moving data about the network along a critical path */
-    double* critical_path_datamvt_time;
     /* \brief duration of communication time along a critical path */
     double* critical_path_comm_time;
     /* \brief comm cost in #messages along a critical path */

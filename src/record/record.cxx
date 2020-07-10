@@ -39,9 +39,8 @@ std::string get_measure_title(size_t idx){
   measure_titles[4] = "idle time";
   measure_titles[5] = "comm time";
   measure_titles[6] = "synch time";
-  measure_titles[7] = "datamvt time";
-  measure_titles[8] = "comp time";
-  measure_titles[9] = "runtime";
+  measure_titles[7] = "comp time";
+  measure_titles[8] = "exec time";
   if ((cost_models[0]=='0') && (cost_models[1]=='0')){ return measure_titles[idx+2*cost_model_size]; }
   if ((cost_models[0]=='0') && (cost_models[1]=='1')){ if (idx==0) return measure_titles[0]; if (idx==1) return measure_titles[2]; return measure_titles[2+idx];}
   if ((cost_models[0]=='1') && (cost_models[1]=='0')){ if (idx==0) return measure_titles[1]; if (idx==1) return measure_titles[3]; return measure_titles[2+idx];}
@@ -78,11 +77,11 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
     Stream << "Input";
   }
   print_cost_model_header_file(Stream);
-  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// critical path
+  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tRunTime";// critical path
   print_cost_model_header_file(Stream);
-  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// per-process
+  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
-  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tDataMvtTime\tComputationTime\tRunTime";// volume
+  Stream << "\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tRunTime";// volume
   for (auto i=0; i<num_tracker_critical_path_measures*comm_path_select_size+num_tracker_per_process_measures*comm_path_select_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
@@ -168,7 +167,7 @@ void record(std::ostream& Stream){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   if (mode==0){
     if (is_world_root){
-      Stream << std::left << std::setw(mode_1_width) << "Runtime:";
+      Stream << std::left << std::setw(mode_1_width) << "Execution time:";
       Stream << "\n";
       Stream << std::left << std::setw(mode_1_width) << "                  ";
       Stream << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
@@ -183,7 +182,6 @@ void record(std::ostream& Stream){
       Stream << std::left << std::setw(mode_1_width) << "IdleTime";
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
       Stream << std::left << std::setw(mode_1_width) << "CompTime";
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
@@ -201,7 +199,6 @@ void record(std::ostream& Stream){
       Stream << std::left << std::setw(mode_1_width) << "IdleTime";
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
       Stream << std::left << std::setw(mode_1_width) << "CompTime";
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
@@ -218,7 +215,6 @@ void record(std::ostream& Stream){
       Stream << std::left << std::setw(mode_1_width) << "IdleTime";
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
       Stream << std::left << std::setw(mode_1_width) << "CompTime";
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
@@ -246,10 +242,8 @@ void record(std::ostream& Stream){
         } else if (i==5){
           Stream << std::left << std::setw(mode_1_width) << "SynchTime max:";
         } else if (i==6){
-          Stream << std::left << std::setw(mode_1_width) << "DataMvtTime max:";
-        } else if (i==7){
           Stream << std::left << std::setw(mode_1_width) << "CompTime max:";
-        } else if (i==8){
+        } else if (i==7){
           Stream << std::left << std::setw(mode_1_width) << "RunTime max:";
         }
         Stream << std::left << std::setw(mode_1_width) << "MeasureType";
@@ -258,7 +252,6 @@ void record(std::ostream& Stream){
         print_cost_model_header(Stream);
         Stream << std::left << std::setw(mode_1_width) << "CommTime";
         Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-        Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "Computation";
         Stream << std::left << std::setw(mode_1_width) << "path";
@@ -313,7 +306,6 @@ void record(std::ostream& Stream){
       print_cost_model_header(Stream);
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "DataMvtTime";
       for (auto& it : save_info){
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << it.first;

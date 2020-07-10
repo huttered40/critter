@@ -3,7 +3,6 @@
 #include "../record/record.h"
 #include "../mechanism/path/dispatch.h"
 #include "../mechanism/volumetric/volumetric.h"
-#include "../mechanism/per-process/per-process.h"
 #include "../mechanism/path/dispatch.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
@@ -41,7 +40,6 @@ void stop(){
   assert(internal::internal_comm_info.size() == 0);
   internal::final_accumulate(last_time); 
   internal::propagate(MPI_COMM_WORLD);
-  internal::per_process::collect(MPI_COMM_WORLD);
   internal::volumetric::collect(MPI_COMM_WORLD);
   internal::record(std::cout);
   if (internal::flag) {internal::record(internal::stream);}
@@ -81,12 +79,12 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_SYMBOL_PATH_SELECT") != NULL){
     _symbol_path_select_ = std::getenv("CRITTER_SYMBOL_PATH_SELECT");
   } else{
-    _symbol_path_select_ = "000000000";
+    _symbol_path_select_ = "00000000";
   }
   if (std::getenv("CRITTER_COMM_PATH_SELECT") != NULL){
     _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
   } else{
-    _comm_path_select_ = "000000000";
+    _comm_path_select_ = "00000000";
   }
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
     flag = 1;
@@ -126,11 +124,11 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_EAGER_P2P") != NULL){
     eager_p2p = atoi(std::getenv("CRITTER_EAGER_P2P"));
   } else{
-    eager_p2p = 1;
+    eager_p2p = 0;
   }
   assert(_cost_models_.size()==2);
-  assert(_comm_path_select_.size()==9);
-  assert(_symbol_path_select_.size()==9);
+  assert(_comm_path_select_.size()==8);
+  assert(_symbol_path_select_.size()==8);
   cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0; is_first_iter = true;
   int _world_rank,_world_size;
   MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
@@ -151,24 +149,23 @@ void _init(int* argc, char*** argv){
     if (_cost_models_[i] == '1'){ cost_model_size++; }
     cost_models.push_back(_cost_models_[i]);
   } 
-  for (auto i=0; i<9; i++){
+  for (auto i=0; i<8; i++){
     if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; symbol_path_select_index.push_back(i);}
     symbol_path_select.push_back(_symbol_path_select_[i]);
   } 
-  for (auto i=0; i<9; i++){
+  for (auto i=0; i<8; i++){
     if (_comm_path_select_[i] == '1'){ comm_path_select_size++; }
     comm_path_select.push_back(_comm_path_select_[i]);
   } 
 
-  num_critical_path_measures 		= 5+2*cost_model_size;// Reason for '5' instead of '6' is because we are not interested in the critical-path idle time.
-  num_per_process_measures 		= 6+2*cost_model_size;
-  num_volume_measures 			= 6+2*cost_model_size;
-  num_tracker_critical_path_measures 	= 3+2*cost_model_size;
-  num_tracker_per_process_measures 	= 3+2*cost_model_size;
-  num_tracker_volume_measures 		= 3+2*cost_model_size;
+  num_critical_path_measures 		= 4+2*cost_model_size;// Reason for '4' instead of '5' is because we are not interested in the critical-path idle time.
+  num_per_process_measures 		= 5+2*cost_model_size;
+  num_volume_measures 			= 5+2*cost_model_size;
+  num_tracker_critical_path_measures 	= 2+2*cost_model_size;
+  num_tracker_per_process_measures 	= 2+2*cost_model_size;
+  num_tracker_volume_measures 		= 2+2*cost_model_size;
 
-  allocate();
-
+  allocate(MPI_COMM_WORLD);
   if (auto_capture) start();
 }
 

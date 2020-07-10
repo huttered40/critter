@@ -8,7 +8,7 @@ namespace internal{
 
 class decomposition{
 public:
-  static void allocate();
+  static void allocate(MPI_Comm comm);
   static void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                        bool is_sender, int partner1, int partner2);
   static void initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,

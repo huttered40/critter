@@ -13,13 +13,12 @@ lib/libcritter.a:\
 		obj/container_comm_tracker.o\
 		obj/container_symbol_tracker.o\
 		obj/mechanism_volumetric_volumetric.o\
-		obj/mechanism_per-process_per-process.o\
 		obj/mechanism_path_dispatch.o\
 		obj/mechanism_path_decomposition.o\
 		obj/intercept_symbol.o
 	ar -crs lib/libcritter.a obj/util.o obj/intercept_comm.o obj/intercept_symbol.o obj/intercept_symbol.o obj/record_record.o\
 					obj/container_comm_tracker.o obj/container_symbol_tracker.o\
-					obj/mechanism_volumetric_volumetric.o obj/mechanism_per-process_per-process.o\
+					obj/mechanism_volumetric_volumetric.o\
 					obj/mechanism_path_dispatch.o obj/mechanism_path_decomposition.o obj/intercept_symbol.o
 
 lib/libcritter.so: obj/critter.o
@@ -45,9 +44,6 @@ obj/container_symbol_tracker.o: src/container/symbol_tracker.cxx
 
 obj/mechanism_volumetric_volumetric.o: src/mechanism/volumetric/volumetric.cxx
 	$(CXX) src/mechanism/volumetric/volumetric.cxx -c -o obj/mechanism_volumetric_volumetric.o $(CXXFLAGS)
-
-obj/mechanism_per-process_per-process.o: src/mechanism/per-process/per-process.cxx
-	$(CXX) src/mechanism/per-process/per-process.cxx -c -o obj/mechanism_per-process_per-process.o $(CXXFLAGS)
 
 obj/mechanism_path_dispatch.o: src/mechanism/path/dispatch.cxx
 	$(CXX) src/mechanism/path/dispatch.cxx -c -o obj/mechanism_path_dispatch.o $(CXXFLAGS)

@@ -4,10 +4,12 @@ Welcome! If you are looking for a lightweight tool to analyze the critical path 
 
 1. execution time
 2. computation time
-3. communication time
-4. synchronization time
-5. estimated communication cost (in either BSP or alpha-beta models)
-6. estimated synchronization cost (in either BSP or alpha-beta models)
+3. synchronization time
+4. communication time
+5. estimated synchronization cost in the alpha-beta model
+6. estimated synchronization cost in the BSP model
+7. estimated communication cost in the alpha-beta model
+8. estimated communication cost in the BSP model
 
 For example, the communication-time critical path is the schedule path that incurs the maximum communication time. This path will not necessarily incur the maximum execution time.
 
@@ -27,12 +29,12 @@ See the lists below for an accurate depiction of our current support.
 | ----------------------- | ----------- | ---------- |
 | CRITTER_MODE            | serves as switch to enable `critter`; set to 1 to activate; set to 0 for simple timer with no user code interception          |   0       |
 | CRITTER_AUTO            | activates `critter` inside MPI initialization; prevents need for manually inserting `critter::start()` and `critter::stop()` inside user code; set to 1 to activate          |   0       |
-| CRITTER_SYMBOL_PATH_SELECT   | specifies which critical paths are decomposed by user-defined kernel; order: (estimated communication in BSP model, esimated communication in alpha-beta model, estimated synchronization in BSP model, estimated synchronization in alpha-beta model, communication time, synchronization time, bandwidth time, computation time, execution time); as an example, specify 000000001 to decompose the execution-time critical path; specified string length must be 9          |   000000000       |
-| CRITTER_COMM_PATH_SELECT   | specifies which critical paths are decomposed by MPI routines and computation/idle time; specify 000000001 to decompose the execution-time critical path; specified string length must be 9 |   000000000       |
+| CRITTER_SYMBOL_PATH_SELECT   | specifies which critical paths are decomposed by user-defined kernel; order: (estimated communication in BSP model, esimated communication in alpha-beta model, estimated synchronization in BSP model, estimated synchronization in alpha-beta model, communication time, synchronization time, computation time, execution time); as an example, specify 000000001 to decompose the execution-time critical path; specified string length must be 8          |   00000000       |
+| CRITTER_COMM_PATH_SELECT   | specifies which critical paths are decomposed by MPI routines and computation/idle time; specify 000000001 to decompose the execution-time critical path; specified string length must be 8 |   00000000       |
 | CRITTER_TRACK_COLLECTIVE   | intercepts blocking collective routines called within user library; set to 0 to disable          |   1       |
 | CRITTER_TRACK_P2P   | intercepts p2p (blocking and nonblocking) routines called within user library; set to 0 to disable          |   1       |
 | CRITTER_TRACK_P2P_IDLE   | enables idle time and synchronization time calculation for p2p communication; set to 0 to disable          |   1       |
-| CRITTER_EAGER_P2P   | enforces buffered internal communication when propagating path data; set to 0 to enforce rendezvous protocol          |   1       |
+| CRITTER_EAGER_P2P   | enforces buffered internal communication when propagating path data; set to 0 to enforce rendezvous protocol          |   0       |
 | CRITTER_MAX_NUM_SYMBOLS   | max number of user-defined kernels set inside user library          |   15       |
 | CRITTER_MAX_SYMBOL_LENGTH   | max length of any kernel name specified in user library          |   25       |
 
@@ -78,7 +80,7 @@ See the lists below for an accurate depiction of our current support.
 | MPI_Sendrecv_replace     |   yes       |   yes       |
 
 ## Warnings
-1. `critter` is currently not able to track user-defined symbols in any nonblocking collectives.
+1. `critter` is currently not able to track user-defined kernels in any nonblocking collectives.
 2. `critter` incurs large overhead when intercepting personalized collectives.
 3. Any usage of `MPI_Waitany`, `MPI_Waitsome`, or `MPI_ANY_SOURCE` requires setting the environment variable `CRITTER_TRACK_P2P_IDLE=0`.
-4. `critter` cannot track user programs with `MPI_THREAD_MULTIPLE`.
+4. `critter` cannot track libraries that use `MPI_THREAD_MULTIPLE`.

@@ -3,10 +3,10 @@
 namespace critter{
 namespace internal{
 
-void allocate(){
+void allocate(MPI_Comm comm){
   switch (mechanism){
     case 0:
-      decomposition::allocate();
+      decomposition::allocate(comm);
   }
 }
 
@@ -70,7 +70,11 @@ void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_St
 
 void propagate(MPI_Comm comm){
   _MPI_Barrier.comm = comm;
-  decomposition::propagate(_MPI_Barrier);
+  switch (mechanism){
+    case 0:
+      decomposition::propagate(_MPI_Barrier);
+      break;
+  }
 }
 
 void final_accumulate(double last_time){

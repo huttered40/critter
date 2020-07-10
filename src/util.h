@@ -47,12 +47,12 @@ extern size_t auto_capture;
 extern std::vector<char> cost_models;
 extern std::vector<char> symbol_path_select;
 extern std::vector<char> comm_path_select;
-extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime, CompTime, RunTime
-extern size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
-extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, DataMvtTime, CompTime, RunTime
-extern size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
-extern size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
-extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, DataMvtTime
+extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
+extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+extern size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
+extern size_t num_tracker_per_process_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
+extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
 extern size_t critical_path_costs_size;
 extern size_t per_process_costs_size;
 extern size_t volume_costs_size;
@@ -71,7 +71,6 @@ extern std::vector<double*> internal_timer_prop_double;
 extern std::vector<double_int*> internal_timer_prop_double_int;
 extern std::vector<char*> internal_timer_prop_char;
 extern std::vector<MPI_Request> internal_timer_prop_req;
-extern std::vector<bool> internal_timer_prop_sender;
 extern std::vector<bool> decisions;
 extern std::vector<double> critical_path_costs;
 extern std::vector<double> max_per_process_costs;

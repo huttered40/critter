@@ -7,7 +7,7 @@
 namespace critter{
 namespace internal{
 
-void allocate();
+void allocate(MPI_Comm comm);
 void initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender=false, int partner1=-1, int partner2=-1);
 void initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,

@@ -253,19 +253,16 @@ void comm_tracker::set_cost_pointers(){
   this->my_msg_count             = cost_model_size>0 ? &volume_costs[volume_costs_idx+cost_model_size] : &scratch_pad;
   this->my_comm_time             = &volume_costs[volume_costs_idx+2*cost_model_size];
   this->my_synch_time            = &volume_costs[volume_costs_idx+2*cost_model_size+1];
-  this->my_datamvt_time          = &volume_costs[volume_costs_idx+2*cost_model_size+2];
   if (comm_path_select_size>0){
     size_t critical_path_costs_idx   = num_critical_path_measures+this->tag*comm_path_select_size*num_tracker_critical_path_measures;
     this->critical_path_wrd_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx] : &scratch_pad;
     this->critical_path_msg_count    = cost_model_size>0 ? &critical_path_costs[critical_path_costs_idx+cost_model_size*comm_path_select_size] : &scratch_pad;
     this->critical_path_comm_time    = &critical_path_costs[critical_path_costs_idx+2*comm_path_select_size*cost_model_size];
     this->critical_path_synch_time   = &critical_path_costs[critical_path_costs_idx+2*comm_path_select_size*cost_model_size+comm_path_select_size];
-    this->critical_path_datamvt_time = &critical_path_costs[critical_path_costs_idx+2*comm_path_select_size*cost_model_size+2*comm_path_select_size];
   } else{
     this->critical_path_wrd_count    = &scratch_pad;
     this->critical_path_msg_count    = &scratch_pad;
     this->critical_path_comm_time    = &scratch_pad;
-    this->critical_path_datamvt_time = &scratch_pad;
     this->critical_path_synch_time   = &scratch_pad;
   }
 }
@@ -284,7 +281,6 @@ void comm_tracker::set_volume_costs(){
     }
     vec[2*cost_model_size] = *this->my_comm_time;
     vec[2*cost_model_size+1] = *this->my_synch_time;
-    vec[2*cost_model_size+2] = *this->my_datamvt_time;
     save_info[this->name] = std::move(vec);
   }
 }
@@ -309,9 +305,8 @@ void comm_tracker::set_critical_path_costs(size_t idx){
         save++;
       }
     }
-    vec[num_tracker_critical_path_measures-3] = *(this->critical_path_comm_time+idx);
-    vec[num_tracker_critical_path_measures-2] = *(this->critical_path_synch_time+idx);
-    vec[num_tracker_critical_path_measures-1] = *(this->critical_path_datamvt_time+idx);
+    vec[num_tracker_critical_path_measures-2] = *(this->critical_path_comm_time+idx);
+    vec[num_tracker_critical_path_measures-1] = *(this->critical_path_synch_time+idx);
     save_info[this->name] = std::move(vec);
   }
 }
@@ -329,7 +324,6 @@ void comm_tracker::set_per_process_costs(size_t idx){
       }
     }
     // For now, do not include idle time
-    vec[num_tracker_per_process_measures-3] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-3];
     vec[num_tracker_per_process_measures-2] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-2];
     vec[num_tracker_per_process_measures-1] = max_per_process_costs[num_per_process_measures+idx*(num_tracker_per_process_measures*list_size+2)+this->tag*num_tracker_per_process_measures+num_tracker_per_process_measures-1];
     save_info[this->name] = std::move(vec);
