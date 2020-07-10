@@ -27,7 +27,7 @@ See the lists below for an accurate depiction of our current support.
 ## Environment variables
 |     Env variable        |   description   |   default value   |    
 | ----------------------- | ----------- | ---------- |
-| CRITTER_MODE            | serves as switch to enable `critter`; set to 1 to activate; set to 0 for simple timer with no user code interception          |   0       |
+| CRITTER_MODE            | serves as switch to enable `critter`; set to 1 to activate; set to 0 for simple timer with no user code interception          |   1       |
 | CRITTER_AUTO            | activates `critter` inside MPI initialization; prevents need for manually inserting `critter::start()` and `critter::stop()` inside user code; set to 1 to activate          |   0       |
 | CRITTER_SYMBOL_PATH_SELECT   | specifies which critical paths are decomposed by user-defined kernel; order: (estimated communication in BSP model, esimated communication in alpha-beta model, estimated synchronization in BSP model, estimated synchronization in alpha-beta model, communication time, synchronization time, computation time, execution time); as an example, specify 000000001 to decompose the execution-time critical path; specified string length must be 8          |   00000000       |
 | CRITTER_COMM_PATH_SELECT   | specifies which critical paths are decomposed by MPI routines and computation/idle time; specify 000000001 to decompose the execution-time critical path; specified string length must be 8 |   00000000       |
