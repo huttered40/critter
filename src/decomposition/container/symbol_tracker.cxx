@@ -1,8 +1,8 @@
 #include "symbol_tracker.h"
-#include "../util.h"
 
 namespace critter{
 namespace internal{
+namespace decomposition{
 
 // Global namespace variable 'symbol_timers' must be defined here, rather than in src/util.cxx with the rest, to avoid circular dependence between this file and src/util.h
 std::unordered_map<std::string,symbol_tracker> symbol_timers;
@@ -142,5 +142,6 @@ void symbol_tracker::stop(double save_time){
   if (symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
+}
 }
 }

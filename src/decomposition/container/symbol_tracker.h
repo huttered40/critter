@@ -1,10 +1,11 @@
-#ifndef CRITTER__CONTAINER__SYMBOL_TRACKER_H_
-#define CRITTER__CONTAINER__SYMBOL_TRACKER_H_
+#ifndef CRITTER__DECOMPOSITION__CONTAINER__SYMBOL_TRACKER_H_
+#define CRITTER__DECOMPOSITION__CONTAINER__SYMBOL_TRACKER_H_
 
-#include "../util.h"
+#include "../../util/util.h"
 
 namespace critter{
 namespace internal{
+namespace decomposition{
 
 // One instance for each unique symbol
 class symbol_tracker{
@@ -37,5 +38,6 @@ extern std::unordered_map<std::string,symbol_tracker> symbol_timers;
 
 }
 }
+}
 
-#endif /*CRITTER__CONTAINER__SYMBOL_TRACKER_H_*/
+#endif /*CRITTER__DECOMPOSITION__CONTAINER__SYMBOL_TRACKER_H_*/

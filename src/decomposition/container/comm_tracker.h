@@ -1,10 +1,11 @@
-#ifndef CRITTER__CONTAINER__COMM_TRACKER_H_
-#define CRITTER__CONTAINER__COMM_TRACKER_H_
+#ifndef CRITTER__DECOMPOSITION__CONTAINER__COMM_TRACKER_H_
+#define CRITTER__DECOMPOSITION__CONTAINER__COMM_TRACKER_H_
 
-#include "../util.h"
+#include "../../util/util.h"
 
 namespace critter{
 namespace internal{
+namespace decomposition{
 
 /* \brief encapsulation of the state of a MPI routine */
 class comm_tracker{
@@ -84,12 +85,6 @@ public:
             );
     /** \brief copy constructor */
     blocking(blocking const& t);
-    /** \brief starts tracking of blocking MPI communication of nelem elements of type t over communicator cm */
-    void start(volatile double curTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, bool is_sender=false, int partner1=-1, int partner2=-1);
-    /** \brief starts communication timer for corresponding blocking MPI communication */
-    void intermediate();
-    /** \brief completes interception of blocking communication protocol */
-    void stop();
 };
 
 class nonblocking : public comm_tracker{
@@ -109,10 +104,6 @@ public:
                );
     /** \brief copy constructor */
     nonblocking(nonblocking const& t);
-    /** \brief starts tracking of nonblocking MPI communication of nelem elements of type t over communicator cm */
-    void start(volatile double curTime, volatile double iTime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender=false, int partner=-1);
-    /** \brief completes interception of nonblocking communication protocol */
-    void stop(MPI_Request* internal_request, double comp_time, double comm_time);
 };
 
 extern blocking
@@ -156,5 +147,6 @@ extern std::map<MPI_Request,nonblocking*> internal_comm_track;
 
 }
 }
+}
 
-#endif /*CRITTER__CONTAINER__COMM_TRACKER_H_*/
+#endif /*CRITTER__DECOMPOSITION__CONTAINER__COMM_TRACKER_H_*/

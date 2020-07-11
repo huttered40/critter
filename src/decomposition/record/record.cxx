@@ -4,6 +4,7 @@
 
 namespace critter{
 namespace internal{
+namespace decomposition{
 
 std::vector<std::string> parse_file_string(){
   std::vector<std::string> inputs;
@@ -89,7 +90,7 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
   }
 }
 
-void record(std::ofstream& Stream){
+void record::invoke(std::ofstream& Stream){
   assert(internal_comm_info.size() == 0);
   if (mode){
     auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
@@ -162,7 +163,7 @@ void record(std::ofstream& Stream){
   }
 }
 
-void record(std::ostream& Stream){
+void record::invoke(std::ostream& Stream){
   assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   if (mode==0){
@@ -452,5 +453,6 @@ void record(std::ostream& Stream){
   }
 }
 
+}
 }
 }

@@ -1,5 +1,5 @@
-#ifndef CRITTER__UTIL_H_
-#define CRITTER__UTIL_H_
+#ifndef CRITTER__UTIL__UTIL_H_
+#define CRITTER__UTIL__UTIL_H_
 
 #include <mpi.h>
 #include <cstring>
@@ -112,7 +112,42 @@ extern size_t track_p2p;
 extern size_t track_p2p_idle;
 extern size_t eager_p2p;
 extern std::vector<char> eager_pad;
+extern size_t
+         _MPI_Send__id,
+         _MPI_Ssend__id,
+         _MPI_Bsend__id,
+         _MPI_Recv__id,
+         _MPI_Sendrecv__id,
+         _MPI_Sendrecv_replace__id,
+         _MPI_Barrier__id,
+         _MPI_Bcast__id,
+         _MPI_Reduce__id,
+         _MPI_Allreduce__id,
+         _MPI_Gather__id,
+         _MPI_Allgather__id,
+         _MPI_Scatter__id,
+         _MPI_Reduce_scatter__id,
+         _MPI_Alltoall__id,
+         _MPI_Gatherv__id,
+         _MPI_Allgatherv__id,
+         _MPI_Scatterv__id,
+         _MPI_Alltoallv__id,
+         _MPI_Isend__id,
+         _MPI_Irecv__id,
+         _MPI_Ibcast__id,
+         _MPI_Iallreduce__id,
+         _MPI_Ireduce__id,
+         _MPI_Igather__id,
+         _MPI_Igatherv__id,
+         _MPI_Iallgather__id,
+         _MPI_Iallgatherv__id,
+         _MPI_Iscatter__id,
+         _MPI_Iscatterv__id,
+         _MPI_Ireduce_scatter__id,
+         _MPI_Ialltoall__id,
+         _MPI_Ialltoallv__id;
+
 }
 }
 
-#endif /*CRITTER__UTIL_H_*/
+#endif /*CRITTER__UTIL__UTIL_H_*/

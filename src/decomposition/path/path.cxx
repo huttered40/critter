@@ -1,60 +1,10 @@
-#include "decomposition.h"
-#include "../../container/symbol_tracker.h"
-#include "../../util.h"
+#include "path.h"
+#include "../container/symbol_tracker.h"
+#include "../../util/util.h"
 
 namespace critter{
 namespace internal{
-
-void decomposition::allocate(MPI_Comm comm){
-
-  cp_symbol_class_count = 4;
-  pp_symbol_class_count = 4;
-  vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
-  // The '2*comm_path_select_size' used below are used to track the computation time and idle time along each of the 'comm_path_select_size' paths.
-  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
-
-  decisions.resize(comm_path_select_size);
-  critical_path_costs.resize(critical_path_costs_size);
-  max_per_process_costs.resize(per_process_costs_size);
-  volume_costs.resize(volume_costs_size);
-  new_cs.resize(critical_path_costs_size);
-  // The reason 'symbol_pad_cp' and 'symbol_len_pad_cp' are a factor 'symbol_path_select_size' larger than the 'ncp*'
-  //   variants is because those variants are used solely for p2p, in which we simply transfer a process's path data, rather than reduce it using a special multi-root trick.
-  symbol_pad_cp.resize(symbol_path_select_size*max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp1.resize(max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp2.resize(max_timer_name_length*max_num_symbols);
-  symbol_len_pad_cp.resize(symbol_path_select_size*max_num_symbols);
-  symbol_len_pad_ncp1.resize(max_num_symbols);
-  symbol_len_pad_ncp2.resize(max_num_symbols);
-  // Note: we use 'num_per_process_measures' rather than 'num_critical_path_measures' for specifying the
-  //   length of 'symbol_timer_pad_*_cp' because we want to track idle time contribution of each symbol along a path.
-  symbol_timer_pad_local_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_local_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_local_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
-  symbol_order.resize(max_num_symbols);
-  info_sender.resize(num_critical_path_measures);
-  info_receiver.resize(num_critical_path_measures);
-
-  if (eager_p2p){
-    int eager_msg_sizes[8];
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[1]);
-    MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,comm,&eager_msg_sizes[2]);
-    MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,comm,&eager_msg_sizes[3]);
-    MPI_Pack_size(1,MPI_INT,comm,&eager_msg_sizes[4]);
-    MPI_Pack_size(max_num_symbols,MPI_INT,comm,&eager_msg_sizes[5]);
-    MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,comm,&eager_msg_sizes[6]);
-    MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,comm,&eager_msg_sizes[7]);
-    int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
-    for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
-    eager_pad.resize(eager_pad_size);
-  }
-}
+namespace decomposition{
 
 static void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* len, MPI_Datatype* dtype){
   int_int_double* invec = in;
@@ -185,7 +135,7 @@ static void complete_path_update(){
 }
 
 
-void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+void path::initiate(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                             bool is_sender, int partner1, int partner2){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
@@ -382,7 +332,7 @@ void decomposition::initiate(blocking& tracker, volatile double curtime, int64_t
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
-void decomposition::complete(blocking& tracker, int recv_source){
+void path::complete(blocking& tracker, int recv_source){
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
   if (recv_source != -1){
     if ((tracker.tag == 13) || (tracker.tag == 14)){
@@ -522,7 +472,7 @@ void decomposition::complete(blocking& tracker, int recv_source){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void decomposition::initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
+void path::initiate(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
                             MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
@@ -573,7 +523,7 @@ void decomposition::initiate(nonblocking& tracker, volatile double curtime, vola
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
 }
 
-void decomposition::complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+void path::complete(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
   auto comm_info_it = internal_comm_info.find(*request);
   auto comm_comm_it = internal_comm_comm.find(*request);
   auto comm_data_it = internal_comm_data.find(*request);
@@ -709,7 +659,7 @@ void decomposition::complete(nonblocking& tracker, MPI_Request* request, double 
   tracker.start_time = MPI_Wtime();
 }
 
-void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* status){
+void path::complete(double curtime, MPI_Request* request, MPI_Status* status){
   double comp_time = curtime - computation_timer;
   auto comm_track_it = internal_comm_track.find(*request);
   assert(comm_track_it != internal_comm_track.end());
@@ -742,7 +692,7 @@ void decomposition::complete(double curtime, MPI_Request* request, MPI_Status* s
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+void path::complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
 
   double waitany_comp_time = curtime - computation_timer;
   // We must force 'track_p2p_idle' to be zero because we don't know which request the MPI implementation will choose before
@@ -770,7 +720,7 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void decomposition::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+void path::complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
 
   double waitsome_comp_time = curtime - computation_timer;
@@ -799,7 +749,7 @@ void decomposition::complete(double curtime, int incount, MPI_Request array_of_r
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void decomposition::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+void path::complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   double waitall_comp_time = curtime - computation_timer;
   wait_id=true;
   if (track_p2p_idle==1){// nonblocking collectives won't pass the if statements below anyway.
@@ -869,7 +819,7 @@ void decomposition::complete(double curtime, int count, MPI_Request array_of_req
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void decomposition::propagate_symbols(nonblocking& tracker, int rank){
+void path::propagate_symbols(nonblocking& tracker, int rank){
   if (eager_p2p==0){
     MPI_Request internal_request[8];
     int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
@@ -967,7 +917,7 @@ void decomposition::propagate_symbols(nonblocking& tracker, int rank){
  Its important to note here that a blocking p2p call will already know whether its the cp root or not, regardless of whether its partner used a nonblocking p2p routine.
    But, because that potential nonblocking partner does not have this knowledge, and thus posted both sends and recvs, the blocking partner also has to do so as well, even if its partner (unknown to him) used a blocking p2p routine.
 */
-void decomposition::propagate_symbols(blocking& tracker, int rank){
+void path::propagate_symbols(blocking& tracker, int rank){
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   std::vector<int> ftimer_size_cp(symbol_path_select_size,0);
   int ftimer_size_ncp1=0;
@@ -1259,7 +1209,7 @@ void decomposition::propagate_symbols(blocking& tracker, int rank){
   }
 }
 
-void decomposition::propagate(blocking& tracker){
+void path::propagate(blocking& tracker){
   assert(tracker.comm != 0);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
@@ -1327,13 +1277,13 @@ void decomposition::propagate(blocking& tracker){
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
   if (true_eager_p2p){
     void* temp_buf; int temp_size;
-    // Forces buffered messages to send. Ideally we should wait till the next invocation of 'decomposition::initiate(blocking&,...)' to call this,
+    // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
     //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
     MPI_Buffer_detach(&temp_buf,&temp_size);
   }
 }
 
-void decomposition::propagate(nonblocking& tracker){
+void path::propagate(nonblocking& tracker){
   assert(tracker.comm != 0);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if (rank == tracker.partner1) { return; } 
@@ -1412,14 +1362,6 @@ void decomposition::propagate(nonblocking& tracker){
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
 }
 
-void decomposition::final_accumulate(double last_time){
-  critical_path_costs[num_critical_path_measures-2]+=(last_time-computation_timer);	// update critical path computation time
-  critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
-  volume_costs[num_volume_measures-2]+=(last_time-computation_timer);			// update computation time volume
-  volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
-  // update the computation time (i.e. time between last MPI synchronization point and this function invocation) along all paths decomposed by MPI communication routine
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (last_time-computation_timer); }
 }
-
 }
 }

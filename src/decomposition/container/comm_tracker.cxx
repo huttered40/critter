@@ -1,8 +1,8 @@
 #include "comm_tracker.h"
-#include "../util.h"
 
 namespace critter{
 namespace internal{
+namespace decomposition{
 
 std::map<MPI_Request,nonblocking*> internal_comm_track;
 blocking _MPI_Barrier("MPI_Barrier",0, 
@@ -364,5 +364,6 @@ nonblocking::nonblocking(nonblocking const& t){
   this->is_sender = t.is_sender;
 }
 
+}
 }
 }
