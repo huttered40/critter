@@ -14,10 +14,11 @@ lib/libcritter.a:\
 		obj/decomposition_container_symbol_tracker.o\
 		obj/decomposition_volumetric_volumetric.o\
 		obj/dispatch_dispatch.o\
-		obj/decomposition_path_path.o
+		obj/decomposition_path_path.o\
+		obj/optimization_path_path.o
 	ar -crs lib/libcritter.a obj/util_util.o obj/intercept_comm.o obj/intercept_symbol.o obj/decomposition_util_util.o obj/decomposition_record_record.o\
 					obj/decomposition_container_comm_tracker.o obj/decomposition_container_symbol_tracker.o\
-					obj/decomposition_volumetric_volumetric.o obj/dispatch_dispatch.o obj/decomposition_path_path.o
+					obj/decomposition_volumetric_volumetric.o obj/dispatch_dispatch.o obj/decomposition_path_path.o obj/optimization_path_path.o
 
 lib/libcritter.so: obj/critter.o
 	gcc -shared -o lib/libcritter.so obj util.o obj/critter.o
@@ -51,6 +52,9 @@ obj/dispatch_dispatch.o: src/dispatch/dispatch.cxx
 
 obj/decomposition_path_path.o: src/decomposition/path/path.cxx
 	$(CXX) src/decomposition/path/path.cxx -c -o obj/decomposition_path_path.o $(CXXFLAGS)
+
+obj/optimization_path_path.o: src/optimization/path/path.cxx
+	$(CXX) src/optimization/path/path.cxx -c -o obj/optimization_path_path.o $(CXXFLAGS)
 
 clean:
 	rm -f obj/*.o lib/libcritter.a lib/libcritter.so

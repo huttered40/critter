@@ -4,6 +4,7 @@
 #include "../decomposition/volumetric/volumetric.h"
 #include "../decomposition/path/path.h"
 #include "../decomposition/record/record.h"
+#include "../optimization/path/path.h"
 
 namespace critter{
 namespace internal{

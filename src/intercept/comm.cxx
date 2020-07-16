@@ -50,6 +50,7 @@ void _init(int* argc, char*** argv){
   internal_tag3 = internal_tag+3;
   internal_tag4 = internal_tag+4;
   internal_tag5 = internal_tag+5;
+  delete_comm = 1;
   flag = 0;
   file_name="";
   stream_name="";
@@ -57,6 +58,17 @@ void _init(int* argc, char*** argv){
     mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
   } else{
     mechanism = 0;
+  }
+  if (std::getenv("CRITTER_OPT") != NULL){
+    opt = atoi(std::getenv("CRITTER_OPT"));
+    delete_comm = 0;
+  } else{
+    opt = 0;
+  }
+  if (std::getenv("CRITTER_OPT_MAX_ITER") != NULL){
+    opt_max_iter = atoi(std::getenv("CRITTER_OPT_MAX_ITER"));
+  } else{
+    opt_max_iter = 5;
   }
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
@@ -112,6 +124,9 @@ void _init(int* argc, char*** argv){
     eager_p2p = atoi(std::getenv("CRITTER_EAGER_P2P"));
   } else{
     eager_p2p = 0;
+  }
+  if (std::getenv("CRITTER_DELETE_COMM") != NULL){
+    delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
   }
   assert(_cost_models_.size()==2);
   assert(_comm_path_select_.size()==8);
@@ -185,6 +200,17 @@ void barrier(MPI_Comm comm){
   }
   else{
     PMPI_Barrier(comm);
+  }
+}
+
+void comm_free(MPI_Comm* comm){
+  if (mode){
+    if (delete_comm){
+      PMPI_Comm_free(comm);
+    }
+  }
+  else{
+    PMPI_Comm_free(comm);
   }
 }
 

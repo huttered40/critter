@@ -26,6 +26,11 @@
     critter::internal::barrier(cm);\
   } while (0)
 
+#define MPI_Comm_free(cm)\
+  do {\
+    critter::internal::comm_free(cm);\
+  } while (0)
+
 #define MPI_Bcast(buf, nelem, t, root, cm)\
   do {\
     critter::internal::bcast(buf,nelem,t,root,cm);\

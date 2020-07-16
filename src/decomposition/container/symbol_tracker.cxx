@@ -61,6 +61,24 @@ void symbol_tracker::start(double save_time){
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
+
+    // Save the communication pattern
+    if (opt){
+      //TODO: we will assume both costs models are chosen.
+      std::vector<double> measurements(num_per_process_measures,0.);
+      measurements[num_per_process_measures-1]=last_symbol_time;
+      measurements[num_per_process_measures-2]=last_symbol_time;
+      event_list.push_back(event(symbol_stack.top(),std::move(measurements)));
+    }
+  }
+  else{
+    if (opt){
+      //TODO: we will assume both costs models are chosen.
+      std::vector<double> measurements(num_per_process_measures,0.);
+      measurements[num_per_process_measures-1]=(save_time - computation_timer);
+      measurements[num_per_process_measures-2]=(save_time - computation_timer);
+      event_list.push_back(event("",std::move(measurements)));
+    }
   }
   critical_path_costs[num_critical_path_measures-2] += (save_time - computation_timer);		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
@@ -90,6 +108,14 @@ void symbol_tracker::stop(double save_time){
   *this->pp_numcalls += 1.; *this->vol_numcalls += 1.;
   for (auto i=0; i<num_per_process_measures; i++){
     this->pp_exclusive_contributions[i] += this->pp_exclusive_measure[i];
+  }
+  // Save the communication pattern
+  if (opt){
+    //TODO: we will assume both costs models are chosen.
+    std::vector<double> measurements(num_per_process_measures,0.);
+    measurements[num_per_process_measures-1]=last_symbol_time;
+    measurements[num_per_process_measures-2]=last_symbol_time;
+    event_list.push_back(event(symbol_stack.top(),std::move(measurements)));
   }
 
   for (auto j=0; j<symbol_path_select_size; j++){

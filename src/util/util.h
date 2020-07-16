@@ -32,6 +32,34 @@ struct int_int_double{
   int first; int second; double third;
 };
 
+struct event{
+  event(std::string _kernel, std::vector<double> _measurements){
+    tag = -1; measurements = _measurements;
+    kernel = _kernel;
+  }
+  event(std::string _kernel, std::vector<double> _measurements, int _tag, MPI_Comm _comm, int _partner1, int _partner2, bool _is_sender, bool _is_eager){
+    measurements = _measurements;
+    tag = _tag; comm = _comm; partner1 = _partner1; partner2 = _partner2; is_sender = _is_sender; is_eager = _is_eager;
+    kernel = _kernel;
+  }
+  event(std::string _kernel, std::vector<double> _measurements, int _tag, MPI_Comm _comm, int _partner1, bool _is_sender, bool _is_eager, int _match_id, bool blah){
+    measurements = _measurements;
+    tag = _tag; comm = _comm; partner1 = _partner1; is_sender = _is_sender; is_eager = _is_eager; match_id = _match_id; is_close = false;;
+    kernel = _kernel;
+  }
+  event(std::string _kernel,std::vector<double> _measurements, std::vector<int> _match_vec){
+    measurements = _measurements;
+    tag=18; match_vec = _match_vec; match_size = _match_vec.size(); is_close = true;
+    kernel = _kernel;
+  }
+  MPI_Comm comm;
+  int tag,partner1,partner2,match_size,match_id;
+  bool is_sender,is_eager,is_close;
+  std::vector<int> match_vec;
+  std::vector<double> measurements;
+  std::string kernel;
+};
+
 extern size_t cp_symbol_class_count;
 extern size_t pp_symbol_class_count;
 extern size_t vol_symbol_class_count;
@@ -57,11 +85,11 @@ extern size_t critical_path_costs_size;
 extern size_t per_process_costs_size;
 extern size_t volume_costs_size;
 extern std::string stream_name,file_name;
-extern bool flag,is_first_iter,is_world_root,need_new_line;
+extern bool flag,is_first_iter,is_world_root,need_new_line,opt;
 extern size_t mechanism,mode,stack_id;
 extern std::ofstream stream;
 extern double computation_timer;
-extern std::map<MPI_Request,bool> internal_comm_info;
+extern std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
 extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 extern std::vector<std::pair<double*,int>> internal_comm_prop;
@@ -111,7 +139,13 @@ extern size_t track_collective;
 extern size_t track_p2p;
 extern size_t track_p2p_idle;
 extern size_t eager_p2p;
+extern size_t delete_comm;
 extern std::vector<char> eager_pad;
+extern std::vector<event> event_list;
+extern std::vector<int> opt_req_match;
+extern std::vector<double> opt_measure_match;
+extern size_t event_list_size;
+extern size_t opt_max_iter;
 extern size_t
          _MPI_Send__id,
          _MPI_Ssend__id,

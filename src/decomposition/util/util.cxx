@@ -13,6 +13,7 @@ void allocate(MPI_Comm comm){
   vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
   mode_1_width = 25;
   mode_2_width = 15;
+  event_list_size = 0;
 
   cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
@@ -125,6 +126,14 @@ void final_accumulate(double last_time){
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
   // update the computation time (i.e. time between last MPI synchronization point and this function invocation) along all paths decomposed by MPI communication routine
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (last_time-computation_timer); }
+  // Save the communication pattern
+  if (opt){
+    //TODO: we will assume both costs models are chosen.
+    std::vector<double> measurements(num_per_process_measures,0.);
+    measurements[num_per_process_measures-1]=(last_time-computation_timer);
+    measurements[num_per_process_measures-2]=(last_time-computation_timer);
+    event_list.push_back(event("",std::move(measurements)));
+  }
 }
 
 

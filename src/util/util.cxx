@@ -28,11 +28,11 @@ size_t critical_path_costs_size;
 size_t per_process_costs_size;
 size_t volume_costs_size;
 std::string stream_name,file_name;
-bool flag,is_first_iter,is_world_root,need_new_line;
+bool flag,is_first_iter,is_world_root,need_new_line,opt;
 size_t mechanism,mode,stack_id;
 std::ofstream stream;
 double computation_timer;
-std::map<MPI_Request,bool> internal_comm_info;
+std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
 std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
 std::vector<std::pair<double*,int>> internal_comm_prop;
@@ -82,7 +82,13 @@ size_t track_collective;
 size_t track_p2p;
 size_t track_p2p_idle;
 size_t eager_p2p;
+size_t delete_comm;
 std::vector<char> eager_pad;
+std::vector<event> event_list;
+std::vector<int> opt_req_match;
+std::vector<double> opt_measure_match;
+size_t event_list_size;
+size_t opt_max_iter;
 size_t
          _MPI_Send__id,
          _MPI_Ssend__id,
