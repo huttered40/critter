@@ -70,6 +70,16 @@ void _init(int* argc, char*** argv){
   } else{
     opt_max_iter = 5;
   }
+  if (std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS") != NULL){
+    num_gradient_points = atoi(std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS"));
+  } else{
+    num_gradient_points = 10;
+  }
+  if (std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE") != NULL){
+    gradient_jump_size = atoi(std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE"));
+  } else{
+    gradient_jump_size = 5;// signifies 5%
+  }
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
   } else{

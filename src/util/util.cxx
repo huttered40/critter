@@ -89,6 +89,8 @@ std::vector<int> opt_req_match;
 std::vector<double> opt_measure_match;
 size_t event_list_size;
 size_t opt_max_iter;
+size_t gradient_jump_size;
+size_t num_gradient_points;
 size_t
          _MPI_Send__id,
          _MPI_Ssend__id,

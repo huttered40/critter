@@ -534,7 +534,6 @@ void path::initiate(nonblocking& tracker, volatile double curtime, volatile doub
     if (eager_p2p){
       event_list.push_back(event(symbol_stack.top(),std::move(measurements),tracker.tag,comm,partner,is_sender,eager_p2p,event_list_size-1,true));
     } else{
-      //TODO: Add an event here with tag=-1 constructor, because we want to add up tracker.comp_time
       event_list.push_back(event(symbol_stack.top(),std::move(measurements)));
     }
   }

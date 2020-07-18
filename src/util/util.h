@@ -146,6 +146,8 @@ extern std::vector<int> opt_req_match;
 extern std::vector<double> opt_measure_match;
 extern size_t event_list_size;
 extern size_t opt_max_iter;
+extern size_t gradient_jump_size;
+extern size_t num_gradient_points;
 extern size_t
          _MPI_Send__id,
          _MPI_Ssend__id,
