@@ -89,7 +89,7 @@ void symbol_tracker::start(double save_time){
   }
   symbol_stack.push(this->name);
   computation_timer = MPI_Wtime();
-  this->start_timer.push(computation_timer);
+  this->start_timer.push((double)computation_timer);
 }
 
 void symbol_tracker::stop(double save_time){

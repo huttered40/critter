@@ -88,7 +88,7 @@ extern std::string stream_name,file_name;
 extern bool flag,is_first_iter,is_world_root,need_new_line,opt;
 extern size_t mechanism,mode,stack_id;
 extern std::ofstream stream;
-extern double computation_timer;
+extern volatile double computation_timer;
 extern std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
 extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
