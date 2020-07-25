@@ -250,6 +250,32 @@ void path::initiate(blocking& tracker, volatile double curtime, int64_t nelem, M
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
   tracker.synch_time = 0.;// might get updated below
 
+  comm_pattern_param1_key p_id_1;
+  p_id_1.tag = tracker.tag;
+  p_id_1.comm = comm;
+  p_id_1.msg_size = nbytes;
+  p_id_1.partner = partner1;
+  if (pattern_cache_param1.find(p_id_1) == pattern_cache_param1.end()){
+    pattern_cache_param1[p_id_1] = comm_pattern_param1_val(1,nbytes);
+  } else{
+    pattern_cache_param1[p_id_1].num_comm_pattern_hits++;
+    pattern_cache_param1[p_id_1].num_byte_hits+=nbytes;
+  }
+  comm_pattern_param2_key p_id_2;
+  p_id_2.tag = tracker.tag;
+  p_id_2.comm = comm;
+  p_id_2.partner = partner1;
+  if (pattern_cache_param2.find(p_id_2) == pattern_cache_param2.end()){
+    pattern_cache_param2[p_id_2] = comm_pattern_param2_val(1,nbytes,nbytes);
+  } else{
+    pattern_cache_param2[p_id_2].num_comm_pattern_hits++;
+    pattern_cache_param2[p_id_2].num_byte_hits+=nbytes;
+    if (nbytes < pattern_cache_param2[p_id_2].min_byte){
+      pattern_cache_param2[p_id_2].min_byte = nbytes;
+    }
+  }
+
+
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
     assert(partner1 != MPI_ANY_SOURCE);
     if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }

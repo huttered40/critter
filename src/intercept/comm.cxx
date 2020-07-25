@@ -16,6 +16,9 @@ void start(){
   internal::wait_id=true;
   internal::reset();
 
+  internal::pattern_cache_param1.clear();
+  internal::pattern_cache_param2.clear();
+
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer=MPI_Wtime();
@@ -26,6 +29,49 @@ void stop(){
   internal::stack_id--; 
   if (internal::stack_id>0) { return; }
   PMPI_Barrier(MPI_COMM_WORLD);
+
+  // Lets iterate over the map to create two counters, then reduce them to get a global idea:
+  //   Another idea is to cache this list over the critical path, but that might be too much.
+  int patterns[4] = {0,0,0,0};
+  double communications[4] = {0,0,0,0};
+  for (auto& it : internal::pattern_cache_param1){
+    patterns[0]++;
+    patterns[1] += it.second.num_comm_pattern_hits;
+    communications[0] += it.first.msg_size;
+    communications[1] += it.second.num_byte_hits;
+  }
+  for (auto& it : internal::pattern_cache_param2){
+    patterns[2]++;
+    patterns[3] += it.second.num_comm_pattern_hits;
+    communications[2] += it.second.min_byte;
+    communications[3] += it.second.num_byte_hits;
+  }
+  PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+  int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+  if (rank==0){
+    for (auto& it : internal::pattern_cache_param1){
+      std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.msg_size << "," << it.first.partner << ") - " << it.second.num_comm_pattern_hits << " " << it.second.num_byte_hits << std::endl;
+    }
+    for (auto& it : internal::pattern_cache_param2){
+      std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.partner << ") - " << it.second.min_byte << " " << it.second.num_comm_pattern_hits << " " << it.second.num_byte_hits << std::endl;
+    }
+    std::cout << "Execution path parameterization #1: volumetric:\n";
+    std::cout << "\tNum cached patterns - " << patterns[0] << std::endl;
+    std::cout << "\tNum patterns - " << patterns[1] << std::endl;
+    std::cout << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / patterns[1]) << std::endl;
+    std::cout << "\tNum cached bytes - " << communications[0] << std::endl;
+    std::cout << "\tNum bytes - " << communications[1] << std::endl;
+    std::cout << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / communications[1]) << std::endl;
+    std::cout << "Execution path parameterization #2: volumetric:\n";
+    std::cout << "\tNum cached patterns - " << patterns[2] << std::endl;
+    std::cout << "\tNum patterns - " << patterns[3] << std::endl;
+    std::cout << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / patterns[3]) << std::endl;
+    std::cout << "\tNum cached bytes - " << communications[2] << std::endl;
+    std::cout << "\tNum bytes - " << communications[3] << std::endl;
+    std::cout << "\tCommunication byte hit ratio - " << 1.-(communications[2] * 1. / communications[3]) << std::endl;
+  }
+
   assert(internal::internal_comm_info.size() == 0);
   internal::final_accumulate(last_time); 
   internal::propagate(MPI_COMM_WORLD);

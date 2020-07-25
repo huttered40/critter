@@ -3,6 +3,8 @@
 namespace critter{
 namespace internal{
 
+std::map<comm_pattern_param1_key,comm_pattern_param1_val> pattern_cache_param1;
+std::map<comm_pattern_param2_key,comm_pattern_param2_val> pattern_cache_param2;
 size_t cp_symbol_class_count;
 size_t pp_symbol_class_count;
 size_t vol_symbol_class_count;

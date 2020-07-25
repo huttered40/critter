@@ -60,6 +60,78 @@ struct event{
   std::string kernel;
 };
 
+struct comm_pattern_param1_key{
+  friend bool operator==(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
+    if ((ref1.tag==ref2.tag) && (ref1.comm == ref2.comm) && (ref1.msg_size == ref2.msg_size) && (ref1.partner == ref2.partner)) return true;
+    else return false;
+  }
+  friend bool operator<(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
+    if (ref1.tag < ref2.tag) return true;
+    else if (ref1.tag > ref2.tag) return false;
+    if (ref1.comm < ref2.comm) return true;
+    else if (ref1.comm > ref2.comm) return false;
+    if (ref1.msg_size < ref2.msg_size) return true;
+    else if (ref1.msg_size > ref2.msg_size) return false;
+    if (ref1.partner < ref2.partner) return true;
+    else if (ref1.partner > ref2.partner) return false;
+    return false;
+  }
+  int tag;
+  MPI_Comm comm;
+  double msg_size;
+  int partner;
+};
+
+struct comm_pattern_param1_val{
+  comm_pattern_param1_val(){
+    this->num_comm_pattern_hits = 0;
+    this->num_byte_hits = 0;
+  }
+  comm_pattern_param1_val(size_t _num_comm_pattern_hits, double _num_byte_hits){
+    this->num_comm_pattern_hits = _num_comm_pattern_hits;
+    this->num_byte_hits = _num_byte_hits;
+  }
+  size_t num_comm_pattern_hits;
+  double num_byte_hits;
+};
+
+struct comm_pattern_param2_key{
+  friend bool operator==(const comm_pattern_param2_key& ref1, const comm_pattern_param2_key& ref2){
+    if ((ref1.tag==ref2.tag) && (ref1.comm == ref2.comm) && (ref1.partner == ref2.partner)) return true;
+    else return false;
+  }
+  friend bool operator<(const comm_pattern_param2_key& ref1, const comm_pattern_param2_key& ref2){
+    if (ref1.tag < ref2.tag) return true;
+    else if (ref1.tag > ref2.tag) return false;
+    if (ref1.comm < ref2.comm) return true;
+    else if (ref1.comm > ref2.comm) return false;
+    if (ref1.partner < ref2.partner) return true;
+    else if (ref1.partner > ref2.partner) return false;
+    return false;
+  }
+  int tag;
+  MPI_Comm comm;
+  int partner;
+};
+
+struct comm_pattern_param2_val{
+  comm_pattern_param2_val(){
+    this->num_comm_pattern_hits = 0;
+    this->num_byte_hits = 0;
+    this->min_byte = 0;
+  }
+  comm_pattern_param2_val(size_t _num_comm_pattern_hits, double _num_byte_hits, double _min_byte){
+    this->num_comm_pattern_hits = _num_comm_pattern_hits;
+    this->num_byte_hits = _num_byte_hits;
+    this->min_byte = _min_byte;
+  }
+  size_t num_comm_pattern_hits;
+  double num_byte_hits;
+  double min_byte;
+};
+
+extern std::map<comm_pattern_param1_key,comm_pattern_param1_val> pattern_cache_param1;
+extern std::map<comm_pattern_param2_key,comm_pattern_param2_val> pattern_cache_param2;
 extern size_t cp_symbol_class_count;
 extern size_t pp_symbol_class_count;
 extern size_t vol_symbol_class_count;
