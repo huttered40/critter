@@ -4,7 +4,7 @@
 #include "../decomposition/volumetric/volumetric.h"
 #include "../decomposition/path/path.h"
 #include "../decomposition/record/record.h"
-#include "../optimization/path/path.h"
+#include "../replay/path/path.h"
 
 namespace critter{
 namespace internal{
@@ -111,6 +111,9 @@ void open_symbol(const char* symbol, double curtime){
     case 0:
       decomposition::open_symbol(symbol,curtime);
       break;
+    case 1:
+      //discretization::open_symbol(symbol,curtime);
+      break;
   }
 }
 
@@ -118,6 +121,9 @@ void close_symbol(const char* symbol, double curtime){
   switch (mechanism){
     case 0:
       decomposition::close_symbol(symbol,curtime);
+      break;
+    case 1:
+      //discretization::close_symbol(symbol,curtime);
       break;
   }
 }

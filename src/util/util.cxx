@@ -125,5 +125,6 @@ size_t
          _MPI_Ireduce_scatter__id,
          _MPI_Ialltoall__id,
          _MPI_Ialltoallv__id;
+std::map<std::pair<std::string,size_t>,bool> schedule_map;
 }
 }

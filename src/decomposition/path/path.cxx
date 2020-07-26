@@ -1,6 +1,6 @@
 #include "path.h"
 #include "../container/symbol_tracker.h"
-#include "../../optimization/path/path.h"
+#include "../../replay/path/path.h"
 #include "../../util/util.h"
 
 namespace critter{
@@ -1359,7 +1359,7 @@ void path::propagate(blocking& tracker){
   if (opt && tracker.tag==0 && tracker.comm==MPI_COMM_WORLD){
     // Note: This will get triggered at phase-end or critter::stop via dispatch::propagate
     // Should do nothing if symbol_path_select_size==0, but we could check for that here.
-    critter::internal::optimization::replay();
+    critter::internal::replay::invoke();
   }
 }
 
