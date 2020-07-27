@@ -115,6 +115,16 @@ void _init(int* argc, char*** argv){
   } else{
     auto_capture = 0;
   }
+  if (std::getenv("CRITTER_TRACK_BLAS") != NULL){
+    track_blas = atoi(std::getenv("CRITTER_TRACK_BLAS"));
+  } else{
+    track_blas = 1;
+  }
+  if (std::getenv("CRITTER_TRACK_LAPACK") != NULL){
+    track_lapack = atoi(std::getenv("CRITTER_TRACK_LAPACK"));
+  } else{
+    track_lapack = 1;
+  }
   if (std::getenv("CRITTER_TRACK_COLLECTIVE") != NULL){
     track_collective = atoi(std::getenv("CRITTER_TRACK_COLLECTIVE"));
   } else{

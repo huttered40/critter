@@ -135,6 +135,8 @@ extern int internal_tag2;
 extern int internal_tag3;
 extern int internal_tag4;
 extern int internal_tag5;
+extern size_t track_blas;
+extern size_t track_lapack;
 extern size_t track_collective;
 extern size_t track_p2p;
 extern size_t track_p2p_idle;

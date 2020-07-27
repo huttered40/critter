@@ -6,6 +6,7 @@ test: lib/libcritter.a
 
 lib/libcritter.a:\
 		obj/util_util.o\
+		obj/intercept_comp.o\
 		obj/intercept_comm.o\
 		obj/intercept_symbol.o\
 		obj/decomposition_util_util.o\
@@ -16,7 +17,7 @@ lib/libcritter.a:\
 		obj/dispatch_dispatch.o\
 		obj/decomposition_path_path.o\
 		obj/replay_path_path.o
-	ar -crs lib/libcritter.a obj/util_util.o obj/intercept_comm.o obj/intercept_symbol.o obj/decomposition_util_util.o obj/decomposition_record_record.o\
+	ar -crs lib/libcritter.a obj/util_util.o obj/intercept_comp.o obj/intercept_comm.o obj/intercept_symbol.o obj/decomposition_util_util.o obj/decomposition_record_record.o\
 					obj/decomposition_container_comm_tracker.o obj/decomposition_container_symbol_tracker.o\
 					obj/decomposition_volumetric_volumetric.o obj/dispatch_dispatch.o obj/decomposition_path_path.o obj/replay_path_path.o
 
@@ -25,6 +26,9 @@ lib/libcritter.so: obj/critter.o
 
 obj/util_util.o: src/util/util.cxx
 	$(CXX) src/util/util.cxx -c -o obj/util_util.o $(CXXFLAGS)
+
+obj/intercept_comp.o: src/intercept/comp.cxx
+	$(CXX) src/intercept/comp.cxx -c -o obj/intercept_comp.o $(CXXFLAGS)
 
 obj/intercept_comm.o: src/intercept/comm.cxx
 	$(CXX) src/intercept/comm.cxx -c -o obj/intercept_comm.o $(CXXFLAGS)

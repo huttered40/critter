@@ -1,6 +1,7 @@
 #ifndef __CRITTER_H__
 #define __CRITTER_H__
 
+#include "../src/intercept/comp.h"
 #include "../src/intercept/comm.h"
 #include "../src/intercept/symbol.h"
 
@@ -243,4 +244,165 @@
     critter::internal::symbol_stop(#ARG);\
   } while (0);
 
+// *****************************************************************************************************************************************************************
+// Note: these are defined specially for 'capital', which abstracts the call to blas routines. Double arguents are always used.
+
+#define _axpy_(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_daxpy_(a,b,c,d,e,f);\
+  } while (0);
+
+#define _scal_(a,b,c,d)\
+  do{\
+    critter::internal::_dscal_(a,b,c,d);\
+  } while (0);
+
+#define _ger_(a,b,c,d,e,f,g,h,i,j)\
+  do{\
+    critter::internal::_dger_(a,b,c,d,e,f,g,h,i,j);\
+  } while (0);
+
+#define _trmm_(a,b,c,d,e,f,g,h,i,j,k,l)\
+  do{\
+    critter::internal::_dtrmm_(a,b,c,d,e,f,g,h,i,j,k,l);\
+  } while (0);
+
+#define _trsm_(a,b,c,d,e,f,g,h,i,j,k,l)\
+  do{\
+    critter::internal::_dtrsm_(a,b,c,d,e,f,g,h,i,j,k,l);\
+  } while (0);
+
+#define _gemm_(a,b,c,d,e,f,g,h,i,j,k,l,m,n)\
+  do{\
+    critter::internal::_dgemm_(a,b,c,d,e,f,g,h,i,j,k,l,m,n);\
+  } while (0);
+
+#define _syrk_(a,b,c,d,e,f,g,h,i,j,k)\
+  do{\
+    critter::internal::_dsyrk_(a,b,c,d,e,f,g,h,i,j,k);\
+  } while (0);
+
+// *****************************************************************************************************************************************************************
+// Note: as we are testing on Stampede2, we are using cblas interface.
+/*
+#define cblas_strmm(a,b,c,d,e,f,g,h,i,j,k,l)\
+  do{\
+    critter::internal::_strmm_(a,b,c,d,e,f,g,h,i,j,k,l);\
+  } while (0);
+
+#define cblas_dtrmm(a,b,c,d,e,f,g,h,i,j,k,l)\
+  do{\
+    critter::internal::_dtrmm_(a,b,c,d,e,f,g,h,i,j,k,l);\
+  } while (0);
+
+#define cblas_sgemm(a,b,c,d,e,f,g,h,i,j,k,l,m,n)\
+  do{\
+    critter::internal::_sgemm_(a,b,c,d,e,f,g,h,i,j,k,l,m,n);\
+  } while (0);
+
+#define cblas_dgemm(a,b,c,d,e,f,g,h,i,j,k,l,m,n)\
+  do{\
+    critter::internal::_dgemm_(a,b,c,d,e,f,g,h,i,j,k,l,m,n);\
+  } while (0);
+
+#define cblas_ssyrk(a,b,c,d,e,f,g,h,i,j,k)\
+  do{\
+    critter::internal::_ssyrk_(a,b,c,d,e,f,g,h,i,j,k);\
+  } while (0);
+
+#define cblas_dsyrk(a,b,c,d,e,f,g,h,i,j,k)\
+  do{\
+    critter::internal::_dsyrk_(a,b,c,d,e,f,g,h,i,j,k);\
+  } while (0);
+*/
+// *****************************************************************************************************************************************************************
+// Note: these are defined specially for 'capital', which abstracts the call to lapack routines. Double arguents are always used.
+
+#define _getrf_(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_dgetrf_(a,b,c,d,e,f);\
+  } while (0);
+
+#define _potrf_(a,b,c,d,e)\
+  do{\
+    critter::internal::_dpotrf_(a,b,c,d,e);\
+  } while (0);
+
+#define _trtri_(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_dtrtri_(a,b,c,d,e,f);\
+  } while (0);
+
+#define _geqrf_(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_dgeqrf_(a,b,c,d,e,f);\
+  } while (0);
+
+#define _orgqr_(a,b,c,d,e,f,g)\
+  do{\
+    critter::internal::_dorgqr_(a,b,c,d,e,f,g);\
+  } while (0);
+
+#define _ormqr_(a,b,c,d,e,f,g,h,i,j,k)\
+  do{\
+    critter::internal::_dormqr_(a,b,c,d,e,f,g,h,i,j,k);\
+  } while (0);
+
+#define _getri_(a,b,c,d,e)\
+  do{\
+    critter::internal::_dgetri_(a,b,c,d,e);\
+  } while (0);
+
+#define _tpmqrt_(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)\
+  do{\
+    critter::internal::_dtpmqrt_(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p);\
+  } while (0);
+
+#define _tpqrt_(a,b,c,d,e,f,g,h,i,j,k)\
+  do{\
+    critter::internal::_dtpqrt_(a,b,c,d,e,f,g,h,i,j,k);\
+  } while (0);
+// *****************************************************************************************************************************************************************
+// Note: as we are testing on Stampede2, we are using LAPACKE interface.
+/*
+#define LAPACKE_spotrf(a,b,c,d,e)\
+  do{\
+    critter::internal::_spotrf_(a,b,c,d,e);\
+  } while (0);
+
+#define LAPACKE_dpotrf(a,b,c,d,e)\
+  do{\
+    critter::internal::_dpotrf_(a,b,c,d,e);\
+  } while (0);
+
+#define LAPACKE_strtri(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_strtri_(a,b,c,d,e,f);\
+  } while (0);
+
+#define LAPACKE_dtrtri(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_dtrtri_(a,b,c,d,e,f);\
+  } while (0);
+
+#define LAPACKE_sgeqrf_(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_sgeqrf_(a,b,c,d,e,f);\
+  } while (0);
+
+#define LAPACKE_dgeqrf_(a,b,c,d,e,f)\
+  do{\
+    critter::internal::_dgeqrf_(a,b,c,d,e,f);\
+  } while (0);
+
+#define LAPACKE_sorgqr(a,b,c,d,e,f,g)\
+  do{\
+    critter::internal::_sorgqr_(a,b,c,d,e,f,g);\
+  } while (0);
+
+#define LAPACKE_dorgqr(a,b,c,d,e,f,g)\
+  do{\
+    critter::internal::_dorgqr_(a,b,c,d,e,f,g);\
+  } while (0);
+*/
 #endif /*CRITTER_H_*/

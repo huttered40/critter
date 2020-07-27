@@ -78,6 +78,8 @@ int internal_tag2;
 int internal_tag3;
 int internal_tag4;
 int internal_tag5;
+size_t track_blas;
+size_t track_lapack;
 size_t track_collective;
 size_t track_p2p;
 size_t track_p2p_idle;
