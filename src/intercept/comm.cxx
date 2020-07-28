@@ -326,6 +326,18 @@ void barrier(MPI_Comm comm){
   }
 }
 
+void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
+  if (mode){
+    volatile double curtime = MPI_Wtime();
+    initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
+    PMPI_Comm_split(comm,color,key,newcomm);
+    complete_comm(_MPI_Barrier__id);
+  }
+  else{
+    PMPI_Comm_split(comm,color,key,newcomm);
+  }
+}
+
 void comm_free(MPI_Comm* comm){
   if (mode){
     if (delete_comm){

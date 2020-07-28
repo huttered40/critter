@@ -27,6 +27,11 @@
     critter::internal::barrier(cm);\
   } while (0)
 
+#define MPI_Comm_split(comm,color,key,newcomm)\
+  do {\
+    critter::internal::comm_split(comm,color,key,newcomm);\
+  } while (0)
+
 #define MPI_Comm_free(cm)\
   do {\
     critter::internal::comm_free(cm);\
