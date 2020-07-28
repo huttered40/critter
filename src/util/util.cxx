@@ -3,8 +3,11 @@
 namespace critter{
 namespace internal{
 
-std::map<comm_pattern_param1_key,comm_pattern_param1_val> pattern_cache_param1;
-std::map<comm_pattern_param2_key,comm_pattern_param2_val> pattern_cache_param2;
+std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
+std::map<comm_pattern_param2_key,comm_pattern_param2_val> comm_pattern_cache_param2;
+std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;
+std::map<comp_pattern_param2_key,comp_pattern_param2_val> comp_pattern_cache_param2;
+double comp_start_time;
 size_t cp_symbol_class_count;
 size_t pp_symbol_class_count;
 size_t vol_symbol_class_count;
@@ -80,6 +83,8 @@ int internal_tag2;
 int internal_tag3;
 int internal_tag4;
 int internal_tag5;
+size_t track_blas;
+size_t track_lapack;
 size_t track_collective;
 size_t track_p2p;
 size_t track_p2p_idle;
@@ -127,5 +132,24 @@ size_t
          _MPI_Ireduce_scatter__id,
          _MPI_Ialltoall__id,
          _MPI_Ialltoallv__id;
+size_t
+	_BLAS_axpy__id,
+	_BLAS_scal__id,
+	_BLAS_ger__id,
+	_BLAS_gemm__id,
+	_BLAS_trmm__id,
+	_BLAS_trsm__id,
+	_BLAS_syrk__id;
+size_t
+	_LAPACK_getrf__id,
+	_LAPACK_potrf__id,
+	_LAPACK_trtri__id,
+	_LAPACK_geqrf__id,
+	_LAPACK_orgqr__id,
+	_LAPACK_ormqr__id,
+	_LAPACK_getri__id,
+	_LAPACK_tpqrt__id,
+	_LAPACK_tpmqrt__id;
+std::map<std::pair<std::string,size_t>,bool> schedule_map;
 }
 }

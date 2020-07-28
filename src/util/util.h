@@ -130,8 +130,78 @@ struct comm_pattern_param2_val{
   double min_byte;
 };
 
-extern std::map<comm_pattern_param1_key,comm_pattern_param1_val> pattern_cache_param1;
-extern std::map<comm_pattern_param2_key,comm_pattern_param2_val> pattern_cache_param2;
+struct comp_pattern_param1_key{
+  friend bool operator==(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
+    if ((ref1.tag==ref2.tag) && (ref1.param1 == ref2.param1) && (ref1.param2 == ref2.param2) && (ref1.param3 == ref2.param3) && (ref1.param4 == ref2.param4) && (ref1.param5 == ref2.param5)) return true;
+    else return false;
+  }
+  friend bool operator<(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
+    if (ref1.tag < ref2.tag) return true;
+    else if (ref1.tag > ref2.tag) return false;
+    if (ref1.param1 < ref2.param1) return true;
+    else if (ref1.param1 > ref2.param1) return false;
+    if (ref1.param2 < ref2.param2) return true;
+    else if (ref1.param2 > ref2.param2) return false;
+    if (ref1.param3 < ref2.param3) return true;
+    else if (ref1.param3 > ref2.param3) return false;
+    if (ref1.param4 < ref2.param4) return true;
+    else if (ref1.param4 > ref2.param4) return false;
+    if (ref1.param5 < ref2.param5) return true;
+    else if (ref1.param5 > ref2.param5) return false;
+    return false;
+  }
+  int tag;
+  double flops;
+  int param1,param2,param3,param4,param5;
+};
+
+struct comp_pattern_param1_val{
+  comp_pattern_param1_val(){
+    this->num_comp_pattern_hits = 0;
+    this->num_flop_hits = 0;
+  }
+  comp_pattern_param1_val(size_t _num_comp_pattern_hits, double _num_flop_hits){
+    this->num_comp_pattern_hits = _num_comp_pattern_hits;
+    this->num_flop_hits = _num_flop_hits;
+  }
+  size_t num_comp_pattern_hits;
+  double num_flop_hits;
+};
+
+struct comp_pattern_param2_key{
+  friend bool operator==(const comp_pattern_param2_key& ref1, const comp_pattern_param2_key& ref2){
+    if ((ref1.tag==ref2.tag)) return true;
+    else return false;
+  }
+  friend bool operator<(const comp_pattern_param2_key& ref1, const comp_pattern_param2_key& ref2){
+    if (ref1.tag < ref2.tag) return true;
+    else if (ref1.tag > ref2.tag) return false;
+    return false;
+  }
+  int tag;
+};
+
+struct comp_pattern_param2_val{
+  comp_pattern_param2_val(){
+    this->num_comp_pattern_hits = 0;
+    this->num_flop_hits = 0;
+    this->min_flops = 0;
+  }
+  comp_pattern_param2_val(size_t _num_comp_pattern_hits, double _num_flop_hits, double _min_flops){
+    this->num_comp_pattern_hits = _num_comp_pattern_hits;
+    this->num_flop_hits = _num_flop_hits;
+    this->min_flops = _min_flops;
+  }
+  size_t num_comp_pattern_hits;
+  double num_flop_hits;
+  double min_flops;
+};
+
+extern std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
+extern std::map<comm_pattern_param2_key,comm_pattern_param2_val> comm_pattern_cache_param2;
+extern std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;
+extern std::map<comp_pattern_param2_key,comp_pattern_param2_val> comp_pattern_cache_param2;
+extern double comp_start_time;
 extern size_t cp_symbol_class_count;
 extern size_t pp_symbol_class_count;
 extern size_t vol_symbol_class_count;
@@ -207,6 +277,8 @@ extern int internal_tag2;
 extern int internal_tag3;
 extern int internal_tag4;
 extern int internal_tag5;
+extern size_t track_blas;
+extern size_t track_lapack;
 extern size_t track_collective;
 extern size_t track_p2p;
 extern size_t track_p2p_idle;
@@ -254,6 +326,25 @@ extern size_t
          _MPI_Ireduce_scatter__id,
          _MPI_Ialltoall__id,
          _MPI_Ialltoallv__id;
+extern size_t
+	_BLAS_axpy__id,
+	_BLAS_scal__id,
+	_BLAS_ger__id,
+	_BLAS_gemm__id,
+	_BLAS_trmm__id,
+	_BLAS_trsm__id,
+	_BLAS_syrk__id;
+extern size_t
+	_LAPACK_getrf__id,
+	_LAPACK_potrf__id,
+	_LAPACK_trtri__id,
+	_LAPACK_geqrf__id,
+	_LAPACK_orgqr__id,
+	_LAPACK_ormqr__id,
+	_LAPACK_getri__id,
+	_LAPACK_tpqrt__id,
+	_LAPACK_tpmqrt__id;
+extern std::map<std::pair<std::string,size_t>,bool> schedule_map;
 
 }
 }

@@ -3,9 +3,9 @@
 
 namespace critter{
 namespace internal{
-namespace optimization{
+namespace replay{
 
-void replay(){
+void invoke(){
 
   int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
   size_t n = critter::internal::decomposition::symbol_timers.size(); // number of unique symbols
