@@ -23,60 +23,76 @@ void reset(){
   }
 }
 
-void initiate(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+void initiate_comp(size_t id, volatile double curtime){
+  switch (mechanism){
+    case 0:
+      decomposition::path::initiate_comp(curtime);
+      break;
+  }
+}
+
+void complete_comp(size_t id, double flop_count){
+  switch (mechanism){
+    case 0:
+      decomposition::path::complete_comp(flop_count);
+      break;
+  }
+}
+
+void initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender, int partner1, int partner2){
   switch (mechanism){
     case 0:
-      decomposition::path::initiate(*(decomposition::blocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      decomposition::path::initiate_comm(*(decomposition::blocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
   }
 }
 
-void initiate(size_t id, volatile double curtime, volatile double itime, int64_t nelem,
+void initiate_comm(size_t id, volatile double curtime, volatile double itime, int64_t nelem,
               MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner){
   switch (mechanism){
     case 0:
-      decomposition::path::initiate(*(decomposition::nonblocking*)decomposition::list[id],curtime,itime,nelem,t,cm,request,is_sender,partner);
+      decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],curtime,itime,nelem,t,cm,request,is_sender,partner);
       break;
   }
 }
 
-void complete(size_t id, int recv_source){
+void complete_comm(size_t id, int recv_source){
   switch (mechanism){
     case 0:
-      decomposition::path::complete(*(decomposition::blocking*)decomposition::list[id],recv_source);
+      decomposition::path::complete_comm(*(decomposition::blocking*)decomposition::list[id],recv_source);
       break;
   }
 }
 
-void complete(double curtime, MPI_Request* request, MPI_Status* status){
+void complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   switch (mechanism){
     case 0:
-      decomposition::path::complete(curtime,request,status);
+      decomposition::path::complete_comm(curtime,request,status);
       break;
   }
 }
 
-void complete(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+void complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   switch (mechanism){
     case 0:
-      decomposition::path::complete(curtime,count,array_of_requests,indx,status);
+      decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
       break;
   }
 }
 
-void complete(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+void complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
-      decomposition::path::complete(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
       break;
   }
 }
 
-void complete(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+void complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
-      decomposition::path::complete(curtime,count,array_of_requests,array_of_statuses);
+      decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
       break;
   }
 }

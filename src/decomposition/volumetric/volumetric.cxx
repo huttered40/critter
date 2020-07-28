@@ -25,6 +25,7 @@ void volumetric::collect(MPI_Comm cm){
       for (size_t j=0; j<num_tracker_per_process_measures*list_size; j++){
         max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)+j] = volume_costs[num_volume_measures+j];
       }
+      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-3] = volume_costs[num_volume_measures-6];
       max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-2] = volume_costs[num_volume_measures-2];
       max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-1] = volume_costs[num_volume_measures-5];
     }

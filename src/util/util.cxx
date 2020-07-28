@@ -3,6 +3,7 @@
 namespace critter{
 namespace internal{
 
+double comp_start_time;
 size_t cp_symbol_class_count;
 size_t pp_symbol_class_count;
 size_t vol_symbol_class_count;
@@ -127,6 +128,24 @@ size_t
          _MPI_Ireduce_scatter__id,
          _MPI_Ialltoall__id,
          _MPI_Ialltoallv__id;
+size_t
+	_BLAS_axpy__id,
+	_BLAS_scal__id,
+	_BLAS_ger__id,
+	_BLAS_gemm__id,
+	_BLAS_trmm__id,
+	_BLAS_trsm__id,
+	_BLAS_syrk__id;
+size_t
+	_LAPACK_getrf__id,
+	_LAPACK_potrf__id,
+	_LAPACK_trtri__id,
+	_LAPACK_geqrf__id,
+	_LAPACK_orgqr__id,
+	_LAPACK_ormqr__id,
+	_LAPACK_getri__id,
+	_LAPACK_tpqrt__id,
+	_LAPACK_tpmqrt__id;
 std::map<std::pair<std::string,size_t>,bool> schedule_map;
 }
 }

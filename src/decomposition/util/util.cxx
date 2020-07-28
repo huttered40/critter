@@ -21,25 +21,25 @@ void allocate(MPI_Comm comm){
     if (_cost_models_[i] == '1'){ cost_model_size++; }
     cost_models.push_back(_cost_models_[i]);
   } 
-  for (auto i=0; i<8; i++){
+  for (auto i=0; i<9; i++){
     if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; symbol_path_select_index.push_back(i);}
     symbol_path_select.push_back(_symbol_path_select_[i]);
   } 
-  for (auto i=0; i<8; i++){
+  for (auto i=0; i<9; i++){
     if (_comm_path_select_[i] == '1'){ comm_path_select_size++; }
     comm_path_select.push_back(_comm_path_select_[i]);
   } 
 
-  num_critical_path_measures 		= 4+2*cost_model_size;// Reason for '4' instead of '5' is because we are not interested in the critical-path idle time.
-  num_per_process_measures 		= 5+2*cost_model_size;
-  num_volume_measures 			= 5+2*cost_model_size;
+  num_critical_path_measures 		= 5+2*cost_model_size;// Reason for '5' instead of '6' is because we are not interested in the critical-path idle time.
+  num_per_process_measures 		= 6+2*cost_model_size;
+  num_volume_measures 			= 6+2*cost_model_size;
   num_tracker_critical_path_measures 	= 2+2*cost_model_size;
   num_tracker_per_process_measures 	= 2+2*cost_model_size;
   num_tracker_volume_measures 		= 2+2*cost_model_size;
 
-  // The '2*comm_path_select_size' used below are used to track the computation time and idle time along each of the 'comm_path_select_size' paths.
-  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+2*comm_path_select_size;
-  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+2*comm_path_select_size;
+  // The '3*comm_path_select_size' used below are used to track {computation cost, computation time, idle time} along each of the 'comm_path_select_size' paths.
+  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+3*comm_path_select_size;
+  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+3*comm_path_select_size;
   volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
 
   synch_pad_send.resize(_world_size);
