@@ -9,6 +9,7 @@ namespace decomposition{
 
 class path{
 public:
+  static void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm);
   static void initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5);
   static void complete_comp(size_t id, double flop_count);
   static void initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,

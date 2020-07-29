@@ -23,6 +23,14 @@ void reset(){
   }
 }
 
+void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
+  switch (mechanism){
+    case 0:
+      decomposition::path::exchange_communicators(oldcomm,newcomm);
+      break;
+  }
+}
+
 void initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:

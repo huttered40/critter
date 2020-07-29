@@ -3,6 +3,8 @@
 namespace critter{
 namespace internal{
 
+std::map<std::pair<MPI_Comm,int>,MPI_Comm> foreign_communicator_map;
+std::vector<int> local_communicator_list;
 std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
 std::map<comm_pattern_param2_key,comm_pattern_param2_val> comm_pattern_cache_param2;
 std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;

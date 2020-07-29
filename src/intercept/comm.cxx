@@ -101,14 +101,14 @@ void stop(){
     std::cout << "\tPattern hit ratio - " << 1.-(patterns[4] * 1. / patterns[5]) << std::endl;
     std::cout << "\tNum cached flops - " << communications[4] << std::endl;
     std::cout << "\tNum flops - " << communications[5] << std::endl;
-    std::cout << "\tComputation byte hit ratio - " << 1. - (communications[4] * 1. / communications[5]) << std::endl;
+    std::cout << "\tComputation flop hit ratio - " << 1. - (communications[4] * 1. / communications[5]) << std::endl;
     std::cout << "Execution path parameterization #2: volumetric communication:\n";
     std::cout << "\tNum cached patterns - " << patterns[6] << std::endl;
     std::cout << "\tNum patterns - " << patterns[7] << std::endl;
     std::cout << "\tPattern hit ratio - " << 1.-(patterns[6] * 1. / patterns[7]) << std::endl;
     std::cout << "\tNum cached flops - " << communications[6] << std::endl;
     std::cout << "\tNum flops - " << communications[7] << std::endl;
-    std::cout << "\tComputation byte hit ratio - " << 1.-(communications[6] * 1. / communications[7]) << std::endl;
+    std::cout << "\tComputation flop hit ratio - " << 1.-(communications[6] * 1. / communications[7]) << std::endl;
   }
 
   assert(internal::internal_comm_info.size() == 0);
@@ -336,6 +336,7 @@ void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   else{
     PMPI_Comm_split(comm,color,key,newcomm);
   }
+  //exchange_communicators(comm,*newcomm);
 }
 
 void comm_free(MPI_Comm* comm){

@@ -7,6 +7,22 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
+void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
+  int old_comm_size; MPI_Comm_size(oldcomm,&old_comm_size);
+  int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
+  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
+  std::vector<int> comm_vec(2*old_comm_size,0);
+  comm_vec[2*old_comm_rank] = newcomm; comm_vec[2*old_comm_rank+1] = world_comm_rank;
+  PMPI_Allreduce(MPI_IN_PLACE,&comm_vec[0],2*old_comm_size,MPI_INT,MPI_SUM,oldcomm);
+  for (auto i=0; i<old_comm_size; i++){
+    foreign_communicator_map[std::make_pair(comm_vec[2*i],comm_vec[2*i+1])] = newcomm;
+  }
+  //TODO: save local communicator? (only really matters if not deleting communicators.
+
+  computation_timer = MPI_Wtime();
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+}
+
 void path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // accumulate computation time
   double save_comp_time = curtime - computation_timer;
