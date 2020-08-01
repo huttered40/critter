@@ -10,11 +10,11 @@ void allocate(MPI_Comm comm);
 void reset();
 
 void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm);
-void initiate_comp(size_t id, volatile double curtime, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
-void complete_comp(size_t id, double flop_count);
-void initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+bool initiate_comp(size_t id, volatile double curtime, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
+void complete_comp(size_t id, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
+bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender=false, int partner1=-1, int partner2=-1);
-void initiate_comm(size_t id, volatile double curtime, volatile double itime, int64_t nelem,
+bool initiate_comm(size_t id, volatile double curtime, volatile double itime, int64_t nelem,
               MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender=false, int partner=-1);
 void complete_comm(size_t id, int recv_source=-1);
 void complete_comm(double curtime, MPI_Request* request, MPI_Status* status);

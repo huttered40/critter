@@ -84,50 +84,26 @@ struct comm_pattern_param1_key{
 
 struct comm_pattern_param1_val{
   comm_pattern_param1_val(){
-    this->num_comm_pattern_hits = 0;
-    this->num_byte_hits = 0;
+    this->num_schedules = 0;
+    this->num_non_schedules = 0;
+    this->num_scheduled_bytes = 0;
+    this->num_non_scheduled_bytes = 0;
+    this->comm_time = 0;
   }
-  comm_pattern_param1_val(size_t _num_comm_pattern_hits, double _num_byte_hits){
-    this->num_comm_pattern_hits = _num_comm_pattern_hits;
-    this->num_byte_hits = _num_byte_hits;
+  comm_pattern_param1_val(double byte_count, double comm_time){
+    this->num_schedules = 1;
+    this->num_non_schedules = 0;
+    this->num_scheduled_bytes = byte_count;
+    this->num_non_scheduled_bytes = 0;
+    this->comm_time = comm_time;
   }
-  size_t num_comm_pattern_hits;
-  double num_byte_hits;
-};
-
-struct comm_pattern_param2_key{
-  friend bool operator==(const comm_pattern_param2_key& ref1, const comm_pattern_param2_key& ref2){
-    if ((ref1.tag==ref2.tag) && (ref1.comm == ref2.comm) && (ref1.partner == ref2.partner)) return true;
-    else return false;
-  }
-  friend bool operator<(const comm_pattern_param2_key& ref1, const comm_pattern_param2_key& ref2){
-    if (ref1.tag < ref2.tag) return true;
-    else if (ref1.tag > ref2.tag) return false;
-    if (ref1.comm < ref2.comm) return true;
-    else if (ref1.comm > ref2.comm) return false;
-    if (ref1.partner < ref2.partner) return true;
-    else if (ref1.partner > ref2.partner) return false;
-    return false;
-  }
-  int tag;
-  MPI_Comm comm;
-  int partner;
-};
-
-struct comm_pattern_param2_val{
-  comm_pattern_param2_val(){
-    this->num_comm_pattern_hits = 0;
-    this->num_byte_hits = 0;
-    this->min_byte = 0;
-  }
-  comm_pattern_param2_val(size_t _num_comm_pattern_hits, double _num_byte_hits, double _min_byte){
-    this->num_comm_pattern_hits = _num_comm_pattern_hits;
-    this->num_byte_hits = _num_byte_hits;
-    this->min_byte = _min_byte;
-  }
-  size_t num_comm_pattern_hits;
-  double num_byte_hits;
-  double min_byte;
+  size_t num_schedules;
+  size_t num_non_schedules;
+  double num_scheduled_bytes;
+  double num_non_scheduled_bytes;
+  double comm_time;
+  std::vector<double> synch_list;
+  std::vector<double> eff_net_bandwidth_list;
 };
 
 struct comp_pattern_param1_key{
@@ -157,52 +133,36 @@ struct comp_pattern_param1_key{
 
 struct comp_pattern_param1_val{
   comp_pattern_param1_val(){
-    this->num_comp_pattern_hits = 0;
-    this->num_flop_hits = 0;
+    this->num_schedules = 0;
+    this->num_non_schedules = 0;
+    this->num_scheduled_flops = 0;
+    this->num_non_scheduled_flops = 0;
+    this->comp_time = 0;
   }
-  comp_pattern_param1_val(size_t _num_comp_pattern_hits, double _num_flop_hits){
-    this->num_comp_pattern_hits = _num_comp_pattern_hits;
-    this->num_flop_hits = _num_flop_hits;
+  comp_pattern_param1_val(double flop_count, volatile double comp_time=0.0){
+    this->num_schedules = 1;
+    this->num_non_schedules = 0;
+    this->num_scheduled_flops = flop_count;
+    this->num_non_scheduled_flops = 0;
+    this->comp_time = comp_time;
   }
-  size_t num_comp_pattern_hits;
-  double num_flop_hits;
+  size_t num_schedules;
+  size_t num_non_schedules;
+  double num_scheduled_flops;
+  double num_non_scheduled_flops;
+  double comp_time;
+  std::vector<double> flop_rate_list;
 };
 
-struct comp_pattern_param2_key{
-  friend bool operator==(const comp_pattern_param2_key& ref1, const comp_pattern_param2_key& ref2){
-    if ((ref1.tag==ref2.tag)) return true;
-    else return false;
-  }
-  friend bool operator<(const comp_pattern_param2_key& ref1, const comp_pattern_param2_key& ref2){
-    if (ref1.tag < ref2.tag) return true;
-    else if (ref1.tag > ref2.tag) return false;
-    return false;
-  }
-  int tag;
-};
-
-struct comp_pattern_param2_val{
-  comp_pattern_param2_val(){
-    this->num_comp_pattern_hits = 0;
-    this->num_flop_hits = 0;
-    this->min_flops = 0;
-  }
-  comp_pattern_param2_val(size_t _num_comp_pattern_hits, double _num_flop_hits, double _min_flops){
-    this->num_comp_pattern_hits = _num_comp_pattern_hits;
-    this->num_flop_hits = _num_flop_hits;
-    this->min_flops = _min_flops;
-  }
-  size_t num_comp_pattern_hits;
-  double num_flop_hits;
-  double min_flops;
-};
-
+extern size_t path_pattern_param;
+extern size_t path_pattern_comm_count;
+extern size_t path_pattern_comp_count;
+extern size_t path_pattern_comm_op;
+extern size_t path_pattern_comp_op;
 extern std::map<std::pair<MPI_Comm,int>,MPI_Comm> foreign_communicator_map;
 extern std::vector<int> local_communicator_list;
 extern std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
-extern std::map<comm_pattern_param2_key,comm_pattern_param2_val> comm_pattern_cache_param2;
 extern std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;
-extern std::map<comp_pattern_param2_key,comp_pattern_param2_val> comp_pattern_cache_param2;
 extern double comp_start_time;
 extern size_t cp_symbol_class_count;
 extern size_t pp_symbol_class_count;

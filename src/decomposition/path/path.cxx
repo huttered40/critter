@@ -23,7 +23,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
+bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // accumulate computation time
   double save_comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
@@ -47,38 +47,75 @@ void path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
   }
 
-  comp_pattern_param1_key p_id_1;
-  p_id_1.tag = id;
-  p_id_1.flops = flop_count;
-  p_id_1.param1 = param1;
-  p_id_1.param2 = param2;
-  p_id_1.param3 = param3;
-  p_id_1.param4 = param4;
-  p_id_1.param5 = param5;
-  if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
-    comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(1,flop_count);
-  } else{
-    comp_pattern_cache_param1[p_id_1].num_comp_pattern_hits++;
-    comp_pattern_cache_param1[p_id_1].num_flop_hits+=flop_count;
-  }
-  comp_pattern_param2_key p_id_2;
-  p_id_2.tag = id;
-  if (comp_pattern_cache_param2.find(p_id_2) == comp_pattern_cache_param2.end()){
-    comp_pattern_cache_param2[p_id_2] = comp_pattern_param2_val(1,flop_count,flop_count);
-  } else{
-    comp_pattern_cache_param2[p_id_2].num_comp_pattern_hits++;
-    comp_pattern_cache_param2[p_id_2].num_flop_hits+=flop_count;
-    if (flop_count < comp_pattern_cache_param2[p_id_2].min_flops){
-      comp_pattern_cache_param2[p_id_2].min_flops = flop_count;
+  bool schedule_decision = true;
+  if (path_pattern_param==1){
+    comp_pattern_param1_key p_id_1;
+    p_id_1.tag = id;
+    p_id_1.flops = flop_count;
+    p_id_1.param1 = param1;
+    p_id_1.param2 = param2;
+    p_id_1.param3 = param3;
+    p_id_1.param4 = param4;
+    p_id_1.param5 = param5;
+    if (path_pattern_comp_count==0) schedule_decision=false;
+    else if (!(comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end())){
+      if (path_pattern_comp_count <= comp_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
     }
   }
 
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
+  return schedule_decision;
 }
 
-void path::complete_comp(size_t id, double flop_count){
-  volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete communication time
+void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
+  volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
+
+  if (path_pattern_param == 1){
+    comp_pattern_param1_key p_id_1;
+    p_id_1.tag = id;
+    p_id_1.flops = flop_count;
+    p_id_1.param1 = param1;
+    p_id_1.param2 = param2;
+    p_id_1.param3 = param3;
+    p_id_1.param4 = param4;
+    p_id_1.param5 = param5;
+    if (path_pattern_comp_count==0) ;
+    else if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
+      comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(flop_count,comp_time);
+//      comp_pattern_cache_param1[p_id_1].flop_rate_list.push_back(flop_count/comp_time);
+    } else if (comp_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comp_count){
+      if (path_pattern_comp_op==0){
+        comp_pattern_cache_param1[p_id_1].comp_time=std::min(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
+      } else if (path_pattern_comp_op==1){
+        comp_pattern_cache_param1[p_id_1].comp_time=std::max(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
+      } else if (path_pattern_comp_op==2){
+        comp_pattern_cache_param1[p_id_1].comp_time*=comp_time;
+      } else if (path_pattern_comp_op==3){
+        comp_pattern_cache_param1[p_id_1].comp_time+=comp_time;
+      }
+      comp_pattern_cache_param1[p_id_1].num_schedules++;
+      comp_pattern_cache_param1[p_id_1].num_scheduled_flops+=flop_count;
+    } else if (comp_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comp_count){
+      if ((comp_pattern_cache_param1[p_id_1].num_schedules + comp_pattern_cache_param1[p_id_1].num_non_schedules) == path_pattern_comp_count){
+        if (path_pattern_comp_op==0){
+          // do nothing
+        } else if (path_pattern_comp_op==1){
+          // do nothing
+        } else if (path_pattern_comp_op==2){
+          comp_pattern_cache_param1[p_id_1].comp_time = std::pow(comp_pattern_cache_param1[p_id_1].comp_time,1./path_pattern_comp_count);
+        } else if (path_pattern_comp_op==3){
+          comp_pattern_cache_param1[p_id_1].comp_time /= path_pattern_comp_count;
+        }
+      }
+      comp_pattern_cache_param1[p_id_1].num_non_schedules++;
+      comp_pattern_cache_param1[p_id_1].num_non_scheduled_flops+=flop_count;
+      //comp_pattern_cache_param1[p_id_1].synch_list.push_back((double)tracker.synch_time);
+      //comp_pattern_cache_param1[p_id_1].eff_net_bandwidth_list.push_back(tracker.nflops/comp_time);
+      comp_time = comp_pattern_cache_param1[p_id_1].comp_time;
+    }
+  }
+
   // Decompose measurements along multiple paths by symbol
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     for (auto i=0; i<symbol_path_select_size; i++){
@@ -241,7 +278,7 @@ static void complete_path_update(){
 }
 
 
-void path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                             bool is_sender, int partner1, int partner2){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
@@ -355,32 +392,6 @@ void path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
   tracker.synch_time = 0.;// might get updated below
 
-  comm_pattern_param1_key p_id_1;
-  p_id_1.tag = tracker.tag;
-  p_id_1.comm = comm;
-  p_id_1.msg_size = nbytes;
-  p_id_1.partner = partner1;
-  if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
-    comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(1,nbytes);
-  } else{
-    comm_pattern_cache_param1[p_id_1].num_comm_pattern_hits++;
-    comm_pattern_cache_param1[p_id_1].num_byte_hits+=nbytes;
-  }
-  comm_pattern_param2_key p_id_2;
-  p_id_2.tag = tracker.tag;
-  p_id_2.comm = comm;
-  p_id_2.partner = partner1;
-  if (comm_pattern_cache_param2.find(p_id_2) == comm_pattern_cache_param2.end()){
-    comm_pattern_cache_param2[p_id_2] = comm_pattern_param2_val(1,nbytes,nbytes);
-  } else{
-    comm_pattern_cache_param2[p_id_2].num_comm_pattern_hits++;
-    comm_pattern_cache_param2[p_id_2].num_byte_hits+=nbytes;
-    if (nbytes < comm_pattern_cache_param2[p_id_2].min_byte){
-      comm_pattern_cache_param2[p_id_2].min_byte = nbytes;
-    }
-  }
-
-
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
     assert(partner1 != MPI_ANY_SOURCE);
     if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
@@ -459,8 +470,22 @@ void path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     tracker.synch_time = MPI_Wtime()-tracker.start_time;
   }
 
+  bool schedule_decision = true;
+  if (path_pattern_param == 1){
+    comm_pattern_param1_key p_id_1;
+    p_id_1.tag = tracker.tag;
+    p_id_1.comm = tracker.comm;
+    p_id_1.msg_size = tracker.nbytes;
+    p_id_1.partner = tracker.partner1;
+    if (path_pattern_comm_count==0) schedule_decision=false;
+    else if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
+      if (path_pattern_comm_count <= comm_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
+    }
+  }
+
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
+  return schedule_decision;
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
@@ -478,6 +503,49 @@ void path::complete_comm(blocking& tracker, int recv_source){
     else{
       assert(tracker.tag==17);
       tracker.partner1=recv_source;
+    }
+  }
+
+  if (path_pattern_param == 1){
+    comm_pattern_param1_key p_id_1;
+    p_id_1.tag = tracker.tag;
+    p_id_1.comm = tracker.comm;
+    p_id_1.msg_size = tracker.nbytes;
+    p_id_1.partner = tracker.partner1;
+    if (path_pattern_comm_count==0) ;
+    else if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
+      comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(tracker.nbytes,comm_time);
+      //comm_pattern_cache_param1[p_id_1].synch_list.push_back((double)tracker.synch_time);
+      //comm_pattern_cache_param1[p_id_1].eff_net_bandwidth_list.push_back(tracker.nbytes/comm_time);
+    } else if (comm_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comm_count){
+      if (path_pattern_comm_op==0){
+        comm_pattern_cache_param1[p_id_1].comm_time=std::min(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
+      } else if (path_pattern_comm_op==1){
+        comm_pattern_cache_param1[p_id_1].comm_time=std::max(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
+      } else if (path_pattern_comm_op==2){
+        comm_pattern_cache_param1[p_id_1].comm_time*=comm_time;
+      } else if (path_pattern_comm_op==3){
+        comm_pattern_cache_param1[p_id_1].comm_time+=comm_time;
+      }
+      comm_pattern_cache_param1[p_id_1].num_schedules++;
+      comm_pattern_cache_param1[p_id_1].num_scheduled_bytes+=tracker.nbytes;
+    } else if (comm_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comm_count){
+      if ((comm_pattern_cache_param1[p_id_1].num_non_schedules + comm_pattern_cache_param1[p_id_1].num_schedules) == path_pattern_comm_count){
+        if (path_pattern_comm_op==0){
+          // do nothing
+        } else if (path_pattern_comm_op==1){
+          // do nothing
+        } else if (path_pattern_comm_op==2){
+          comm_pattern_cache_param1[p_id_1].comm_time = std::pow(comm_pattern_cache_param1[p_id_1].comm_time,1./path_pattern_comm_count);
+        } else if (path_pattern_comm_op==3){
+          comm_pattern_cache_param1[p_id_1].comm_time /= path_pattern_comm_count;
+        }
+      }
+      comm_pattern_cache_param1[p_id_1].num_non_schedules++;
+      comm_pattern_cache_param1[p_id_1].num_non_scheduled_bytes+=tracker.nbytes;
+      //comm_pattern_cache_param1[p_id_1].synch_list.push_back((double)tracker.synch_time);
+      //comm_pattern_cache_param1[p_id_1].eff_net_bandwidth_list.push_back(tracker.nbytes/comm_time);
+      comm_time = comm_pattern_cache_param1[p_id_1].comm_time;
     }
   }
 
@@ -613,7 +681,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
+bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
                             MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
@@ -673,6 +741,7 @@ void path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
+  return true;// For now, nonblocking communication will always be scheduled.
 }
 
 void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
