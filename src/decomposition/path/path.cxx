@@ -124,9 +124,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       if (comp_pattern_cache_param2.find(p_id_1) == comp_pattern_cache_param2.end()){
         comp_pattern_cache_param2[p_id_1] = comp_pattern_param2_val(path_pattern_comp_scale);
       }
-      else{
-        if (!comp_pattern_cache_param2[p_id_1].should_schedule()) comp_time = comp_pattern_cache_param2[p_id_1].get_mean();
-      }
+      if (!comp_pattern_cache_param2[p_id_1].should_schedule()) comp_time = comp_pattern_cache_param2[p_id_1].get_mean();
       comp_pattern_cache_param2[p_id_1].update(comp_time,flop_count);
     }
   }
@@ -589,9 +587,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
       if (comm_pattern_cache_param2.find(p_id_1) == comm_pattern_cache_param2.end()){
         comm_pattern_cache_param2[p_id_1] = comm_pattern_param2_val(path_pattern_comm_scale);
       }
-      else{
-        if (!comm_pattern_cache_param2[p_id_1].should_schedule()) comm_time = comm_pattern_cache_param2[p_id_1].get_mean();
-      }
+      if (!comm_pattern_cache_param2[p_id_1].should_schedule()) comm_time = comm_pattern_cache_param2[p_id_1].get_mean();
       comm_pattern_cache_param2[p_id_1].update(comm_time,tracker.nbytes);
     }
   }

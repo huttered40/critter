@@ -19,6 +19,8 @@ void start(){
   // Below could be moved to reset, but its basically harmless here
   internal::comm_pattern_cache_param1.clear();
   internal::comp_pattern_cache_param1.clear();
+  internal::comm_pattern_cache_param2.clear();
+  internal::comp_pattern_cache_param2.clear();
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
@@ -230,12 +232,12 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_PATH_PATTERN_COMM_SCALE") != NULL){
     path_pattern_comm_scale = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_SCALE"));
   } else{
-    path_pattern_comm_scale = 0;
+    path_pattern_comm_scale = 1;
   }
   if (std::getenv("CRITTER_PATH_PATTERN_COMP_SCALE") != NULL){
     path_pattern_comp_scale = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_SCALE"));
   } else{
-    path_pattern_comp_scale = 0;
+    path_pattern_comp_scale = 1;
   }
   if (std::getenv("CRITTER_TRACK_BLAS") != NULL){
     track_blas = atoi(std::getenv("CRITTER_TRACK_BLAS"));
