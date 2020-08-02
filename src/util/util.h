@@ -21,6 +21,7 @@
 namespace critter{
 namespace internal{
 
+// ****************************************************************************************************************************************************
 struct double_int{
   double_int(){first=0; second=0;}
   double_int(double one, int two){first=one; second=two;}
@@ -32,6 +33,7 @@ struct int_int_double{
   int first; int second; double third;
 };
 
+// ****************************************************************************************************************************************************
 struct event{
   event(std::string _kernel, std::vector<double> _measurements){
     tag = -1; measurements = _measurements;
@@ -60,6 +62,7 @@ struct event{
   std::string kernel;
 };
 
+// ****************************************************************************************************************************************************
 struct comm_pattern_param1_key{
   friend bool operator==(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
     if ((ref1.tag==ref2.tag) && (ref1.comm == ref2.comm) && (ref1.msg_size == ref2.msg_size) && (ref1.partner == ref2.partner)) return true;
@@ -106,6 +109,95 @@ struct comm_pattern_param1_val{
   std::vector<double> eff_net_bandwidth_list;
 };
 
+// ****************************************************************************************************************************************************
+struct comm_pattern_param2_val{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  comm_pattern_param2_val(size_t jb_scale=0){
+    this->jb_scale = jb_scale;
+    this->steady_state=false;
+    this->num_schedules = 0;
+    this->num_non_schedules = 0;
+    this->num_scheduled_bytes = 0;
+    this->num_non_scheduled_bytes = 0;
+    this->M1=0; this->M2=0; this->M3=0; this->M4=0;
+  }
+  double get_mean(){
+    // returns arithmetic mean
+    return this->M1;
+  }
+  double get_variance(){
+    // returns variance
+    size_t n = this->num_schedules;
+    if (n<=3) return 1000.;
+    return this->M2 / (n-1.);
+  }
+  double get_skewness(){
+    // returns skewness
+    size_t n = this->num_schedules;
+    if (n<=3) return 1000.;
+    return std::pow(n*1.,1./2.) * this->M3 / std::pow(this->M2,1.5);
+  }
+  double get_kurtosis(){
+    // returns the excess kurtosis
+    size_t n = this->num_schedules;
+    if (n<=3) return 1000.;
+    return (n*this->M4) / (this->M2*this->M2) - 3.;
+  }
+  void jacque_barra_test(){
+    // Note this test may be too sensitive for our purposes. But we can try this first.
+    size_t n = this->num_schedules;
+    double k = this->get_kurtosis();
+    double s = this->get_skewness();
+    double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
+
+    // Note I randomly chose "0.1". I need to experiment around a bit more.
+    if (jb_test_stat > .001*this->jb_scale){
+      this->steady_state = false;
+    } else{
+      this->steady_state = true;
+    }
+  }
+  bool should_schedule(){
+    return !this->steady_state;
+  }
+  void update(volatile double comm_time, double byte_count){
+    if (!this->steady_state){
+      this->num_schedules++;
+      this->num_scheduled_bytes += byte_count;
+      // Online computation of up to 4th-order central moments using communication time samples
+      size_t n1 = this->num_schedules-1;
+      size_t n = this->num_schedules;
+      double x = comm_time;
+      double delta = x - M1;
+      double delta_n = delta / n;
+      double delta_n2 = delta_n*delta_n;
+      double term1 = delta*delta_n*n1;
+      this->M1 += delta_n;
+      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
+      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
+      this->M2 += term1;
+      jacque_barra_test();
+    }
+    else{
+      this->num_non_schedules++;
+      this->num_non_scheduled_bytes += byte_count;
+    }
+  }
+
+  size_t jb_scale;
+  size_t num_schedules;
+  size_t num_non_schedules;
+  double num_scheduled_bytes;
+  double num_non_scheduled_bytes;
+  double M1,M2,M3,M4;
+  bool steady_state;
+  std::vector<double> synch_list;
+  std::vector<double> eff_net_bandwidth_list;
+};
+
+// ****************************************************************************************************************************************************
 struct comp_pattern_param1_key{
   friend bool operator==(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
     if ((ref1.tag==ref2.tag) && (ref1.param1 == ref2.param1) && (ref1.param2 == ref2.param2) && (ref1.param3 == ref2.param3) && (ref1.param4 == ref2.param4) && (ref1.param5 == ref2.param5)) return true;
@@ -154,15 +246,106 @@ struct comp_pattern_param1_val{
   std::vector<double> flop_rate_list;
 };
 
+// ****************************************************************************************************************************************************
+struct comp_pattern_param2_val{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  comp_pattern_param2_val(size_t jb_scale=0){
+    this->jb_scale = jb_scale;
+    this->steady_state=false;
+    this->num_schedules = 0;
+    this->num_non_schedules = 0;
+    this->num_scheduled_flops = 0;
+    this->num_non_scheduled_flops = 0;
+    this->M1=0; this->M2=0; this->M3=0; this->M4=0;
+  }
+  double get_mean(){
+    // returns arithmetic mean
+    return this->M1;
+  }
+  double get_variance(){
+    // returns variance
+    size_t n = this->num_schedules;
+    if (n<=3) return 1000.;
+    return this->M2 / (n-1.);
+  }
+  double get_skewness(){
+    // returns skewness
+    size_t n = this->num_schedules;
+    if (n<=3) return 1000.;
+    return std::pow(n*1.,1./2.) * this->M3 / std::pow(this->M2,1.5);
+  }
+  double get_kurtosis(){
+    // returns the excess kurtosis
+    size_t n = this->num_schedules;
+    if (n<=3) return 1000.;
+    return (n*this->M4) / (this->M2*this->M2) - 3.;
+  }
+  void jacque_barra_test(){
+    // Note this test may be too sensitive for our purposes. But we can try this first.
+    size_t n = this->num_schedules;
+    double k = this->get_kurtosis();
+    double s = this->get_skewness();
+    double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
+    // Note I randomly chose "0.1". I need to experiment around a bit more.
+    if (jb_test_stat > .001*this->jb_scale){
+      this->steady_state = false;
+    } else{
+      this->steady_state = true;
+    }
+  }
+  bool should_schedule(){
+    return !this->steady_state;
+  }
+  void update(volatile double comp_time, double flop_count){
+    if (!this->steady_state){
+      this->num_schedules++;
+      this->num_scheduled_flops += flop_count;
+      // Online computation of up to 4th-order central moments using compunication time samples
+      size_t n1 = this->num_schedules-1;
+      size_t n = this->num_schedules;
+      double x = comp_time;
+      double delta = x - M1;
+      double delta_n = delta / n;
+      double delta_n2 = delta_n*delta_n;
+      double term1 = delta*delta_n*n1;
+      this->M1 += delta_n;
+      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
+      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
+      this->M2 += term1;
+      jacque_barra_test();
+    }
+    else{
+      this->num_non_schedules++;
+      this->num_non_scheduled_flops += flop_count;
+    }
+  }
+
+  size_t jb_scale;
+  size_t num_schedules;
+  size_t num_non_schedules;
+  double num_scheduled_flops;
+  double num_non_scheduled_flops;
+  double M1,M2,M3,M4;
+  bool steady_state;
+  std::vector<double> flop_rate_list;
+};
+
+// ****************************************************************************************************************************************************
 extern size_t path_pattern_param;
 extern size_t path_pattern_comm_count;
 extern size_t path_pattern_comp_count;
 extern size_t path_pattern_comm_op;
 extern size_t path_pattern_comp_op;
+extern size_t path_pattern_comm_scale;
+extern size_t path_pattern_comp_scale;
 extern std::map<std::pair<MPI_Comm,int>,MPI_Comm> foreign_communicator_map;
 extern std::vector<int> local_communicator_list;
 extern std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
+extern std::map<comm_pattern_param1_key,comm_pattern_param2_val> comm_pattern_cache_param2;
 extern std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;
+extern std::map<comp_pattern_param1_key,comp_pattern_param2_val> comp_pattern_cache_param2;
 extern double comp_start_time;
 extern size_t cp_symbol_class_count;
 extern size_t pp_symbol_class_count;

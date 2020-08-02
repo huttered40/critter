@@ -48,7 +48,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   }
 
   bool schedule_decision = true;
-  if (path_pattern_param==1){
+  if (path_pattern_param>0){
     comp_pattern_param1_key p_id_1;
     p_id_1.tag = id;
     p_id_1.flops = flop_count;
@@ -57,9 +57,16 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     p_id_1.param3 = param3;
     p_id_1.param4 = param4;
     p_id_1.param5 = param5;
-    if (path_pattern_comp_count==0) schedule_decision=false;
-    else if (!(comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end())){
-      if (path_pattern_comp_count <= comp_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
+    if (path_pattern_param==1){
+      if (path_pattern_comp_count==0) schedule_decision=false;
+      else if (!(comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end())){
+        if (path_pattern_comp_count <= comp_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
+      }
+    }
+    else if (path_pattern_param==2){
+      if (!(comp_pattern_cache_param2.find(p_id_1) == comp_pattern_cache_param2.end())){
+        schedule_decision = comp_pattern_cache_param2[p_id_1].should_schedule();
+      }
     }
   }
 
@@ -71,7 +78,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
 
-  if (path_pattern_param == 1){
+  if (path_pattern_param>0){
     comp_pattern_param1_key p_id_1;
     p_id_1.tag = id;
     p_id_1.flops = flop_count;
@@ -80,39 +87,47 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     p_id_1.param3 = param3;
     p_id_1.param4 = param4;
     p_id_1.param5 = param5;
-    if (path_pattern_comp_count==0) ;
-    else if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
-      comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(flop_count,comp_time);
-//      comp_pattern_cache_param1[p_id_1].flop_rate_list.push_back(flop_count/comp_time);
-    } else if (comp_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comp_count){
-      if (path_pattern_comp_op==0){
-        comp_pattern_cache_param1[p_id_1].comp_time=std::min(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
-      } else if (path_pattern_comp_op==1){
-        comp_pattern_cache_param1[p_id_1].comp_time=std::max(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
-      } else if (path_pattern_comp_op==2){
-        comp_pattern_cache_param1[p_id_1].comp_time*=comp_time;
-      } else if (path_pattern_comp_op==3){
-        comp_pattern_cache_param1[p_id_1].comp_time+=comp_time;
-      }
-      comp_pattern_cache_param1[p_id_1].num_schedules++;
-      comp_pattern_cache_param1[p_id_1].num_scheduled_flops+=flop_count;
-    } else if (comp_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comp_count){
-      if ((comp_pattern_cache_param1[p_id_1].num_schedules + comp_pattern_cache_param1[p_id_1].num_non_schedules) == path_pattern_comp_count){
+    if (path_pattern_param == 1){
+      if (path_pattern_comp_count==0) ;
+      else if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
+        comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(flop_count,comp_time);
+      } else if (comp_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comp_count){
         if (path_pattern_comp_op==0){
-          // do nothing
+          comp_pattern_cache_param1[p_id_1].comp_time=std::min(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
         } else if (path_pattern_comp_op==1){
-          // do nothing
+          comp_pattern_cache_param1[p_id_1].comp_time=std::max(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
         } else if (path_pattern_comp_op==2){
-          comp_pattern_cache_param1[p_id_1].comp_time = std::pow(comp_pattern_cache_param1[p_id_1].comp_time,1./path_pattern_comp_count);
+          comp_pattern_cache_param1[p_id_1].comp_time*=comp_time;
         } else if (path_pattern_comp_op==3){
-          comp_pattern_cache_param1[p_id_1].comp_time /= path_pattern_comp_count;
+          comp_pattern_cache_param1[p_id_1].comp_time+=comp_time;
         }
+        comp_pattern_cache_param1[p_id_1].num_schedules++;
+        comp_pattern_cache_param1[p_id_1].num_scheduled_flops+=flop_count;
+      } else if (comp_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comp_count){
+        if ((comp_pattern_cache_param1[p_id_1].num_non_schedules + comp_pattern_cache_param1[p_id_1].num_schedules) == path_pattern_comp_count){
+          if (path_pattern_comp_op==0){
+            // do nothing
+          } else if (path_pattern_comp_op==1){
+           // do nothing
+          } else if (path_pattern_comp_op==2){
+            comp_pattern_cache_param1[p_id_1].comp_time = std::pow(comp_pattern_cache_param1[p_id_1].comp_time,1./path_pattern_comp_count);
+          } else if (path_pattern_comp_op==3){
+            comp_pattern_cache_param1[p_id_1].comp_time /= path_pattern_comp_count;
+          }
+        }
+        comp_pattern_cache_param1[p_id_1].num_non_schedules++;
+        comp_pattern_cache_param1[p_id_1].num_non_scheduled_flops+=flop_count;
+        comp_time = comp_pattern_cache_param1[p_id_1].comp_time;
       }
-      comp_pattern_cache_param1[p_id_1].num_non_schedules++;
-      comp_pattern_cache_param1[p_id_1].num_non_scheduled_flops+=flop_count;
-      //comp_pattern_cache_param1[p_id_1].synch_list.push_back((double)tracker.synch_time);
-      //comp_pattern_cache_param1[p_id_1].eff_net_bandwidth_list.push_back(tracker.nflops/comp_time);
-      comp_time = comp_pattern_cache_param1[p_id_1].comp_time;
+    }
+    else if (path_pattern_param == 2){
+      if (comp_pattern_cache_param2.find(p_id_1) == comp_pattern_cache_param2.end()){
+        comp_pattern_cache_param2[p_id_1] = comp_pattern_param2_val(path_pattern_comp_scale);
+      }
+      else{
+        if (!comp_pattern_cache_param2[p_id_1].should_schedule()) comp_time = comp_pattern_cache_param2[p_id_1].get_mean();
+      }
+      comp_pattern_cache_param2[p_id_1].update(comp_time,flop_count);
     }
   }
 
@@ -471,15 +486,22 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   bool schedule_decision = true;
-  if (path_pattern_param == 1){
+  if (path_pattern_param>0){
     comm_pattern_param1_key p_id_1;
     p_id_1.tag = tracker.tag;
     p_id_1.comm = tracker.comm;
     p_id_1.msg_size = tracker.nbytes;
     p_id_1.partner = tracker.partner1;
-    if (path_pattern_comm_count==0) schedule_decision=false;
-    else if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
-      if (path_pattern_comm_count <= comm_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
+    if (path_pattern_param==1){
+      if (path_pattern_comm_count==0) schedule_decision=false;
+      else if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
+        if (path_pattern_comm_count <= comm_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
+      }
+    }
+    else if (path_pattern_param==2){
+      if (!(comm_pattern_cache_param2.find(p_id_1) == comm_pattern_cache_param2.end())){
+        schedule_decision = comm_pattern_cache_param2[p_id_1].should_schedule();
+      }
     }
   }
 
@@ -495,6 +517,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
   std::vector<std::pair<double,double>> costs = {cost_bsp,cost_alphabeta};
 
+  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
   if (recv_source != -1){
     if ((tracker.tag == 13) || (tracker.tag == 14)){
@@ -506,46 +529,70 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
   }
 
-  if (path_pattern_param == 1){
+  if (path_pattern_param>0){
     comm_pattern_param1_key p_id_1;
     p_id_1.tag = tracker.tag;
     p_id_1.comm = tracker.comm;
     p_id_1.msg_size = tracker.nbytes;
     p_id_1.partner = tracker.partner1;
-    if (path_pattern_comm_count==0) ;
-    else if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
-      comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(tracker.nbytes,comm_time);
-      //comm_pattern_cache_param1[p_id_1].synch_list.push_back((double)tracker.synch_time);
-      //comm_pattern_cache_param1[p_id_1].eff_net_bandwidth_list.push_back(tracker.nbytes/comm_time);
-    } else if (comm_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comm_count){
-      if (path_pattern_comm_op==0){
-        comm_pattern_cache_param1[p_id_1].comm_time=std::min(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
-      } else if (path_pattern_comm_op==1){
-        comm_pattern_cache_param1[p_id_1].comm_time=std::max(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
-      } else if (path_pattern_comm_op==2){
-        comm_pattern_cache_param1[p_id_1].comm_time*=comm_time;
-      } else if (path_pattern_comm_op==3){
-        comm_pattern_cache_param1[p_id_1].comm_time+=comm_time;
-      }
-      comm_pattern_cache_param1[p_id_1].num_schedules++;
-      comm_pattern_cache_param1[p_id_1].num_scheduled_bytes+=tracker.nbytes;
-    } else if (comm_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comm_count){
-      if ((comm_pattern_cache_param1[p_id_1].num_non_schedules + comm_pattern_cache_param1[p_id_1].num_schedules) == path_pattern_comm_count){
+    if (path_pattern_param == 1){
+      if (path_pattern_comm_count==0) ;
+      else if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
+        comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(tracker.nbytes,comm_time);
+      } else if (comm_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comm_count){
         if (path_pattern_comm_op==0){
-          // do nothing
+          comm_pattern_cache_param1[p_id_1].comm_time=std::min(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
         } else if (path_pattern_comm_op==1){
-          // do nothing
+          comm_pattern_cache_param1[p_id_1].comm_time=std::max(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
         } else if (path_pattern_comm_op==2){
-          comm_pattern_cache_param1[p_id_1].comm_time = std::pow(comm_pattern_cache_param1[p_id_1].comm_time,1./path_pattern_comm_count);
+          comm_pattern_cache_param1[p_id_1].comm_time*=comm_time;
         } else if (path_pattern_comm_op==3){
-          comm_pattern_cache_param1[p_id_1].comm_time /= path_pattern_comm_count;
+          comm_pattern_cache_param1[p_id_1].comm_time+=comm_time;
+        }
+        comm_pattern_cache_param1[p_id_1].num_schedules++;
+        comm_pattern_cache_param1[p_id_1].num_scheduled_bytes+=tracker.nbytes;
+      } else if (comm_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comm_count){
+        if ((comm_pattern_cache_param1[p_id_1].num_non_schedules + comm_pattern_cache_param1[p_id_1].num_schedules) == path_pattern_comm_count){
+          if (path_pattern_comm_op==0){
+            // do nothing
+          } else if (path_pattern_comm_op==1){
+           // do nothing
+          } else if (path_pattern_comm_op==2){
+            comm_pattern_cache_param1[p_id_1].comm_time = std::pow(comm_pattern_cache_param1[p_id_1].comm_time,1./path_pattern_comm_count);
+          } else if (path_pattern_comm_op==3){
+            comm_pattern_cache_param1[p_id_1].comm_time /= path_pattern_comm_count;
+          }
+        }
+        comm_pattern_cache_param1[p_id_1].num_non_schedules++;
+        comm_pattern_cache_param1[p_id_1].num_non_scheduled_bytes+=tracker.nbytes;
+        comm_time = comm_pattern_cache_param1[p_id_1].comm_time;
+      }
+    }
+    else if (path_pattern_param == 2){
+      double _comm_time = comm_time; double _comm_time_foreign;
+      if (tracker.partner1 == -1){
+        PMPI_Allreduce(MPI_IN_PLACE, &_comm_time, 1, MPI_DOUBLE, MPI_MAX, tracker.comm);
+        comm_time = _comm_time;
+      } else{
+        if (true_eager_p2p){ assert(0); /*PMPI_Bsend(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm);*/ }
+        else { PMPI_Sendrecv(&_comm_time, 1, MPI_DOUBLE, tracker.partner1, internal_tag2, &_comm_time_foreign, 1,
+                             MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+               comm_time = std::max(_comm_time,_comm_time_foreign);
+             }
+        if (tracker.partner2 != tracker.partner1){
+          // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
+          _comm_time = comm_time;
+          PMPI_Sendrecv(&_comm_time, 1, MPI_DOUBLE, tracker.partner2, internal_tag2, &_comm_time_foreign, 1, MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+          comm_time = std::max(_comm_time,_comm_time_foreign);
         }
       }
-      comm_pattern_cache_param1[p_id_1].num_non_schedules++;
-      comm_pattern_cache_param1[p_id_1].num_non_scheduled_bytes+=tracker.nbytes;
-      //comm_pattern_cache_param1[p_id_1].synch_list.push_back((double)tracker.synch_time);
-      //comm_pattern_cache_param1[p_id_1].eff_net_bandwidth_list.push_back(tracker.nbytes/comm_time);
-      comm_time = comm_pattern_cache_param1[p_id_1].comm_time;
+      if (comm_pattern_cache_param2.find(p_id_1) == comm_pattern_cache_param2.end()){
+        comm_pattern_cache_param2[p_id_1] = comm_pattern_param2_val(path_pattern_comm_scale);
+      }
+      else{
+        if (!comm_pattern_cache_param2[p_id_1].should_schedule()) comm_time = comm_pattern_cache_param2[p_id_1].get_mean();
+      }
+      comm_pattern_cache_param2[p_id_1].update(comm_time,tracker.nbytes);
     }
   }
 

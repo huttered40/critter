@@ -33,72 +33,84 @@ void stop(){
 
   // Lets iterate over the map to create two counters, then reduce them to get a global idea:
   //   Another idea is to cache this list over the critical path, but that might be too much.
-  int patterns[8] = {0,0,0,0};
-  double communications[8] = {0,0,0,0};
-  for (auto& it : internal::comm_pattern_cache_param1){
-    patterns[0]+=it.second.num_schedules;
-    patterns[1] += it.second.num_non_schedules;
-    communications[0] += it.second.num_scheduled_bytes;
-    communications[1] += it.second.num_non_scheduled_bytes;
-  }
-  for (auto& it : internal::comp_pattern_cache_param1){
-    patterns[4]+=it.second.num_schedules;
-    patterns[5] += it.second.num_non_schedules;
-    communications[4] += it.second.num_scheduled_flops;
-    communications[5] += it.second.num_non_scheduled_flops;
-  }
-  PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],8,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&communications[0],8,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-  int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
-  if (rank==0){
-    for (auto& it : internal::comm_pattern_cache_param1){
-      std::cout << "Rank 0 Param1 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.msg_size << "," << it.first.partner << ") - " << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_bytes << " " << it.second.num_non_scheduled_bytes << std::endl;
-      for (auto& el : it.second.synch_list){
-        std::cout << "\t\t" << el << std::endl;
+  if (internal::path_pattern_param>0){
+    int patterns[4] = {0,0,0,0};
+    double communications[4] = {0,0,0,0};
+    if (internal::path_pattern_param==1){
+      for (auto& it : internal::comm_pattern_cache_param1){
+        patterns[0]+=it.second.num_schedules;
+        patterns[1] += it.second.num_non_schedules;
+        communications[0] += it.second.num_scheduled_bytes;
+        communications[1] += it.second.num_non_scheduled_bytes;
       }
-      for (auto& el : it.second.eff_net_bandwidth_list){
-        std::cout << "\t\t\t\t" << el << std::endl;
+      for (auto& it : internal::comp_pattern_cache_param1){
+        patterns[2]+=it.second.num_schedules;
+        patterns[3] += it.second.num_non_schedules;
+        communications[2] += it.second.num_scheduled_flops;
+        communications[3] += it.second.num_non_scheduled_flops;
       }
     }
-    std::cout << std::endl;
-    std::cout << std::endl;
-    for (auto& it : internal::comp_pattern_cache_param1){
-      std::cout << "Rank 0 Param1 Computation pattern (" << it.first.tag << "," << it.first.flops << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") - "
-                << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_flops << " " << it.second.num_non_scheduled_flops << std::endl;
-      for (auto& el : it.second.flop_rate_list){
-        std::cout << "\t\t" << el << std::endl;
+    else if (internal::path_pattern_param==2){
+      for (auto& it : internal::comm_pattern_cache_param2){
+        patterns[0]+=it.second.num_schedules;
+        patterns[1] += it.second.num_non_schedules;
+        communications[0] += it.second.num_scheduled_bytes;
+        communications[1] += it.second.num_non_scheduled_bytes;
+      }
+      for (auto& it : internal::comp_pattern_cache_param2){
+        patterns[2]+=it.second.num_schedules;
+        patterns[3] += it.second.num_non_schedules;
+        communications[2] += it.second.num_scheduled_flops;
+        communications[3] += it.second.num_non_scheduled_flops;
       }
     }
-    std::cout << std::endl;
-    std::cout << std::endl;
-    std::cout << "Execution path parameterization #1: volumetric communication:\n";
-    std::cout << "\tNum scheduled patterns - " << patterns[0] << std::endl;
-    std::cout << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
-    std::cout << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
-    std::cout << "\tNum scheduled bytes - " << communications[0] << std::endl;
-    std::cout << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
-    std::cout << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
-    std::cout << "Execution path parameterization #2: volumetric communication:\n";
-    std::cout << "\tNum scheduled patterns - " << patterns[2] << std::endl;
-    std::cout << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
-    std::cout << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;
-    std::cout << "\tNum scheduled bytes - " << communications[2] << std::endl;
-    std::cout << "\tNum total bytes - " << communications[2]+communications[3] << std::endl;
-    std::cout << "\tCommunication byte hit ratio - " << 1.-(communications[2] * 1. / (communications[2]+communications[3])) << std::endl;
-    std::cout << "Execution path parameterization #1: volumetric computation:\n";
-    std::cout << "\tNum scheduled patterns - " << patterns[4] << std::endl;
-    std::cout << "\tNum total patterns - " << patterns[4]+patterns[5] << std::endl;
-    std::cout << "\tPattern hit ratio - " << 1.-(patterns[4] * 1. / (patterns[4]+patterns[5])) << std::endl;
-    std::cout << "\tNum scheduled flops - " << communications[4] << std::endl;
-    std::cout << "\tNum total flops - " << communications[4]+communications[5] << std::endl;
-    std::cout << "\tComputation flop hit ratio - " << 1. - (communications[4] * 1. / (communications[4]+communications[5])) << std::endl;
-    std::cout << "Execution path parameterization #2: volumetric communication:\n";
-    std::cout << "\tNum scheduled patterns - " << patterns[6] << std::endl;
-    std::cout << "\tNum patterns - " << patterns[6]+patterns[7] << std::endl;
-    std::cout << "\tPattern hit ratio - " << 1.-(patterns[6] * 1. / (patterns[6]+patterns[7])) << std::endl;
-    std::cout << "\tNum scheduled flops - " << communications[6] << std::endl;
-    std::cout << "\tNum total flops - " << communications[6]+communications[7] << std::endl;
-    std::cout << "\tComputation flop hit ratio - " << 1.-(communications[6] * 1. / (communications[6]+communications[7])) << std::endl;
+    PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+    PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+    if (rank==0){
+      if (internal::path_pattern_param==1){
+        for (auto& it : internal::comm_pattern_cache_param1){
+          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.msg_size << "," << it.first.partner << ") - \n";
+          std::cout << "\t" << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_bytes << " " << it.second.num_non_scheduled_bytes << std::endl;
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
+        for (auto& it : internal::comp_pattern_cache_param1){
+          std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.flops << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") -\n";
+          std::cout << "\t" << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_flops << " " << it.second.num_non_scheduled_flops << std::endl;
+        }
+      }
+      else if (internal::path_pattern_param==2){
+        for (auto& it : internal::comm_pattern_cache_param2){
+          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.msg_size << "," << it.first.partner << ") - \n";
+          std::cout << "\t" << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_bytes << " " << it.second.num_non_scheduled_bytes << std::endl;
+          std::cout << "\t\t" << it.second.get_mean() << " " << it.second.get_skewness() << " " << it.second.get_kurtosis() << std::endl;
+        }
+        std::cout << std::endl;
+        std::cout << std::endl;
+        for (auto& it : internal::comp_pattern_cache_param2){
+          std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.flops << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") -\n";
+          std::cout << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_flops << " " << it.second.num_non_scheduled_flops << std::endl;
+          std::cout << "\t\t" << it.second.get_mean() << " " << it.second.get_skewness() << " " << it.second.get_kurtosis() << std::endl;
+        }
+      }
+      std::cout << std::endl;
+      std::cout << std::endl;
+      std::cout << "Execution path parameterization #" << internal::path_pattern_param << ": volumetric communication:\n";
+      std::cout << "\tNum scheduled patterns - " << patterns[0] << std::endl;
+      std::cout << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
+      std::cout << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
+      std::cout << "\tNum scheduled bytes - " << communications[0] << std::endl;
+      std::cout << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
+      std::cout << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
+      std::cout << "Execution path parameterization #" << internal::path_pattern_param << ": volumetric computation:\n";
+      std::cout << "\tNum scheduled patterns - " << patterns[2] << std::endl;
+      std::cout << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
+      std::cout << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;
+      std::cout << "\tNum scheduled flops - " << communications[2] << std::endl;
+      std::cout << "\tNum total flops - " << communications[2]+communications[3] << std::endl;
+      std::cout << "\tComputation flop hit ratio - " << 1. - (communications[2] * 1. / (communications[2]+communications[3])) << std::endl;
+    }
   }
 
   assert(internal::internal_comm_info.size() == 0);
@@ -214,6 +226,16 @@ void _init(int* argc, char*** argv){
     path_pattern_comp_op = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_OP"));
   } else{
     path_pattern_comp_op = 0;
+  }
+  if (std::getenv("CRITTER_PATH_PATTERN_COMM_SCALE") != NULL){
+    path_pattern_comm_scale = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_SCALE"));
+  } else{
+    path_pattern_comm_scale = 0;
+  }
+  if (std::getenv("CRITTER_PATH_PATTERN_COMP_SCALE") != NULL){
+    path_pattern_comp_scale = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_SCALE"));
+  } else{
+    path_pattern_comp_scale = 0;
   }
   if (std::getenv("CRITTER_TRACK_BLAS") != NULL){
     track_blas = atoi(std::getenv("CRITTER_TRACK_BLAS"));
