@@ -65,7 +65,8 @@ struct event{
 // ****************************************************************************************************************************************************
 struct comm_pattern_param1_key{
 
-  comm_pattern_param1_key(int _tag=0, int _comm_size=0, int _comm_color=0, double _msg_size=0, int _partner_offset=0){
+  comm_pattern_param1_key(int _pattern_index=0, int _tag=0, int _comm_size=0, int _comm_color=0, double _msg_size=0, int _partner_offset=0){
+    this->pattern_index = _pattern_index;
     this->tag = _tag;
     this->comm_size = _comm_size;
     this->comm_color = _comm_color;
@@ -95,13 +96,15 @@ struct comm_pattern_param1_key{
   int comm_color;
   double msg_size;
   int partner_offset;
+  int pattern_index;
 };
 
 
 // ****************************************************************************************************************************************************
 struct comp_pattern_param1_key{
 
-  comp_pattern_param1_key(int _tag=0, double _flops=0, int _param1=0, int _param2=0, int _param3=0, int _param4=0, int _param5=0){
+  comp_pattern_param1_key(int _pattern_index=0, int _tag=0, double _flops=0, int _param1=0, int _param2=0, int _param3=0, int _param4=0, int _param5=0){
+    this->pattern_index = _pattern_index;
     this->tag = _tag;
     this->flops = _flops;
     this->param1 = _param1;
@@ -133,6 +136,7 @@ struct comp_pattern_param1_key{
   int tag;
   double flops;
   int param1,param2,param3,param4,param5;
+  int pattern_index;
 };
 
 // ****************************************************************************************************************************************************

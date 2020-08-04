@@ -61,7 +61,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     comp_pattern_param1_key p_id_1(id,flop_count,param1,param2,param3,param4,param5);
     if (pattern_param == 1){
       if (comp_pattern_param1_map.find(p_id_1) == comp_pattern_param1_map.end()){
-        active_comp_pattern_keys.emplace_back(comp_pattern_param1_key(id,flop_count,param1,param2,param3,param4,param5));
+        active_comp_pattern_keys.emplace_back(comp_pattern_param1_key(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5));
         active_patterns.emplace_back(pattern_param1());
         comp_pattern_param1_map[p_id_1] = pattern_key_id(true,active_comp_pattern_keys.size(),active_patterns.size()-1);
       }
@@ -492,7 +492,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     comm_pattern_param1_key p_id_1(tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,comm_rank - tracker.partner1);
     if (pattern_param == 1){
       if (comm_pattern_param1_map.find(p_id_1) == comm_pattern_param1_map.end()){
-        active_comm_pattern_keys.emplace_back(comm_pattern_param1_key(tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,comm_rank - tracker.partner1));
+        active_comm_pattern_keys.emplace_back(comm_pattern_param1_key(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,comm_rank - tracker.partner1));
         active_patterns.emplace_back(pattern_param1());
         comm_pattern_param1_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size(),active_patterns.size()-1);
       }
