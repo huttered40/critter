@@ -15,6 +15,8 @@ void allocate(MPI_Comm comm){
   mode_2_width = 15;
   event_list_size = 0;
 
+  communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,0);
+
   cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
   for (auto i=0; i<2; i++){

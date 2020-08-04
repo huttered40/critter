@@ -7,18 +7,9 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
-void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
-  int old_comm_size; MPI_Comm_size(oldcomm,&old_comm_size);
-  int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
-  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
-  std::vector<int> comm_vec(2*old_comm_size,0);
-  comm_vec[2*old_comm_rank] = newcomm; comm_vec[2*old_comm_rank+1] = world_comm_rank;
-  PMPI_Allreduce(MPI_IN_PLACE,&comm_vec[0],2*old_comm_size,MPI_INT,MPI_SUM,oldcomm);
-  for (auto i=0; i<old_comm_size; i++){
-    foreign_communicator_map[std::make_pair(comm_vec[2*i],comm_vec[2*i+1])] = newcomm;
-  }
-  //TODO: save local communicator? (only really matters if not deleting communicators.
-
+void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm, int color){
+  int new_comm_size; MPI_Comm_size(newcomm,&new_comm_size);
+  communicator_map[newcomm] = std::make_pair(new_comm_size,color);
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -58,14 +49,8 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     p_id_1.param4 = param4;
     p_id_1.param5 = param5;
     if (path_pattern_param==1){
-      if (path_pattern_comp_count==0) schedule_decision=false;
-      else if (!(comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end())){
-        if (path_pattern_comp_count <= comp_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
-      }
-    }
-    else if (path_pattern_param==2){
-      if (!(comp_pattern_cache_param2.find(p_id_1) == comp_pattern_cache_param2.end())){
-        schedule_decision = comp_pattern_cache_param2[p_id_1].should_schedule();
+      if (!(comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end())){
+        schedule_decision = comp_pattern_cache_param1[p_id_1].should_schedule();
       }
     }
   }
@@ -88,44 +73,11 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     p_id_1.param4 = param4;
     p_id_1.param5 = param5;
     if (path_pattern_param == 1){
-      if (path_pattern_comp_count==0) ;
-      else if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
-        comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(flop_count,comp_time);
-      } else if (comp_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comp_count){
-        if (path_pattern_comp_op==0){
-          comp_pattern_cache_param1[p_id_1].comp_time=std::min(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
-        } else if (path_pattern_comp_op==1){
-          comp_pattern_cache_param1[p_id_1].comp_time=std::max(comp_pattern_cache_param1[p_id_1].comp_time,(double)comp_time);
-        } else if (path_pattern_comp_op==2){
-          comp_pattern_cache_param1[p_id_1].comp_time*=comp_time;
-        } else if (path_pattern_comp_op==3){
-          comp_pattern_cache_param1[p_id_1].comp_time+=comp_time;
-        }
-        comp_pattern_cache_param1[p_id_1].num_schedules++;
-        comp_pattern_cache_param1[p_id_1].num_scheduled_flops+=flop_count;
-      } else if (comp_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comp_count){
-        if ((comp_pattern_cache_param1[p_id_1].num_non_schedules + comp_pattern_cache_param1[p_id_1].num_schedules) == path_pattern_comp_count){
-          if (path_pattern_comp_op==0){
-            // do nothing
-          } else if (path_pattern_comp_op==1){
-           // do nothing
-          } else if (path_pattern_comp_op==2){
-            comp_pattern_cache_param1[p_id_1].comp_time = std::pow(comp_pattern_cache_param1[p_id_1].comp_time,1./path_pattern_comp_count);
-          } else if (path_pattern_comp_op==3){
-            comp_pattern_cache_param1[p_id_1].comp_time /= path_pattern_comp_count;
-          }
-        }
-        comp_pattern_cache_param1[p_id_1].num_non_schedules++;
-        comp_pattern_cache_param1[p_id_1].num_non_scheduled_flops+=flop_count;
-        comp_time = comp_pattern_cache_param1[p_id_1].comp_time;
+      if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
+        comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(path_pattern_comp_count_limit,path_pattern_comp_error_limit,path_pattern_comp_time_limit);
       }
-    }
-    else if (path_pattern_param == 2){
-      if (comp_pattern_cache_param2.find(p_id_1) == comp_pattern_cache_param2.end()){
-        comp_pattern_cache_param2[p_id_1] = comp_pattern_param2_val(path_pattern_comp_scale);
-      }
-      if (!comp_pattern_cache_param2[p_id_1].should_schedule()) comp_time = comp_pattern_cache_param2[p_id_1].get_arithmetic_mean();
-      comp_pattern_cache_param2[p_id_1].update(comp_time,flop_count);
+      if (!comp_pattern_cache_param1[p_id_1].should_schedule()) comp_time = comp_pattern_cache_param1[p_id_1].get_arithmetic_mean();
+      comp_pattern_cache_param1[p_id_1].update(comp_time,flop_count);
     }
   }
 
@@ -485,20 +437,17 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
   bool schedule_decision = true;
   if (path_pattern_param>0){
+    int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
+    assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_param1_key p_id_1;
     p_id_1.tag = tracker.tag;
-    p_id_1.comm = tracker.comm;
+    p_id_1.comm_size = communicator_map[tracker.comm].first;
+    p_id_1.comm_color = communicator_map[tracker.comm].second;
     p_id_1.msg_size = tracker.nbytes;
-    p_id_1.partner = tracker.partner1;
+    p_id_1.partner_offset = comm_rank - tracker.partner1;
     if (path_pattern_param==1){
-      if (path_pattern_comm_count==0) schedule_decision=false;
-      else if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
-        if (path_pattern_comm_count <= comm_pattern_cache_param1[p_id_1].num_schedules) schedule_decision=false;
-      }
-    }
-    else if (path_pattern_param==2){
-      if (!(comm_pattern_cache_param2.find(p_id_1) == comm_pattern_cache_param2.end())){
-        schedule_decision = comm_pattern_cache_param2[p_id_1].should_schedule();
+      if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
+        schedule_decision = comm_pattern_cache_param1[p_id_1].should_schedule();
       }
     }
   }
@@ -528,45 +477,15 @@ void path::complete_comm(blocking& tracker, int recv_source){
   }
 
   if (path_pattern_param>0){
+    int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
+    assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_param1_key p_id_1;
     p_id_1.tag = tracker.tag;
-    p_id_1.comm = tracker.comm;
+    p_id_1.comm_size = communicator_map[tracker.comm].first;
+    p_id_1.comm_color = communicator_map[tracker.comm].second;
     p_id_1.msg_size = tracker.nbytes;
-    p_id_1.partner = tracker.partner1;
+    p_id_1.partner_offset = comm_rank - tracker.partner1;
     if (path_pattern_param == 1){
-      if (path_pattern_comm_count==0) ;
-      else if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
-        comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(tracker.nbytes,comm_time);
-      } else if (comm_pattern_cache_param1[p_id_1].num_schedules < path_pattern_comm_count){
-        if (path_pattern_comm_op==0){
-          comm_pattern_cache_param1[p_id_1].comm_time=std::min(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
-        } else if (path_pattern_comm_op==1){
-          comm_pattern_cache_param1[p_id_1].comm_time=std::max(comm_pattern_cache_param1[p_id_1].comm_time,(double)comm_time);
-        } else if (path_pattern_comm_op==2){
-          comm_pattern_cache_param1[p_id_1].comm_time*=comm_time;
-        } else if (path_pattern_comm_op==3){
-          comm_pattern_cache_param1[p_id_1].comm_time+=comm_time;
-        }
-        comm_pattern_cache_param1[p_id_1].num_schedules++;
-        comm_pattern_cache_param1[p_id_1].num_scheduled_bytes+=tracker.nbytes;
-      } else if (comm_pattern_cache_param1[p_id_1].num_schedules >= path_pattern_comm_count){
-        if ((comm_pattern_cache_param1[p_id_1].num_non_schedules + comm_pattern_cache_param1[p_id_1].num_schedules) == path_pattern_comm_count){
-          if (path_pattern_comm_op==0){
-            // do nothing
-          } else if (path_pattern_comm_op==1){
-           // do nothing
-          } else if (path_pattern_comm_op==2){
-            comm_pattern_cache_param1[p_id_1].comm_time = std::pow(comm_pattern_cache_param1[p_id_1].comm_time,1./path_pattern_comm_count);
-          } else if (path_pattern_comm_op==3){
-            comm_pattern_cache_param1[p_id_1].comm_time /= path_pattern_comm_count;
-          }
-        }
-        comm_pattern_cache_param1[p_id_1].num_non_schedules++;
-        comm_pattern_cache_param1[p_id_1].num_non_scheduled_bytes+=tracker.nbytes;
-        comm_time = comm_pattern_cache_param1[p_id_1].comm_time;
-      }
-    }
-    else if (path_pattern_param == 2){
       double _comm_time = comm_time; double _comm_time_foreign;
       if (tracker.partner1 == -1){
         PMPI_Allreduce(MPI_IN_PLACE, &_comm_time, 1, MPI_DOUBLE, MPI_MAX, tracker.comm);
@@ -584,11 +503,11 @@ void path::complete_comm(blocking& tracker, int recv_source){
           comm_time = std::max(_comm_time,_comm_time_foreign);
         }
       }
-      if (comm_pattern_cache_param2.find(p_id_1) == comm_pattern_cache_param2.end()){
-        comm_pattern_cache_param2[p_id_1] = comm_pattern_param2_val(path_pattern_comm_scale);
+      if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
+        comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(path_pattern_comm_count_limit,path_pattern_comm_error_limit,path_pattern_comm_time_limit);
       }
-      if (!comm_pattern_cache_param2[p_id_1].should_schedule()) comm_time = comm_pattern_cache_param2[p_id_1].get_arithmetic_mean();
-      comm_pattern_cache_param2[p_id_1].update(comm_time,tracker.nbytes);
+      if (!comm_pattern_cache_param1[p_id_1].should_schedule()) comm_time = comm_pattern_cache_param1[p_id_1].get_arithmetic_mean();
+      comm_pattern_cache_param1[p_id_1].update(comm_time,tracker.nbytes);
     }
   }
 

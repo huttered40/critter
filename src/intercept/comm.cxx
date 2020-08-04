@@ -19,8 +19,6 @@ void start(){
   // Below could be moved to reset, but its basically harmless here
   internal::comm_pattern_cache_param1.clear();
   internal::comp_pattern_cache_param1.clear();
-  internal::comm_pattern_cache_param2.clear();
-  internal::comp_pattern_cache_param2.clear();
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
@@ -52,57 +50,29 @@ void stop(){
         communications[3] += it.second.num_non_scheduled_flops;
       }
     }
-    else if (internal::path_pattern_param==2){
-      for (auto& it : internal::comm_pattern_cache_param2){
-        patterns[0]+=it.second.num_schedules;
-        patterns[1] += it.second.num_non_schedules;
-        communications[0] += it.second.num_scheduled_bytes;
-        communications[1] += it.second.num_non_scheduled_bytes;
-      }
-      for (auto& it : internal::comp_pattern_cache_param2){
-        patterns[2]+=it.second.num_schedules;
-        patterns[3] += it.second.num_non_schedules;
-        communications[2] += it.second.num_scheduled_flops;
-        communications[3] += it.second.num_non_scheduled_flops;
-      }
-    }
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     if (rank==0){
       if (internal::path_pattern_param==1){
         for (auto& it : internal::comm_pattern_cache_param1){
-          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.msg_size << "," << it.first.partner << ") - \n";
-          std::cout << "\t" << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_bytes << " " << it.second.num_non_scheduled_bytes << std::endl;
-        }
-        std::cout << std::endl;
-        std::cout << std::endl;
-        for (auto& it : internal::comp_pattern_cache_param1){
-          std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.flops << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") -\n";
-          std::cout << "\t" << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_flops << " " << it.second.num_non_scheduled_flops << std::endl;
-        }
-      }
-      else if (internal::path_pattern_param==2){
-        for (auto& it : internal::comm_pattern_cache_param2){
-          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.msg_size << "," << it.first.partner << ") - with byte-count " << it.first.comm  << "\n";
-          std::cout << "\ttNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledFlops - " << it.second.num_scheduled_bytes << ", NumSkippedFlops - " << it.second.num_non_scheduled_bytes << std::endl;
-          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", Skewness - " << it.second.get_skewness() << ", Kurtosis - " << it.second.get_kurtosis() << ", Jaque-Bera - " << it.second.get_jacque_barra() << std::endl;
-          std::cout << "\t\tM1 - " << it.second.M1 << ", M2 - " << it.second.M2 << ", M3 - " << it.second.M3 << ", M4 - " << it.second.M4 << std::endl;
+          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm_size << "," << it.first.comm_color << "," << it.first.msg_size << "," << it.first.partner_offset << ") - with byte-count " << it.first.msg_size  << "\n";
+          std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledBytes - " << it.second.num_scheduled_bytes << ", NumSkippedBytes - " << it.second.num_non_scheduled_bytes << std::endl;
+          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", StdError - " << it.second.get_std_error() << ", 95% confidence interval len - " << it.second.get_confidence_interval() << ", Stopping criterion - " << it.second.get_confidence_interval()/(2*it.second.get_arithmetic_mean()) << std::endl;
           for (auto k=0; k<it.second.save_comm_times.size(); k++){
-            std::cout << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", Skewness - " << it.second.save_skewness[k]
-                      << ", Kurtosis - " << it.second.save_kurtosis[k] << ", JB statistic - " << it.second.save_jb[k] << std::endl;
+            std::cout << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
+                      << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
           }
         }
         std::cout << std::endl;
         std::cout << std::endl;
-        for (auto& it : internal::comp_pattern_cache_param2){
+        for (auto& it : internal::comp_pattern_cache_param1){
           std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") - with flop-count " << it.first.flops << "\n";
           std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledFlops - " << it.second.num_scheduled_flops << ", NumSkippedFlops - " << it.second.num_non_scheduled_flops << std::endl;
-          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", Skewness - " << it.second.get_skewness() << ", Kurtosis - " << it.second.get_kurtosis() << ", Jaque-Bera - " << it.second.get_jacque_barra() << std::endl;
-          std::cout << "\t\tM1 - " << it.second.M1 << ", M2 - " << it.second.M2 << ", M3 - " << it.second.M3 << ", M4 - " << it.second.M4 << std::endl;
+          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", StdError - " << it.second.get_std_error() << ", 95% confidence interval len - " << it.second.get_confidence_interval() << ", Stopping criterion - " << it.second.get_confidence_interval()/(2*it.second.get_arithmetic_mean()) << std::endl;
           for (auto k=0; k<it.second.save_comp_times.size(); k++){
-            std::cout << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", Skewness - " << it.second.save_skewness[k]
-                      << ", Kurtosis - " << it.second.save_kurtosis[k] << ", JB statistic - " << it.second.save_jb[k] << std::endl;
+            std::cout << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
+                      << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
           }
         }
       }
@@ -219,35 +189,35 @@ void _init(int* argc, char*** argv){
   } else{
     path_pattern_param = 0;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMM_COUNT") != NULL){
-    path_pattern_comm_count = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_COUNT"));
+  if (std::getenv("CRITTER_PATH_PATTERN_COMM_COUNT_LIMIT") != NULL){
+    path_pattern_comm_count_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_COUNT_LIMIT"));
   } else{
-    path_pattern_comm_count = 0;
+    path_pattern_comm_count_limit = 1;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMP_COUNT") != NULL){
-    path_pattern_comp_count = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_COUNT"));
+  if (std::getenv("CRITTER_PATH_PATTERN_COMP_COUNT_LIMIT") != NULL){
+    path_pattern_comp_count_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_COUNT_LIMIT"));
   } else{
-    path_pattern_comp_count = 0;
+    path_pattern_comp_count_limit = 1;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMM_OP") != NULL){
-    path_pattern_comm_op = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_OP"));
+  if (std::getenv("CRITTER_PATH_PATTERN_COMM_TIME_LIMIT") != NULL){
+    path_pattern_comm_time_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMM_TIME_LIMIT"));
   } else{
-    path_pattern_comm_op = 0;
+    path_pattern_comm_time_limit = .001;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMP_OP") != NULL){
-    path_pattern_comp_op = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_OP"));
+  if (std::getenv("CRITTER_PATH_PATTERN_COMP_TIME_LIMIT") != NULL){
+    path_pattern_comp_time_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMP_TIME_LIMIT"));
   } else{
-    path_pattern_comp_op = 0;
+    path_pattern_comp_time_limit = .001;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMM_SCALE") != NULL){
-    path_pattern_comm_scale = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_SCALE"));
+  if (std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT") != NULL){
+    path_pattern_comm_error_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT"));
   } else{
-    path_pattern_comm_scale = 1;
+    path_pattern_comm_error_limit = .5;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMP_SCALE") != NULL){
-    path_pattern_comp_scale = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_SCALE"));
+  if (std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT") != NULL){
+    path_pattern_comp_error_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT"));
   } else{
-    path_pattern_comp_scale = 1;
+    path_pattern_comp_error_limit = .5;
   }
   if (std::getenv("CRITTER_TRACK_BLAS") != NULL){
     track_blas = atoi(std::getenv("CRITTER_TRACK_BLAS"));
@@ -385,7 +355,7 @@ void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   else{
     PMPI_Comm_split(comm,color,key,newcomm);
   }
-  //exchange_communicators(comm,*newcomm);
+  exchange_communicators(comm,*newcomm,color);
 }
 
 void comm_free(MPI_Comm* comm){
