@@ -54,6 +54,8 @@ void stop(){
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     if (rank==0){
+      std::cout << internal::path_pattern_comm_count_limit << " " << internal::path_pattern_comp_count_limit << " " << internal::path_pattern_comm_error_limit << " "
+                << internal::path_pattern_comp_error_limit << " " << internal::path_pattern_comm_time_limit << " " << internal::path_pattern_comp_time_limit << std::endl;
       if (internal::path_pattern_param==1){
         for (auto& it : internal::comm_pattern_cache_param1){
           std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm_size << "," << it.first.comm_color << "," << it.first.msg_size << "," << it.first.partner_offset << ") - with byte-count " << it.first.msg_size  << "\n";
@@ -210,12 +212,12 @@ void _init(int* argc, char*** argv){
     path_pattern_comp_time_limit = .001;
   }
   if (std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT") != NULL){
-    path_pattern_comm_error_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT"));
+    path_pattern_comm_error_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT"));
   } else{
     path_pattern_comm_error_limit = .5;
   }
   if (std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT") != NULL){
-    path_pattern_comp_error_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT"));
+    path_pattern_comp_error_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT"));
   } else{
     path_pattern_comp_error_limit = .5;
   }

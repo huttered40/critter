@@ -449,6 +449,30 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
         schedule_decision = comm_pattern_cache_param1[p_id_1].should_schedule();
       }
+      int schedule_decision_int = (int)schedule_decision; int schedule_decision_foreign_int;
+      if (tracker.partner1 == -1){
+        PMPI_Allreduce(MPI_IN_PLACE, &schedule_decision_int, 1, MPI_INT, MPI_MAX, tracker.comm);
+        schedule_decision = (schedule_decision_int > 0 ? true : false);
+      } else{
+        if (true_eager_p2p){
+          if (tracker.is_sender){
+            PMPI_Bsend(&schedule_decision_int, 1, MPI_INT, tracker.partner1, internal_tag2, tracker.comm);
+          } else{
+            PMPI_Recv(&schedule_decision_foreign_int, 1, MPI_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+            schedule_decision = (schedule_decision_foreign_int > 0 ? true : false);
+          }
+        }
+        else { PMPI_Sendrecv(&schedule_decision_int, 1, MPI_INT, tracker.partner1, internal_tag2, &schedule_decision_foreign_int, 1,
+                             MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+                schedule_decision = ((schedule_decision_int > 0) || (schedule_decision_foreign_int>0) ? true : false);
+             }
+        if (tracker.partner2 != tracker.partner1){
+          // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
+          PMPI_Sendrecv(&schedule_decision_int, 1, MPI_INT, tracker.partner2, internal_tag2, &schedule_decision_foreign_int, 1,
+                             MPI_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+          schedule_decision = ((schedule_decision_int > 0) || (schedule_decision_foreign_int>0) ? true : false);
+        }
+      }
     }
   }
 
@@ -486,23 +510,6 @@ void path::complete_comm(blocking& tracker, int recv_source){
     p_id_1.msg_size = tracker.nbytes;
     p_id_1.partner_offset = comm_rank - tracker.partner1;
     if (path_pattern_param == 1){
-      double _comm_time = comm_time; double _comm_time_foreign;
-      if (tracker.partner1 == -1){
-        PMPI_Allreduce(MPI_IN_PLACE, &_comm_time, 1, MPI_DOUBLE, MPI_MAX, tracker.comm);
-        comm_time = _comm_time;
-      } else{
-        if (true_eager_p2p){ assert(0); /*PMPI_Bsend(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm);*/ }
-        else { PMPI_Sendrecv(&_comm_time, 1, MPI_DOUBLE, tracker.partner1, internal_tag2, &_comm_time_foreign, 1,
-                             MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-               comm_time = std::max(_comm_time,_comm_time_foreign);
-             }
-        if (tracker.partner2 != tracker.partner1){
-          // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
-          _comm_time = comm_time;
-          PMPI_Sendrecv(&_comm_time, 1, MPI_DOUBLE, tracker.partner2, internal_tag2, &_comm_time_foreign, 1, MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          comm_time = std::max(_comm_time,_comm_time_foreign);
-        }
-      }
       if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
         comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(path_pattern_comm_count_limit,path_pattern_comm_error_limit,path_pattern_comm_time_limit);
       }

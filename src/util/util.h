@@ -148,7 +148,7 @@ struct comm_pattern_param1_val{
     return jb_test_stat;
   }
   void error_test(){
-    bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) || (this->num_schedules > this->count_limit) || (this->total_comm_time > this->time_limit);
+    bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) && (this->num_schedules >= this->count_limit) && (this->total_comm_time >= this->time_limit);
     if (decision){
       this->steady_state = true;
     } else{
@@ -163,7 +163,7 @@ struct comm_pattern_param1_val{
       this->num_schedules++;
       this->num_scheduled_bytes += byte_count;
       this->total_comm_time += comm_time;
-      save_comm_times.push_back((double)comm_time);	// only temporary
+//      save_comm_times.push_back((double)comm_time);	// only temporary
       // Online computation of up to 4th-order central moments using communication time samples
       size_t n1 = this->num_schedules-1;
       size_t n = this->num_schedules;
@@ -173,14 +173,14 @@ struct comm_pattern_param1_val{
       double delta_n2 = delta_n*delta_n;
       double term1 = delta*delta_n*n1;
       this->M1 += delta_n;
-      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
-      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
+//      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
+//      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
       this->M2 += term1;
       error_test();
-      this->save_arithmetic_means.push_back(get_arithmetic_mean());
-      this->save_std_dev.push_back(get_std_dev());
-      this->save_std_error.push_back(get_std_error());
-      this->save_confidence_interval.push_back(get_confidence_interval());
+//      this->save_arithmetic_means.push_back(get_arithmetic_mean());
+//      this->save_std_dev.push_back(get_std_dev());
+//      this->save_std_error.push_back(get_std_error());
+//      this->save_confidence_interval.push_back(get_confidence_interval());
       //this->save_skewness.push_back(get_skewness());
       //this->save_kurtosis.push_back(get_kurtosis());
       //this->save_jb.push_back(get_jacque_barra());
@@ -198,14 +198,15 @@ struct comm_pattern_param1_val{
   size_t num_non_schedules;
   double num_scheduled_bytes;
   double num_non_scheduled_bytes;
-  double M1,M2,M3,M4;
+  double M1,M2;
+  //double M3,M4;
   bool steady_state;
   double total_comm_time;
-  std::vector<double> save_comm_times;
-  std::vector<double> save_arithmetic_means;
-  std::vector<double> save_std_dev;
-  std::vector<double> save_std_error;
-  std::vector<double> save_confidence_interval;
+  //std::vector<double> save_comm_times;
+  //std::vector<double> save_arithmetic_means;
+  //std::vector<double> save_std_dev;
+  //std::vector<double> save_std_error;
+  //std::vector<double> save_confidence_interval;
   //std::vector<double> save_skewness;
   //std::vector<double> save_kurtosis;
   //std::vector<double> save_jb;
@@ -297,7 +298,7 @@ struct comp_pattern_param1_val{
     return jb_test_stat;
   }
   void error_test(){
-    bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) || (this->num_schedules > this->count_limit) || (this->total_comp_time > this->time_limit);
+    bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) && (this->num_schedules >= this->count_limit) && (this->total_comp_time >= this->time_limit);
     if (decision){
       this->steady_state = true;
     } else{
@@ -312,7 +313,7 @@ struct comp_pattern_param1_val{
       this->num_schedules++;
       this->num_scheduled_flops += flop_count;
       this->total_comp_time += comp_time;
-      save_comp_times.push_back((double)comp_time);	// only temporary
+//      save_comp_times.push_back((double)comp_time);	// only temporary
       // Online computation of up to 4th-order central moments using compunication time samples
       size_t n1 = this->num_schedules-1;
       size_t n = this->num_schedules;
@@ -322,14 +323,14 @@ struct comp_pattern_param1_val{
       double delta_n2 = delta_n*delta_n;
       double term1 = delta*delta_n*n1;
       this->M1 += delta_n;
-      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
-      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
+//      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
+//      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
       this->M2 += term1;
       error_test();
-      this->save_arithmetic_means.push_back(get_arithmetic_mean());
-      this->save_std_dev.push_back(get_std_dev());
-      this->save_std_error.push_back(get_std_error());
-      this->save_confidence_interval.push_back(get_confidence_interval());
+//      this->save_arithmetic_means.push_back(get_arithmetic_mean());
+//      this->save_std_dev.push_back(get_std_dev());
+//      this->save_std_error.push_back(get_std_error());
+//      this->save_confidence_interval.push_back(get_confidence_interval());
       //this->save_skewness.push_back(get_skewness());
       //this->save_kurtosis.push_back(get_kurtosis());
       //this->save_jb.push_back(get_jacque_barra());
@@ -347,14 +348,15 @@ struct comp_pattern_param1_val{
   size_t num_non_schedules;
   double num_scheduled_flops;
   double num_non_scheduled_flops;
-  double M1,M2,M3,M4;
+  double M1,M2;
+  //double M3,M4;
   bool steady_state;
   double total_comp_time;
-  std::vector<double> save_comp_times;
-  std::vector<double> save_arithmetic_means;
-  std::vector<double> save_std_dev;
-  std::vector<double> save_std_error;
-  std::vector<double> save_confidence_interval;
+  //std::vector<double> save_comp_times;
+  //std::vector<double> save_arithmetic_means;
+  //std::vector<double> save_std_dev;
+  //std::vector<double> save_std_error;
+  //std::vector<double> save_confidence_interval;
   //std::vector<double> save_skewness;
   //std::vector<double> save_kurtosis;
   //std::vector<double> save_jb;
