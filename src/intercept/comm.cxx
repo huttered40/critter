@@ -61,10 +61,12 @@ void stop(){
           std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm_size << "," << it.first.comm_color << "," << it.first.msg_size << "," << it.first.partner_offset << ") - with byte-count " << it.first.msg_size  << "\n";
           std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledBytes - " << it.second.num_scheduled_bytes << ", NumSkippedBytes - " << it.second.num_non_scheduled_bytes << std::endl;
           std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", StdError - " << it.second.get_std_error() << ", 95% confidence interval len - " << it.second.get_confidence_interval() << ", Stopping criterion - " << it.second.get_confidence_interval()/(2*it.second.get_arithmetic_mean()) << std::endl;
+/*
           for (auto k=0; k<it.second.save_comm_times.size(); k++){
             std::cout << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
                       << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
           }
+*/
         }
         std::cout << std::endl;
         std::cout << std::endl;
@@ -72,10 +74,12 @@ void stop(){
           std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") - with flop-count " << it.first.flops << "\n";
           std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledFlops - " << it.second.num_scheduled_flops << ", NumSkippedFlops - " << it.second.num_non_scheduled_flops << std::endl;
           std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", StdError - " << it.second.get_std_error() << ", 95% confidence interval len - " << it.second.get_confidence_interval() << ", Stopping criterion - " << it.second.get_confidence_interval()/(2*it.second.get_arithmetic_mean()) << std::endl;
+/*
           for (auto k=0; k<it.second.save_comp_times.size(); k++){
             std::cout << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
                       << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
           }
+*/
         }
       }
       std::cout << std::endl;

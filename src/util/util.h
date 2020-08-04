@@ -102,7 +102,8 @@ struct comm_pattern_param1_val{
     this->num_non_schedules = 0;
     this->num_scheduled_bytes = 0;
     this->num_non_scheduled_bytes = 0;
-    this->M1=0; this->M2=0; this->M3=0; this->M4=0;
+    this->M1=0; this->M2=0;
+    //this->M3=0; this->M4=0;
   }
   double get_confidence_interval(double level = .95){
     // returns confidence interval length with 95% confidence level
@@ -127,6 +128,7 @@ struct comm_pattern_param1_val{
     if (n<=1) return 1000.;
     return this->M2 / (n-1.);
   }
+/*
   double get_skewness(){
     // returns skewness
     size_t n = this->num_schedules;
@@ -147,6 +149,7 @@ struct comm_pattern_param1_val{
     double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
     return jb_test_stat;
   }
+*/
   void error_test(){
     bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) && (this->num_schedules >= this->count_limit) && (this->total_comm_time >= this->time_limit);
     if (decision){
@@ -252,7 +255,8 @@ struct comp_pattern_param1_val{
     this->num_non_schedules = 0;
     this->num_scheduled_flops = 0;
     this->num_non_scheduled_flops = 0;
-    this->M1=0; this->M2=0; this->M3=0; this->M4=0;
+    this->M1=0; this->M2=0;
+    //this->M3=0; this->M4=0;
   }
   double get_confidence_interval(double level = .95){
     // returns confidence interval length with 95% confidence level
@@ -277,6 +281,7 @@ struct comp_pattern_param1_val{
     if (n<=1) return 1000.;
     return this->M2 / (n-1.);
   }
+/*
   double get_skewness(){
     // returns skewness
     size_t n = this->num_schedules;
@@ -297,6 +302,7 @@ struct comp_pattern_param1_val{
     double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
     return jb_test_stat;
   }
+*/
   void error_test(){
     bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) && (this->num_schedules >= this->count_limit) && (this->total_comp_time >= this->time_limit);
     if (decision){
