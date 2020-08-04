@@ -1,5 +1,6 @@
 #include "comm.h"
 #include "../util/util.h"
+#include "../discretization/util/util.h"
 #include "../dispatch/dispatch.h"
 
 namespace critter{
@@ -16,9 +17,12 @@ void start(){
   internal::wait_id=true;
   internal::reset();
 
+  // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
   // Below could be moved to reset, but its basically harmless here
   internal::comm_pattern_cache_param1.clear();
   internal::comp_pattern_cache_param1.clear();
+  internal::steady_state_patterns.clear();
+  internal::active_patterns.clear();
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
@@ -33,34 +37,39 @@ void stop(){
 
   // Lets iterate over the map to create two counters, then reduce them to get a global idea:
   //   Another idea is to cache this list over the critical path, but that might be too much.
-  if (internal::path_pattern_param>0){
+  if (internal::pattern_param>0){
     int patterns[4] = {0,0,0,0};
     double communications[4] = {0,0,0,0};
-    if (internal::path_pattern_param==1){
+    if (internal::pattern_param==1){
       for (auto& it : internal::comm_pattern_cache_param1){
-        patterns[0]+=it.second.num_schedules;
-        patterns[1] += it.second.num_non_schedules;
-        communications[0] += it.second.num_scheduled_bytes;
-        communications[1] += it.second.num_non_scheduled_bytes;
+        auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
+        patterns[0] += pattern_list[it.second.second].num_schedules;
+        patterns[1] += pattern_list[it.second.second].num_non_schedules;
+        communications[0] += pattern_list[it.second.second].num_scheduled_units;
+        communications[1] += pattern_list[it.second.second].num_non_scheduled_units;
       }
       for (auto& it : internal::comp_pattern_cache_param1){
-        patterns[2]+=it.second.num_schedules;
-        patterns[3] += it.second.num_non_schedules;
-        communications[2] += it.second.num_scheduled_flops;
-        communications[3] += it.second.num_non_scheduled_flops;
+        auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
+        patterns[2] += pattern_list[it.second.second].num_schedules;
+        patterns[3] += pattern_list[it.second.second].num_non_schedules;
+        communications[2] += pattern_list[it.second.second].num_scheduled_units;
+        communications[3] += pattern_list[it.second.second].num_non_scheduled_units;
       }
     }
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     if (rank==0){
-      std::cout << internal::path_pattern_comm_count_limit << " " << internal::path_pattern_comp_count_limit << " " << internal::path_pattern_comm_error_limit << " "
-                << internal::path_pattern_comp_error_limit << " " << internal::path_pattern_comm_time_limit << " " << internal::path_pattern_comp_time_limit << std::endl;
-      if (internal::path_pattern_param==1){
+      std::cout << internal::pattern_count_limit << " " << internal::pattern_count_limit << " " << internal::pattern_error_limit << std::endl;
+      if (internal::pattern_param==1){
         for (auto& it : internal::comm_pattern_cache_param1){
+          auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
           std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm_size << "," << it.first.comm_color << "," << it.first.msg_size << "," << it.first.partner_offset << ") - with byte-count " << it.first.msg_size  << "\n";
-          std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledBytes - " << it.second.num_scheduled_bytes << ", NumSkippedBytes - " << it.second.num_non_scheduled_bytes << std::endl;
-          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", StdError - " << it.second.get_std_error() << ", 95% confidence interval len - " << it.second.get_confidence_interval() << ", Stopping criterion - " << it.second.get_confidence_interval()/(2*it.second.get_arithmetic_mean()) << std::endl;
+          std::cout << "\tScheduledTime - " << pattern_list[it.second.second].total_exec_time << ", NumSchedules - " << pattern_list[it.second.second].num_schedules << ", NumScheduleSkips - " << pattern_list[it.second.second].num_non_schedules <<
+                       ", NumScheduledBytes - " << pattern_list[it.second.second].num_scheduled_units << ", NumSkippedBytes - " << pattern_list[it.second.second].num_non_scheduled_units << std::endl;
+          std::cout << "\t\tArithmeticMean - " << internal::discretization::get_arithmetic_mean(it.second) << ", StdDev - " << internal::discretization::get_std_dev(it.second) <<
+                       ", StdError - " << internal::discretization::get_std_error(it.second) << ", 95% confidence interval len - " << internal::discretization::get_confidence_interval(it.second) <<
+                       ", Stopping criterion - " << internal::discretization::get_confidence_interval(it.second)/(2*internal::discretization::get_arithmetic_mean(it.second)) << std::endl;
 /*
           for (auto k=0; k<it.second.save_comm_times.size(); k++){
             std::cout << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
@@ -71,9 +80,13 @@ void stop(){
         std::cout << std::endl;
         std::cout << std::endl;
         for (auto& it : internal::comp_pattern_cache_param1){
+          auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
           std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") - with flop-count " << it.first.flops << "\n";
-          std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledFlops - " << it.second.num_scheduled_flops << ", NumSkippedFlops - " << it.second.num_non_scheduled_flops << std::endl;
-          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", StdError - " << it.second.get_std_error() << ", 95% confidence interval len - " << it.second.get_confidence_interval() << ", Stopping criterion - " << it.second.get_confidence_interval()/(2*it.second.get_arithmetic_mean()) << std::endl;
+          std::cout << "\tScheduledTime - " << pattern_list[it.second.second].total_exec_time << ", NumSchedules - " << pattern_list[it.second.second].num_schedules << ", NumScheduleSkips - " << pattern_list[it.second.second].num_non_schedules <<
+                       ", NumScheduledBytes - " << pattern_list[it.second.second].num_scheduled_units << ", NumSkippedBytes - " << pattern_list[it.second.second].num_non_scheduled_units << std::endl;
+          std::cout << "\t\tArithmeticMean - " << internal::discretization::get_arithmetic_mean(it.second) << ", StdDev - " << internal::discretization::get_std_dev(it.second) <<
+                       ", StdError - " << internal::discretization::get_std_error(it.second) << ", 95% confidence interval len - " << internal::discretization::get_confidence_interval(it.second) <<
+                       ", Stopping criterion - " << internal::discretization::get_confidence_interval(it.second)/(2*internal::discretization::get_arithmetic_mean(it.second)) << std::endl;
 /*
           for (auto k=0; k<it.second.save_comp_times.size(); k++){
             std::cout << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
@@ -84,14 +97,14 @@ void stop(){
       }
       std::cout << std::endl;
       std::cout << std::endl;
-      std::cout << "Execution path parameterization #" << internal::path_pattern_param << ": volumetric communication:\n";
+      std::cout << "Execution path parameterization #" << internal::pattern_param << ": volumetric communication:\n";
       std::cout << "\tNum scheduled patterns - " << patterns[0] << std::endl;
       std::cout << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
       std::cout << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
       std::cout << "\tNum scheduled bytes - " << communications[0] << std::endl;
       std::cout << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
       std::cout << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
-      std::cout << "Execution path parameterization #" << internal::path_pattern_param << ": volumetric computation:\n";
+      std::cout << "Execution path parameterization #" << internal::pattern_param << ": volumetric computation:\n";
       std::cout << "\tNum scheduled patterns - " << patterns[2] << std::endl;
       std::cout << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
       std::cout << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;
@@ -190,40 +203,25 @@ void _init(int* argc, char*** argv){
   } else{
     auto_capture = 0;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_PARAM") != NULL){
-    path_pattern_param = atoi(std::getenv("CRITTER_PATH_PATTERN_PARAM"));
+  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
+    pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
   } else{
-    path_pattern_param = 0;
+    pattern_param = 0;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMM_COUNT_LIMIT") != NULL){
-    path_pattern_comm_count_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMM_COUNT_LIMIT"));
+  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
+    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
   } else{
-    path_pattern_comm_count_limit = 1;
+    pattern_count_limit = 1;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMP_COUNT_LIMIT") != NULL){
-    path_pattern_comp_count_limit = atoi(std::getenv("CRITTER_PATH_PATTERN_COMP_COUNT_LIMIT"));
+  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
+    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
   } else{
-    path_pattern_comp_count_limit = 1;
+    pattern_time_limit = .001;
   }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMM_TIME_LIMIT") != NULL){
-    path_pattern_comm_time_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMM_TIME_LIMIT"));
+  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
+    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
   } else{
-    path_pattern_comm_time_limit = .001;
-  }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMP_TIME_LIMIT") != NULL){
-    path_pattern_comp_time_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMP_TIME_LIMIT"));
-  } else{
-    path_pattern_comp_time_limit = .001;
-  }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT") != NULL){
-    path_pattern_comm_error_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMM_ERROR_LIMIT"));
-  } else{
-    path_pattern_comm_error_limit = .5;
-  }
-  if (std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT") != NULL){
-    path_pattern_comp_error_limit = atof(std::getenv("CRITTER_PATH_PATTERN_COMP_ERROR_LIMIT"));
-  } else{
-    path_pattern_comp_error_limit = .5;
+    pattern_error_limit = .5;
   }
   if (std::getenv("CRITTER_TRACK_BLAS") != NULL){
     track_blas = atoi(std::getenv("CRITTER_TRACK_BLAS"));

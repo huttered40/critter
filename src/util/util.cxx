@@ -3,17 +3,15 @@
 namespace critter{
 namespace internal{
 
-size_t path_pattern_param;
-size_t path_pattern_comm_count_limit;
-size_t path_pattern_comp_count_limit;
-double path_pattern_comm_time_limit;
-double  path_pattern_comp_time_limit;
-double path_pattern_comm_error_limit;
-double path_pattern_comp_error_limit;
+size_t pattern_param;
+size_t pattern_count_limit;
+double pattern_time_limit;
+double pattern_error_limit;
 std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-std::vector<int> local_communicator_list;
-std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
-std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;
+std::map<comm_pattern_param1_key,std::pair<bool,int>> comm_pattern_cache_param1;
+std::map<comp_pattern_param1_key,std::pair<bool,int>> comp_pattern_cache_param1;
+std::vector<pattern_param1> steady_state_patterns;
+std::vector<pattern_param1> active_patterns;
 double comp_start_time;
 size_t cp_symbol_class_count;
 size_t pp_symbol_class_count;

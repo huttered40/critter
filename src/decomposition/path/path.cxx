@@ -1,6 +1,7 @@
 #include "path.h"
 #include "../container/symbol_tracker.h"
 #include "../../replay/path/path.h"
+#include "../../discretization/util/util.h"
 #include "../../util/util.h"
 
 namespace critter{
@@ -39,7 +40,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   }
 
   bool schedule_decision = true;
-  if (path_pattern_param>0){
+  if (pattern_param>0){
     comp_pattern_param1_key p_id_1;
     p_id_1.tag = id;
     p_id_1.flops = flop_count;
@@ -48,9 +49,9 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     p_id_1.param3 = param3;
     p_id_1.param4 = param4;
     p_id_1.param5 = param5;
-    if (path_pattern_param==1){
+    if (pattern_param==1){
       if (!(comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end())){
-        schedule_decision = comp_pattern_cache_param1[p_id_1].should_schedule();
+        schedule_decision = critter::internal::discretization::should_schedule(comp_pattern_cache_param1[p_id_1]);
       }
     }
   }
@@ -63,7 +64,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
 
-  if (path_pattern_param>0){
+  if (pattern_param>0){
     comp_pattern_param1_key p_id_1;
     p_id_1.tag = id;
     p_id_1.flops = flop_count;
@@ -72,12 +73,15 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     p_id_1.param3 = param3;
     p_id_1.param4 = param4;
     p_id_1.param5 = param5;
-    if (path_pattern_param == 1){
+    if (pattern_param == 1){
       if (comp_pattern_cache_param1.find(p_id_1) == comp_pattern_cache_param1.end()){
-        comp_pattern_cache_param1[p_id_1] = comp_pattern_param1_val(path_pattern_comp_count_limit,path_pattern_comp_error_limit,path_pattern_comp_time_limit);
+        active_patterns.emplace_back(pattern_param1());
+        comp_pattern_cache_param1[p_id_1] = std::make_pair(true,active_patterns.size()-1);
       }
-      if (!comp_pattern_cache_param1[p_id_1].should_schedule()) comp_time = comp_pattern_cache_param1[p_id_1].get_arithmetic_mean();
-      comp_pattern_cache_param1[p_id_1].update(comp_time,flop_count);
+      if (!critter::internal::discretization::should_schedule(comp_pattern_cache_param1[p_id_1])){
+        comp_time = critter::internal::discretization::get_arithmetic_mean(comp_pattern_cache_param1[p_id_1]);
+      }
+      critter::internal::discretization::update(comp_pattern_cache_param1[p_id_1],comp_time,flop_count);
     }
   }
 
@@ -436,7 +440,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   bool schedule_decision = true;
-  if (path_pattern_param>0){
+  if (pattern_param>0){
     int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_param1_key p_id_1;
@@ -445,9 +449,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     p_id_1.comm_color = communicator_map[tracker.comm].second;
     p_id_1.msg_size = tracker.nbytes;
     p_id_1.partner_offset = comm_rank - tracker.partner1;
-    if (path_pattern_param==1){
+    if (pattern_param==1){
       if (!(comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end())){
-        schedule_decision = comm_pattern_cache_param1[p_id_1].should_schedule();
+        schedule_decision = critter::internal::discretization::should_schedule(comm_pattern_cache_param1[p_id_1]);
       }
       int schedule_decision_int = (int)schedule_decision; int schedule_decision_foreign_int;
       if (tracker.partner1 == -1){
@@ -500,7 +504,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
   }
 
-  if (path_pattern_param>0){
+  if (pattern_param>0){
     int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_param1_key p_id_1;
@@ -509,12 +513,13 @@ void path::complete_comm(blocking& tracker, int recv_source){
     p_id_1.comm_color = communicator_map[tracker.comm].second;
     p_id_1.msg_size = tracker.nbytes;
     p_id_1.partner_offset = comm_rank - tracker.partner1;
-    if (path_pattern_param == 1){
+    if (pattern_param == 1){
       if (comm_pattern_cache_param1.find(p_id_1) == comm_pattern_cache_param1.end()){
-        comm_pattern_cache_param1[p_id_1] = comm_pattern_param1_val(path_pattern_comm_count_limit,path_pattern_comm_error_limit,path_pattern_comm_time_limit);
+        active_patterns.emplace_back(pattern_param1());
+        comm_pattern_cache_param1[p_id_1] = std::make_pair(true,active_patterns.size()-1);
       }
-      if (!comm_pattern_cache_param1[p_id_1].should_schedule()) comm_time = comm_pattern_cache_param1[p_id_1].get_arithmetic_mean();
-      comm_pattern_cache_param1[p_id_1].update(comm_time,tracker.nbytes);
+      if (!critter::internal::discretization::should_schedule(comm_pattern_cache_param1[p_id_1])) comm_time = critter::internal::discretization::get_arithmetic_mean(comm_pattern_cache_param1[p_id_1]);
+      critter::internal::discretization::update(comm_pattern_cache_param1[p_id_1],comm_time,tracker.nbytes);
     }
   }
 

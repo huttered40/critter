@@ -88,132 +88,6 @@ struct comm_pattern_param1_key{
   int partner_offset;
 };
 
-// ****************************************************************************************************************************************************
-struct comm_pattern_param1_val{
-  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
-  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
-  //     to handle that.
-  comm_pattern_param1_val(size_t count_limit=0, double error_limit=0., double time_limit=0.){
-    this->count_limit = count_limit;
-    this->error_limit = error_limit;
-    this->time_limit = time_limit;
-    this->steady_state=false;
-    this->num_schedules = 0;
-    this->num_non_schedules = 0;
-    this->num_scheduled_bytes = 0;
-    this->num_non_scheduled_bytes = 0;
-    this->M1=0; this->M2=0;
-    //this->M3=0; this->M4=0;
-  }
-  double get_confidence_interval(double level = .95){
-    // returns confidence interval length with 95% confidence level
-    return 1.96*this->get_std_error();
-  }
-  double get_std_error(){
-    // returns standard error
-    size_t n = this->num_schedules;
-    return this->get_std_dev() / pow(n*1.,1./2.);
-  }
-  double get_arithmetic_mean(){
-    // returns arithmetic mean
-    return this->M1;
-  }
-  double get_std_dev(){
-    // returns variance
-    return pow(this->get_variance(),1./2.);
-  }
-  double get_variance(){
-    // returns variance
-    size_t n = this->num_schedules;
-    if (n<=1) return 1000.;
-    return this->M2 / (n-1.);
-  }
-/*
-  double get_skewness(){
-    // returns skewness
-    size_t n = this->num_schedules;
-    if (n<=2) return 1000.;
-    return std::pow(n*1.,1./2.) * this->M3 / std::pow(this->M2,1.5);
-  }
-  double get_kurtosis(){
-    // returns the excess kurtosis
-    size_t n = this->num_schedules;
-    if (n<=3) return 1000.;
-    return (n*this->M4) / (this->M2*this->M2) - 3.;
-  }
-  double get_jacque_barra(){
-    // Note this test may be too sensitive for our purposes. But we can try this first.
-    size_t n = this->num_schedules;
-    double k = this->get_kurtosis();
-    double s = this->get_skewness();
-    double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
-    return jb_test_stat;
-  }
-*/
-  void error_test(){
-    bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) && (this->num_schedules >= this->count_limit) && (this->total_comm_time >= this->time_limit);
-    if (decision){
-      this->steady_state = true;
-    } else{
-      this->steady_state = false;
-    }
-  }
-  bool should_schedule(){
-    return !this->steady_state;
-  }
-  void update(volatile double comm_time, double byte_count){
-    if (!this->steady_state){
-      this->num_schedules++;
-      this->num_scheduled_bytes += byte_count;
-      this->total_comm_time += comm_time;
-//      save_comm_times.push_back((double)comm_time);	// only temporary
-      // Online computation of up to 4th-order central moments using communication time samples
-      size_t n1 = this->num_schedules-1;
-      size_t n = this->num_schedules;
-      double x = comm_time;
-      double delta = x - M1;
-      double delta_n = delta / n;
-      double delta_n2 = delta_n*delta_n;
-      double term1 = delta*delta_n*n1;
-      this->M1 += delta_n;
-//      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
-//      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
-      this->M2 += term1;
-      error_test();
-//      this->save_arithmetic_means.push_back(get_arithmetic_mean());
-//      this->save_std_dev.push_back(get_std_dev());
-//      this->save_std_error.push_back(get_std_error());
-//      this->save_confidence_interval.push_back(get_confidence_interval());
-      //this->save_skewness.push_back(get_skewness());
-      //this->save_kurtosis.push_back(get_kurtosis());
-      //this->save_jb.push_back(get_jacque_barra());
-    }
-    else{
-      this->num_non_schedules++;
-      this->num_non_scheduled_bytes += byte_count;
-    }
-  }
-
-  size_t count_limit;
-  double error_limit;
-  double time_limit;
-  size_t num_schedules;
-  size_t num_non_schedules;
-  double num_scheduled_bytes;
-  double num_non_scheduled_bytes;
-  double M1,M2;
-  //double M3,M4;
-  bool steady_state;
-  double total_comm_time;
-  //std::vector<double> save_comm_times;
-  //std::vector<double> save_arithmetic_means;
-  //std::vector<double> save_std_dev;
-  //std::vector<double> save_std_error;
-  //std::vector<double> save_confidence_interval;
-  //std::vector<double> save_skewness;
-  //std::vector<double> save_kurtosis;
-  //std::vector<double> save_jb;
-};
 
 // ****************************************************************************************************************************************************
 struct comp_pattern_param1_key{
@@ -242,123 +116,30 @@ struct comp_pattern_param1_key{
 };
 
 // ****************************************************************************************************************************************************
-struct comp_pattern_param1_val{
+struct pattern_param1{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  comp_pattern_param1_val(size_t count_limit=0, double error_limit=0., double time_limit=0.){
-    this->count_limit = count_limit;
-    this->error_limit = error_limit;
-    this->time_limit = time_limit;
+  pattern_param1(){
+    this->total_exec_time = 0;
     this->steady_state=false;
     this->num_schedules = 0;
     this->num_non_schedules = 0;
-    this->num_scheduled_flops = 0;
-    this->num_non_scheduled_flops = 0;
+    this->num_scheduled_units = 0;
+    this->num_non_scheduled_units = 0;
     this->M1=0; this->M2=0;
     //this->M3=0; this->M4=0;
   }
-  double get_confidence_interval(double level = .95){
-    // returns confidence interval length with 95% confidence level
-    return 1.96*this->get_std_error();
-  }
-  double get_std_error(){
-    // returns standard error
-    size_t n = this->num_schedules;
-    return this->get_std_dev() / pow(n*1.,1./2.);
-  }
-  double get_arithmetic_mean(){
-    // returns arithmetic mean
-    return this->M1;
-  }
-  double get_std_dev(){
-    // returns variance
-    return pow(this->get_variance(),1./2.);
-  }
-  double get_variance(){
-    // returns variance
-    size_t n = this->num_schedules;
-    if (n<=1) return 1000.;
-    return this->M2 / (n-1.);
-  }
-/*
-  double get_skewness(){
-    // returns skewness
-    size_t n = this->num_schedules;
-    if (n<=2) return 1000.;
-    return std::pow(n*1.,1./2.) * this->M3 / std::pow(this->M2,1.5);
-  }
-  double get_kurtosis(){
-    // returns the excess kurtosis
-    size_t n = this->num_schedules;
-    if (n<=3) return 1000.;
-    return (n*this->M4) / (this->M2*this->M2) - 3.;
-  }
-  double get_jacque_barra(){
-    // Note this test may be too sensitive for our purposes. But we can try this first.
-    size_t n = this->num_schedules;
-    double k = this->get_kurtosis();
-    double s = this->get_skewness();
-    double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
-    return jb_test_stat;
-  }
-*/
-  void error_test(){
-    bool decision = ((get_confidence_interval() / (2.*get_arithmetic_mean())) < this->error_limit) && (this->num_schedules >= this->count_limit) && (this->total_comp_time >= this->time_limit);
-    if (decision){
-      this->steady_state = true;
-    } else{
-      this->steady_state = false;
-    }
-  }
-  bool should_schedule(){
-    return !this->steady_state;
-  }
-  void update(volatile double comp_time, double flop_count){
-    if (!this->steady_state){
-      this->num_schedules++;
-      this->num_scheduled_flops += flop_count;
-      this->total_comp_time += comp_time;
-//      save_comp_times.push_back((double)comp_time);	// only temporary
-      // Online computation of up to 4th-order central moments using compunication time samples
-      size_t n1 = this->num_schedules-1;
-      size_t n = this->num_schedules;
-      double x = comp_time;
-      double delta = x - M1;
-      double delta_n = delta / n;
-      double delta_n2 = delta_n*delta_n;
-      double term1 = delta*delta_n*n1;
-      this->M1 += delta_n;
-//      this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
-//      this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
-      this->M2 += term1;
-      error_test();
-//      this->save_arithmetic_means.push_back(get_arithmetic_mean());
-//      this->save_std_dev.push_back(get_std_dev());
-//      this->save_std_error.push_back(get_std_error());
-//      this->save_confidence_interval.push_back(get_confidence_interval());
-      //this->save_skewness.push_back(get_skewness());
-      //this->save_kurtosis.push_back(get_kurtosis());
-      //this->save_jb.push_back(get_jacque_barra());
-    }
-    else{
-      this->num_non_schedules++;
-      this->num_non_scheduled_flops += flop_count;
-    }
-  }
 
-  size_t count_limit;
-  double error_limit;
-  double time_limit;
   size_t num_schedules;
   size_t num_non_schedules;
-  double num_scheduled_flops;
-  double num_non_scheduled_flops;
+  double num_scheduled_units;
+  double num_non_scheduled_units;
   double M1,M2;
   //double M3,M4;
   bool steady_state;
-  double total_comp_time;
-  //std::vector<double> save_comp_times;
+  double total_exec_time;
+  //std::vector<double> save_exec_times;
   //std::vector<double> save_arithmetic_means;
   //std::vector<double> save_std_dev;
   //std::vector<double> save_std_error;
@@ -369,17 +150,15 @@ struct comp_pattern_param1_val{
 };
 
 // ****************************************************************************************************************************************************
-extern size_t path_pattern_param;
-extern size_t path_pattern_comm_count_limit;
-extern size_t path_pattern_comp_count_limit;
-extern double path_pattern_comm_time_limit;
-extern double path_pattern_comp_time_limit;
-extern double path_pattern_comm_error_limit;
-extern double path_pattern_comp_error_limit;
+extern size_t pattern_param;
+extern size_t pattern_count_limit;
+extern double pattern_time_limit;
+extern double pattern_error_limit;
 extern std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-extern std::vector<int> local_communicator_list;
-extern std::map<comm_pattern_param1_key,comm_pattern_param1_val> comm_pattern_cache_param1;
-extern std::map<comp_pattern_param1_key,comp_pattern_param1_val> comp_pattern_cache_param1;
+extern std::map<comm_pattern_param1_key,std::pair<bool,int>> comm_pattern_cache_param1;
+extern std::map<comp_pattern_param1_key,std::pair<bool,int>> comp_pattern_cache_param1;
+extern std::vector<pattern_param1> steady_state_patterns;
+extern std::vector<pattern_param1> active_patterns;
 extern double comp_start_time;
 extern size_t cp_symbol_class_count;
 extern size_t pp_symbol_class_count;
