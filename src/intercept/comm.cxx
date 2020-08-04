@@ -84,16 +84,26 @@ void stop(){
       }
       else if (internal::path_pattern_param==2){
         for (auto& it : internal::comm_pattern_cache_param2){
-          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm << "," << it.first.msg_size << "," << it.first.partner << ") - \n";
-          std::cout << "\t" << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_bytes << " " << it.second.num_non_scheduled_bytes << std::endl;
-          std::cout << "\t\t" << it.second.get_mean() << " " << it.second.get_skewness() << " " << it.second.get_kurtosis() << std::endl;
+          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.msg_size << "," << it.first.partner << ") - with byte-count " << it.first.comm  << "\n";
+          std::cout << "\ttNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledFlops - " << it.second.num_scheduled_bytes << ", NumSkippedFlops - " << it.second.num_non_scheduled_bytes << std::endl;
+          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", Skewness - " << it.second.get_skewness() << ", Kurtosis - " << it.second.get_kurtosis() << ", Jaque-Bera - " << it.second.get_jacque_barra() << std::endl;
+          std::cout << "\t\tM1 - " << it.second.M1 << ", M2 - " << it.second.M2 << ", M3 - " << it.second.M3 << ", M4 - " << it.second.M4 << std::endl;
+          for (auto k=0; k<it.second.save_comm_times.size(); k++){
+            std::cout << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", Skewness - " << it.second.save_skewness[k]
+                      << ", Kurtosis - " << it.second.save_kurtosis[k] << ", JB statistic - " << it.second.save_jb[k] << std::endl;
+          }
         }
         std::cout << std::endl;
         std::cout << std::endl;
         for (auto& it : internal::comp_pattern_cache_param2){
-          std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.flops << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") -\n";
-          std::cout << it.second.num_schedules << " " << it.second.num_non_schedules << " " << it.second.num_scheduled_flops << " " << it.second.num_non_scheduled_flops << std::endl;
-          std::cout << "\t\t" << it.second.get_mean() << " " << it.second.get_skewness() << " " << it.second.get_kurtosis() << std::endl;
+          std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") - with flop-count " << it.first.flops << "\n";
+          std::cout << "\tNumSchedules - " << it.second.num_schedules << ", NumScheduleSkips - " << it.second.num_non_schedules << ", NumScheduledFlops - " << it.second.num_scheduled_flops << ", NumSkippedFlops - " << it.second.num_non_scheduled_flops << std::endl;
+          std::cout << "\t\tArithmeticMean - " << it.second.get_arithmetic_mean() << ", StdDev - " << it.second.get_std_dev() << ", Skewness - " << it.second.get_skewness() << ", Kurtosis - " << it.second.get_kurtosis() << ", Jaque-Bera - " << it.second.get_jacque_barra() << std::endl;
+          std::cout << "\t\tM1 - " << it.second.M1 << ", M2 - " << it.second.M2 << ", M3 - " << it.second.M3 << ", M4 - " << it.second.M4 << std::endl;
+          for (auto k=0; k<it.second.save_comp_times.size(); k++){
+            std::cout << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", Skewness - " << it.second.save_skewness[k]
+                      << ", Kurtosis - " << it.second.save_kurtosis[k] << ", JB statistic - " << it.second.save_jb[k] << std::endl;
+          }
         }
       }
       std::cout << std::endl;

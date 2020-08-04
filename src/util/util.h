@@ -123,27 +123,39 @@ struct comm_pattern_param2_val{
     this->num_non_scheduled_bytes = 0;
     this->M1=0; this->M2=0; this->M3=0; this->M4=0;
   }
-  double get_mean(){
+  double get_arithmetic_mean(){
     // returns arithmetic mean
     return this->M1;
+  }
+  double get_std_dev(){
+    // returns variance
+    return pow(this->get_variance(),1./2.);
   }
   double get_variance(){
     // returns variance
     size_t n = this->num_schedules;
-    if (n<=3) return 1000.;
+    if (n<1) return 1000.;
     return this->M2 / (n-1.);
   }
   double get_skewness(){
     // returns skewness
     size_t n = this->num_schedules;
-    if (n<=3) return 1000.;
+    if (n<3) return 1000.;
     return std::pow(n*1.,1./2.) * this->M3 / std::pow(this->M2,1.5);
   }
   double get_kurtosis(){
     // returns the excess kurtosis
     size_t n = this->num_schedules;
-    if (n<=3) return 1000.;
+    if (n<3) return 1000.;
     return (n*this->M4) / (this->M2*this->M2) - 3.;
+  }
+  double get_jacque_barra(){
+    // Note this test may be too sensitive for our purposes. But we can try this first.
+    size_t n = this->num_schedules;
+    double k = this->get_kurtosis();
+    double s = this->get_skewness();
+    double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
+    return jb_test_stat;
   }
   void jacque_barra_test(){
     // Note this test may be too sensitive for our purposes. But we can try this first.
@@ -158,6 +170,7 @@ struct comm_pattern_param2_val{
     } else{
       this->steady_state = true;
     }
+    this->steady_state = false;	// debug force this for now
   }
   bool should_schedule(){
     return !this->steady_state;
@@ -166,6 +179,8 @@ struct comm_pattern_param2_val{
     if (!this->steady_state){
       this->num_schedules++;
       this->num_scheduled_bytes += byte_count;
+      this->total_comm_time += comm_time;
+      save_comm_times.push_back((double)comm_time);	// only temporary
       // Online computation of up to 4th-order central moments using communication time samples
       size_t n1 = this->num_schedules-1;
       size_t n = this->num_schedules;
@@ -179,6 +194,11 @@ struct comm_pattern_param2_val{
       this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
       this->M2 += term1;
       jacque_barra_test();
+      this->save_arithmetic_means.push_back(get_arithmetic_mean());
+      this->save_std_dev.push_back(get_std_dev());
+      this->save_skewness.push_back(get_skewness());
+      this->save_kurtosis.push_back(get_kurtosis());
+      this->save_jb.push_back(get_jacque_barra());
     }
     else{
       this->num_non_schedules++;
@@ -193,8 +213,13 @@ struct comm_pattern_param2_val{
   double num_non_scheduled_bytes;
   double M1,M2,M3,M4;
   bool steady_state;
-  std::vector<double> synch_list;
-  std::vector<double> eff_net_bandwidth_list;
+  double total_comm_time;
+  std::vector<double> save_comm_times;
+  std::vector<double> save_arithmetic_means;
+  std::vector<double> save_std_dev;
+  std::vector<double> save_skewness;
+  std::vector<double> save_kurtosis;
+  std::vector<double> save_jb;
 };
 
 // ****************************************************************************************************************************************************
@@ -260,9 +285,13 @@ struct comp_pattern_param2_val{
     this->num_non_scheduled_flops = 0;
     this->M1=0; this->M2=0; this->M3=0; this->M4=0;
   }
-  double get_mean(){
+  double get_arithmetic_mean(){
     // returns arithmetic mean
     return this->M1;
+  }
+  double get_std_dev(){
+    // returns variance
+    return pow(this->get_variance(),1./2.);
   }
   double get_variance(){
     // returns variance
@@ -282,6 +311,14 @@ struct comp_pattern_param2_val{
     if (n<=3) return 1000.;
     return (n*this->M4) / (this->M2*this->M2) - 3.;
   }
+  double get_jacque_barra(){
+    // Note this test may be too sensitive for our purposes. But we can try this first.
+    size_t n = this->num_schedules;
+    double k = this->get_kurtosis();
+    double s = this->get_skewness();
+    double jb_test_stat = (n/6.)*(s*s + (1./4.)*(k*k));
+    return jb_test_stat;
+  }
   void jacque_barra_test(){
     // Note this test may be too sensitive for our purposes. But we can try this first.
     size_t n = this->num_schedules;
@@ -294,6 +331,7 @@ struct comp_pattern_param2_val{
     } else{
       this->steady_state = true;
     }
+    this->steady_state = false;	// debug force this for now
   }
   bool should_schedule(){
     return !this->steady_state;
@@ -302,6 +340,8 @@ struct comp_pattern_param2_val{
     if (!this->steady_state){
       this->num_schedules++;
       this->num_scheduled_flops += flop_count;
+      this->total_comp_time += comp_time;
+      save_comp_times.push_back((double)comp_time);	// only temporary
       // Online computation of up to 4th-order central moments using compunication time samples
       size_t n1 = this->num_schedules-1;
       size_t n = this->num_schedules;
@@ -315,6 +355,11 @@ struct comp_pattern_param2_val{
       this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
       this->M2 += term1;
       jacque_barra_test();
+      this->save_arithmetic_means.push_back(get_arithmetic_mean());
+      this->save_std_dev.push_back(get_std_dev());
+      this->save_skewness.push_back(get_skewness());
+      this->save_kurtosis.push_back(get_kurtosis());
+      this->save_jb.push_back(get_jacque_barra());
     }
     else{
       this->num_non_schedules++;
@@ -329,7 +374,13 @@ struct comp_pattern_param2_val{
   double num_non_scheduled_flops;
   double M1,M2,M3,M4;
   bool steady_state;
-  std::vector<double> flop_rate_list;
+  double total_comp_time;
+  std::vector<double> save_comp_times;
+  std::vector<double> save_arithmetic_means;
+  std::vector<double> save_std_dev;
+  std::vector<double> save_skewness;
+  std::vector<double> save_kurtosis;
+  std::vector<double> save_jb;
 };
 
 // ****************************************************************************************************************************************************
