@@ -64,6 +64,15 @@ struct event{
 
 // ****************************************************************************************************************************************************
 struct comm_pattern_param1_key{
+
+  comm_pattern_param1_key(int _tag=0, int _comm_size=0, int _comm_color=0, double _msg_size=0, int _partner_offset=0){
+    this->tag = _tag;
+    this->comm_size = _comm_size;
+    this->comm_color = _comm_color;
+    this->msg_size = _msg_size;
+    this->partner_offset = _partner_offset;
+  }
+
   friend bool operator==(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
     if ((ref1.tag==ref2.tag) && (ref1.comm_size == ref2.comm_size) && (ref1.comm_color == ref2.comm_color) && (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
     else return false;
@@ -82,8 +91,8 @@ struct comm_pattern_param1_key{
     return false;
   }
   int tag;
-  int comm_color;
   int comm_size;
+  int comm_color;
   double msg_size;
   int partner_offset;
 };
@@ -91,6 +100,17 @@ struct comm_pattern_param1_key{
 
 // ****************************************************************************************************************************************************
 struct comp_pattern_param1_key{
+
+  comp_pattern_param1_key(int _tag=0, double _flops=0, int _param1=0, int _param2=0, int _param3=0, int _param4=0, int _param5=0){
+    this->tag = _tag;
+    this->flops = _flops;
+    this->param1 = _param1;
+    this->param2 = _param2;
+    this->param3 = _param3;
+    this->param4 = _param4;
+    this->param5 = _param5;
+  }
+
   friend bool operator==(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
     if ((ref1.tag==ref2.tag) && (ref1.param1 == ref2.param1) && (ref1.param2 == ref2.param2) && (ref1.param3 == ref2.param3) && (ref1.param4 == ref2.param4) && (ref1.param5 == ref2.param5)) return true;
     else return false;
@@ -150,13 +170,31 @@ struct pattern_param1{
 };
 
 // ****************************************************************************************************************************************************
+struct pattern_key_id{
+
+  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0){
+    this->is_active = _is_active;
+    this->key_index = _key_index;
+    this->val_index = _val_index;
+  }
+
+  bool is_active;
+  int key_index;
+  int val_index;
+};
+
+// ****************************************************************************************************************************************************
 extern size_t pattern_param;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
 extern std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-extern std::map<comm_pattern_param1_key,std::pair<bool,int>> comm_pattern_cache_param1;
-extern std::map<comp_pattern_param1_key,std::pair<bool,int>> comp_pattern_cache_param1;
+extern std::map<comm_pattern_param1_key,pattern_key_id> comm_pattern_param1_map;
+extern std::map<comp_pattern_param1_key,pattern_key_id> comp_pattern_param1_map;
+extern std::vector<comm_pattern_param1_key> steady_state_comm_pattern_keys;
+extern std::vector<comm_pattern_param1_key> active_comm_pattern_keys;
+extern std::vector<comp_pattern_param1_key> steady_state_comp_pattern_keys;
+extern std::vector<comp_pattern_param1_key> active_comp_pattern_keys;
 extern std::vector<pattern_param1> steady_state_patterns;
 extern std::vector<pattern_param1> active_patterns;
 extern double comp_start_time;

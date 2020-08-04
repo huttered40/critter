@@ -7,19 +7,19 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-double get_arithmetic_mean(std::pair<bool,int> index);
-double get_variance(std::pair<bool,int> index);
-double get_std_dev(std::pair<bool,int> index);
-double get_std_error(std::pair<bool,int> index);
-double get_confidence_interval(std::pair<bool,int> index, double level = .95);
+double get_arithmetic_mean(pattern_key_id index);
+double get_variance(pattern_key_id index);
+double get_std_dev(pattern_key_id index);
+double get_std_error(pattern_key_id index);
+double get_confidence_interval(pattern_key_id index, double level = .95);
 /*
-double get_skewness(std::pair<bool,int> index);
-double get_kurtosis(std::pair<bool,int> index);
-double get_jacque_barra(std::pair<bool,int> index);
+double get_skewness(pattern_key_id index);
+double get_kurtosis(pattern_key_id index);
+double get_jacque_barra(pattern_key_id index);
 */
-void error_test(std::pair<bool,int> index);
-bool should_schedule(std::pair<bool,int> index);
-void update(std::pair<bool,int> index, volatile double comp_time, double flop_count);
+void error_test(pattern_key_id index);
+bool should_schedule(pattern_key_id index);
+void update(pattern_key_id index, volatile double comp_time, double flop_count);
 
 }
 }

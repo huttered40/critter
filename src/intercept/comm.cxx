@@ -19,8 +19,12 @@ void start(){
 
   // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
   // Below could be moved to reset, but its basically harmless here
-  internal::comm_pattern_cache_param1.clear();
-  internal::comp_pattern_cache_param1.clear();
+  internal::comm_pattern_param1_map.clear();
+  internal::comp_pattern_param1_map.clear();
+  internal::steady_state_comm_pattern_keys.clear();
+  internal::active_comm_pattern_keys.clear();
+  internal::steady_state_comp_pattern_keys.clear();
+  internal::active_comp_pattern_keys.clear();
   internal::steady_state_patterns.clear();
   internal::active_patterns.clear();
 
@@ -41,19 +45,19 @@ void stop(){
     int patterns[4] = {0,0,0,0};
     double communications[4] = {0,0,0,0};
     if (internal::pattern_param==1){
-      for (auto& it : internal::comm_pattern_cache_param1){
-        auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
-        patterns[0] += pattern_list[it.second.second].num_schedules;
-        patterns[1] += pattern_list[it.second.second].num_non_schedules;
-        communications[0] += pattern_list[it.second.second].num_scheduled_units;
-        communications[1] += pattern_list[it.second.second].num_non_scheduled_units;
+      for (auto& it : internal::comm_pattern_param1_map){
+        auto& pattern_list = it.second.is_active == true ? internal::active_patterns : internal::steady_state_patterns;
+        patterns[0] += pattern_list[it.second.val_index].num_schedules;
+        patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
+        communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
+        communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
       }
-      for (auto& it : internal::comp_pattern_cache_param1){
-        auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
-        patterns[2] += pattern_list[it.second.second].num_schedules;
-        patterns[3] += pattern_list[it.second.second].num_non_schedules;
-        communications[2] += pattern_list[it.second.second].num_scheduled_units;
-        communications[3] += pattern_list[it.second.second].num_non_scheduled_units;
+      for (auto& it : internal::comp_pattern_param1_map){
+        auto& pattern_list = it.second.is_active == true ? internal::active_patterns : internal::steady_state_patterns;
+        patterns[2] += pattern_list[it.second.val_index].num_schedules;
+        patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
+        communications[2] += pattern_list[it.second.val_index].num_scheduled_units;
+        communications[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
       }
     }
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
@@ -62,14 +66,25 @@ void stop(){
     if (rank==0){
       std::cout << internal::pattern_count_limit << " " << internal::pattern_count_limit << " " << internal::pattern_error_limit << std::endl;
       if (internal::pattern_param==1){
-        for (auto& it : internal::comm_pattern_cache_param1){
-          auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
-          std::cout << "Rank 0 Communication pattern (" << it.first.tag << "," << it.first.comm_size << "," << it.first.comm_color << "," << it.first.msg_size << "," << it.first.partner_offset << ") - with byte-count " << it.first.msg_size  << "\n";
-          std::cout << "\tScheduledTime - " << pattern_list[it.second.second].total_exec_time << ", NumSchedules - " << pattern_list[it.second.second].num_schedules << ", NumScheduleSkips - " << pattern_list[it.second.second].num_non_schedules <<
-                       ", NumScheduledBytes - " << pattern_list[it.second.second].num_scheduled_units << ", NumSkippedBytes - " << pattern_list[it.second.second].num_non_scheduled_units << std::endl;
-          std::cout << "\t\tArithmeticMean - " << internal::discretization::get_arithmetic_mean(it.second) << ", StdDev - " << internal::discretization::get_std_dev(it.second) <<
-                       ", StdError - " << internal::discretization::get_std_error(it.second) << ", 95% confidence interval len - " << internal::discretization::get_confidence_interval(it.second) <<
-                       ", Stopping criterion - " << internal::discretization::get_confidence_interval(it.second)/(2*internal::discretization::get_arithmetic_mean(it.second)) << std::endl;
+        for (auto& it : internal::comm_pattern_param1_map){
+          auto& pattern_list = it.second.is_active == true ? internal::active_patterns : internal::steady_state_patterns;
+          auto& key_list = it.second.is_active == true ? internal::active_comm_pattern_keys : internal::steady_state_comm_pattern_keys;
+          std::cout << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
+                    << "," << key_list[it.second.key_index].comm_size
+                    << "," << key_list[it.second.key_index].comm_color
+                    << "," << key_list[it.second.key_index].msg_size
+                    << "," << key_list[it.second.key_index].partner_offset
+                    << ") - with byte-count " << key_list[it.second.key_index].msg_size  << "\n";
+          std::cout << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+                    << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
+                    << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
+                    << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
+                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
+          std::cout << "\t\tArithmeticMean - " << internal::discretization::get_arithmetic_mean(it.second)
+                    << ", StdDev - " << internal::discretization::get_std_dev(it.second)
+                    << ", StdError - " << internal::discretization::get_std_error(it.second)
+                    << ", 95% confidence interval len - " << internal::discretization::get_confidence_interval(it.second)
+                    << ", Stopping criterion - " << internal::discretization::get_confidence_interval(it.second)/(2*internal::discretization::get_arithmetic_mean(it.second)) << std::endl;
 /*
           for (auto k=0; k<it.second.save_comm_times.size(); k++){
             std::cout << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
@@ -79,14 +94,27 @@ void stop(){
         }
         std::cout << std::endl;
         std::cout << std::endl;
-        for (auto& it : internal::comp_pattern_cache_param1){
-          auto& pattern_list = it.second.first == true ? internal::active_patterns : internal::steady_state_patterns;
-          std::cout << "Rank 0 Computation pattern (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << ") - with flop-count " << it.first.flops << "\n";
-          std::cout << "\tScheduledTime - " << pattern_list[it.second.second].total_exec_time << ", NumSchedules - " << pattern_list[it.second.second].num_schedules << ", NumScheduleSkips - " << pattern_list[it.second.second].num_non_schedules <<
-                       ", NumScheduledBytes - " << pattern_list[it.second.second].num_scheduled_units << ", NumSkippedBytes - " << pattern_list[it.second.second].num_non_scheduled_units << std::endl;
-          std::cout << "\t\tArithmeticMean - " << internal::discretization::get_arithmetic_mean(it.second) << ", StdDev - " << internal::discretization::get_std_dev(it.second) <<
-                       ", StdError - " << internal::discretization::get_std_error(it.second) << ", 95% confidence interval len - " << internal::discretization::get_confidence_interval(it.second) <<
-                       ", Stopping criterion - " << internal::discretization::get_confidence_interval(it.second)/(2*internal::discretization::get_arithmetic_mean(it.second)) << std::endl;
+        for (auto& it : internal::comp_pattern_param1_map){
+          auto& pattern_list = it.second.is_active == true ? internal::active_patterns : internal::steady_state_patterns;
+          auto& key_list = it.second.is_active == true ? internal::active_comp_pattern_keys : internal::steady_state_comp_pattern_keys;
+          std::cout << "Rank 0 Computation pattern (" << it.first.tag
+                    << "," << key_list[it.second.key_index].param1
+                    << "," << key_list[it.second.key_index].param2
+                    << "," << key_list[it.second.key_index].param3
+                    << "," << key_list[it.second.key_index].param4
+                    << "," << key_list[it.second.key_index].param5
+                    << ") - with flop-count "
+                    << it.first.flops << "\n";
+          std::cout << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+                    << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
+                    << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
+                    << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
+                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
+          std::cout << "\t\tArithmeticMean - " << internal::discretization::get_arithmetic_mean(it.second)
+                    << ", StdDev - " << internal::discretization::get_std_dev(it.second)
+                    << ", StdError - " << internal::discretization::get_std_error(it.second)
+                    << ", 95% confidence interval len - " << internal::discretization::get_confidence_interval(it.second)
+                    << ", Stopping criterion - " << internal::discretization::get_confidence_interval(it.second)/(2*internal::discretization::get_arithmetic_mean(it.second)) << std::endl;
 /*
           for (auto k=0; k<it.second.save_comp_times.size(); k++){
             std::cout << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
