@@ -3,6 +3,9 @@
 namespace critter{
 namespace internal{
 
+MPI_Datatype comm_pattern_key_type;
+MPI_Datatype comp_pattern_key_type;
+MPI_Datatype pattern_type;
 size_t pattern_param;
 size_t pattern_count_limit;
 double pattern_time_limit;

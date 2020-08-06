@@ -94,9 +94,9 @@ struct comm_pattern_param1_key{
   int tag;
   int comm_size;
   int comm_color;
-  double msg_size;
   int partner_offset;
   int pattern_index;
+  double msg_size;
 };
 
 
@@ -134,9 +134,9 @@ struct comp_pattern_param1_key{
     return false;
   }
   int tag;
-  double flops;
   int param1,param2,param3,param4,param5;
   int pattern_index;
+  double flops;
 };
 
 // ****************************************************************************************************************************************************
@@ -146,7 +146,7 @@ struct pattern_param1{
   //     to handle that.
   pattern_param1(){
     this->total_exec_time = 0;
-    this->steady_state=false;
+    this->steady_state=0;
     this->num_schedules = 0;
     this->num_non_schedules = 0;
     this->num_scheduled_units = 0;
@@ -155,39 +155,36 @@ struct pattern_param1{
     //this->M3=0; this->M4=0;
   }
 
-  size_t num_schedules;
-  size_t num_non_schedules;
+  int steady_state;
+  int num_schedules;
+  int num_non_schedules;
   double num_scheduled_units;
   double num_non_scheduled_units;
   double M1,M2;
-  //double M3,M4;
-  bool steady_state;
   double total_exec_time;
-  //std::vector<double> save_exec_times;
-  //std::vector<double> save_arithmetic_means;
-  //std::vector<double> save_std_dev;
-  //std::vector<double> save_std_error;
-  //std::vector<double> save_confidence_interval;
-  //std::vector<double> save_skewness;
-  //std::vector<double> save_kurtosis;
-  //std::vector<double> save_jb;
 };
 
 // ****************************************************************************************************************************************************
 struct pattern_key_id{
 
-  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0){
+  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false){
     this->is_active = _is_active;
     this->key_index = _key_index;
     this->val_index = _val_index;
+    this->is_updated = _is_updated;
   }
 
+  // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
   bool is_active;
+  bool is_updated;
   int key_index;
   int val_index;
 };
 
 // ****************************************************************************************************************************************************
+extern MPI_Datatype comm_pattern_key_type;
+extern MPI_Datatype comp_pattern_key_type;
+extern MPI_Datatype pattern_type;
 extern size_t pattern_param;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;

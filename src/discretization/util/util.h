@@ -18,7 +18,7 @@ double get_kurtosis(pattern_key_id index);
 double get_jacque_barra(pattern_key_id index);
 */
 void error_test(pattern_key_id index);
-bool should_schedule(pattern_key_id index);
+int should_schedule(pattern_key_id index);
 void update(pattern_key_id index, volatile double comp_time, double flop_count);
 
 }

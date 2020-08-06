@@ -23,10 +23,10 @@ void reset(){
   }
 }
 
-void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm, int color){
+void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   switch (mechanism){
     case 0:
-      decomposition::path::exchange_communicators(oldcomm,newcomm,color);
+      decomposition::path::exchange_communicators(oldcomm,newcomm);
       break;
   }
 }

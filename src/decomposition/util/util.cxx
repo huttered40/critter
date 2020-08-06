@@ -17,6 +17,27 @@ void allocate(MPI_Comm comm){
 
   communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,0);
 
+  comp_pattern_param1_key ex_1;
+  MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int comp_pattern_key_internal_type_block_len[2] = { 7,1 };
+  MPI_Aint comp_pattern_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
+  PMPI_Type_create_struct(2,comp_pattern_key_internal_type_block_len,comp_pattern_key_internal_type_disp,comp_pattern_key_internal_type,&comp_pattern_key_type);
+  PMPI_Type_commit(&comp_pattern_key_type);
+
+  comm_pattern_param1_key ex_2;
+  MPI_Datatype comm_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int comm_pattern_key_internal_type_block_len[2] = { 5,1 };
+  MPI_Aint comm_pattern_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
+  PMPI_Type_create_struct(2,comm_pattern_key_internal_type_block_len,comm_pattern_key_internal_type_disp,comm_pattern_key_internal_type,&comm_pattern_key_type);
+  PMPI_Type_commit(&comm_pattern_key_type);
+
+  pattern_param1 ex_3;
+  MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int pattern_internal_block_len[2] = { 3,5 };
+  MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.steady_state-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
+  PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
+  PMPI_Type_commit(&pattern_type);
+
   cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
   for (auto i=0; i<2; i++){

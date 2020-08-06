@@ -58,18 +58,18 @@ void error_test(pattern_key_id index){
                   (pattern_list[index.val_index].num_schedules >= pattern_count_limit) &&
                   (pattern_list[index.val_index].total_exec_time >= pattern_time_limit);
   if (decision){
-    pattern_list[index.val_index].steady_state = true;
+    pattern_list[index.val_index].steady_state = 1;
   } else{
-    pattern_list[index.val_index].steady_state = false;
+    pattern_list[index.val_index].steady_state = 0;
   }
 }
-bool should_schedule(pattern_key_id index){
+int should_schedule(pattern_key_id index){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  return !pattern_list[index.val_index].steady_state;
+  return (pattern_list[index.val_index].steady_state==1 ? 0 : 1);
 }
 void update(pattern_key_id index, volatile double exec_time, double unit_count){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  if (!pattern_list[index.val_index].steady_state){
+  if (pattern_list[index.val_index].steady_state == 0){
     pattern_list[index.val_index].num_schedules++;
     pattern_list[index.val_index].num_scheduled_units += unit_count;
     pattern_list[index.val_index].total_exec_time += exec_time;

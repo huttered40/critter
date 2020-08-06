@@ -9,7 +9,7 @@ namespace internal{
 void allocate(MPI_Comm comm);
 void reset();
 
-void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm, int color);
+void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm);
 bool initiate_comp(size_t id, volatile double curtime, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
 void complete_comp(size_t id, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
 bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,

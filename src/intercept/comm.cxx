@@ -387,7 +387,7 @@ void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   else{
     PMPI_Comm_split(comm,color,key,newcomm);
   }
-  exchange_communicators(comm,*newcomm,color);
+  exchange_communicators(comm,*newcomm);
 }
 
 void comm_free(MPI_Comm* comm){
