@@ -5,7 +5,7 @@
 
 namespace critter{
 
-void start(){
+void start(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override){
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{
@@ -17,27 +17,49 @@ void start(){
   internal::wait_id=true;
   internal::reset();
 
-  // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
-  // Below could be moved to reset, but its basically harmless here
-  internal::comm_pattern_param1_map.clear();
-  internal::comp_pattern_param1_map.clear();
-  internal::steady_state_comm_pattern_keys.clear();
-  internal::active_comm_pattern_keys.clear();
-  internal::steady_state_comp_pattern_keys.clear();
-  internal::active_comp_pattern_keys.clear();
-  internal::steady_state_patterns.clear();
-  internal::active_patterns.clear();
+  if (clear_statistical_data){
+    // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
+    // Below could be moved to reset, but its basically harmless here
+    internal::comm_pattern_param1_map.clear();
+    internal::comp_pattern_param1_map.clear();
+    internal::steady_state_comm_pattern_keys.clear();
+    internal::active_comm_pattern_keys.clear();
+    internal::steady_state_comp_pattern_keys.clear();
+    internal::active_comp_pattern_keys.clear();
+    internal::steady_state_patterns.clear();
+    internal::active_patterns.clear();
+  }
+  // Reset this global variable, as we are updating it using function arguments for convenience
+  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
+    internal::pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
+  } else{
+    internal::pattern_param = 0;
+  }
+  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
+    internal::schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
+  } else{
+    internal::schedule_kernels = 1;
+  }
+  if (internal::pattern_param>0){ internal::pattern_param = track_statistical_data_override ? internal::pattern_param : 0; }
+  if (internal::schedule_kernels==1){ internal::schedule_kernels = schedule_kernels_override ? internal::schedule_kernels : 0; }
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer=MPI_Wtime();
 }
 
-void stop(){
+void stop(double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data){
   volatile double last_time = MPI_Wtime();
   internal::stack_id--; 
   if (internal::stack_id>0) { return; }
   PMPI_Barrier(MPI_COMM_WORLD);
+
+  assert(internal::internal_comm_info.size() == 0);
+  internal::final_accumulate(last_time); 
+  internal::propagate(MPI_COMM_WORLD);
+  internal::collect(MPI_COMM_WORLD);
+
+  if (data != nullptr) *data = internal::critical_path_costs[internal::num_critical_path_measures-1];
 
   // Lets iterate over the map to create two counters, then reduce them to get a global idea:
   //   Another idea is to cache this list over the critical path, but that might be too much.
@@ -63,6 +85,8 @@ void stop(){
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
+
+    if (print_statistical_data){
     if (rank==0){
       std::cout << internal::pattern_count_limit << " " << internal::pattern_count_limit << " " << internal::pattern_error_limit << std::endl;
       if (internal::pattern_param==1){
@@ -141,11 +165,9 @@ void stop(){
       std::cout << "\tComputation flop hit ratio - " << 1. - (communications[2] * 1. / (communications[2]+communications[3])) << std::endl;
     }
   }
+  }
 
-  assert(internal::internal_comm_info.size() == 0);
-  internal::final_accumulate(last_time); 
-  internal::propagate(MPI_COMM_WORLD);
-  internal::collect(MPI_COMM_WORLD);
+
   internal::record(std::cout);
   if (internal::flag) {internal::record(internal::stream);}
   internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
@@ -283,6 +305,16 @@ void _init(int* argc, char*** argv){
   }
   if (std::getenv("CRITTER_DELETE_COMM") != NULL){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
+  }
+  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
+    schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
+  } else{
+    schedule_kernels = 1;
+  }
+  if (std::getenv("CRITTER_AUTOTUNING") != NULL){
+    is_autotuning = atoi(std::getenv("CRITTER_AUTOTUNING"));
+  } else{
+    is_autotuning = 0;
   }
   assert(_cost_models_.size()==2);
   assert(_comm_path_select_.size()==9);

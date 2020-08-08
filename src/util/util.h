@@ -182,6 +182,8 @@ struct pattern_key_id{
 };
 
 // ****************************************************************************************************************************************************
+extern int is_autotuning;
+extern int schedule_kernels;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
 extern MPI_Datatype pattern_type;

@@ -5,8 +5,8 @@
 
 namespace critter{
 
-void start();
-void stop();
+void start(bool track_statistical_data_override = true, bool clear_statistical_data = true, bool schedule_kernels_override = true);
+void stop(double* data = nullptr, bool track_statistical_data_override = true, bool clear_statistical_data = true, bool print_statistical_data = true);
 
 namespace internal{
 

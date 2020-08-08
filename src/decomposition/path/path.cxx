@@ -44,7 +44,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
   }
 
-  bool schedule_decision = true;
+  bool schedule_decision = schedule_kernels==1 ? true : false;
   if (pattern_param>0){
     comp_pattern_param1_key p_id_1(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
     if (pattern_param==1){
@@ -290,6 +290,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
     tracker.barrier_time = MPI_Wtime() - init_time;
 
+    // If autotuning, we do not need to subtract out over-counted idle time. Doing so would just be adding extra overhead
+    if (is_autotuning){
     // If eager protocol is enabled, its assumed that any message latency the sender incurs is negligable, and thus the receiver incurs its true idle time above
     // Again, the gray-area is with Sendrecv variants, and we assume they are treated without eager protocol
     if (!true_eager_p2p){
@@ -316,6 +318,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
       }
       tracker.barrier_time -= min_idle_time;
+    }
     }
     for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.barrier_time; }
   }
@@ -353,6 +356,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
   tracker.synch_time = 0.;// might get updated below
 
+  // For autotuning, we don't need to worry about tracking synchronization time. Doing so would just be adding unecessary overead.
+  if (is_autotuning){
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
     assert(partner1 != MPI_ANY_SOURCE);
     if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
@@ -430,8 +435,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
     tracker.synch_time = MPI_Wtime()-tracker.start_time;
   }
+  }
 
-  bool schedule_decision = true;
+  bool schedule_decision = schedule_kernels==1 ? true : false;
   if (pattern_param>0){
     int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
@@ -1228,10 +1234,6 @@ void path::propagate_patterns(blocking& tracker, int rank){
   // First need to broadcast the size of each of the 3 broadcasts so that the receiving buffers can prepare the size of their receiving buffers
   // Only the active kernels need propagating. Steady-state are treated differently depending on the communicator.
 
-  // debug
-  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-
-
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   int size_array[3] = {0,0,0};
   if (rank == info_receiver[num_critical_path_measures-1].second){
@@ -1246,12 +1248,6 @@ void path::propagate_patterns(blocking& tracker, int rank){
         active_comp_pattern_keys.resize(size_array[1]);
         active_patterns.resize(size_array[2]);
     }
-/*
-    // debug
-    if (world_rank==0){
-      std::cout << size_array[0] << " " << size_array[1] << " " << size_array[2] << std::endl;
-    }
-*/
     PMPI_Bcast(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,info_receiver[num_critical_path_measures-1].second,tracker.comm);
     PMPI_Bcast(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,info_receiver[num_critical_path_measures-1].second,tracker.comm);
     PMPI_Bcast(&active_patterns[0],size_array[2],pattern_type,info_receiver[num_critical_path_measures-1].second,tracker.comm);
@@ -1744,10 +1740,10 @@ void path::propagate(blocking& tracker){
   }
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
   if (pattern_param>0){
-    propagate_patterns(tracker,rank);
+//    propagate_patterns(tracker,rank);
     // check for world communication, in which case we can flush the steady-state kernels out of the active buffers for more efficient propagation
     if ((tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1)){
-      flush_patterns(tracker);
+//      flush_patterns(tracker);
     }
   }
   if (true_eager_p2p){
