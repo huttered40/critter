@@ -8,6 +8,7 @@ namespace decomposition{
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
+  int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
   cp_symbol_class_count = 4;
   pp_symbol_class_count = 4;
   vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
@@ -72,6 +73,7 @@ void allocate(MPI_Comm comm){
 
   decisions.resize(comm_path_select_size);
   critical_path_costs.resize(critical_path_costs_size);
+
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
   new_cs.resize(critical_path_costs_size);
@@ -119,6 +121,8 @@ void reset(){
   memset(&symbol_timer_pad_local_cp[0],0,sizeof(double)*symbol_timer_pad_local_cp.size());
   memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
+
+  autotuning_propagate=1;// means nothing if autotuning_mode != 3
 }
 
 void open_symbol(const char* symbol, double curtime){

@@ -5,7 +5,7 @@
 
 namespace critter{
 
-void start(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override){
+void start(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide){
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{
@@ -40,15 +40,16 @@ void start(bool track_statistical_data_override, bool clear_statistical_data, bo
   } else{
     internal::schedule_kernels = 1;
   }
-  if (internal::pattern_param>0){ internal::pattern_param = track_statistical_data_override ? internal::pattern_param : 0; }
-  if (internal::schedule_kernels==1){ internal::schedule_kernels = schedule_kernels_override ? internal::schedule_kernels : 0; }
+  if (internal::pattern_param>0){ internal::pattern_param == track_statistical_data_override ? internal::pattern_param : 0; }
+  if (internal::schedule_kernels==1){ internal::schedule_kernels == schedule_kernels_override ? internal::schedule_kernels : 0; }
+  if (internal::autotuning_propagate==1){ internal::autotuning_mode == propagate_statistical_data_overide ? internal::autotuning_mode : 0; }
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer=MPI_Wtime();
 }
 
-void stop(double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data){
+void stop(double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data, bool save_statistical_data){
   volatile double last_time = MPI_Wtime();
   internal::stack_id--; 
   if (internal::stack_id>0) { return; }
@@ -73,6 +74,17 @@ void stop(double* data, bool track_statistical_data_override, bool clear_statist
         patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
         communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
         communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
+/*
+        // Late debugging addition
+        if (it.second.is_active == true){
+          internal::comm_pattern_param1_map[it.first].is_active=false;
+          internal::steady_state_patterns.push_back(pattern_list[it.second.val_index]);
+          internal::steady_state_patterns[internal::steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
+          internal::steady_state_comm_pattern_keys.push_back(internal::active_comm_pattern_keys[it.second.key_index]);
+          internal::comm_pattern_param1_map[it.first].val_index = internal::steady_state_patterns.size()-1;
+          internal::comm_pattern_param1_map[it.first].key_index = internal::steady_state_comm_pattern_keys.size()-1;
+        }
+*/
       }
       for (auto& it : internal::comp_pattern_param1_map){
         auto& pattern_list = it.second.is_active == true ? internal::active_patterns : internal::steady_state_patterns;
@@ -80,12 +92,37 @@ void stop(double* data, bool track_statistical_data_override, bool clear_statist
         patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
         communications[2] += pattern_list[it.second.val_index].num_scheduled_units;
         communications[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
+/*
+        // Late debugging addition
+        if (it.second.is_active == true){
+          internal::comp_pattern_param1_map[it.first].is_active=false;
+          internal::steady_state_patterns.push_back(pattern_list[it.second.val_index]);
+          internal::steady_state_patterns[internal::steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
+          internal::steady_state_comp_pattern_keys.push_back(internal::active_comp_pattern_keys[it.second.key_index]);
+          internal::comp_pattern_param1_map[it.first].val_index = internal::steady_state_patterns.size()-1;
+          internal::comp_pattern_param1_map[it.first].key_index = internal::steady_state_comp_pattern_keys.size()-1;
+        }
+*/
       }
     }
+/*
+    // Late debugging addition
+    internal::active_patterns.clear();
+*/
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
+    if (save_statistical_data && data != nullptr){
+      data[1] = patterns[0];
+      data[2] = patterns[1];
+      data[3] = communications[0];
+      data[4] = communications[1];
+      data[5] = patterns[2];
+      data[6] = patterns[3];
+      data[7] = communications[2];
+      data[8] = communications[3];
+    }
     if (print_statistical_data){
     if (rank==0){
       std::cout << internal::pattern_count_limit << " " << internal::pattern_count_limit << " " << internal::pattern_error_limit << std::endl;
@@ -311,10 +348,10 @@ void _init(int* argc, char*** argv){
   } else{
     schedule_kernels = 1;
   }
-  if (std::getenv("CRITTER_AUTOTUNING") != NULL){
-    is_autotuning = atoi(std::getenv("CRITTER_AUTOTUNING"));
+  if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
+    autotuning_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
   } else{
-    is_autotuning = 0;
+    autotuning_mode = 0;
   }
   assert(_cost_models_.size()==2);
   assert(_comm_path_select_.size()==9);

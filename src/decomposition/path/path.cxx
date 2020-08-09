@@ -45,7 +45,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   }
 
   bool schedule_decision = schedule_kernels==1 ? true : false;
-  if (pattern_param>0){
+  if (autotuning_mode>0){
     comp_pattern_param1_key p_id_1(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
     if (pattern_param==1){
       if (!(comp_pattern_param1_map.find(p_id_1) == comp_pattern_param1_map.end())){
@@ -62,7 +62,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
 
-  if (pattern_param>0){
+  if (autotuning_mode>0){
     comp_pattern_param1_key p_id_1(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
     if (pattern_param == 1){
       if (comp_pattern_param1_map.find(p_id_1) == comp_pattern_param1_map.end()){
@@ -291,7 +291,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     tracker.barrier_time = MPI_Wtime() - init_time;
 
     // If autotuning, we do not need to subtract out over-counted idle time. Doing so would just be adding extra overhead
-    if (is_autotuning){
+    if (autotuning_mode==0){
     // If eager protocol is enabled, its assumed that any message latency the sender incurs is negligable, and thus the receiver incurs its true idle time above
     // Again, the gray-area is with Sendrecv variants, and we assume they are treated without eager protocol
     if (!true_eager_p2p){
@@ -357,7 +357,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.synch_time = 0.;// might get updated below
 
   // For autotuning, we don't need to worry about tracking synchronization time. Doing so would just be adding unecessary overead.
-  if (is_autotuning){
+  //   That is, unless we need the effective network bandwidth rates.
+  if (autotuning_mode==0 || pattern_param==2){
   if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
     assert(partner1 != MPI_ANY_SOURCE);
     if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
@@ -438,7 +439,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   bool schedule_decision = schedule_kernels==1 ? true : false;
-  if (pattern_param>0){
+  if (autotuning_mode>0){
     int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_param1_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : comm_rank - tracker.partner1));
@@ -497,7 +498,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
   }
 
-  if (pattern_param>0){
+  if (autotuning_mode>0){
     int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_param1_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : comm_rank - tracker.partner1));
@@ -1167,12 +1168,13 @@ void path::flush_patterns(blocking& tracker){
   // debug
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   for (auto& it : comm_pattern_param1_map){
-    // We only care about those patterns that are stil active
+    // We only care about those patterns that are stil active. If its not, the profile data will belong to the steady state buffers
     if (it.second.is_active){
+      // If the corresponding kernel reached steady state in the last phase, flush it.
       if (active_patterns[it.second.val_index].steady_state == 1){
         // Flush to steady_state_patterns
-        steady_state_patterns.emplace_back(active_patterns[it.second.val_index]);
-        steady_state_comm_pattern_keys.emplace_back(active_comm_pattern_keys[it.second.key_index]);
+        steady_state_patterns.push_back(active_patterns[it.second.val_index]);
+        steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
         // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
         // Update the val/key indices to reflect the change in buffers
         comm_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
@@ -1181,10 +1183,10 @@ void path::flush_patterns(blocking& tracker){
       }
       else{
         // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
-        active_comm_pattern_keys_mirror.emplace_back(active_comm_pattern_keys[it.second.key_index]);
-        active_patterns_mirror.emplace_back(active_patterns[it.second.val_index]);
+        active_comm_pattern_keys_mirror.push_back(active_comm_pattern_keys[it.second.key_index]);
+        active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
         comm_pattern_param1_map[it.first].val_index = active_patterns_mirror.size()-1;
-        comm_pattern_param1_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;;
+        comm_pattern_param1_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
       }
     }
   }
@@ -1193,8 +1195,8 @@ void path::flush_patterns(blocking& tracker){
     if (it.second.is_active){
       if (active_patterns[it.second.val_index].steady_state == 1){
         // Flush to steady_state_patterns
-        steady_state_patterns.emplace_back(active_patterns[it.second.val_index]);
-        steady_state_comp_pattern_keys.emplace_back(active_comp_pattern_keys[it.second.key_index]);
+        steady_state_patterns.push_back(active_patterns[it.second.val_index]);
+        steady_state_comp_pattern_keys.push_back(active_comp_pattern_keys[it.second.key_index]);
         // Update active_patterns and active_comp_pattern_keys to remove that "hole" in each array
         // Update the val/key indices to reflect the change in buffers
         comp_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
@@ -1203,10 +1205,10 @@ void path::flush_patterns(blocking& tracker){
       }
       else{
         // Update active_patterns and active_comp_pattern_keys to remove that "hole" in each array
-        active_comp_pattern_keys_mirror.emplace_back(active_comp_pattern_keys[it.second.key_index]);
-        active_patterns_mirror.emplace_back(active_patterns[it.second.val_index]);
+        active_comp_pattern_keys_mirror.push_back(active_comp_pattern_keys[it.second.key_index]);
+        active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
         comp_pattern_param1_map[it.first].val_index = active_patterns_mirror.size()-1;
-        comp_pattern_param1_map[it.first].key_index = active_comp_pattern_keys_mirror.size()-1;;
+        comp_pattern_param1_map[it.first].key_index = active_comp_pattern_keys_mirror.size()-1;
       }
     }
   }
@@ -1214,9 +1216,128 @@ void path::flush_patterns(blocking& tracker){
     std::cout << active_comm_pattern_keys_mirror.size() << " " << active_comp_pattern_keys_mirror.size() << " " << active_patterns_mirror.size() << " " << steady_state_patterns.size() << std::endl;
   }
 
+/*
+  // debug
+  assert(active_comm_pattern_keys_mirror.size() == active_comm_pattern_keys.size());
+  assert(active_comp_pattern_keys_mirror.size() == active_comp_pattern_keys.size());
+  assert(active_patterns_mirror.size() == active_patterns.size());
+
+
+  if (world_rank==0){
+    size_t j=0;
+    size_t i=0;
+    for (auto it : comm_pattern_param1_map){
+      std::cout << active_comm_pattern_keys[it.second.key_index].tag << " " << active_comm_pattern_keys_mirror[i].tag;
+      std::cout << "\t" << active_comm_pattern_keys[it.second.key_index].comm_size << " " << active_comm_pattern_keys_mirror[i].comm_size;
+      std::cout << "\t" << active_comm_pattern_keys[it.second.key_index].comm_color << " " << active_comm_pattern_keys_mirror[i].comm_color;
+      std::cout << "\t" << active_comm_pattern_keys[it.second.key_index].partner_offset << " " << active_comm_pattern_keys_mirror[i].partner_offset;
+      std::cout << "\t" << active_comm_pattern_keys[it.second.key_index].pattern_index << " " << active_comm_pattern_keys_mirror[i].pattern_index;
+      std::cout << "\t" << active_comm_pattern_keys[it.second.key_index].msg_size << " " << active_comm_pattern_keys_mirror[i].msg_size;
+      std::cout << "\n";
+      std::cout << "\t" << active_patterns[it.second.val_index].num_schedules << " " << active_patterns_mirror[j].num_schedules;
+      std::cout << "\t" << active_patterns[it.second.val_index].num_non_schedules << " " << active_patterns_mirror[j].num_non_schedules;
+      std::cout << "\t" << active_patterns[it.second.val_index].num_scheduled_units << " " << active_patterns_mirror[j].num_scheduled_units;
+      std::cout << "\t" << active_patterns[it.second.val_index].num_non_scheduled_units << " " << active_patterns_mirror[j].num_non_scheduled_units;
+      std::cout << "\t" << active_patterns[it.second.val_index].M1 << " " << active_patterns_mirror[j].M1;
+      std::cout << "\t" << active_patterns[it.second.val_index].M2 << " " << active_patterns_mirror[j].M2;
+      std::cout << "\t" << active_patterns[it.second.val_index].total_exec_time << " " << active_patterns_mirror[j].total_exec_time;
+      std::cout << "\n";
+
+      comm_pattern_param1_map[it.first].val_index = j;
+      comm_pattern_param1_map[it.first].key_index = i;
+
+      i++;
+      j++;
+    }
+    std::cout << "\n\n";
+    i=0;
+    for (auto it : comp_pattern_param1_map){
+      std::cout << active_comp_pattern_keys[i].tag << " " << active_comp_pattern_keys_mirror[i].tag;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].param1 << " " << active_comp_pattern_keys_mirror[i].param1;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].param2 << " " << active_comp_pattern_keys_mirror[i].param2;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].param3 << " " << active_comp_pattern_keys_mirror[i].param3;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].param4 << " " << active_comp_pattern_keys_mirror[i].param4;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].param5 << " " << active_comp_pattern_keys_mirror[i].param5;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].pattern_index << " " << active_comp_pattern_keys_mirror[i].pattern_index;
+      std::cout << "\t" << active_comp_pattern_keys[it.second.key_index].flops << " " << active_comp_pattern_keys_mirror[i].flops;
+      std::cout << "\n";
+      std::cout << "\t" << active_patterns[it.second.val_index].num_schedules << " " << active_patterns_mirror[j].num_schedules;
+      std::cout << "\t" << active_patterns[it.second.val_index].num_non_schedules << " " << active_patterns_mirror[j].num_non_schedules;
+      std::cout << "\t" << active_patterns[it.second.val_index].num_scheduled_units << " " << active_patterns_mirror[j].num_scheduled_units;
+      std::cout << "\t" << active_patterns[it.second.val_index].num_non_scheduled_units << " " << active_patterns_mirror[j].num_non_scheduled_units;
+      std::cout << "\t" << active_patterns[it.second.val_index].M1 << " " << active_patterns_mirror[j].M1;
+      std::cout << "\t" << active_patterns[it.second.val_index].M2 << " " << active_patterns_mirror[j].M2;
+      std::cout << "\t" << active_patterns[it.second.val_index].total_exec_time << " " << active_patterns_mirror[j].total_exec_time;
+      std::cout << "\n";
+
+      comp_pattern_param1_map[it.first].val_index = j;
+      comp_pattern_param1_map[it.first].key_index = i;
+
+      i++;
+      j++;
+    }
+    std::cout << "\n\n";
+  }
+*/
+
+  active_comm_pattern_keys = active_comm_pattern_keys_mirror;
+  active_comp_pattern_keys = active_comp_pattern_keys_mirror;
+  active_patterns = active_patterns_mirror;
+
+/*
+  if (world_rank==0){
+    size_t j=0;
+    for (auto i=0; i<active_comm_pattern_keys.size(); i++){
+      std::cout << active_comm_pattern_keys[i].tag << " " << active_comm_pattern_keys_mirror[i].tag;
+      std::cout << "\t" << active_comm_pattern_keys[i].comm_size << " " << active_comm_pattern_keys_mirror[i].comm_size;
+      std::cout << "\t" << active_comm_pattern_keys[i].comm_color << " " << active_comm_pattern_keys_mirror[i].comm_color;
+      std::cout << "\t" << active_comm_pattern_keys[i].partner_offset << " " << active_comm_pattern_keys_mirror[i].partner_offset;
+      std::cout << "\t" << active_comm_pattern_keys[i].pattern_index << " " << active_comm_pattern_keys_mirror[i].pattern_index;
+      std::cout << "\t" << active_comm_pattern_keys[i].msg_size << " " << active_comm_pattern_keys_mirror[i].msg_size;
+      std::cout << "\n";
+      std::cout << "\t" << active_patterns[j].num_schedules << " " << active_patterns_mirror[j].num_schedules;
+      std::cout << "\t" << active_patterns[j].num_non_schedules << " " << active_patterns_mirror[j].num_non_schedules;
+      std::cout << "\t" << active_patterns[j].num_scheduled_units << " " << active_patterns_mirror[j].num_scheduled_units;
+      std::cout << "\t" << active_patterns[j].num_non_scheduled_units << " " << active_patterns_mirror[j].num_non_scheduled_units;
+      std::cout << "\t" << active_patterns[j].M1 << " " << active_patterns_mirror[j].M1;
+      std::cout << "\t" << active_patterns[j].M2 << " " << active_patterns_mirror[j].M2;
+      std::cout << "\t" << active_patterns[j].total_exec_time << " " << active_patterns_mirror[j].total_exec_time;
+      std::cout << "\n";
+      j++;
+    }
+    std::cout << "\n\n";
+    for (auto i=0; i<active_comp_pattern_keys.size(); i++){
+      std::cout << active_comp_pattern_keys[i].tag << " " << active_comp_pattern_keys_mirror[i].tag;
+      std::cout << "\t" << active_comp_pattern_keys[i].param1 << " " << active_comp_pattern_keys_mirror[i].param1;
+      std::cout << "\t" << active_comp_pattern_keys[i].param2 << " " << active_comp_pattern_keys_mirror[i].param2;
+      std::cout << "\t" << active_comp_pattern_keys[i].param3 << " " << active_comp_pattern_keys_mirror[i].param3;
+      std::cout << "\t" << active_comp_pattern_keys[i].param4 << " " << active_comp_pattern_keys_mirror[i].param4;
+      std::cout << "\t" << active_comp_pattern_keys[i].param5 << " " << active_comp_pattern_keys_mirror[i].param5;
+      std::cout << "\t" << active_comp_pattern_keys[i].pattern_index << " " << active_comp_pattern_keys_mirror[i].pattern_index;
+      std::cout << "\t" << active_comp_pattern_keys[i].flops << " " << active_comp_pattern_keys_mirror[i].flops;
+      std::cout << "\n";
+      std::cout << "\t" << active_patterns[j].num_schedules << " " << active_patterns_mirror[j].num_schedules;
+      std::cout << "\t" << active_patterns[j].num_non_schedules << " " << active_patterns_mirror[j].num_non_schedules;
+      std::cout << "\t" << active_patterns[j].num_scheduled_units << " " << active_patterns_mirror[j].num_scheduled_units;
+      std::cout << "\t" << active_patterns[j].num_non_scheduled_units << " " << active_patterns_mirror[j].num_non_scheduled_units;
+      std::cout << "\t" << active_patterns[j].M1 << " " << active_patterns_mirror[j].M1;
+      std::cout << "\t" << active_patterns[j].M2 << " " << active_patterns_mirror[j].M2;
+      std::cout << "\t" << active_patterns[j].total_exec_time << " " << active_patterns_mirror[j].total_exec_time;
+      std::cout << "\n";
+      j++;
+    }
+    std::cout << "\n*****************************************************************************************************************************************\n";
+  }
+*/
+
+
+
+
+/*
   active_comm_pattern_keys.resize(active_comm_pattern_keys_mirror.size());
   active_comp_pattern_keys.resize(active_comp_pattern_keys_mirror.size());
   active_patterns.resize(active_patterns_mirror.size());
+
   if (active_comm_pattern_keys.size()>0){
     std::memcpy(&active_comm_pattern_keys[0],&active_comm_pattern_keys_mirror[0],sizeof(comm_pattern_param1_key)*active_comm_pattern_keys.size());
   }
@@ -1226,6 +1347,7 @@ void path::flush_patterns(blocking& tracker){
   if (active_patterns.size()>0){
     std::memcpy(&active_patterns[0],&active_patterns_mirror[0],sizeof(pattern_param1)*active_patterns.size());
   }
+*/
 }
 
 
@@ -1669,7 +1791,7 @@ void path::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
-  if (symbol_path_select_size>0 || pattern_param>0){
+  if (symbol_path_select_size>0 || autotuning_mode>2){// Autotuning using critical path analysis requires knowledge of which rank determined the cp
     //TODO: Idea for 2-stage reduction: move this out of the mode>=2 if statement, and then after this, scan the critical_path_costs and zero out what is not defining a critical path and then post a MPI_Allreduce (via multi-root hack)
     for (int i=0; i<num_critical_path_measures; i++){
       info_sender[i].first = critical_path_costs[i];
@@ -1739,11 +1861,12 @@ void path::propagate(blocking& tracker){
     }
   }
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
-  if (pattern_param>0){
-//    propagate_patterns(tracker,rank);
+  if (autotuning_mode>2 && autotuning_propagate>0){
+    propagate_patterns(tracker,rank);
     // check for world communication, in which case we can flush the steady-state kernels out of the active buffers for more efficient propagation
     if ((tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1)){
-//      flush_patterns(tracker);
+      assert(tracker.tag==0);//debug
+      flush_patterns(tracker);
     }
   }
   if (true_eager_p2p){

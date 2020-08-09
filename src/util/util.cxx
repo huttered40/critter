@@ -3,7 +3,8 @@
 namespace critter{
 namespace internal{
 
-int is_autotuning;
+int autotuning_mode;
+int autotuning_propagate;
 int schedule_kernels;
 MPI_Datatype comm_pattern_key_type;
 MPI_Datatype comp_pattern_key_type;

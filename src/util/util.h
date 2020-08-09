@@ -74,6 +74,25 @@ struct comm_pattern_param1_key{
     this->partner_offset = _partner_offset;
   }
 
+  comm_pattern_param1_key(const comm_pattern_param1_key& _copy){
+    this->pattern_index = _copy.pattern_index;
+    this->tag = _copy.tag;
+    this->comm_size = _copy.comm_size;
+    this->comm_color = _copy.comm_color;
+    this->msg_size = _copy.msg_size;
+    this->partner_offset = _copy.partner_offset;
+  }
+
+  comm_pattern_param1_key& operator=(const comm_pattern_param1_key& _copy){
+    this->pattern_index = _copy.pattern_index;
+    this->tag = _copy.tag;
+    this->comm_size = _copy.comm_size;
+    this->comm_color = _copy.comm_color;
+    this->msg_size = _copy.msg_size;
+    this->partner_offset = _copy.partner_offset;
+    return *this;
+  }
+
   friend bool operator==(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
     if ((ref1.tag==ref2.tag) && (ref1.comm_size == ref2.comm_size) && (ref1.comm_color == ref2.comm_color) && (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
     else return false;
@@ -112,6 +131,29 @@ struct comp_pattern_param1_key{
     this->param3 = _param3;
     this->param4 = _param4;
     this->param5 = _param5;
+  }
+
+  comp_pattern_param1_key(const comp_pattern_param1_key& _copy){
+    this->pattern_index = _copy.pattern_index;
+    this->tag = _copy.tag;
+    this->flops = _copy.flops;
+    this->param1 = _copy.param1;
+    this->param2 = _copy.param2;
+    this->param3 = _copy.param3;
+    this->param4 = _copy.param4;
+    this->param5 = _copy.param5;
+  }
+
+  comp_pattern_param1_key& operator=(const comp_pattern_param1_key& _copy){
+    this->pattern_index = _copy.pattern_index;
+    this->tag = _copy.tag;
+    this->flops = _copy.flops;
+    this->param1 = _copy.param1;
+    this->param2 = _copy.param2;
+    this->param3 = _copy.param3;
+    this->param4 = _copy.param4;
+    this->param5 = _copy.param5;
+    return *this;
   }
 
   friend bool operator==(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
@@ -155,6 +197,31 @@ struct pattern_param1{
     //this->M3=0; this->M4=0;
   }
 
+  pattern_param1(const pattern_param1& _copy){
+    this->total_exec_time = _copy.total_exec_time;
+    this->steady_state = _copy.steady_state;
+    this->num_schedules = _copy.num_schedules;
+    this->num_non_schedules = _copy.num_non_schedules;
+    this->num_scheduled_units = _copy.num_scheduled_units;
+    this->num_non_scheduled_units = _copy.num_non_scheduled_units;
+    this->M1 = _copy.M1;
+    this->M2 = _copy.M2;
+    //this->M3=0; this->M4=0;
+  }
+
+  pattern_param1& operator=(const pattern_param1& _copy){
+    this->total_exec_time = _copy.total_exec_time;
+    this->steady_state = _copy.steady_state;
+    this->num_schedules = _copy.num_schedules;
+    this->num_non_schedules = _copy.num_non_schedules;
+    this->num_scheduled_units = _copy.num_scheduled_units;
+    this->num_non_scheduled_units = _copy.num_non_scheduled_units;
+    this->M1 = _copy.M1;
+    this->M2 = _copy.M2;
+    //this->M3=0; this->M4=0;
+    return *this;
+  }
+
   int steady_state;
   int num_schedules;
   int num_non_schedules;
@@ -174,6 +241,21 @@ struct pattern_key_id{
     this->is_updated = _is_updated;
   }
 
+  pattern_key_id(const pattern_key_id& _copy){
+    this->is_active = _copy.is_active;
+    this->key_index = _copy.key_index;
+    this->val_index = _copy.val_index;
+    this->is_updated = _copy.is_updated;
+  }
+
+  pattern_key_id& operator=(const pattern_key_id& _copy){
+    this->is_active = _copy.is_active;
+    this->key_index = _copy.key_index;
+    this->val_index = _copy.val_index;
+    this->is_updated = _copy.is_updated;
+    return *this;
+  }
+
   // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
   bool is_active;
   bool is_updated;
@@ -182,7 +264,8 @@ struct pattern_key_id{
 };
 
 // ****************************************************************************************************************************************************
-extern int is_autotuning;
+extern int autotuning_mode;
+extern int autotuning_propagate;
 extern int schedule_kernels;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
