@@ -1,0 +1,26 @@
+#ifndef CRITTER__DISCRETIZATION__CONTAINER__SYMBOL_TRACKER_H_
+#define CRITTER__DISCRETIZATION__CONTAINER__SYMBOL_TRACKER_H_
+
+#include "../../util/util.h"
+
+namespace critter{
+namespace internal{
+namespace discretization{
+
+// One instance for each unique symbol
+class symbol_tracker{
+  public:
+    symbol_tracker() {}
+    symbol_tracker(std::string name_);
+    bool operator<(const symbol_tracker& w) const ;
+    void start(double save_time);
+    void stop(double save_time);
+};
+
+extern std::unordered_map<std::string,symbol_tracker> symbol_timers;
+
+}
+}
+}
+
+#endif /*CRITTER__DISCRETIZATION__CONTAINER__SYMBOL_TRACKER_H_*/

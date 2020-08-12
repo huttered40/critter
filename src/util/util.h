@@ -189,6 +189,7 @@ struct pattern_param1{
   pattern_param1(){
     this->total_exec_time = 0;
     this->steady_state=0;
+    this->global_steady_state=0;
     this->num_schedules = 0;
     this->num_non_schedules = 0;
     this->num_scheduled_units = 0;
@@ -200,6 +201,7 @@ struct pattern_param1{
   pattern_param1(const pattern_param1& _copy){
     this->total_exec_time = _copy.total_exec_time;
     this->steady_state = _copy.steady_state;
+    this->global_steady_state = _copy.global_steady_state;
     this->num_schedules = _copy.num_schedules;
     this->num_non_schedules = _copy.num_non_schedules;
     this->num_scheduled_units = _copy.num_scheduled_units;
@@ -212,6 +214,7 @@ struct pattern_param1{
   pattern_param1& operator=(const pattern_param1& _copy){
     this->total_exec_time = _copy.total_exec_time;
     this->steady_state = _copy.steady_state;
+    this->global_steady_state = _copy.global_steady_state;
     this->num_schedules = _copy.num_schedules;
     this->num_non_schedules = _copy.num_non_schedules;
     this->num_scheduled_units = _copy.num_scheduled_units;
@@ -223,6 +226,7 @@ struct pattern_param1{
   }
 
   int steady_state;
+  int global_steady_state;
   int num_schedules;
   int num_non_schedules;
   double num_scheduled_units;
