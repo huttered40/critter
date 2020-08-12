@@ -17,48 +17,20 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
   if (autotuning_mode>0){
     int patterns[4] = {0,0,0,0};
     double communications[4] = {0,0,0,0};
-    if (pattern_param==1){
-      for (auto& it : comm_pattern_param1_map){
-        auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-        patterns[0] += pattern_list[it.second.val_index].num_schedules;
-        patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
-        communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
-        communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
-/*
-        // Late debugging addition
-        if (it.second.is_active == true){
-          comm_pattern_param1_map[it.first].is_active=false;
-          steady_state_patterns.push_back(pattern_list[it.second.val_index]);
-          steady_state_patterns[steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
-          steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
-          comm_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
-          comm_pattern_param1_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
-        }
-*/
-      }
-      for (auto& it : comp_pattern_param1_map){
-        auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-        patterns[2] += pattern_list[it.second.val_index].num_schedules;
-        patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
-        communications[2] += pattern_list[it.second.val_index].num_scheduled_units;
-        communications[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
-/*
-        // Late debugging addition
-        if (it.second.is_active == true){
-          comp_pattern_param1_map[it.first].is_active=false;
-          steady_state_patterns.push_back(pattern_list[it.second.val_index]);
-          steady_state_patterns[steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
-          steady_state_comp_pattern_keys.push_back(active_comp_pattern_keys[it.second.key_index]);
-          comp_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
-          comp_pattern_param1_map[it.first].key_index = steady_state_comp_pattern_keys.size()-1;
-        }
-*/
-      }
+    for (auto& it : comm_pattern_map){
+      auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+      patterns[0] += pattern_list[it.second.val_index].num_schedules;
+      patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
+      communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
+      communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
     }
-/*
-    // Late debugging addition
-    active_patterns.clear();
-*/
+    for (auto& it : comp_pattern_map){
+      auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+      patterns[2] += pattern_list[it.second.val_index].num_schedules;
+      patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
+      communications[2] += pattern_list[it.second.val_index].num_scheduled_units;
+      communications[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
+    }
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
@@ -74,10 +46,9 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
       data[8] = communications[3];
     }
     if (print_statistical_data){
-    if (rank==0){
-      Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl;
-      if (pattern_param==1){
-        for (auto& it : comm_pattern_param1_map){
+      if (rank==0){
+        Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl;
+        for (auto& it : comm_pattern_map){
           auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
           auto& key_list = it.second.is_active == true ? active_comm_pattern_keys : steady_state_comm_pattern_keys;
           Stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
@@ -105,7 +76,7 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
         }
         Stream << std::endl;
         Stream << std::endl;
-        for (auto& it : comp_pattern_param1_map){
+        for (auto& it : comp_pattern_map){
           auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
           auto& key_list = it.second.is_active == true ? active_comp_pattern_keys : steady_state_comp_pattern_keys;
           Stream << "Rank 0 Computation pattern (" << it.first.tag
@@ -133,25 +104,24 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
           }
 */
         }
+        Stream << std::endl;
+        Stream << std::endl;
+        Stream << "Execution path parameterization #" << pattern_param << ": volumetric communication:\n";
+        Stream << "\tNum scheduled patterns - " << patterns[0] << std::endl;
+        Stream << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
+        Stream << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
+        Stream << "\tNum scheduled bytes - " << communications[0] << std::endl;
+        Stream << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
+        Stream << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
+        Stream << "Execution path parameterization #" << pattern_param << ": volumetric computation:\n";
+        Stream << "\tNum scheduled patterns - " << patterns[2] << std::endl;
+        Stream << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
+        Stream << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;
+        Stream << "\tNum scheduled flops - " << communications[2] << std::endl;
+        Stream << "\tNum total flops - " << communications[2]+communications[3] << std::endl;
+        Stream << "\tComputation flop hit ratio - " << 1. - (communications[2] * 1. / (communications[2]+communications[3])) << std::endl;
       }
-      Stream << std::endl;
-      Stream << std::endl;
-      Stream << "Execution path parameterization #" << pattern_param << ": volumetric communication:\n";
-      Stream << "\tNum scheduled patterns - " << patterns[0] << std::endl;
-      Stream << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
-      Stream << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
-      Stream << "\tNum scheduled bytes - " << communications[0] << std::endl;
-      Stream << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
-      Stream << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
-      Stream << "Execution path parameterization #" << pattern_param << ": volumetric computation:\n";
-      Stream << "\tNum scheduled patterns - " << patterns[2] << std::endl;
-      Stream << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
-      Stream << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;
-      Stream << "\tNum scheduled flops - " << communications[2] << std::endl;
-      Stream << "\tNum total flops - " << communications[2]+communications[3] << std::endl;
-      Stream << "\tComputation flop hit ratio - " << 1. - (communications[2] * 1. / (communications[2]+communications[3])) << std::endl;
     }
-  }
   }
 }
 

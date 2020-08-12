@@ -35,12 +35,12 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 
   bool schedule_decision = schedule_kernels==1 ? true : false;
   if (autotuning_mode>0){
-    comp_pattern_param1_key p_id_1(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-    if (pattern_param==1){
-      if (!(comp_pattern_param1_map.find(p_id_1) == comp_pattern_param1_map.end())){
-        schedule_decision = should_schedule(comp_pattern_param1_map[p_id_1])==1;
+    comp_pattern_key p_id_1(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+//    if (pattern_param==1){
+      if (!(comp_pattern_map.find(p_id_1) == comp_pattern_map.end())){
+        schedule_decision = should_schedule(comp_pattern_map[p_id_1])==1;
       }
-    }
+//    }
   }
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
@@ -55,18 +55,18 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   if (schedule_kernels==0){ return; }
 
   if (autotuning_mode>0){
-    comp_pattern_param1_key p_id_1(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
-    if (pattern_param == 1){
-      if (comp_pattern_param1_map.find(p_id_1) == comp_pattern_param1_map.end()){
+    comp_pattern_key p_id_1(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
+//    if (pattern_param == 1){
+      if (comp_pattern_map.find(p_id_1) == comp_pattern_map.end()){
         active_comp_pattern_keys.emplace_back(p_id_1);
-        active_patterns.emplace_back(pattern_param1());
-        comp_pattern_param1_map[p_id_1] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
+        active_patterns.emplace_back(pattern());
+        comp_pattern_map[p_id_1] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
       }
-      if (should_schedule(comp_pattern_param1_map[p_id_1]) == 0){
-        comp_time = get_arithmetic_mean(comp_pattern_param1_map[p_id_1]);
+      if (should_schedule(comp_pattern_map[p_id_1]) == 0){
+        comp_time = get_arithmetic_mean(comp_pattern_map[p_id_1]);
       }
-      update(comp_pattern_param1_map[p_id_1],comp_time,flop_count);
-    }
+      update(comp_pattern_map[p_id_1],comp_time,flop_count);
+//    }
   }
   critical_path_costs[num_critical_path_measures-5] += flop_count;
   critical_path_costs[num_critical_path_measures-2] += comp_time;
@@ -134,12 +134,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   bool schedule_decision = schedule_kernels==1 ? true : false;
   int schedule_decision_int; int schedule_decision_foreign_int;
   if (autotuning_mode>0){
-    comm_pattern_param1_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
-    if (pattern_param==1){
-      if (!(comm_pattern_param1_map.find(p_id_1) == comm_pattern_param1_map.end())){
-        schedule_decision = should_schedule_global(comm_pattern_param1_map[p_id_1])==1;
+    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
+//    if (pattern_param==1){
+      if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
+        schedule_decision = should_schedule_global(comm_pattern_map[p_id_1])==1;
       }
-    }
+//    }
   }
 
   if (autotuning_mode==0 || schedule_decision==true){
@@ -214,12 +214,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
 
   if (autotuning_mode>0 && schedule_decision == true){
-    comm_pattern_param1_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
-    if (pattern_param==1){
-      if (!(comm_pattern_param1_map.find(p_id_1) == comm_pattern_param1_map.end())){
-        schedule_decision = should_schedule(comm_pattern_param1_map[p_id_1])==1;
+    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
+//    if (pattern_param==1){
+      if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
+        schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
       }
-    }
+//    }
     schedule_decision_int = (int)schedule_decision;
     if (tracker.partner1 == -1){
       PMPI_Allreduce(MPI_IN_PLACE, &schedule_decision_int, 1, MPI_INT, MPI_SUM, tracker.comm);
@@ -249,10 +249,10 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
     // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
     //   and never have to use another internal collective to check again.
-    if (!(comm_pattern_param1_map.find(p_id_1) == comm_pattern_param1_map.end())){
-      set_schedule(comm_pattern_param1_map[p_id_1],schedule_decision);
+    if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
+      set_schedule(comm_pattern_map[p_id_1],schedule_decision);
       if (autotuning_mode == 3){// prevents critical path analysis from changing global steady_state
-        active_patterns[comm_pattern_param1_map[p_id_1].val_index].global_steady_state=0;
+        active_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0;
       }
     }
   }
@@ -286,21 +286,21 @@ void path::complete_comm(blocking& tracker, int recv_source){
   bool autotuning_special_bool = false;
   if (autotuning_mode>0){
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
-    comm_pattern_param1_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
-    if (pattern_param == 1){
-      if (comm_pattern_param1_map.find(p_id_1) == comm_pattern_param1_map.end()){
+    comm_pattern_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
+//    if (pattern_param == 1){
+      if (comm_pattern_map.find(p_id_1) == comm_pattern_map.end()){
         active_comm_pattern_keys.emplace_back(p_id_1);
-        active_patterns.emplace_back(pattern_param1());
-        comm_pattern_param1_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
+        active_patterns.emplace_back(pattern());
+        comm_pattern_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
       }
-      if (should_schedule(comm_pattern_param1_map[p_id_1])==0){
-        comm_time = get_arithmetic_mean(comm_pattern_param1_map[p_id_1]);
+      if (should_schedule(comm_pattern_map[p_id_1])==0){
+        comm_time = get_arithmetic_mean(comm_pattern_map[p_id_1]);
       }
-      if (should_schedule_global(comm_pattern_param1_map[p_id_1])==0){
+      if (should_schedule_global(comm_pattern_map[p_id_1])==0){
         autotuning_special_bool = true;
       }
-      update(comm_pattern_param1_map[p_id_1],comm_time,tracker.nbytes);
-    }
+      update(comm_pattern_map[p_id_1],comm_time,tracker.nbytes);
+//    }
   }
 
   // Update measurements that define the critical path for each metric.
@@ -383,10 +383,10 @@ void path::flush_patterns(blocking& tracker){
   //     as these patterns are no longer being scheduled, and thus their arithmetic mean is fixed for the rest of the program.
   // As I iterate over the entries, I will mark "is_updated=true" for those that were flushed.
   // A 3rd and final loop over active_patterns will collapse the array and update the key and value indices in the corresponding map values
-  std::vector<comm_pattern_param1_key> active_comm_pattern_keys_mirror;
-  std::vector<comp_pattern_param1_key> active_comp_pattern_keys_mirror;
-  std::vector<pattern_param1> active_patterns_mirror;
-  for (auto it : comm_pattern_param1_map){
+  std::vector<comm_pattern_key> active_comm_pattern_keys_mirror;
+  std::vector<comp_pattern_key> active_comp_pattern_keys_mirror;
+  std::vector<pattern> active_patterns_mirror;
+  for (auto it : comm_pattern_map){
     // We only care about those patterns that are stil active. If its not, the profile data will belong to the steady state buffers
     if (it.second.is_active){
       // If the corresponding kernel reached steady state in the last phase, flush it.
@@ -396,9 +396,9 @@ void path::flush_patterns(blocking& tracker){
         steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
         // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
         // Update the val/key indices to reflect the change in buffers
-        comm_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
-        comm_pattern_param1_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
-        comm_pattern_param1_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
+        comm_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+        comm_pattern_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
+        comm_pattern_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
         steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
         steady_state_comm_pattern_keys[steady_state_comm_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
       }
@@ -406,13 +406,13 @@ void path::flush_patterns(blocking& tracker){
         // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
         active_comm_pattern_keys_mirror.push_back(active_comm_pattern_keys[it.second.key_index]);
         active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
-        comm_pattern_param1_map[it.first].val_index = active_patterns_mirror.size()-1;
-        comm_pattern_param1_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
+        comm_pattern_map[it.first].val_index = active_patterns_mirror.size()-1;
+        comm_pattern_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
         active_comm_pattern_keys_mirror[active_comm_pattern_keys_mirror.size()-1].pattern_index = active_patterns_mirror.size()-1;
       }
     }
   }
-  for (auto it : comp_pattern_param1_map){
+  for (auto it : comp_pattern_map){
     // We only care about those patterns that are stil active
     if (it.second.is_active){
       if (active_patterns[it.second.val_index].steady_state == 1){// Reason for not using "global_steady_state" is because comp patterns do not use them.
@@ -421,9 +421,9 @@ void path::flush_patterns(blocking& tracker){
         steady_state_comp_pattern_keys.push_back(active_comp_pattern_keys[it.second.key_index]);
         // Update active_patterns and active_comp_pattern_keys to remove that "hole" in each array
         // Update the val/key indices to reflect the change in buffers
-        comp_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
-        comp_pattern_param1_map[it.first].key_index = steady_state_comp_pattern_keys.size()-1;
-        comp_pattern_param1_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
+        comp_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+        comp_pattern_map[it.first].key_index = steady_state_comp_pattern_keys.size()-1;
+        comp_pattern_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
         steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
         steady_state_comp_pattern_keys[steady_state_comp_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
       }
@@ -431,8 +431,8 @@ void path::flush_patterns(blocking& tracker){
         // Update active_patterns and active_comp_pattern_keys to remove that "hole" in each array
         active_comp_pattern_keys_mirror.push_back(active_comp_pattern_keys[it.second.key_index]);
         active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
-        comp_pattern_param1_map[it.first].val_index = active_patterns_mirror.size()-1;
-        comp_pattern_param1_map[it.first].key_index = active_comp_pattern_keys_mirror.size()-1;
+        comp_pattern_map[it.first].val_index = active_patterns_mirror.size()-1;
+        comp_pattern_map[it.first].key_index = active_comp_pattern_keys_mirror.size()-1;
         active_comp_pattern_keys_mirror[active_comp_pattern_keys_mirror.size()-1].pattern_index = active_patterns_mirror.size()-1;
       }
     }
@@ -508,25 +508,25 @@ void path::propagate_patterns(blocking& tracker, int rank){
 
   // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
   for (auto i=0; i<active_comm_pattern_keys.size(); i++){
-    comm_pattern_param1_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].comm_size,
+    comm_pattern_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].comm_size,
                               active_comm_pattern_keys[i].comm_color,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
-    if (comm_pattern_param1_map.find(id) == comm_pattern_param1_map.end()){
-      comm_pattern_param1_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, true);
+    if (comm_pattern_map.find(id) == comm_pattern_map.end()){
+      comm_pattern_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, true);
     } else{
-      comm_pattern_param1_map[id].is_active = true;	// always assumed true
-      comm_pattern_param1_map[id].key_index = i;
-      comm_pattern_param1_map[id].val_index = active_comm_pattern_keys[i].pattern_index;
-      comm_pattern_param1_map[id].is_updated = true;
+      comm_pattern_map[id].is_active = true;	// always assumed true
+      comm_pattern_map[id].key_index = i;
+      comm_pattern_map[id].val_index = active_comm_pattern_keys[i].pattern_index;
+      comm_pattern_map[id].is_updated = true;
     }
   }
 
   // Delete those keys that no longer lie along the critical path
   // TODO: I may be able to just skip this loop if I am not deleting anything.
   //   NO!!!!! I cannot just delete it. The problem is that these indices are no longer valid, so when I go to update, I will be updating the wrong kernel.
-  for (auto it = comm_pattern_param1_map.begin(); it != comm_pattern_param1_map.end();){
+  for (auto it = comm_pattern_map.begin(); it != comm_pattern_map.end();){
     if (!it->second.is_active){ it++; continue;  }
     if (!it->second.is_updated){
-      it = comm_pattern_param1_map.erase(it);
+      it = comm_pattern_map.erase(it);
     }
     else{
       it->second.is_updated=false;	// to prepare for next propagation
@@ -534,23 +534,23 @@ void path::propagate_patterns(blocking& tracker, int rank){
     }
   }
   for (auto i=0; i<active_comp_pattern_keys.size(); i++){
-    comp_pattern_param1_key id(active_comp_pattern_keys[i].pattern_index,active_comp_pattern_keys[i].tag,active_comp_pattern_keys[i].flops,
+    comp_pattern_key id(active_comp_pattern_keys[i].pattern_index,active_comp_pattern_keys[i].tag,active_comp_pattern_keys[i].flops,
                                active_comp_pattern_keys[i].param1,active_comp_pattern_keys[i].param2,active_comp_pattern_keys[i].param3,
                                active_comp_pattern_keys[i].param4,active_comp_pattern_keys[i].param5); 
-    if (comp_pattern_param1_map.find(id) == comp_pattern_param1_map.end()){
-      comp_pattern_param1_map[id] = pattern_key_id(true, i, active_comp_pattern_keys[i].pattern_index,true);
+    if (comp_pattern_map.find(id) == comp_pattern_map.end()){
+      comp_pattern_map[id] = pattern_key_id(true, i, active_comp_pattern_keys[i].pattern_index,true);
     } else{
-      comp_pattern_param1_map[id].is_active = true;	// always assumed true
-      comp_pattern_param1_map[id].key_index = i;
-      comp_pattern_param1_map[id].val_index = active_comp_pattern_keys[i].pattern_index;
-      comp_pattern_param1_map[id].is_updated = true;
+      comp_pattern_map[id].is_active = true;	// always assumed true
+      comp_pattern_map[id].key_index = i;
+      comp_pattern_map[id].val_index = active_comp_pattern_keys[i].pattern_index;
+      comp_pattern_map[id].is_updated = true;
     }
   }
   // Delete those keys that no longer lie along the critical path
-  for (auto it = comp_pattern_param1_map.begin(); it != comp_pattern_param1_map.end();){
+  for (auto it = comp_pattern_map.begin(); it != comp_pattern_map.end();){
     if (!it->second.is_active){ it++; continue;  }
     if (!it->second.is_updated){
-      it = comp_pattern_param1_map.erase(it);
+      it = comp_pattern_map.erase(it);
     }
     else{
       it->second.is_updated=false;	// to prepare for next propagation
