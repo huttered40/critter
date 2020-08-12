@@ -1,4 +1,5 @@
 #include "comm_tracker.h"
+#include "../util/util.h"
 
 namespace critter{
 namespace internal{

@@ -62,81 +62,10 @@ void _init(int* argc, char*** argv){
   } else{
     mechanism = 0;
   }
-  if (std::getenv("CRITTER_OPT") != NULL){
-    opt = atoi(std::getenv("CRITTER_OPT"));
-    delete_comm = 0;
-  } else{
-    opt = 0;
-  }
-  if (std::getenv("CRITTER_OPT_MAX_ITER") != NULL){
-    opt_max_iter = atoi(std::getenv("CRITTER_OPT_MAX_ITER"));
-  } else{
-    opt_max_iter = 5;
-  }
-  if (std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS") != NULL){
-    num_gradient_points = atoi(std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS"));
-  } else{
-    num_gradient_points = 10;
-  }
-  if (std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE") != NULL){
-    gradient_jump_size = atoi(std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE"));
-  } else{
-    gradient_jump_size = 5;// signifies 5%
-  }
-  if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
-    _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
-  } else{
-    _cost_models_ = "11";
-  }
-  if (std::getenv("CRITTER_SYMBOL_PATH_SELECT") != NULL){
-    _symbol_path_select_ = std::getenv("CRITTER_SYMBOL_PATH_SELECT");
-  } else{
-    _symbol_path_select_ = "000000000";
-  }
-  if (std::getenv("CRITTER_COMM_PATH_SELECT") != NULL){
-    _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
-  } else{
-    _comm_path_select_ = "000000000";
-  }
-  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
-    flag = 1;
-    file_name = std::getenv("CRITTER_VIZ_FILE");
-    stream_name = file_name + ".txt";
-  }
-  if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
-    max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));
-  } else{
-    max_num_symbols = 15;
-  }
-  if (std::getenv("CRITTER_MAX_SYMBOL_LENGTH") != NULL){
-    max_timer_name_length = atoi(std::getenv("CRITTER_MAX_SYMBOL_LENGTH"));
-  } else{
-    max_timer_name_length = 25;
-  }
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
   } else{
     auto_capture = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
-    pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
-  } else{
-    pattern_param = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
-    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
-  } else{
-    pattern_count_limit = 1;
-  }
-  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
-    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
-  } else{
-    pattern_time_limit = .001;
-  }
-  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
-    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
-  } else{
-    pattern_error_limit = .5;
   }
   if (std::getenv("CRITTER_TRACK_BLAS") != NULL){
     track_blas = atoi(std::getenv("CRITTER_TRACK_BLAS"));
@@ -171,14 +100,6 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_DELETE_COMM") != NULL){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
   }
-  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
-    schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
-  } else{
-    schedule_kernels = 1;
-  }
-  assert(_cost_models_.size()==2);
-  assert(_comm_path_select_.size()==9);
-  assert(_symbol_path_select_.size()==9);
   is_first_iter = true;
   int _world_rank;
   MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);

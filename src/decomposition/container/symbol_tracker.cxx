@@ -1,4 +1,5 @@
 #include "symbol_tracker.h"
+#include "../util/util.h"
 
 namespace critter{
 namespace internal{
@@ -8,6 +9,7 @@ namespace decomposition{
 std::unordered_map<std::string,symbol_tracker> symbol_timers;
 
 symbol_tracker::symbol_tracker(std::string name_){
+  if (symbol_path_select_size==0) return;
   assert(name_.size() <= max_timer_name_length);
   assert(symbol_timers.size() < max_num_symbols);
   this->name = std::move(name_);
@@ -49,6 +51,7 @@ symbol_tracker::symbol_tracker(std::string name_){
 }
 
 void symbol_tracker::start(double save_time){
+  if (symbol_path_select_size==0) return;
   if (symbol_stack.size()>0){
     auto last_symbol_time = save_time-symbol_timers[symbol_stack.top()].start_timer.top();
     for (auto i=0; i<symbol_path_select_size; i++){
@@ -93,6 +96,7 @@ void symbol_tracker::start(double save_time){
 }
 
 void symbol_tracker::stop(double save_time){
+  if (symbol_path_select_size==0) return;
   assert(this->start_timer.size()>0);
   auto last_symbol_time = save_time-this->start_timer.top();
   for (auto j=0; j<symbol_path_select_size; j++){

@@ -6,6 +6,42 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
+size_t cp_symbol_class_count;
+size_t pp_symbol_class_count;
+size_t vol_symbol_class_count;
+size_t max_num_symbols;
+size_t max_timer_name_length;
+std::string _cost_models_,_symbol_path_select_,_comm_path_select_;
+size_t cost_model_size;
+size_t symbol_path_select_size;
+size_t comm_path_select_size;
+std::vector<char> cost_models;
+std::vector<char> symbol_path_select;
+std::vector<char> comm_path_select;
+std::vector<char> symbol_pad_cp;
+std::vector<char> symbol_pad_ncp1;
+std::vector<char> symbol_pad_ncp2;
+std::vector<int> symbol_len_pad_cp;
+std::vector<int> symbol_len_pad_ncp1;
+std::vector<int> symbol_len_pad_ncp2;
+std::vector<double> symbol_timer_pad_local_cp;
+std::vector<double> symbol_timer_pad_global_cp;
+std::vector<double> symbol_timer_pad_global_cp2;
+std::vector<double> symbol_timer_pad_local_pp;
+std::vector<double> symbol_timer_pad_global_pp;
+std::vector<double> symbol_timer_pad_local_vol;
+std::vector<double> symbol_timer_pad_global_vol;
+std::stack<std::string> symbol_stack;
+std::vector<std::string> symbol_order;
+std::vector<int> symbol_path_select_index;
+std::vector<event> event_list;
+std::vector<int> opt_req_match;
+std::vector<double> opt_measure_match;
+size_t event_list_size;
+size_t opt_max_iter;
+size_t gradient_jump_size;
+size_t num_gradient_points;
+
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
@@ -15,6 +51,63 @@ void allocate(MPI_Comm comm){
   mode_1_width = 25;
   mode_2_width = 15;
   event_list_size = 0;
+
+/*
+  if (std::getenv("CRITTER_OPT") != NULL){
+    opt = atoi(std::getenv("CRITTER_OPT"));
+    delete_comm = 0;
+  } else{
+    opt = 0;
+  }
+  if (std::getenv("CRITTER_OPT_MAX_ITER") != NULL){
+    opt_max_iter = atoi(std::getenv("CRITTER_OPT_MAX_ITER"));
+  } else{
+    opt_max_iter = 5;
+  }
+  if (std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS") != NULL){
+    num_gradient_points = atoi(std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS"));
+  } else{
+    num_gradient_points = 10;
+  }
+  if (std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE") != NULL){
+    gradient_jump_size = atoi(std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE"));
+  } else{
+    gradient_jump_size = 5;// signifies 5%
+  }
+*/
+  if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
+    _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
+  } else{
+    _cost_models_ = "11";
+  }
+  if (std::getenv("CRITTER_SYMBOL_PATH_SELECT") != NULL){
+    _symbol_path_select_ = std::getenv("CRITTER_SYMBOL_PATH_SELECT");
+  } else{
+    _symbol_path_select_ = "000000000";
+  }
+  if (std::getenv("CRITTER_COMM_PATH_SELECT") != NULL){
+    _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
+  } else{
+    _comm_path_select_ = "000000000";
+  }
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    flag = 1;
+    file_name = std::getenv("CRITTER_VIZ_FILE");
+    stream_name = file_name + ".txt";
+  }
+  if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
+    max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));
+  } else{
+    max_num_symbols = 15;
+  }
+  if (std::getenv("CRITTER_MAX_SYMBOL_LENGTH") != NULL){
+    max_timer_name_length = atoi(std::getenv("CRITTER_MAX_SYMBOL_LENGTH"));
+  } else{
+    max_timer_name_length = 25;
+  }
+  assert(_cost_models_.size()==2);
+  assert(_comm_path_select_.size()==9);
+  assert(_symbol_path_select_.size()==9);
 
   cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.

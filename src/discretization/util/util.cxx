@@ -6,6 +6,27 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
+int autotuning_mode;
+int autotuning_propagate;
+int schedule_kernels;
+MPI_Datatype comm_pattern_key_type;
+MPI_Datatype comp_pattern_key_type;
+MPI_Datatype pattern_type;
+size_t pattern_param;
+size_t pattern_count_limit;
+double pattern_time_limit;
+double pattern_error_limit;
+std::map<MPI_Comm,std::pair<int,int>> communicator_map;
+std::map<comm_pattern_param1_key,pattern_key_id> comm_pattern_param1_map;
+std::map<comp_pattern_param1_key,pattern_key_id> comp_pattern_param1_map;
+std::vector<comm_pattern_param1_key> steady_state_comm_pattern_keys;
+std::vector<comm_pattern_param1_key> active_comm_pattern_keys;
+std::vector<comp_pattern_param1_key> steady_state_comp_pattern_keys;
+std::vector<comp_pattern_param1_key> active_comp_pattern_keys;
+std::vector<pattern_param1> steady_state_patterns;
+std::vector<pattern_param1> active_patterns;
+
+
 double get_arithmetic_mean(const pattern_key_id& index){
   // returns arithmetic mean
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
@@ -136,7 +157,6 @@ void allocate(MPI_Comm comm){
   PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
   PMPI_Type_commit(&pattern_type);
 
-  cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
 
   num_critical_path_measures 		= 5;
@@ -148,7 +168,6 @@ void allocate(MPI_Comm comm){
   per_process_costs_size              	= num_per_process_measures;
   volume_costs_size                   	= num_volume_measures;
 
-  decisions.resize(comm_path_select_size);
   critical_path_costs.resize(critical_path_costs_size);
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
@@ -157,16 +176,13 @@ void allocate(MPI_Comm comm){
   info_receiver.resize(num_critical_path_measures);
 
   if (eager_p2p){
-    int eager_msg_sizes[8];
+    int eager_msg_sizes[5];
     MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
     MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[1]);
     MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,comm,&eager_msg_sizes[2]);
     MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,comm,&eager_msg_sizes[3]);
     MPI_Pack_size(1,MPI_INT,comm,&eager_msg_sizes[4]);
-    MPI_Pack_size(max_num_symbols,MPI_INT,comm,&eager_msg_sizes[5]);
-    MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,comm,&eager_msg_sizes[6]);
-    MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,comm,&eager_msg_sizes[7]);
-    int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
+    int eager_pad_size = 5*MPI_BSEND_OVERHEAD;
     for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
     eager_pad.resize(eager_pad_size);
   }
@@ -203,7 +219,32 @@ void reset(bool track_statistical_data_override, bool clear_statistical_data, bo
     steady_state_patterns.clear();
     active_patterns.clear();
   }
-  // Reset this global variable, as we are updating it using function arguments for convenience
+  // Reset these global variables, as some are updated by function arguments for convenience
+  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
+    schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
+  } else{
+    schedule_kernels = 1;
+  }
+  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
+    pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
+  } else{
+    pattern_param = 0;
+  }
+  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
+    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
+  } else{
+    pattern_count_limit = 1;
+  }
+  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
+    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
+  } else{
+    pattern_time_limit = .001;
+  }
+  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
+    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
+  } else{
+    pattern_error_limit = .5;
+  }
   if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
     autotuning_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
   } else{

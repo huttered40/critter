@@ -15,22 +15,22 @@ lib/libcritter.a:\
 		obj/decomposition_container_symbol_tracker.o\
 		obj/decomposition_volumetric_volumetric.o\
 		obj/decomposition_path_path.o\
+		obj/discretization_parameterization_parameterization.o\
 		obj/discretization_util_util.o\
 		obj/discretization_record_record.o\
 		obj/discretization_container_comm_tracker.o\
 		obj/discretization_container_symbol_tracker.o\
 		obj/discretization_volumetric_volumetric.o\
 		obj/discretization_path_path.o\
-		obj/dispatch_dispatch.o\
-		obj/replay_path_path.o
+		obj/dispatch_dispatch.o
 	ar -crs lib/libcritter.a obj/util_util.o obj/intercept_comp.o obj/intercept_comm.o obj/intercept_symbol.o\
 					obj/decomposition_util_util.o obj/decomposition_record_record.o\
 					obj/decomposition_container_comm_tracker.o obj/decomposition_container_symbol_tracker.o\
 					obj/decomposition_volumetric_volumetric.o  obj/decomposition_path_path.o\
-					obj/discretization_util_util.o obj/discretization_record_record.o\
-					obj/discretization_container_comm_tracker.o obj/discretization_container_symbol_tracker.o\
-					obj/discretization_volumetric_volumetric.o  obj/discretization_path_path.o\
-					obj/dispatch_dispatch.o obj/replay_path_path.o
+					obj/discretization_util_util.o obj/discretization_parameterization_parameterization.o\
+					obj/discretization_record_record.o obj/discretization_container_comm_tracker.o\
+					obj/discretization_container_symbol_tracker.o obj/discretization_volumetric_volumetric.o\
+					obj/discretization_path_path.o obj/dispatch_dispatch.o
 
 lib/libcritter.so: obj/critter.o
 	gcc -shared -o lib/libcritter.so obj util.o obj/critter.o
@@ -67,6 +67,9 @@ obj/decomposition_path_path.o: src/decomposition/path/path.cxx
 
 obj/discretization_util_util.o: src/discretization/util/util.cxx
 	$(CXX) src/discretization/util/util.cxx -c -o obj/discretization_util_util.o $(CXXFLAGS)
+
+obj/discretization_parameterization_parameterization.o: src/discretization/parameterization/parameterization.cxx
+	$(CXX) src/discretization/parameterization/parameterization.cxx -c -o obj/discretization_parameterization_parameterization.o $(CXXFLAGS)
 
 obj/discretization_record_record.o: src/discretization/record/record.cxx
 	$(CXX) src/discretization/record/record.cxx -c -o obj/discretization_record_record.o $(CXXFLAGS)

@@ -6,14 +6,14 @@ namespace critter{
 namespace internal{
 
 void symbol_start(const char* symbol){
-  if (mode && symbol_path_select_size>0){
+  if (mode){
     volatile double save_time = MPI_Wtime();
     open_symbol(symbol,save_time);
   }
 }
 
 void symbol_stop(const char* symbol){
-  if (mode && symbol_path_select_size>0){
+  if (mode){
     volatile double save_time = MPI_Wtime();
     close_symbol(symbol,save_time);
   }

@@ -1,7 +1,8 @@
 #include "path.h"
 #include "../container/symbol_tracker.h"
-#include "../../replay/path/path.h"
+//#include "../../replay/path/path.h"
 #include "../../discretization/util/util.h"
+#include "../util/util.h"
 #include "../../util/util.h"
 
 namespace critter{
@@ -34,7 +35,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
   }
 
-  bool schedule_decision = schedule_kernels==1 ? true : false;
+  bool schedule_decision = true;
 
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
@@ -398,7 +399,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     tracker.synch_time = MPI_Wtime()-tracker.start_time;
   }
 
-  bool schedule_decision = schedule_kernels==1 ? true : false;
+  bool schedule_decision = true;
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
   return schedule_decision;
@@ -1444,7 +1445,7 @@ void path::propagate(blocking& tracker){
   if (opt && tracker.tag==0 && tracker.comm==MPI_COMM_WORLD){
     // Note: This will get triggered at phase-end or critter::stop via dispatch::propagate
     // Should do nothing if symbol_path_select_size==0, but we could check for that here.
-    critter::internal::replay::invoke();
+//    critter::internal::replay::invoke();
   }
 }
 

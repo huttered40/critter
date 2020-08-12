@@ -3,41 +3,10 @@
 namespace critter{
 namespace internal{
 
-int autotuning_mode;
-int autotuning_propagate;
-int schedule_kernels;
-MPI_Datatype comm_pattern_key_type;
-MPI_Datatype comp_pattern_key_type;
-MPI_Datatype pattern_type;
-size_t pattern_param;
-size_t pattern_count_limit;
-double pattern_time_limit;
-double pattern_error_limit;
-std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-std::map<comm_pattern_param1_key,pattern_key_id> comm_pattern_param1_map;
-std::map<comp_pattern_param1_key,pattern_key_id> comp_pattern_param1_map;
-std::vector<comm_pattern_param1_key> steady_state_comm_pattern_keys;
-std::vector<comm_pattern_param1_key> active_comm_pattern_keys;
-std::vector<comp_pattern_param1_key> steady_state_comp_pattern_keys;
-std::vector<comp_pattern_param1_key> active_comp_pattern_keys;
-std::vector<pattern_param1> steady_state_patterns;
-std::vector<pattern_param1> active_patterns;
 double comp_start_time;
-size_t cp_symbol_class_count;
-size_t pp_symbol_class_count;
-size_t vol_symbol_class_count;
 size_t mode_1_width;
 size_t mode_2_width;
-size_t max_num_symbols;
-size_t max_timer_name_length;
-std::string _cost_models_,_symbol_path_select_,_comm_path_select_;
-size_t cost_model_size;
-size_t symbol_path_select_size;
-size_t comm_path_select_size;
 size_t auto_capture;
-std::vector<char> cost_models;
-std::vector<char> symbol_path_select;
-std::vector<char> comm_path_select;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -73,24 +42,8 @@ std::vector<char> synch_pad_send;
 std::vector<char> synch_pad_recv;
 std::vector<char> barrier_pad_send;
 std::vector<char> barrier_pad_recv;
-std::vector<char> symbol_pad_cp;
-std::vector<char> symbol_pad_ncp1;
-std::vector<char> symbol_pad_ncp2;
-std::vector<int> symbol_len_pad_cp;
-std::vector<int> symbol_len_pad_ncp1;
-std::vector<int> symbol_len_pad_ncp2;
-std::vector<double> symbol_timer_pad_local_cp;
-std::vector<double> symbol_timer_pad_global_cp;
-std::vector<double> symbol_timer_pad_global_cp2;
-std::vector<double> symbol_timer_pad_local_pp;
-std::vector<double> symbol_timer_pad_global_pp;
-std::vector<double> symbol_timer_pad_local_vol;
-std::vector<double> symbol_timer_pad_global_vol;
-std::stack<std::string> symbol_stack;
-std::vector<std::string> symbol_order;
 std::vector<double_int> info_sender;
 std::vector<double_int> info_receiver;
-std::vector<int> symbol_path_select_index;
 bool wait_id;
 int internal_tag;
 int internal_tag1;
@@ -106,13 +59,6 @@ size_t track_p2p_idle;
 size_t eager_p2p;
 size_t delete_comm;
 std::vector<char> eager_pad;
-std::vector<event> event_list;
-std::vector<int> opt_req_match;
-std::vector<double> opt_measure_match;
-size_t event_list_size;
-size_t opt_max_iter;
-size_t gradient_jump_size;
-size_t num_gradient_points;
 size_t
          _MPI_Send__id,
          _MPI_Ssend__id,
@@ -165,6 +111,6 @@ size_t
 	_LAPACK_getri__id,
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
-std::map<std::pair<std::string,size_t>,bool> schedule_map;
+//std::map<std::pair<std::string,size_t>,bool> schedule_map;
 }
 }
