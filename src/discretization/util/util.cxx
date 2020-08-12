@@ -185,11 +185,38 @@ void final_accumulate(double last_time){
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
 }
 
-void reset(){
+void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide){
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
+
+  if (clear_statistical_data){
+    // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
+    // Below could be moved to reset, but its basically harmless here
+    comm_pattern_param1_map.clear();
+    comp_pattern_param1_map.clear();
+    steady_state_comm_pattern_keys.clear();
+    active_comm_pattern_keys.clear();
+    steady_state_comp_pattern_keys.clear();
+    active_comp_pattern_keys.clear();
+    steady_state_patterns.clear();
+    active_patterns.clear();
+  }
+  // Reset this global variable, as we are updating it using function arguments for convenience
+  if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
+    autotuning_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
+  } else{
+    autotuning_mode = 0;
+  }
+  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
+    schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
+  } else{
+    schedule_kernels = 1;
+  }
+  if (autotuning_mode>0){ autotuning_mode = (track_statistical_data_override ? autotuning_mode : 0); }
+  if (schedule_kernels==1){ schedule_kernels = (schedule_kernels_override ? schedule_kernels : 0); }
+//  if (autotuning_propagate==1){ autotuning_mode == propagate_statistical_data_overide ? autotuning_mode : 0; }
   autotuning_propagate=1;// means nothing if autotuning_mode != 3
 }
 

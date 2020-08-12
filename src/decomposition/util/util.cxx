@@ -90,7 +90,7 @@ void allocate(MPI_Comm comm){
   }
 }
 
-void reset(){
+void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide){
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
@@ -98,8 +98,6 @@ void reset(){
   memset(&symbol_timer_pad_local_cp[0],0,sizeof(double)*symbol_timer_pad_local_cp.size());
   memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
-
-  autotuning_propagate=1;// means nothing if autotuning_mode != 3
 }
 
 void open_symbol(const char* symbol, double curtime){

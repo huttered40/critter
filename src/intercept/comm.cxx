@@ -15,34 +15,7 @@ void start(bool track_statistical_data_override, bool clear_statistical_data, bo
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true;
-  internal::reset();
-
-  if (clear_statistical_data){
-    // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
-    // Below could be moved to reset, but its basically harmless here
-    internal::comm_pattern_param1_map.clear();
-    internal::comp_pattern_param1_map.clear();
-    internal::steady_state_comm_pattern_keys.clear();
-    internal::active_comm_pattern_keys.clear();
-    internal::steady_state_comp_pattern_keys.clear();
-    internal::active_comp_pattern_keys.clear();
-    internal::steady_state_patterns.clear();
-    internal::active_patterns.clear();
-  }
-  // Reset this global variable, as we are updating it using function arguments for convenience
-  if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
-    internal::autotuning_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
-  } else{
-    internal::autotuning_mode = 0;
-  }
-  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
-    internal::schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
-  } else{
-    internal::schedule_kernels = 1;
-  }
-  if (internal::autotuning_mode>0){ internal::autotuning_mode = (track_statistical_data_override ? internal::autotuning_mode : 0); }
-  if (internal::schedule_kernels==1){ internal::schedule_kernels = (schedule_kernels_override ? internal::schedule_kernels : 0); }
-//  if (internal::autotuning_propagate==1){ internal::autotuning_mode == propagate_statistical_data_overide ? internal::autotuning_mode : 0; }
+  internal::reset(track_statistical_data_override, clear_statistical_data, schedule_kernels_override, propagate_statistical_data_overide);
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);

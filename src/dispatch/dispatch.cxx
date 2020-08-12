@@ -25,13 +25,13 @@ void allocate(MPI_Comm comm){
   }
 }
 
-void reset(){
+void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide){
   switch (mechanism){
     case 0:
-      decomposition::reset();
+      decomposition::reset(track_statistical_data_override,clear_statistical_data,schedule_kernels_override,propagate_statistical_data_overide);
       break;
     case 1:
-      discretization::reset();
+      discretization::reset(track_statistical_data_override,clear_statistical_data,schedule_kernels_override,propagate_statistical_data_overide);
       break;
   }
 }

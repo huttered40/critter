@@ -310,7 +310,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
 
   //TODO: For autotuning_mode>0 and a skipped schedule, we want to add the barrier time as well.
   if (autotuning_mode>0 && autotuning_special_bool){
-//    critical_path_costs[num_critical_path_measures-1] += tracker.barrier_time;
+    //critical_path_costs[num_critical_path_measures-1] += tracker.barrier_time;
   }
 
   volume_costs[num_volume_measures-5] += tracker.barrier_time;			// update local barrier/idle time
