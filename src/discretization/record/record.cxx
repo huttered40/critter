@@ -17,43 +17,41 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
   if (autotuning_mode>0){
     int patterns[4] = {0,0,0,0};
     double communications[4] = {0,0,0,0};
-    if (pattern_param==1){
-      for (auto& it : comm_pattern_param1_map){
-        auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-        patterns[0] += pattern_list[it.second.val_index].num_schedules;
-        patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
-        communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
-        communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
+    for (auto& it : comm_pattern_map){
+      auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+      patterns[0] += pattern_list[it.second.val_index].num_schedules;
+      patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
+      communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
+      communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
 /*
-        // Late debugging addition
-        if (it.second.is_active == true){
-          comm_pattern_param1_map[it.first].is_active=false;
-          steady_state_patterns.push_back(pattern_list[it.second.val_index]);
-          steady_state_patterns[steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
-          steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
-          comm_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
-          comm_pattern_param1_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
-        }
-*/
+      // Late debugging addition
+      if (it.second.is_active == true){
+        comm_pattern_map[it.first].is_active=false;
+        steady_state_patterns.push_back(pattern_list[it.second.val_index]);
+        steady_state_patterns[steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
+        steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
+        comm_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+        comm_pattern_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
       }
-      for (auto& it : comp_pattern_param1_map){
-        auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-        patterns[2] += pattern_list[it.second.val_index].num_schedules;
-        patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
-        communications[2] += pattern_list[it.second.val_index].num_scheduled_units;
-        communications[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
+*/
+    }
+    for (auto& it : comp_pattern_map){
+      auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+      patterns[2] += pattern_list[it.second.val_index].num_schedules;
+      patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
+      communications[2] += pattern_list[it.second.val_index].num_scheduled_units;
+      communications[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
 /*
-        // Late debugging addition
-        if (it.second.is_active == true){
-          comp_pattern_param1_map[it.first].is_active=false;
-          steady_state_patterns.push_back(pattern_list[it.second.val_index]);
-          steady_state_patterns[steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
-          steady_state_comp_pattern_keys.push_back(active_comp_pattern_keys[it.second.key_index]);
-          comp_pattern_param1_map[it.first].val_index = steady_state_patterns.size()-1;
-          comp_pattern_param1_map[it.first].key_index = steady_state_comp_pattern_keys.size()-1;
-        }
-*/
+      // Late debugging addition
+      if (it.second.is_active == true){
+        comp_pattern_map[it.first].is_active=false;
+        steady_state_patterns.push_back(pattern_list[it.second.val_index]);
+        steady_state_patterns[steady_state_patterns.size()-1].steady_state=1;// force this to prevent any more scheduling
+        steady_state_comp_pattern_keys.push_back(active_comp_pattern_keys[it.second.key_index]);
+        comp_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+        comp_pattern_map[it.first].key_index = steady_state_comp_pattern_keys.size()-1;
       }
+*/
     }
 /*
     // Late debugging addition
@@ -76,63 +74,61 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
     if (print_statistical_data){
     if (rank==0){
       Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl;
-      if (pattern_param==1){
-        for (auto& it : comm_pattern_param1_map){
-          auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-          auto& key_list = it.second.is_active == true ? active_comm_pattern_keys : steady_state_comm_pattern_keys;
-          Stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
-                    << "," << key_list[it.second.key_index].comm_size
-                    << "," << key_list[it.second.key_index].comm_color
-                    << "," << key_list[it.second.key_index].msg_size
-                    << "," << key_list[it.second.key_index].partner_offset
-                    << ") - with byte-count " << key_list[it.second.key_index].msg_size  << "\n";
-          Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
-                    << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
-                    << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
-                    << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
-                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
-          Stream << "\t\tArithmeticMean - " << discretization::get_arithmetic_mean(it.second)
-                    << ", StdDev - " << discretization::get_std_dev(it.second)
-                    << ", StdError - " << discretization::get_std_error(it.second)
-                    << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second)
-                    << ", Stopping criterion - " << discretization::get_confidence_interval(it.second)/(2*discretization::get_arithmetic_mean(it.second)) << std::endl;
+      for (auto& it : comm_pattern_map){
+        auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+        auto& key_list = it.second.is_active == true ? active_comm_pattern_keys : steady_state_comm_pattern_keys;
+        Stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
+                  << "," << key_list[it.second.key_index].comm_size
+                  << "," << key_list[it.second.key_index].comm_color
+                  << "," << key_list[it.second.key_index].msg_size
+                  << "," << key_list[it.second.key_index].partner_offset
+                  << ") - with byte-count " << key_list[it.second.key_index].msg_size  << "\n";
+        Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+                  << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
+                  << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
+                  << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
+                  << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
+        Stream << "\t\tArithmeticMean - " << discretization::get_arithmetic_mean(it.second)
+                  << ", StdDev - " << discretization::get_std_dev(it.second)
+                  << ", StdError - " << discretization::get_std_error(it.second)
+                  << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second)
+                  << ", Stopping criterion - " << discretization::get_confidence_interval(it.second)/(2*discretization::get_arithmetic_mean(it.second)) << std::endl;
 /*
-          for (auto k=0; k<it.second.save_comm_times.size(); k++){
-            Stream << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
-                      << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
-          }
-*/
+        for (auto k=0; k<it.second.save_comm_times.size(); k++){
+          Stream << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
+                    << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
         }
-        Stream << std::endl;
-        Stream << std::endl;
-        for (auto& it : comp_pattern_param1_map){
-          auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-          auto& key_list = it.second.is_active == true ? active_comp_pattern_keys : steady_state_comp_pattern_keys;
-          Stream << "Rank 0 Computation pattern (" << it.first.tag
-                    << "," << key_list[it.second.key_index].param1
-                    << "," << key_list[it.second.key_index].param2
-                    << "," << key_list[it.second.key_index].param3
-                    << "," << key_list[it.second.key_index].param4
-                    << "," << key_list[it.second.key_index].param5
-                    << ") - with flop-count "
-                    << it.first.flops << "\n";
-          Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
-                    << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
-                    << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
-                    << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
-                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
-          Stream << "\t\tArithmeticMean - " << discretization::get_arithmetic_mean(it.second)
-                    << ", StdDev - " << discretization::get_std_dev(it.second)
-                    << ", StdError - " << discretization::get_std_error(it.second)
-                    << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second)
-                    << ", Stopping criterion - " << discretization::get_confidence_interval(it.second)/(2*discretization::get_arithmetic_mean(it.second)) << std::endl;
+*/
+      }
+      Stream << std::endl;
+      Stream << std::endl;
+      for (auto& it : comp_pattern_map){
+        auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+        auto& key_list = it.second.is_active == true ? active_comp_pattern_keys : steady_state_comp_pattern_keys;
+        Stream << "Rank 0 Computation pattern (" << it.first.tag
+                  << "," << key_list[it.second.key_index].param1
+                  << "," << key_list[it.second.key_index].param2
+                  << "," << key_list[it.second.key_index].param3
+                  << "," << key_list[it.second.key_index].param4
+                  << "," << key_list[it.second.key_index].param5
+                  << ") - with flop-count "
+                  << it.first.flops << "\n";
+        Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+                  << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
+                  << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
+                  << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
+                  << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
+        Stream << "\t\tArithmeticMean - " << discretization::get_arithmetic_mean(it.second)
+                  << ", StdDev - " << discretization::get_std_dev(it.second)
+                  << ", StdError - " << discretization::get_std_error(it.second)
+                  << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second)
+                  << ", Stopping criterion - " << discretization::get_confidence_interval(it.second)/(2*discretization::get_arithmetic_mean(it.second)) << std::endl;
 /*
-          for (auto k=0; k<it.second.save_comp_times.size(); k++){
-            Stream << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
-                      << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
-          }
-*/
+        for (auto k=0; k<it.second.save_comp_times.size(); k++){
+          Stream << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
+                    << ", 95% confidence interval len - " << it.second.save_confidence_interval[k] << ", Stopping criterion len-  " << it.second.save_confidence_interval[k]/(2.*it.second.save_arithmetic_means[k]) << std::endl;
         }
+*/
       }
       Stream << std::endl;
       Stream << std::endl;

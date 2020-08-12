@@ -17,14 +17,14 @@ size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
 std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-std::map<comm_pattern_param1_key,pattern_key_id> comm_pattern_param1_map;
-std::map<comp_pattern_param1_key,pattern_key_id> comp_pattern_param1_map;
-std::vector<comm_pattern_param1_key> steady_state_comm_pattern_keys;
-std::vector<comm_pattern_param1_key> active_comm_pattern_keys;
-std::vector<comp_pattern_param1_key> steady_state_comp_pattern_keys;
-std::vector<comp_pattern_param1_key> active_comp_pattern_keys;
-std::vector<pattern_param1> steady_state_patterns;
-std::vector<pattern_param1> active_patterns;
+std::map<comm_pattern_key,pattern_key_id,comm_key_compare> comm_pattern_map;
+std::map<comp_pattern_key,pattern_key_id,comp_key_compare> comp_pattern_map;
+std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
+std::vector<comm_pattern_key> active_comm_pattern_keys;
+std::vector<comp_pattern_key> steady_state_comp_pattern_keys;
+std::vector<comp_pattern_key> active_comp_pattern_keys;
+std::vector<pattern> steady_state_patterns;
+std::vector<pattern> active_patterns;
 
 
 double get_arithmetic_mean(const pattern_key_id& index){
@@ -136,26 +136,49 @@ void allocate(MPI_Comm comm){
 
   communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,0);
 
-  comp_pattern_param1_key ex_1;
-  MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comp_pattern_key_internal_type_block_len[2] = { 7,1 };
-  MPI_Aint comp_pattern_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
-  PMPI_Type_create_struct(2,comp_pattern_key_internal_type_block_len,comp_pattern_key_internal_type_disp,comp_pattern_key_internal_type,&comp_pattern_key_type);
-  PMPI_Type_commit(&comp_pattern_key_type);
+  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
+    pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
+  } else{
+    pattern_param = 0;
+  }
+  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
+    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
+  } else{
+    pattern_count_limit = 1;
+  }
+  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
+    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
+  } else{
+    pattern_time_limit = .001;
+  }
+  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
+    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
+  } else{
+    pattern_error_limit = .5;
+  }
 
-  comm_pattern_param1_key ex_2;
-  MPI_Datatype comm_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comm_pattern_key_internal_type_block_len[2] = { 5,1 };
-  MPI_Aint comm_pattern_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
-  PMPI_Type_create_struct(2,comm_pattern_key_internal_type_block_len,comm_pattern_key_internal_type_disp,comm_pattern_key_internal_type,&comm_pattern_key_type);
-  PMPI_Type_commit(&comm_pattern_key_type);
+  if (pattern_param==1){
+    comp_pattern_key_param1 ex_1;
+    MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+    int comp_pattern_key_internal_type_block_len[2] = { 7,1 };
+    MPI_Aint comp_pattern_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
+    PMPI_Type_create_struct(2,comp_pattern_key_internal_type_block_len,comp_pattern_key_internal_type_disp,comp_pattern_key_internal_type,&comp_pattern_key_type);
+    PMPI_Type_commit(&comp_pattern_key_type);
 
-  pattern_param1 ex_3;
-  MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int pattern_internal_block_len[2] = { 4,5 };
-  MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.steady_state-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
-  PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
-  PMPI_Type_commit(&pattern_type);
+    comm_pattern_key_param1 ex_2;
+    MPI_Datatype comm_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+    int comm_pattern_key_internal_type_block_len[2] = { 5,1 };
+    MPI_Aint comm_pattern_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
+    PMPI_Type_create_struct(2,comm_pattern_key_internal_type_block_len,comm_pattern_key_internal_type_disp,comm_pattern_key_internal_type,&comm_pattern_key_type);
+    PMPI_Type_commit(&comm_pattern_key_type);
+
+    pattern ex_3;
+    MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+    int pattern_internal_block_len[2] = { 4,5 };
+    MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.steady_state-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
+    PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
+    PMPI_Type_commit(&pattern_type);
+  }
 
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
 
@@ -210,8 +233,8 @@ void reset(bool track_statistical_data_override, bool clear_statistical_data, bo
   if (clear_statistical_data){
     // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
     // Below could be moved to reset, but its basically harmless here
-    comm_pattern_param1_map.clear();
-    comp_pattern_param1_map.clear();
+    comm_pattern_map.clear();
+    comp_pattern_map.clear();
     steady_state_comm_pattern_keys.clear();
     active_comm_pattern_keys.clear();
     steady_state_comp_pattern_keys.clear();
@@ -220,31 +243,6 @@ void reset(bool track_statistical_data_override, bool clear_statistical_data, bo
     active_patterns.clear();
   }
   // Reset these global variables, as some are updated by function arguments for convenience
-  if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
-    schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
-  } else{
-    schedule_kernels = 1;
-  }
-  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
-    pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
-  } else{
-    pattern_param = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
-    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
-  } else{
-    pattern_count_limit = 1;
-  }
-  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
-    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
-  } else{
-    pattern_time_limit = .001;
-  }
-  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
-    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
-  } else{
-    pattern_error_limit = .5;
-  }
   if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
     autotuning_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
   } else{

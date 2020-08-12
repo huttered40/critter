@@ -17,15 +17,35 @@ extern size_t pattern_param;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
+
+// ****************************************************************************************************************************************************
+struct comm_key_compare{
+  bool operator()(const comm_pattern_key& key1, const comm_pattern_key& key2) const{
+    if (pattern_param==1){
+      return dynamic_cast<const comm_pattern_key_param1&>(key1).compare(dynamic_cast<const comm_pattern_key_param1&>(key2));
+    } else if (pattern_param==2){
+      return dynamic_cast<const comm_pattern_key_param2&>(key1).compare(dynamic_cast<const comm_pattern_key_param2&>(key2));
+    } else{
+      return key1.compare(key2);
+    }
+  }
+};
+
+struct comp_key_compare{
+  bool operator()(const comp_pattern_key& key1, const comp_pattern_key& key2) const{
+      return dynamic_cast<const comp_pattern_key_param1&>(key1).compare(dynamic_cast<const comp_pattern_key_param1&>(key2));
+  }
+};
+
 extern std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-extern std::map<comm_pattern_param1_key,pattern_key_id> comm_pattern_param1_map;
-extern std::map<comp_pattern_param1_key,pattern_key_id> comp_pattern_param1_map;
-extern std::vector<comm_pattern_param1_key> steady_state_comm_pattern_keys;
-extern std::vector<comm_pattern_param1_key> active_comm_pattern_keys;
-extern std::vector<comp_pattern_param1_key> steady_state_comp_pattern_keys;
-extern std::vector<comp_pattern_param1_key> active_comp_pattern_keys;
-extern std::vector<pattern_param1> steady_state_patterns;
-extern std::vector<pattern_param1> active_patterns;
+extern std::map<comm_pattern_key,pattern_key_id,comm_key_compare> comm_pattern_map;
+extern std::map<comp_pattern_key,pattern_key_id,comp_key_compare> comp_pattern_map;
+extern std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
+extern std::vector<comm_pattern_key> active_comm_pattern_keys;
+extern std::vector<comp_pattern_key> steady_state_comp_pattern_keys;
+extern std::vector<comp_pattern_key> active_comp_pattern_keys;
+extern std::vector<pattern> steady_state_patterns;
+extern std::vector<pattern> active_patterns;
 
 double get_arithmetic_mean(const pattern_key_id& index);
 double get_variance(const pattern_key_id& index);

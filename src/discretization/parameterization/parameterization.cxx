@@ -5,7 +5,7 @@ namespace internal{
 namespace discretization{
 
 // ****************************************************************************************************************************************************
-comm_pattern_param1_key::comm_pattern_param1_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset){
+comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
   this->comm_size = _comm_size;
@@ -14,7 +14,7 @@ comm_pattern_param1_key::comm_pattern_param1_key(int _pattern_index, int _tag, i
   this->partner_offset = _partner_offset;
 }
 
-comm_pattern_param1_key::comm_pattern_param1_key(const comm_pattern_param1_key& _copy){
+comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
   this->comm_size = _copy.comm_size;
@@ -23,7 +23,7 @@ comm_pattern_param1_key::comm_pattern_param1_key(const comm_pattern_param1_key& 
   this->partner_offset = _copy.partner_offset;
 }
 
-comm_pattern_param1_key& comm_pattern_param1_key::operator=(const comm_pattern_param1_key& _copy){
+comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
   this->comm_size = _copy.comm_size;
@@ -33,12 +33,14 @@ comm_pattern_param1_key& comm_pattern_param1_key::operator=(const comm_pattern_p
   return *this;
 }
 
-bool operator==(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
+// ****************************************************************************************************************************************************
+/*
+bool operator==(const comm_pattern_key_param1& ref1, const comm_pattern_key_param1& ref2){
   if ((ref1.tag==ref2.tag) && (ref1.comm_size == ref2.comm_size) && (ref1.comm_color == ref2.comm_color) && (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
   else return false;
 }
 
-bool operator<(const comm_pattern_param1_key& ref1, const comm_pattern_param1_key& ref2){
+bool operator<(const comm_pattern_key_param1& ref1, const comm_pattern_key_param1& ref2){
   if (ref1.tag < ref2.tag) return true;
   else if (ref1.tag > ref2.tag) return false;
   if (ref1.comm_size < ref2.comm_size) return true;
@@ -51,9 +53,36 @@ bool operator<(const comm_pattern_param1_key& ref1, const comm_pattern_param1_ke
   else if (ref1.partner_offset > ref2.partner_offset) return false;
   return false;
 }
+*/
+bool comm_pattern_key_param1::compare(const comm_pattern_key_param1& key) const{
+  if (this->tag < key.tag) return true;
+  else if (this->tag > key.tag) return false;
+  if (this->comm_size < key.comm_size) return true;
+  else if (this->comm_size > key.comm_size) return false;
+  if (this->comm_color < key.comm_color) return true;
+  else if (this->comm_color > key.comm_color) return false;
+  if (this->msg_size < key.msg_size) return true;
+  else if (this->msg_size > key.msg_size) return false;
+  if (this->partner_offset < key.partner_offset) return true;
+  else if (this->partner_offset > key.partner_offset) return false;
+  return false;
+}
 
 // ****************************************************************************************************************************************************
-comp_pattern_param1_key::comp_pattern_param1_key(int _pattern_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
+bool comm_pattern_key_param2::compare(const comm_pattern_key_param2& key) const{
+  if (this->tag < key.tag) return true;
+  else if (this->tag > key.tag) return false;
+  if (this->comm_size < key.comm_size) return true;
+  else if (this->comm_size > key.comm_size) return false;
+  if (this->comm_color < key.comm_color) return true;
+  else if (this->comm_color > key.comm_color) return false;
+  if (this->msg_size < key.msg_size) return true;
+  else if (this->msg_size > key.msg_size) return false;
+  return false;
+}
+
+// ****************************************************************************************************************************************************
+comp_pattern_key::comp_pattern_key(int _pattern_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
   this->flops = _flops;
@@ -64,7 +93,7 @@ comp_pattern_param1_key::comp_pattern_param1_key(int _pattern_index, int _tag, d
   this->param5 = _param5;
 }
 
-comp_pattern_param1_key::comp_pattern_param1_key(const comp_pattern_param1_key& _copy){
+comp_pattern_key::comp_pattern_key(const comp_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
   this->flops = _copy.flops;
@@ -75,7 +104,7 @@ comp_pattern_param1_key::comp_pattern_param1_key(const comp_pattern_param1_key& 
   this->param5 = _copy.param5;
 }
 
-comp_pattern_param1_key& comp_pattern_param1_key::operator=(const comp_pattern_param1_key& _copy){
+comp_pattern_key& comp_pattern_key::operator=(const comp_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
   this->flops = _copy.flops;
@@ -87,12 +116,14 @@ comp_pattern_param1_key& comp_pattern_param1_key::operator=(const comp_pattern_p
   return *this;
 }
 
-bool operator==(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
+// ****************************************************************************************************************************************************
+/*
+bool operator==(const comp_pattern_key_param1& ref1, const comp_pattern_key_param1& ref2){
   if ((ref1.tag==ref2.tag) && (ref1.param1 == ref2.param1) && (ref1.param2 == ref2.param2) && (ref1.param3 == ref2.param3) && (ref1.param4 == ref2.param4) && (ref1.param5 == ref2.param5)) return true;
   else return false;
 }
 
-bool operator<(const comp_pattern_param1_key& ref1, const comp_pattern_param1_key& ref2){
+bool operator<(const comp_pattern_key_param1& ref1, const comp_pattern_key_param1& ref2){
   if (ref1.tag < ref2.tag) return true;
   else if (ref1.tag > ref2.tag) return false;
   if (ref1.param1 < ref2.param1) return true;
@@ -107,9 +138,25 @@ bool operator<(const comp_pattern_param1_key& ref1, const comp_pattern_param1_ke
   else if (ref1.param5 > ref2.param5) return false;
   return false;
 }
+*/
+bool comp_pattern_key_param1::compare(const comp_pattern_key_param1& key) const{
+  if (this->tag < key.tag) return true;
+  else if (this->tag > key.tag) return false;
+  if (this->param1 < key.param1) return true;
+  else if (this->param1 > key.param1) return false;
+  if (this->param2 < key.param2) return true;
+  else if (this->param2 > key.param2) return false;
+  if (this->param3 < key.param3) return true;
+  else if (this->param3 > key.param3) return false;
+  if (this->param4 < key.param4) return true;
+  else if (this->param4 > key.param4) return false;
+  if (this->param5 < key.param5) return true;
+  else if (this->param5 > key.param5) return false;
+  return false;
+}
 
 // ****************************************************************************************************************************************************
-pattern_param1::pattern_param1(){
+pattern::pattern(){
   this->total_exec_time = 0;
   this->steady_state=0;
   this->global_steady_state=0;
@@ -121,7 +168,7 @@ pattern_param1::pattern_param1(){
   //this->M3=0; this->M4=0;
 }
 
-pattern_param1::pattern_param1(const pattern_param1& _copy){
+pattern::pattern(const pattern& _copy){
   this->total_exec_time = _copy.total_exec_time;
   this->steady_state = _copy.steady_state;
   this->global_steady_state = _copy.global_steady_state;
@@ -134,7 +181,7 @@ pattern_param1::pattern_param1(const pattern_param1& _copy){
   //this->M3=0; this->M4=0;
 }
 
-pattern_param1& pattern_param1::operator=(const pattern_param1& _copy){
+pattern& pattern::operator=(const pattern& _copy){
   this->total_exec_time = _copy.total_exec_time;
   this->steady_state = _copy.steady_state;
   this->global_steady_state = _copy.global_steady_state;
