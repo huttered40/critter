@@ -10,7 +10,7 @@ namespace discretization{
 class record{
 public:
   static void invoke(std::ofstream& Stream);
-  static void invoke(std::ostream& Stream);
+  static void invoke(std::ostream& Stream, double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data, bool save_statistical_data);
 };
 
 }

@@ -29,7 +29,7 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 
 void record(std::ofstream& Stream);
-void record(std::ostream& Stream);
+void record(std::ostream& Stream, double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data, bool save_statistical_data);
 
 void clear();
 
