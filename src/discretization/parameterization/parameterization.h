@@ -56,6 +56,8 @@ struct pattern{
   int global_steady_state;
   int num_schedules;
   int num_non_schedules;
+  int num_propagations;
+  int num_non_propagations;
   double num_scheduled_units;
   double num_non_scheduled_units;
   double M1,M2;

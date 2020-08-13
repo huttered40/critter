@@ -20,12 +20,15 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
   if (autotuning_mode>0){
     int patterns[4] = {0,0,0,0};
     double communications[4] = {0,0,0,0};
+    int propagations[2] = {0,0};
     for (auto& it : comm_pattern_map){
       auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
       patterns[0] += pattern_list[it.second.val_index].num_schedules;
       patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
       communications[0] += pattern_list[it.second.val_index].num_scheduled_units;
       communications[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
+      propagations[0] += pattern_list[it.second.val_index].num_propagations;
+      propagations[1] += pattern_list[it.second.val_index].num_non_propagations;
     }
     for (auto& it : comp_pattern_map){
       auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
@@ -36,6 +39,7 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
     }
     PMPI_Allreduce(MPI_IN_PLACE,&patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     PMPI_Allreduce(MPI_IN_PLACE,&communications[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    PMPI_Allreduce(MPI_IN_PLACE,&propagations[0],2,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
     int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
 
     if (save_statistical_data && data != nullptr){
@@ -47,6 +51,8 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
       data[6] = patterns[3];
       data[7] = communications[2];
       data[8] = communications[3];
+      //data[9] = propagations[0];
+      //data[10] = propagations[1];
     }
     if (print_statistical_data){
       if (rank==0) { Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
@@ -69,6 +75,8 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
                  << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
                  << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
                  << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units
+                 << ", NumPropagations - " << pattern_list[it.second.val_index].num_propagations
+                 << ", NumSkippedPropagations - " << pattern_list[it.second.val_index].num_non_propagations
                  << ", M1 - " << pattern_list[it.second.val_index].M1
                  << ", M2 - " << pattern_list[it.second.val_index].M2
                  << std::endl;
@@ -136,6 +144,9 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
         Stream << "\tNum scheduled patterns - " << patterns[0] << std::endl;
         Stream << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
         Stream << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
+        Stream << "\tNum scheduled propagations - " << propagations[0] << std::endl;
+        Stream << "\tNum total propagations - " << propagations[0]+propagations[1] << std::endl;
+        Stream << "\tPropagation hit ratio - " << 1.-(propagations[0] * 1. / (propagations[0]+propagations[1])) << std::endl;
         Stream << "\tNum scheduled bytes - " << communications[0] << std::endl;
         Stream << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
         Stream << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;

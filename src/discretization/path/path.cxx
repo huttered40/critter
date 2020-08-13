@@ -28,9 +28,9 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   if (schedule_kernels==0){ return false; }
   volatile double overhead_start_time = MPI_Wtime();
 
-  critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
+  //critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
+  //volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local runtime
 
   bool schedule_decision = schedule_kernels==1 ? true : false;
@@ -67,12 +67,12 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       }
       update(comp_pattern_map[p_id_1],comp_pattern_param,comp_time,flop_count);
   }
-  critical_path_costs[num_critical_path_measures-5] += flop_count;
-  critical_path_costs[num_critical_path_measures-2] += comp_time;
+  //critical_path_costs[num_critical_path_measures-5] += flop_count;
+  //critical_path_costs[num_critical_path_measures-2] += comp_time;
   critical_path_costs[num_critical_path_measures-1] += comp_time;
 
-  volume_costs[num_volume_measures-6] += flop_count;
-  volume_costs[num_volume_measures-2] += comp_time;
+  //volume_costs[num_volume_measures-6] += flop_count;
+  //volume_costs[num_volume_measures-2] += comp_time;
   volume_costs[num_volume_measures-1] += comp_time;
 
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
@@ -210,9 +210,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
   overhead_start_time = MPI_Wtime();
 
-  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
+  //critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
+  //volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
 
   if (autotuning_mode>0 && schedule_decision == true){
@@ -255,6 +255,10 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         active_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0;
       }
     }
+  } else if (schedule_decision == false){
+    // This call is merely to increment the num_non_propagated member
+    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
+    set_schedule(comm_pattern_map[p_id_1],schedule_decision);
   }
 
   comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
@@ -299,13 +303,14 @@ void path::complete_comm(blocking& tracker, int recv_source){
       }
       if (should_schedule_global(comm_pattern_map[p_id_1])==0){
         autotuning_special_bool = true;
+      } else{
       }
       update(comm_pattern_map[p_id_1],comm_pattern_param,comm_time,tracker.nbytes);
   }
 
   // Update measurements that define the critical path for each metric.
-  critical_path_costs[num_critical_path_measures-4] += comm_time;		// update critical path communication time (for what this process has seen thus far)
-  critical_path_costs[num_critical_path_measures-3] += tracker.synch_time;	// update critical path synchronization time
+  //critical_path_costs[num_critical_path_measures-4] += comm_time;		// update critical path communication time (for what this process has seen thus far)
+  //critical_path_costs[num_critical_path_measures-3] += tracker.synch_time;	// update critical path synchronization time
   critical_path_costs[num_critical_path_measures-1] += comm_time;		// update critical path runtime
 
   //TODO: For autotuning_mode>0 and a skipped schedule, we want to add the barrier time as well.
@@ -313,24 +318,24 @@ void path::complete_comm(blocking& tracker, int recv_source){
     //critical_path_costs[num_critical_path_measures-1] += tracker.barrier_time;
   }
 
-  volume_costs[num_volume_measures-5] += tracker.barrier_time;			// update local barrier/idle time
-  volume_costs[num_volume_measures-4] += comm_time;				// update local communication time (not volume until after the completion of the program)
-  volume_costs[num_volume_measures-3] += tracker.synch_time;			// update local synchronization time
+  //volume_costs[num_volume_measures-5] += tracker.barrier_time;			// update local barrier/idle time
+  //volume_costs[num_volume_measures-4] += comm_time;				// update local communication time (not volume until after the completion of the program)
+  //volume_costs[num_volume_measures-3] += tracker.synch_time;			// update local synchronization time
   volume_costs[num_volume_measures-1] += (tracker.barrier_time+comm_time);	// update local runtime with idle time and comm time
 
   // Note that this block of code below is left in solely for blocking communication to avoid over-counting the idle time
   //   (which does not get subtracted by the min idle time any one process incurs due to efficiency complications with matching nonblocking+blocking p2p communications).
   //   Its handled correctly for blocking collectives.
   // If per-process execution-time gets larger than execution-time along the execution-time critical path, subtract out the difference from idle time.
-  volume_costs[num_volume_measures-5] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+  //volume_costs[num_volume_measures-5] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
 
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  volume_costs[num_volume_measures-4] = volume_costs[num_volume_measures-4] > critical_path_costs[num_critical_path_measures-4]
-                                          ? critical_path_costs[num_critical_path_measures-4] : volume_costs[num_volume_measures-4];
-  volume_costs[num_volume_measures-3] = volume_costs[num_volume_measures-3] > critical_path_costs[num_critical_path_measures-3]
-                                          ? critical_path_costs[num_critical_path_measures-3] : volume_costs[num_volume_measures-3];
-  volume_costs[num_volume_measures-2] = volume_costs[num_volume_measures-2] > critical_path_costs[num_critical_path_measures-2]
-                                          ? critical_path_costs[num_critical_path_measures-2] : volume_costs[num_volume_measures-2];
+  //volume_costs[num_volume_measures-4] = volume_costs[num_volume_measures-4] > critical_path_costs[num_critical_path_measures-4]
+  //                                        ? critical_path_costs[num_critical_path_measures-4] : volume_costs[num_volume_measures-4];
+  //volume_costs[num_volume_measures-3] = volume_costs[num_volume_measures-3] > critical_path_costs[num_critical_path_measures-3]
+  //                                        ? critical_path_costs[num_critical_path_measures-3] : volume_costs[num_volume_measures-3];
+  //volume_costs[num_volume_measures-2] = volume_costs[num_volume_measures-2] > critical_path_costs[num_critical_path_measures-2]
+  //                                        ? critical_path_costs[num_critical_path_measures-2] : volume_costs[num_volume_measures-2];
   volume_costs[num_volume_measures-1] = volume_costs[num_volume_measures-1] > critical_path_costs[num_critical_path_measures-1]
                                           ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
 
@@ -338,7 +343,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   overhead_start_time = MPI_Wtime();
 
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
-  if (autotuning_mode==0 || autotuning_special_bool==false || (tracker.comm==MPI_COMM_WORLD && tracker.partner1==-1)){
+  if ((autotuning_mode==0) || (autotuning_special_bool==false) || (tracker.comm==MPI_COMM_WORLD && tracker.tag==0)){
     if ((rank == tracker.partner1) && (rank == tracker.partner2)) { ; }
     else{
       propagate(tracker);

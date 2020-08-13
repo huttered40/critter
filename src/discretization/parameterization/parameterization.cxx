@@ -181,6 +181,8 @@ pattern::pattern(){
   this->num_non_schedules = 0;
   this->num_scheduled_units = 0;
   this->num_non_scheduled_units = 0;
+  this->num_propagations=0;
+  this->num_non_propagations=0;
   this->M1=0; this->M2=0;
 }
 
@@ -192,6 +194,8 @@ pattern::pattern(const pattern& _copy){
   this->num_non_schedules = _copy.num_non_schedules;
   this->num_scheduled_units = _copy.num_scheduled_units;
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
+  this->num_propagations=_copy.num_propagations;
+  this->num_non_propagations=_copy.num_non_propagations;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
 }
@@ -204,6 +208,8 @@ pattern& pattern::operator=(const pattern& _copy){
   this->num_non_schedules = _copy.num_non_schedules;
   this->num_scheduled_units = _copy.num_scheduled_units;
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
+  this->num_propagations=_copy.num_propagations;
+  this->num_non_propagations=_copy.num_non_propagations;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
   return *this;

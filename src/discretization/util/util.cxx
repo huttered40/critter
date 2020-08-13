@@ -16,10 +16,6 @@ size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
 std::map<MPI_Comm,std::pair<int,int>> communicator_map;
-/*
-std::unordered_map<comm_pattern_key,pattern_key_id> comm_pattern_map;
-std::unordered_map<comp_pattern_key,pattern_key_id> comp_pattern_map;
-*/
 std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
@@ -148,6 +144,11 @@ void set_schedule(const pattern_key_id& index, bool schedule_decision){
   //assert(index.is_active);
   pattern_list[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
   pattern_list[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
+  if (schedule_decision==true){
+    pattern_list[index.val_index].num_propagations++;
+  } else{
+    pattern_list[index.val_index].num_non_propagations++;
+  }
 }
 
 void allocate(MPI_Comm comm){
@@ -174,16 +175,16 @@ void allocate(MPI_Comm comm){
 
   pattern ex_3;
   MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int pattern_internal_block_len[2] = { 4,5 };
+  int pattern_internal_block_len[2] = { 6,5 };
   MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.steady_state-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
   PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
   PMPI_Type_commit(&pattern_type);
 
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
 
-  num_critical_path_measures 		= 5;
-  num_per_process_measures 		= 6;
-  num_volume_measures 			= 6;
+  num_critical_path_measures 		= 1;
+  num_per_process_measures 		= 1;
+  num_volume_measures 			= 1;
 
   // The '3*comm_path_select_size' used below are used to track {computation cost, computation time, idle time} along each of the 'comm_path_select_size' paths.
   critical_path_costs_size            	= num_critical_path_measures;
@@ -217,9 +218,9 @@ void open_symbol(const char* symbol, double curtime){}
 void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
-  critical_path_costs[num_critical_path_measures-2]+=(last_time-computation_timer);	// update critical path computation time
+  //critical_path_costs[num_critical_path_measures-2]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
-  volume_costs[num_volume_measures-2]+=(last_time-computation_timer);			// update computation time volume
+  //volume_costs[num_volume_measures-2]+=(last_time-computation_timer);			// update computation time volume
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
 
   // set all kernels into global steady state -- note this is reasonable for now,
