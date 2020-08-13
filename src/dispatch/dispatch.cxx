@@ -178,13 +178,13 @@ void collect(MPI_Comm comm){
   }
 }
 
-void final_accumulate(double last_time){
+void final_accumulate(MPI_Comm comm, double last_time){
   switch (mechanism){
     case 0:
-      decomposition::final_accumulate(last_time);
+      decomposition::final_accumulate(comm,last_time);
       break;
     case 1:
-      discretization::final_accumulate(last_time);
+      discretization::final_accumulate(comm,last_time);
       break;
   }
 }

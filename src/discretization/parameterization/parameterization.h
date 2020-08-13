@@ -1,12 +1,15 @@
 #ifndef CRITTER__DISCRETIZATION__PARAMETERIZATION__PARAMETERIZATION_H_
 #define CRITTER__DISCRETIZATION__PARAMETERIZATION__PARAMETERIZATION_H_
 
+#include <functional>
+
 namespace critter{
 namespace internal{
 namespace discretization{
 
 extern int comm_pattern_param;
 extern int comp_pattern_param;
+
 // ****************************************************************************************************************************************************
 struct comm_pattern_key{
 
@@ -76,5 +79,60 @@ struct pattern_key_id{
 }
 }
 }
+
+namespace std{
+  template <>
+  struct hash<critter::internal::discretization::comm_pattern_key>{
+    std::size_t operator()(const critter::internal::discretization::comm_pattern_key& k) const{
+      using std::size_t;
+      using std::hash;
+
+      // Compute individual hash values for first,
+      // second and third and combine them using XOR and bit shifting:
+      size_t res = 17;
+      res = res*23+hash<int>()(k.tag);
+      res = res*23+hash<int>()(k.comm_size);
+      res = res*23+hash<int>()(k.comm_color);
+      res = res*23+hash<int>()(k.partner_offset);
+      res = res*23+hash<double>()(k.msg_size);
+      return res;
+/*
+      return ((hash<int>()(k.tag)
+           ^ (hash<int>()(k.comm_size) << 1)) >> 1)
+           ^ (hash<int>()(k.comm_color) << 1)
+           ^ (hash<int>()(k.partner_offset) << 2)
+           ^ (hash<double>()(k.msg_size) << 3);
+*/
+    }
+  };
+  template <>
+  struct hash<critter::internal::discretization::comp_pattern_key>{
+    std::size_t operator()(const critter::internal::discretization::comp_pattern_key& k) const{
+      using std::size_t;
+      using std::hash;
+
+      // Compute individual hash values for first,
+      // second and third and combine them using XOR and bit shifting:
+      size_t res = 17;
+      res = res*23+hash<int>()(k.tag);
+      res = res*23+hash<int>()(k.param1);
+      res = res*23+hash<int>()(k.param2);
+      res = res*23+hash<int>()(k.param3);
+      res = res*23+hash<int>()(k.param4);
+      res = res*23+hash<int>()(k.param5);
+      res = res*23+hash<double>()(k.flops);
+      return res;
+/*
+      return ((hash<int>()(k.tag)
+           ^ (hash<int>()(k.param1) << 1)) >> 1)
+           ^ (hash<int>()(k.param2) << 1)
+           ^ (hash<int>()(k.param3) << 2)
+           ^ (hash<int>()(k.param4) << 3)
+           ^ (hash<int>()(k.param5) << 4)
+           ^ (hash<double>()(k.flops) << 5);
+*/
+    }
+  };
+};
 
 #endif /*CRITTER__DISCRETIZATION__PARAMETERIZATION__PARAMETERIZATION_H_*/

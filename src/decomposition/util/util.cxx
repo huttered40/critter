@@ -191,6 +191,12 @@ void reset(){
   memset(&symbol_timer_pad_local_cp[0],0,sizeof(double)*symbol_timer_pad_local_cp.size());
   memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
+
+  comm_intercept_overhead_stage1=0;
+  comm_intercept_overhead_stage2=0;
+  comm_intercept_overhead_stage3=0;
+  comm_intercept_overhead_stage4=0;
+  comp_intercept_overhead=0;
 }
 
 void open_symbol(const char* symbol, double curtime){
@@ -214,7 +220,7 @@ void close_symbol(const char* symbol, double curtime){
 }
 
 
-void final_accumulate(double last_time){
+void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-2]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-2]+=(last_time-computation_timer);			// update computation time volume

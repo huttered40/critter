@@ -16,6 +16,10 @@ size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
 std::map<MPI_Comm,std::pair<int,int>> communicator_map;
+/*
+std::unordered_map<comm_pattern_key,pattern_key_id> comm_pattern_map;
+std::unordered_map<comp_pattern_key,pattern_key_id> comp_pattern_map;
+*/
 std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
@@ -103,6 +107,7 @@ void error_test(const pattern_key_id& index, int pattern_param){
 }
 void update(const pattern_key_id& index, int pattern_param, volatile double exec_time, double unit_count){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+  if (exec_time==0) { exec_time=1.e-9; }
   if (pattern_list[index.val_index].steady_state == 0){
     pattern_list[index.val_index].num_schedules++;
     pattern_list[index.val_index].num_scheduled_units += unit_count;
@@ -119,8 +124,8 @@ void update(const pattern_key_id& index, int pattern_param, volatile double exec
     double delta_n2 = delta_n*delta_n;
     double term1 = delta*delta_n*n1;
     pattern_list[index.val_index].M1 += delta_n;
-//    this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
-//    this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
+//    pattern_list[index.val_index].M4 = pattern_list[index.val_index].M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*pattern_list[index.val_index].M2-4*delta_n*pattern_list[index.val_index].M3;
+//    pattern_list[index.val_index].M3 = pattern_list[index.val_index].M3 + term1*delta_n*(n-2)-3*delta_n*pattern_list[index.val_index].M2;
     pattern_list[index.val_index].M2 += term1;
     error_test(index,pattern_param);
   }
@@ -211,11 +216,37 @@ void open_symbol(const char* symbol, double curtime){}
 
 void close_symbol(const char* symbol, double curtime){}
 
-void final_accumulate(double last_time){
+void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-2]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-2]+=(last_time-computation_timer);			// update computation time volume
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
+
+  // set all kernels into global steady state -- note this is reasonable for now,
+  //   particularly as a debugging technique, but not sure if this makes sense permanently
+  for (auto it : comm_pattern_map){
+    set_schedule(it.second,false);
+  }
+  for (auto it : comp_pattern_map){
+    set_schedule(it.second,false);
+  }
+
+  // Find the max per-process overhead
+  double intercept_overhead = comm_intercept_overhead_stage1;
+  PMPI_Allreduce(MPI_IN_PLACE,&intercept_overhead,1,MPI_DOUBLE,MPI_MAX,comm);
+  comm_intercept_overhead_stage1 = intercept_overhead;
+  intercept_overhead = comm_intercept_overhead_stage2;
+  PMPI_Allreduce(MPI_IN_PLACE,&intercept_overhead,1,MPI_DOUBLE,MPI_MAX,comm);
+  comm_intercept_overhead_stage2 = intercept_overhead;
+  intercept_overhead = comm_intercept_overhead_stage3;
+  PMPI_Allreduce(MPI_IN_PLACE,&intercept_overhead,1,MPI_DOUBLE,MPI_MAX,comm);
+  comm_intercept_overhead_stage3 = intercept_overhead;
+  intercept_overhead = comm_intercept_overhead_stage4;
+  PMPI_Allreduce(MPI_IN_PLACE,&intercept_overhead,1,MPI_DOUBLE,MPI_MAX,comm);
+  comm_intercept_overhead_stage4 = intercept_overhead;
+  intercept_overhead = comp_intercept_overhead;
+  PMPI_Allreduce(MPI_IN_PLACE,&intercept_overhead,1,MPI_DOUBLE,MPI_MAX,comm);
+  comp_intercept_overhead = intercept_overhead;
 }
 
 void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide){
@@ -281,6 +312,11 @@ void reset(bool track_statistical_data_override, bool clear_statistical_data, bo
   if (schedule_kernels==1){ schedule_kernels = (schedule_kernels_override ? schedule_kernels : 0); }
 //  if (autotuning_propagate==1){ autotuning_mode == propagate_statistical_data_overide ? autotuning_mode : 0; }
   autotuning_propagate=1;// means nothing if autotuning_mode != 3
+  comm_intercept_overhead_stage1=0;
+  comm_intercept_overhead_stage2=0;
+  comm_intercept_overhead_stage3=0;
+  comm_intercept_overhead_stage4=0;
+  comp_intercept_overhead=0;
 }
 
 void clear(){}

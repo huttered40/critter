@@ -29,7 +29,7 @@ void stop(double* data, bool track_statistical_data_override, bool clear_statist
   PMPI_Barrier(MPI_COMM_WORLD);
 
   assert(internal::internal_comm_info.size() == 0);
-  internal::final_accumulate(last_time); 
+  internal::final_accumulate(MPI_COMM_WORLD,last_time); 
   internal::propagate(MPI_COMM_WORLD);
   internal::collect(MPI_COMM_WORLD);
 

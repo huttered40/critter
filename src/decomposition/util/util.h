@@ -47,7 +47,7 @@ void allocate(MPI_Comm comm);
 void reset();
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
-void final_accumulate(double last_time);
+void final_accumulate(MPI_Comm comm, double last_time);
 void clear();
 
 }

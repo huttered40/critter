@@ -23,7 +23,7 @@ void complete_comm(double curtime, int incount, MPI_Request array_of_requests[],
 void complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
 void propagate(MPI_Comm comm);
 void collect(MPI_Comm comm);
-void final_accumulate(double last_time);
+void final_accumulate(MPI_Comm comm, double last_time);
 
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);

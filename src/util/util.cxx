@@ -3,6 +3,11 @@
 namespace critter{
 namespace internal{
 
+volatile double comm_intercept_overhead_stage1;
+volatile double comm_intercept_overhead_stage2;
+volatile double comm_intercept_overhead_stage3;
+volatile double comm_intercept_overhead_stage4;
+volatile double comp_intercept_overhead;
 double comp_start_time;
 size_t mode_1_width;
 size_t mode_2_width;

@@ -20,13 +20,13 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
 }
 
 bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
-
   // accumulate computation time
   double save_comp_time = curtime - computation_timer;
 
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return false; }
+  volatile double overhead_start_time = MPI_Wtime();
 
   critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path runtime
@@ -40,6 +40,8 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
         schedule_decision = should_schedule(comp_pattern_map[p_id_1])==1;
       }
   }
+
+  comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
   return schedule_decision;
@@ -51,6 +53,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return; }
+  volatile double overhead_start_time = MPI_Wtime();
 
   if (autotuning_mode>0){
     comp_pattern_key p_id_1(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
@@ -72,6 +75,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   volume_costs[num_volume_measures-2] += comp_time;
   volume_costs[num_volume_measures-1] += comp_time;
 
+  comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
   computation_timer = MPI_Wtime();
 }
 
@@ -106,6 +110,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return false; }
+  volatile double overhead_start_time = MPI_Wtime();
 
   // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
   // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
@@ -130,7 +135,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   bool schedule_decision = schedule_kernels==1 ? true : false;
   int schedule_decision_int; int schedule_decision_foreign_int;
   if (autotuning_mode>0){
-    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
+    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
       if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
         schedule_decision = should_schedule_global(comm_pattern_map[p_id_1])==1;
       }
@@ -202,13 +207,16 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
   }
 
+  comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
+  overhead_start_time = MPI_Wtime();
+
   critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
   volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
 
   if (autotuning_mode>0 && schedule_decision == true){
-    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
+    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
     if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
       schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
     }
@@ -235,7 +243,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       if (tracker.partner2 != tracker.partner1){
         // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
         PMPI_Sendrecv(&schedule_decision_int, 1, MPI_INT, tracker.partner2, internal_tag2, &schedule_decision_foreign_int, 1,
-                           MPI_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+                           MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
         schedule_decision = ((schedule_decision_int > 0) || (schedule_decision_foreign_int>0) ? true : false);
       }
     }
@@ -249,6 +257,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
   }
 
+  comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
   return schedule_decision;
@@ -261,6 +270,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return; }
+  volatile double overhead_start_time = MPI_Wtime();
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
@@ -278,7 +288,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   bool autotuning_special_bool = false;
   if (autotuning_mode>0){
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
-    comm_pattern_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
+    comm_pattern_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
       if (comm_pattern_map.find(p_id_1) == comm_pattern_map.end()){
         active_comm_pattern_keys.emplace_back(p_id_1);
         active_patterns.emplace_back(pattern());
@@ -324,6 +334,9 @@ void path::complete_comm(blocking& tracker, int recv_source){
   volume_costs[num_volume_measures-1] = volume_costs[num_volume_measures-1] > critical_path_costs[num_critical_path_measures-1]
                                           ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
 
+  comm_intercept_overhead_stage3 += MPI_Wtime() - overhead_start_time;
+  overhead_start_time = MPI_Wtime();
+
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   if (autotuning_mode==0 || autotuning_special_bool==false || (tracker.comm==MPI_COMM_WORLD && tracker.partner1==-1)){
     if ((rank == tracker.partner1) && (rank == tracker.partner2)) { ; }
@@ -345,6 +358,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
   }
 
+  comm_intercept_overhead_stage4 += MPI_Wtime() - overhead_start_time;
   // Prepare to leave interception and re-enter user code by restarting computation timers.
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
