@@ -36,11 +36,9 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   bool schedule_decision = schedule_kernels==1 ? true : false;
   if (autotuning_mode>0){
     comp_pattern_key p_id_1(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-//    if (pattern_param==1){
       if (!(comp_pattern_map.find(p_id_1) == comp_pattern_map.end())){
         schedule_decision = should_schedule(comp_pattern_map[p_id_1])==1;
       }
-//    }
   }
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
@@ -56,17 +54,15 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
 
   if (autotuning_mode>0){
     comp_pattern_key p_id_1(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
-//    if (pattern_param == 1){
       if (comp_pattern_map.find(p_id_1) == comp_pattern_map.end()){
         active_comp_pattern_keys.emplace_back(p_id_1);
         active_patterns.emplace_back(pattern());
         comp_pattern_map[p_id_1] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
       }
       if (should_schedule(comp_pattern_map[p_id_1]) == 0){
-        comp_time = get_arithmetic_mean(comp_pattern_map[p_id_1]);
+        comp_time = get_estimate(comp_pattern_map[p_id_1],comp_pattern_param,flop_count);
       }
-      update(comp_pattern_map[p_id_1],comp_time,flop_count);
-//    }
+      update(comp_pattern_map[p_id_1],comp_pattern_param,comp_time,flop_count);
   }
   critical_path_costs[num_critical_path_measures-5] += flop_count;
   critical_path_costs[num_critical_path_measures-2] += comp_time;
@@ -135,11 +131,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   int schedule_decision_int; int schedule_decision_foreign_int;
   if (autotuning_mode>0){
     comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
-//    if (pattern_param==1){
       if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
         schedule_decision = should_schedule_global(comm_pattern_map[p_id_1])==1;
       }
-//    }
   }
 
   if (autotuning_mode==0 || schedule_decision==true){
@@ -215,11 +209,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
   if (autotuning_mode>0 && schedule_decision == true){
     comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
-//    if (pattern_param==1){
-      if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
-        schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
-      }
-//    }
+    if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
+      schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
+    }
     schedule_decision_int = (int)schedule_decision;
     if (tracker.partner1 == -1){
       PMPI_Allreduce(MPI_IN_PLACE, &schedule_decision_int, 1, MPI_INT, MPI_SUM, tracker.comm);
@@ -287,20 +279,18 @@ void path::complete_comm(blocking& tracker, int recv_source){
   if (autotuning_mode>0){
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
     comm_pattern_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : abs(rank - tracker.partner1)));
-//    if (pattern_param == 1){
       if (comm_pattern_map.find(p_id_1) == comm_pattern_map.end()){
         active_comm_pattern_keys.emplace_back(p_id_1);
         active_patterns.emplace_back(pattern());
         comm_pattern_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
       }
       if (should_schedule(comm_pattern_map[p_id_1])==0){
-        comm_time = get_arithmetic_mean(comm_pattern_map[p_id_1]);
+        comm_time = get_estimate(comm_pattern_map[p_id_1],comm_pattern_param,tracker.nbytes);
       }
       if (should_schedule_global(comm_pattern_map[p_id_1])==0){
         autotuning_special_bool = true;
       }
-      update(comm_pattern_map[p_id_1],comm_time,tracker.nbytes);
-//    }
+      update(comm_pattern_map[p_id_1],comm_pattern_param,comm_time,tracker.nbytes);
   }
 
   // Update measurements that define the critical path for each metric.

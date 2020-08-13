@@ -56,17 +56,20 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
                     << "," << key_list[it.second.key_index].comm_color
                     << "," << key_list[it.second.key_index].msg_size
                     << "," << key_list[it.second.key_index].partner_offset
-                    << ") - with byte-count " << key_list[it.second.key_index].msg_size  << "\n";
+                    << ") - with byte-count " << key_list[it.second.key_index].msg_size
+                    << std::endl;
           Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
                     << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
                     << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
                     << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
-                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
-          Stream << "\t\tArithmeticMean - " << discretization::get_arithmetic_mean(it.second)
-                    << ", StdDev - " << discretization::get_std_dev(it.second)
-                    << ", StdError - " << discretization::get_std_error(it.second)
-                    << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second)
-                    << ", Stopping criterion - " << discretization::get_confidence_interval(it.second)/(2*discretization::get_arithmetic_mean(it.second)) << std::endl;
+                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units
+                    << std::endl;
+          Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_pattern_param)
+                    << ", StdDev - " << discretization::get_std_dev(it.second,comm_pattern_param)
+                    << ", StdError - " << discretization::get_std_error(it.second,comm_pattern_param)
+                    << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comm_pattern_param)
+                    << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comm_pattern_param)/(2*discretization::get_estimate(it.second,comm_pattern_param))
+                    << std::endl;
 /*
           for (auto k=0; k<it.second.save_comm_times.size(); k++){
             Stream << "\t\t\tCommTime - " << it.second.save_comm_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
@@ -86,17 +89,20 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
                     << "," << key_list[it.second.key_index].param4
                     << "," << key_list[it.second.key_index].param5
                     << ") - with flop-count "
-                    << it.first.flops << "\n";
+                    << it.first.flops
+                    << std::endl;
           Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
                     << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
                     << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
                     << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
-                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units << std::endl;
-          Stream << "\t\tArithmeticMean - " << discretization::get_arithmetic_mean(it.second)
-                    << ", StdDev - " << discretization::get_std_dev(it.second)
-                    << ", StdError - " << discretization::get_std_error(it.second)
-                    << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second)
-                    << ", Stopping criterion - " << discretization::get_confidence_interval(it.second)/(2*discretization::get_arithmetic_mean(it.second)) << std::endl;
+                    << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units
+                    << std::endl;
+          Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_pattern_param,comp_pattern_param)
+                    << ", StdDev - " << discretization::get_std_dev(it.second,comp_pattern_param)
+                    << ", StdError - " << discretization::get_std_error(it.second,comp_pattern_param)
+                    << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comp_pattern_param)
+                    << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comp_pattern_param)/(2*discretization::get_estimate(it.second,comp_pattern_param))
+                    << std::endl;
 /*
           for (auto k=0; k<it.second.save_comp_times.size(); k++){
             Stream << "\t\t\tCompTime - " << it.second.save_comp_times[k] << ", Arithmetic mean - " << it.second.save_arithmetic_means[k] << ", StdDev - " << it.second.save_std_dev[k] << ", StdError - " << it.second.save_std_error[k]
@@ -106,14 +112,14 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
         }
         Stream << std::endl;
         Stream << std::endl;
-        Stream << "Execution path parameterization #" << pattern_param << ": volumetric communication:\n";
+        Stream << "Execution path parameterization #" << comm_pattern_param << " " << comp_pattern_param << ": volumetric communication:\n";
         Stream << "\tNum scheduled patterns - " << patterns[0] << std::endl;
         Stream << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
         Stream << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
         Stream << "\tNum scheduled bytes - " << communications[0] << std::endl;
         Stream << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
         Stream << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
-        Stream << "Execution path parameterization #" << pattern_param << ": volumetric computation:\n";
+        Stream << "Execution path parameterization #" << comm_pattern_param << " " << comp_pattern_param << ": volumetric computation:\n";
         Stream << "\tNum scheduled patterns - " << patterns[2] << std::endl;
         Stream << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
         Stream << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;

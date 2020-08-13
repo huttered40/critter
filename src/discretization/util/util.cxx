@@ -25,32 +25,47 @@ std::vector<comp_pattern_key> active_comp_pattern_keys;
 std::vector<pattern> steady_state_patterns;
 std::vector<pattern> active_patterns;
 
-
+double get_estimate(const pattern_key_id& index, int pattern_param, double unit_count){
+  if (pattern_param%2==0){// arithmetic mean
+    return get_arithmetic_mean(index);
+  } else{
+    return unit_count*get_harmonic_mean(index);
+  }
+}
 double get_arithmetic_mean(const pattern_key_id& index){
   // returns arithmetic mean
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   return pattern_list[index.val_index].M1;
 }
-double get_variance(const pattern_key_id& index){
+double get_harmonic_mean(const pattern_key_id& index){
+  // returns arithmetic mean
+  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+  return 1./pattern_list[index.val_index].M1;
+}
+double get_variance(const pattern_key_id& index, int pattern_param){
   // returns variance
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   size_t n = pattern_list[index.val_index].num_schedules;
   if (n<=1) return 1000.;
-  return pattern_list[index.val_index].M2 / (n-1.);
+  if (pattern_param%2==0){
+    return pattern_list[index.val_index].M2 / (n-1.);
+  } else{
+    return 1./pattern_list[index.val_index].M2 / (n-1.);
+  }
 }
-double get_std_dev(const pattern_key_id& index){
+double get_std_dev(const pattern_key_id& index, int pattern_param){
   // returns variance
-  return pow(get_variance(index),1./2.);
+  return pow(get_variance(index,pattern_param),1./2.);
 }
-double get_std_error(const pattern_key_id& index){
+double get_std_error(const pattern_key_id& index, int pattern_param){
   // returns standard error
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   size_t n = pattern_list[index.val_index].num_schedules;
-  return get_std_dev(index) / pow(n*1.,1./2.);
+  return get_std_dev(index,pattern_param) / pow(n*1.,1./2.);
 }
-double get_confidence_interval(const pattern_key_id& index, double level){
+double get_confidence_interval(const pattern_key_id& index, int pattern_param,double level){
   // returns confidence interval length with 95% confidence level
-  return 1.96*get_std_error(index);
+  return 1.96*get_std_error(index,pattern_param);
 }
 /*
 double get_skewness(pattern_key_id index){
@@ -74,10 +89,10 @@ double get_jacque_barra(pattern_key_id index){
   return jb_test_stat;
 }
 */
-void error_test(const pattern_key_id& index){
+void error_test(const pattern_key_id& index, int pattern_param){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   //assert(index.is_active);
-  bool decision = ((get_confidence_interval(index) / (2.*get_arithmetic_mean(index))) < pattern_error_limit) &&
+  bool decision = ((get_confidence_interval(index,pattern_param) / (2.*get_estimate(index,pattern_param))) < pattern_error_limit) &&
                   (pattern_list[index.val_index].num_schedules >= pattern_count_limit) &&
                   (pattern_list[index.val_index].total_exec_time >= pattern_time_limit);
   if (decision){
@@ -86,6 +101,35 @@ void error_test(const pattern_key_id& index){
     pattern_list[index.val_index].steady_state = 0;
   }
 }
+void update(const pattern_key_id& index, int pattern_param, volatile double exec_time, double unit_count){
+  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+  if (pattern_list[index.val_index].steady_state == 0){
+    pattern_list[index.val_index].num_schedules++;
+    pattern_list[index.val_index].num_scheduled_units += unit_count;
+    pattern_list[index.val_index].total_exec_time += exec_time;
+//    pattern_list[index].save_exec_times.push_back((double)exec_time);	// only temporary
+    // Online computation of up to 4th-order central moments using compunication time samples
+    size_t n1 = pattern_list[index.val_index].num_schedules-1;
+    size_t n = pattern_list[index.val_index].num_schedules;
+    double x;
+    if (pattern_param%2==0){x = exec_time; }	// prep for arithmetic mean
+    else                   {x = (unit_count>0 ? unit_count : 1.)/exec_time; }	// prep for harmonic mean
+    double delta = x - pattern_list[index.val_index].M1;
+    double delta_n = delta / n;
+    double delta_n2 = delta_n*delta_n;
+    double term1 = delta*delta_n*n1;
+    pattern_list[index.val_index].M1 += delta_n;
+//    this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
+//    this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
+    pattern_list[index.val_index].M2 += term1;
+    error_test(index,pattern_param);
+  }
+  else{
+    pattern_list[index.val_index].num_non_schedules++;
+    pattern_list[index.val_index].num_non_scheduled_units += unit_count;
+  }
+}
+
 int should_schedule(const pattern_key_id& index){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   return (pattern_list[index.val_index].steady_state==1 ? 0 : 1);
@@ -99,32 +143,6 @@ void set_schedule(const pattern_key_id& index, bool schedule_decision){
   //assert(index.is_active);
   pattern_list[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
   pattern_list[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
-}
-void update(const pattern_key_id& index, volatile double exec_time, double unit_count){
-  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  if (pattern_list[index.val_index].steady_state == 0){
-    pattern_list[index.val_index].num_schedules++;
-    pattern_list[index.val_index].num_scheduled_units += unit_count;
-    pattern_list[index.val_index].total_exec_time += exec_time;
-//    pattern_list[index].save_exec_times.push_back((double)exec_time);	// only temporary
-    // Online computation of up to 4th-order central moments using compunication time samples
-    size_t n1 = pattern_list[index.val_index].num_schedules-1;
-    size_t n = pattern_list[index.val_index].num_schedules;
-    double x = exec_time;
-    double delta = x - pattern_list[index.val_index].M1;
-    double delta_n = delta / n;
-    double delta_n2 = delta_n*delta_n;
-    double term1 = delta*delta_n*n1;
-    pattern_list[index.val_index].M1 += delta_n;
-//    this->M4 = this->M4 + term1*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*this->M2-4*delta_n*this->M3;
-//    this->M3 = this->M3 + term1*delta_n*(n-2)-3*delta_n*this->M2;
-    pattern_list[index.val_index].M2 += term1;
-    error_test(index);
-  }
-  else{
-    pattern_list[index.val_index].num_non_schedules++;
-    pattern_list[index.val_index].num_non_scheduled_units += unit_count;
-  }
 }
 
 void allocate(MPI_Comm comm){
@@ -224,10 +242,15 @@ void reset(bool track_statistical_data_override, bool clear_statistical_data, bo
   } else{
     schedule_kernels = 1;
   }
-  if (std::getenv("CRITTER_PATTERN_PARAM") != NULL){
-    pattern_param = atoi(std::getenv("CRITTER_PATTERN_PARAM"));
+  if (std::getenv("CRITTER_COMP_PATTERN_PARAM") != NULL){
+    comp_pattern_param = atoi(std::getenv("CRITTER_COMP_PATTERN_PARAM"));
   } else{
-    pattern_param = 0;
+    comp_pattern_param = 0;
+  }
+  if (std::getenv("CRITTER_COMM_PATTERN_PARAM") != NULL){
+    comm_pattern_param = atoi(std::getenv("CRITTER_COMM_PATTERN_PARAM"));
+  } else{
+    comm_pattern_param = 0;
   }
   if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
     pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));

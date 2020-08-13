@@ -5,7 +5,8 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-extern int pattern_param;
+extern int comm_pattern_param;
+extern int comp_pattern_param;
 // ****************************************************************************************************************************************************
 struct comm_pattern_key{
 

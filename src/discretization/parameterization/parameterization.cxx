@@ -1,20 +1,54 @@
 #include "parameterization.h"
 
+#include <stdint.h>
 #include <assert.h>
+#include <iostream>
 
 namespace critter{
 namespace internal{
 namespace discretization{
 
-int pattern_param;
+static double get_approx_power_of_2(double val){
+  // returns the next highest power of 2 as a double
+  if (val==0) return 0;
+  // I'm counting on the int64_t to hold sufficiently large number, especially to store the flop_count exactly.
+  int64_t v = val;
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+  return (double)v;
+}
+static double get_approx_power_of_2(int v){
+  // returns the next highest power of 2 as a double
+  if (v==0) return 0;
+  v--;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  v++;
+  return v;
+}
+
+int comm_pattern_param;
+int comp_pattern_param;
 // ****************************************************************************************************************************************************
 comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
   this->comm_size = _comm_size;
   this->comm_color = _comm_color;
-  this->msg_size = _msg_size;
   this->partner_offset = _partner_offset;
+  if (comm_pattern_param%2 == 0){// 0 and 2
+    this->msg_size = _msg_size;
+  } else {// 1 and 3
+    this->msg_size = get_approx_power_of_2(_msg_size);
+  }
 }
 
 comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
@@ -37,22 +71,18 @@ comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
 }
 
 bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
-  if (pattern_param==1){
+  if (comm_pattern_param/2 == 0){// 0 and 1
     if ((ref1.tag==ref2.tag) && (ref1.comm_size == ref2.comm_size) && (ref1.comm_color == ref2.comm_color) && (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
     else return false;
   }
-  else if (pattern_param==2){
+  else {// 2 and 3
     if ((ref1.tag==ref2.tag) && (ref1.comm_size == ref2.comm_size) && (ref1.comm_color == ref2.comm_color) && (ref1.msg_size == ref2.msg_size)) return true;
     else return false;
-  }
-  else{
-    assert(0);
-    return false;
   }
 }
 
 bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
-  if (pattern_param==1){
+  if (comm_pattern_param/2 == 0){// 0 and 1
     if (ref1.tag < ref2.tag) return true;
     else if (ref1.tag > ref2.tag) return false;
     if (ref1.comm_size < ref2.comm_size) return true;
@@ -64,7 +94,7 @@ bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
     if (ref1.partner_offset < ref2.partner_offset) return true;
     else if (ref1.partner_offset > ref2.partner_offset) return false;
     return false;
-  } else if (pattern_param==2){
+  } else {// 2 and 3
     if (ref1.tag < ref2.tag) return true;
     else if (ref1.tag > ref2.tag) return false;
     if (ref1.comm_size < ref2.comm_size) return true;
@@ -74,9 +104,6 @@ bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
     if (ref1.msg_size < ref2.msg_size) return true;
     else if (ref1.msg_size > ref2.msg_size) return false;
     return false;
-  } else{
-    assert(0);
-    return false;
   }
 }
 
@@ -84,12 +111,21 @@ bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
 comp_pattern_key::comp_pattern_key(int _pattern_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
-  this->flops = _flops;
-  this->param1 = _param1;
-  this->param2 = _param2;
-  this->param3 = _param3;
-  this->param4 = _param4;
-  this->param5 = _param5;
+  if (comp_pattern_param%2 == 0){
+    this->flops = _flops;
+    this->param1 = _param1;
+    this->param2 = _param2;
+    this->param3 = _param3;
+    this->param4 = _param4;
+    this->param5 = _param5;
+  } else {
+    this->flops = get_approx_power_of_2(_flops);
+    this->param1 = get_approx_power_of_2(_param1);
+    this->param2 = get_approx_power_of_2(_param2);
+    this->param3 = get_approx_power_of_2(_param3);
+    this->param4 = get_approx_power_of_2(_param4);
+    this->param5 = get_approx_power_of_2(_param5);
+  }
 }
 
 comp_pattern_key::comp_pattern_key(const comp_pattern_key& _copy){
@@ -146,7 +182,6 @@ pattern::pattern(){
   this->num_scheduled_units = 0;
   this->num_non_scheduled_units = 0;
   this->M1=0; this->M2=0;
-  //this->M3=0; this->M4=0;
 }
 
 pattern::pattern(const pattern& _copy){
@@ -159,7 +194,6 @@ pattern::pattern(const pattern& _copy){
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
-  //this->M3=0; this->M4=0;
 }
 
 pattern& pattern::operator=(const pattern& _copy){
@@ -172,7 +206,6 @@ pattern& pattern::operator=(const pattern& _copy){
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
-  //this->M3=0; this->M4=0;
   return *this;
 }
 
