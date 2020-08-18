@@ -139,7 +139,6 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
 
       if (rank==0){
         Stream << std::endl;
-        Stream << std::endl;
         Stream << "Execution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
         Stream << "\tNum scheduled patterns - " << patterns[0] << std::endl;
         Stream << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
@@ -157,12 +156,14 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
         Stream << "\tNum scheduled flops - " << communications[2] << std::endl;
         Stream << "\tNum total flops - " << communications[2]+communications[3] << std::endl;
         Stream << "\tComputation flop hit ratio - " << 1. - (communications[2] * 1. / (communications[2]+communications[3])) << std::endl;
+/*
         for (auto i=0; i< total_schedled_comm_time_gather.size(); i++){
           Stream << "\tScheduled communication time on rank " << i << ": " << total_schedled_comm_time_gather[i] << std::endl;
         }
         for (auto i=0; i< total_schedled_comp_time_gather.size(); i++){
           Stream << "\tScheduled computation time on rank " << i << ": " << total_schedled_comp_time_gather[i] << std::endl;
         }
+*/
       }
     }
   }

@@ -8,7 +8,8 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-static double truncate(double val){
+static double truncate(double val, int unit_param){
+  if (unit_param==0) return val;
   // returns the next highest power of 2 as a double
   if (val==0) return 0;
   // I'm counting on the int64_t to hold sufficiently large number, especially to store the flop_count exactly.
@@ -19,10 +20,26 @@ static double truncate(double val){
   v |= v >> 4;
   v |= v >> 8;
   v |= v >> 16;
+  v |= v >> 32;
   v++;
-  return (double)v;
+  if (unit_param==1){
+    return (double)v;
+  }
+  else{
+    int pos=0; int64_t temp = v;
+    while (temp){
+      pos++; temp>>=1;
+    }
+    pos--;
+    if (pos%unit_param==0) { return (double)v; }
+    for (int z = pos%unit_param; z<unit_param; z++){
+      v<<=1;
+    }
+    return (double)v;
+  }
 }
-static double truncate(int v){
+static double truncate(int v, int unit_param){
+  if (unit_param==0) return v;
   // returns the next highest power of 2 as a double
   if (v==0) return 0;
   v--;
@@ -32,9 +49,24 @@ static double truncate(int v){
   v |= v >> 8;
   v |= v >> 16;
   v++;
-  return v;
+  if (unit_param==1){
+    return v;
+  }
+  else{
+    int pos=0; int64_t temp = v;
+    while (temp){
+      pos++; temp>>=1;
+    }
+    pos--;
+    if (pos%unit_param==0) { return (double)v; }
+    for (int z = pos%unit_param; z<unit_param; z++){
+      v<<=1;
+    }
+    return (double)v;
+  }
 }
 
+// ****************************************************************************************************************************************************
 int comm_envelope_param;
 int comp_envelope_param;
 int comm_unit_param;
@@ -58,12 +90,7 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
     this->partner_offset = -1;
   }
   // Unit (message-size) parameterization specification
-  if (comm_unit_param == 0){
-    this->msg_size = _msg_size;
-  }
-  else if (comm_unit_param > 0){
-    this->msg_size = truncate(_msg_size);
-  }
+  this->msg_size = truncate(_msg_size,comm_unit_param);
   // Regardless of the specified envelope parameterization, non-p2p communication requires all processes to set partner_offset <- -1
   if (_partner == -1){ this->partner_offset = -1; }
 }
@@ -121,22 +148,12 @@ bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
 comp_pattern_key::comp_pattern_key(int _pattern_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
-  if (comp_unit_param == 0){
-    this->param1 = _param1;
-    this->param2 = _param2;
-    this->param3 = _param3;
-    this->param4 = _param4;
-    this->param5 = _param5;
-    this->flops = _flops;
-  }
-  else if (comp_unit_param > 0){
-    this->param1 = truncate(_param1);
-    this->param2 = truncate(_param2);
-    this->param3 = truncate(_param3);
-    this->param4 = truncate(_param4);
-    this->param5 = truncate(_param5);
-    this->flops = truncate(_flops);
-  }
+  this->param1 = truncate(_param1,comp_unit_param);
+  this->param2 = truncate(_param2,comp_unit_param);
+  this->param3 = truncate(_param3,comp_unit_param);
+  this->param4 = truncate(_param4,comp_unit_param);
+  this->param5 = truncate(_param5,comp_unit_param);
+  this->flops = truncate(_flops,comp_unit_param);
 }
 
 comp_pattern_key::comp_pattern_key(const comp_pattern_key& _copy){
