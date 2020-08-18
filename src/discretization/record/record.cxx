@@ -80,11 +80,11 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
                  << ", M1 - " << pattern_list[it.second.val_index].M1
                  << ", M2 - " << pattern_list[it.second.val_index].M2
                  << std::endl;
-          Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_pattern_param)
-                 << ", StdDev - " << discretization::get_std_dev(it.second,comm_pattern_param)
-                 << ", StdError - " << discretization::get_std_error(it.second,comm_pattern_param)
-                 << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comm_pattern_param)
-                 << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comm_pattern_param)/(2*discretization::get_estimate(it.second,comm_pattern_param))
+          Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_analysis_param)
+                 << ", StdDev - " << discretization::get_std_dev(it.second,comm_analysis_param)
+                 << ", StdError - " << discretization::get_std_error(it.second,comm_analysis_param)
+                 << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comm_analysis_param)
+                 << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comm_analysis_param)/(2*discretization::get_estimate(it.second,comm_analysis_param))
                  << std::endl;
         }
 /*
@@ -117,11 +117,11 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
                   << ", M1 - " << pattern_list[it.second.val_index].M1
                   << ", M2 - " << pattern_list[it.second.val_index].M2
                   << std::endl;
-           Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_pattern_param,comp_pattern_param)
-                  << ", StdDev - " << discretization::get_std_dev(it.second,comp_pattern_param)
-                  << ", StdError - " << discretization::get_std_error(it.second,comp_pattern_param)
-                  << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comp_pattern_param)
-                  << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comp_pattern_param)/(2*discretization::get_estimate(it.second,comp_pattern_param))
+           Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_analysis_param,comp_analysis_param)
+                  << ", StdDev - " << discretization::get_std_dev(it.second,comp_analysis_param)
+                  << ", StdError - " << discretization::get_std_error(it.second,comp_analysis_param)
+                  << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comp_analysis_param)
+                  << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comp_analysis_param)/(2*discretization::get_estimate(it.second,comp_analysis_param))
                   << std::endl;
          }
 /*
@@ -140,7 +140,7 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
       if (rank==0){
         Stream << std::endl;
         Stream << std::endl;
-        Stream << "Execution path parameterization #" << comm_pattern_param << " " << comp_pattern_param << ": volumetric communication:\n";
+        Stream << "Execution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
         Stream << "\tNum scheduled patterns - " << patterns[0] << std::endl;
         Stream << "\tNum total patterns - " << patterns[0]+patterns[1] << std::endl;
         Stream << "\tPattern hit ratio - " << 1.-(patterns[0] * 1. / (patterns[0]+patterns[1])) << std::endl;
@@ -150,7 +150,7 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
         Stream << "\tNum scheduled bytes - " << communications[0] << std::endl;
         Stream << "\tNum total bytes - " << communications[0]+communications[1] << std::endl;
         Stream << "\tCommunication byte hit ratio - " << 1. - (communications[0] * 1. / (communications[0]+communications[1])) << std::endl;
-        Stream << "Execution path parameterization #" << comm_pattern_param << " " << comp_pattern_param << ": volumetric computation:\n";
+        Stream << "Execution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
         Stream << "\tNum scheduled patterns - " << patterns[2] << std::endl;
         Stream << "\tNum total patterns - " << patterns[2]+patterns[3] << std::endl;
         Stream << "\tPattern hit ratio - " << 1.-(patterns[2] * 1. / (patterns[2]+patterns[3])) << std::endl;

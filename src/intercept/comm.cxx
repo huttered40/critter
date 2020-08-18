@@ -5,7 +5,7 @@
 
 namespace critter{
 
-void start(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide){
+void start(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide, bool update_statistical_data_overide){
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{
@@ -15,7 +15,7 @@ void start(bool track_statistical_data_override, bool clear_statistical_data, bo
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true;
-  internal::reset(track_statistical_data_override, clear_statistical_data, schedule_kernels_override, propagate_statistical_data_overide);
+  internal::reset(track_statistical_data_override, clear_statistical_data, schedule_kernels_override, propagate_statistical_data_overide,update_statistical_data_overide);
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);

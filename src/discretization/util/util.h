@@ -10,6 +10,9 @@ namespace discretization{
 extern int autotuning_mode;
 extern int autotuning_propagate;
 extern int schedule_kernels;
+extern int update_analysis;
+extern int conditional_propagation;
+extern int comm_sample_include_idle;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
 extern MPI_Datatype pattern_type;
@@ -26,20 +29,20 @@ extern std::vector<comp_pattern_key> active_comp_pattern_keys;
 extern std::vector<pattern> steady_state_patterns;
 extern std::vector<pattern> active_patterns;
 
-double get_estimate(const pattern_key_id& index, int pattern_param, double unit_count=1.);
+double get_estimate(const pattern_key_id& index, int analysis_param, double unit_count=1.);
 double get_arithmetic_mean(const pattern_key_id& index);
 double get_harmonic_mean(const pattern_key_id& index);
-double get_variance(const pattern_key_id& index, int pattern_param);
-double get_std_dev(const pattern_key_id& index, int pattern_param);
-double get_std_error(const pattern_key_id& index, int pattern_param);
-double get_confidence_interval(const pattern_key_id& index, int pattern_param, double level = .95);
+double get_variance(const pattern_key_id& index, int analysis_param);
+double get_std_dev(const pattern_key_id& index, int analysis_param);
+double get_std_error(const pattern_key_id& index, int analysis_param);
+double get_confidence_interval(const pattern_key_id& index, int analysis_param, double level = .95);
 /*
 double get_skewness(pattern_key_id index);
 double get_kurtosis(pattern_key_id index);
 double get_jacque_barra(pattern_key_id index);
 */
-inline void error_test(const pattern_key_id& index, int pattern_param);
-void update(const pattern_key_id& index, int pattern_param, volatile double exec_time, double unit_count);
+inline void error_test(const pattern_key_id& index, int analysis_param);
+void update(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
 
 int should_schedule(const pattern_key_id& index);
 int should_schedule_global(const pattern_key_id& index);
@@ -49,7 +52,7 @@ void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
-void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide);
+void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide, bool update_statistical_data_overide);
 void clear();
 
 }

@@ -7,13 +7,18 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-extern int comm_pattern_param;
-extern int comp_pattern_param;
+extern int comm_envelope_param;
+extern int comp_envelope_param;
+extern int comm_unit_param;
+extern int comp_unit_param;
+extern int comm_analysis_param;
+extern int comp_analysis_param;
 
 // ****************************************************************************************************************************************************
 struct comm_pattern_key{
 
-  comm_pattern_key(int _pattern_index=0, int _tag=0, int _comm_size=0, int _comm_color=0, double _msg_size=0, int _partner_offset=0);
+  comm_pattern_key(int _rank=-1, int _pattern_index=0, int _tag=0, int _comm_size=0, int _comm_color=0, double _msg_size=0, int _partner=0);
+  comm_pattern_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset);
   comm_pattern_key(const comm_pattern_key& _copy);
   comm_pattern_key& operator=(const comm_pattern_key& _copy);
   friend bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2);

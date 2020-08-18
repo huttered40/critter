@@ -63,9 +63,9 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
         comp_pattern_map[p_id_1] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
       }
       if (should_schedule(comp_pattern_map[p_id_1]) == 0){
-        comp_time = get_estimate(comp_pattern_map[p_id_1],comp_pattern_param,flop_count);
+        comp_time = get_estimate(comp_pattern_map[p_id_1],comp_analysis_param,flop_count);
       }
-      update(comp_pattern_map[p_id_1],comp_pattern_param,comp_time,flop_count);
+      update(comp_pattern_map[p_id_1],comp_analysis_param,comp_time,flop_count);
   }
   //critical_path_costs[num_critical_path_measures-5] += flop_count;
   //critical_path_costs[num_critical_path_measures-2] += comp_time;
@@ -135,7 +135,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   bool schedule_decision = schedule_kernels==1 ? true : false;
   int schedule_decision_int; int schedule_decision_foreign_int;
   if (autotuning_mode>0){
-    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
+    comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
       if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
         schedule_decision = should_schedule_global(comm_pattern_map[p_id_1])==1;
       }
@@ -216,7 +216,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
 
   if (autotuning_mode>0 && schedule_decision == true){
-    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
+    comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
     if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
       schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
     }
@@ -257,7 +257,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
   } else if (schedule_decision == false){
     // This call is merely to increment the num_non_propagated member
-    comm_pattern_key p_id_1(-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
+    comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
     set_schedule(comm_pattern_map[p_id_1],schedule_decision);
   }
 
@@ -292,50 +292,41 @@ void path::complete_comm(blocking& tracker, int recv_source){
   bool autotuning_special_bool = false;
   if (autotuning_mode>0){
     assert(communicator_map.find(tracker.comm) != communicator_map.end());
-    comm_pattern_key p_id_1(active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,(tracker.partner1 == -1 ? -1 : rank - tracker.partner1));
-      if (comm_pattern_map.find(p_id_1) == comm_pattern_map.end()){
-        active_comm_pattern_keys.emplace_back(p_id_1);
-        active_patterns.emplace_back(pattern());
-        comm_pattern_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
-      }
-      if (should_schedule(comm_pattern_map[p_id_1])==0){
-        comm_time = get_estimate(comm_pattern_map[p_id_1],comm_pattern_param,tracker.nbytes);
-      }
-      if (should_schedule_global(comm_pattern_map[p_id_1])==0){
-        autotuning_special_bool = true;
-      } else{
-      }
-      update(comm_pattern_map[p_id_1],comm_pattern_param,comm_time,tracker.nbytes);
+    comm_pattern_key p_id_1(rank,active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
+    double sample;
+    if (comm_pattern_map.find(p_id_1) == comm_pattern_map.end()){
+      active_comm_pattern_keys.emplace_back(p_id_1);
+      active_patterns.emplace_back(pattern());
+      comm_pattern_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
+    }
+    if (should_schedule(comm_pattern_map[p_id_1])==0){
+      comm_time = get_estimate(comm_pattern_map[p_id_1],comm_analysis_param,tracker.nbytes);
+    }
+    if (should_schedule_global(comm_pattern_map[p_id_1])==0){
+      autotuning_special_bool = true;
+    } else{
+    }
+    if (comm_sample_include_idle == 1){
+      sample = comm_time+tracker.barrier_time;
+    }
+    else{
+      sample = comm_time;
+    }
+    update(comm_pattern_map[p_id_1],comm_analysis_param,sample,tracker.nbytes);
   }
 
-  // Update measurements that define the critical path for each metric.
-  //critical_path_costs[num_critical_path_measures-4] += comm_time;		// update critical path communication time (for what this process has seen thus far)
-  //critical_path_costs[num_critical_path_measures-3] += tracker.synch_time;	// update critical path synchronization time
-  critical_path_costs[num_critical_path_measures-1] += comm_time;		// update critical path runtime
+  critical_path_costs[num_critical_path_measures-1] += comm_time;
+  volume_costs[num_volume_measures-1] += comm_time;
 
   //TODO: For autotuning_mode>0 and a skipped schedule, we want to add the barrier time as well.
   if (autotuning_mode>0 && autotuning_special_bool){
     //critical_path_costs[num_critical_path_measures-1] += tracker.barrier_time;
   }
-
-  //volume_costs[num_volume_measures-5] += tracker.barrier_time;			// update local barrier/idle time
-  //volume_costs[num_volume_measures-4] += comm_time;				// update local communication time (not volume until after the completion of the program)
-  //volume_costs[num_volume_measures-3] += tracker.synch_time;			// update local synchronization time
-  volume_costs[num_volume_measures-1] += (tracker.barrier_time+comm_time);	// update local runtime with idle time and comm time
-
-  // Note that this block of code below is left in solely for blocking communication to avoid over-counting the idle time
-  //   (which does not get subtracted by the min idle time any one process incurs due to efficiency complications with matching nonblocking+blocking p2p communications).
-  //   Its handled correctly for blocking collectives.
-  // If per-process execution-time gets larger than execution-time along the execution-time critical path, subtract out the difference from idle time.
-  //volume_costs[num_volume_measures-5] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+  else{
+    volume_costs[num_volume_measures-1] += tracker.barrier_time;
+  }
 
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  //volume_costs[num_volume_measures-4] = volume_costs[num_volume_measures-4] > critical_path_costs[num_critical_path_measures-4]
-  //                                        ? critical_path_costs[num_critical_path_measures-4] : volume_costs[num_volume_measures-4];
-  //volume_costs[num_volume_measures-3] = volume_costs[num_volume_measures-3] > critical_path_costs[num_critical_path_measures-3]
-  //                                        ? critical_path_costs[num_critical_path_measures-3] : volume_costs[num_volume_measures-3];
-  //volume_costs[num_volume_measures-2] = volume_costs[num_volume_measures-2] > critical_path_costs[num_critical_path_measures-2]
-  //                                        ? critical_path_costs[num_critical_path_measures-2] : volume_costs[num_volume_measures-2];
   volume_costs[num_volume_measures-1] = volume_costs[num_volume_measures-1] > critical_path_costs[num_critical_path_measures-1]
                                           ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
 
@@ -518,7 +509,7 @@ void path::propagate_patterns(blocking& tracker, int rank){
   // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
   for (auto i=0; i<active_comm_pattern_keys.size(); i++){
     comm_pattern_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].comm_size,
-                              active_comm_pattern_keys[i].comm_color,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
+                        active_comm_pattern_keys[i].comm_color,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
     if (comm_pattern_map.find(id) == comm_pattern_map.end()){
       comm_pattern_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, true);
     } else{
