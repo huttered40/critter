@@ -9,7 +9,7 @@ namespace discretization{
 
 void record::invoke(std::ofstream& Stream){}
 
-void record::invoke(std::ostream& Stream, double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data, bool save_statistical_data){
+void record::invoke(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
 
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
@@ -51,8 +51,8 @@ void record::invoke(std::ostream& Stream, double* data, bool track_statistical_d
       data[6] = patterns[3];
       data[7] = communications[2];
       data[8] = communications[3];
-      //data[9] = propagations[0];
-      //data[10] = propagations[1];
+      data[9] = propagations[0];
+      data[10] = propagations[1];
     }
     if (print_statistical_data){
       if (rank==0) { Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }

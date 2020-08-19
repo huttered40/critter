@@ -104,6 +104,15 @@ void error_test(const pattern_key_id& index, int analysis_param){
     pattern_list[index.val_index].steady_state = 0;
   }
 }
+void update_propagation_statistics(const pattern_key_id& index, bool schedule_decision){
+  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
+  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+  if (schedule_decision==true){
+    pattern_list[index.val_index].num_propagations++;
+  } else{
+    pattern_list[index.val_index].num_non_propagations++;
+  }
+}
 void update(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
@@ -112,7 +121,6 @@ void update(const pattern_key_id& index, int analysis_param, volatile double exe
     pattern_list[index.val_index].num_schedules++;
     pattern_list[index.val_index].num_scheduled_units += unit_count;
     pattern_list[index.val_index].total_exec_time += exec_time;
-//    pattern_list[index].save_exec_times.push_back((double)exec_time);	// only temporary
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = pattern_list[index.val_index].num_schedules-1;
     size_t n = pattern_list[index.val_index].num_schedules;
@@ -144,17 +152,13 @@ int should_schedule_global(const pattern_key_id& index){
   return (pattern_list[index.val_index].global_steady_state==1 ? 0 : 1);
 }
 void set_schedule(const pattern_key_id& index, bool schedule_decision){
+  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   //assert(index.is_active);
   pattern_list[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
   pattern_list[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
   if (conditional_propagation==0){// force unconditional propagation if not set
     pattern_list[index.val_index].global_steady_state = 0;
-  }
-  if (schedule_decision==true){
-    pattern_list[index.val_index].num_propagations++;
-  } else{
-    pattern_list[index.val_index].num_non_propagations++;
   }
 }
 
@@ -218,8 +222,6 @@ void allocate(MPI_Comm comm){
   }
 }
 
-
-
 void open_symbol(const char* symbol, double curtime){}
 
 void close_symbol(const char* symbol, double curtime){}
@@ -227,15 +229,6 @@ void close_symbol(const char* symbol, double curtime){}
 void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
-
-  // set all kernels into global steady state -- note this is reasonable for now,
-  //   particularly as a debugging technique, but not sure if this makes sense permanently
-  for (auto it : comm_pattern_map){
-    set_schedule(it.second,false);
-  }
-  for (auto it : comp_pattern_map){
-    set_schedule(it.second,false);
-  }
 
   // Find the max per-process overhead
   double intercept_overhead[5] = {comm_intercept_overhead_stage1,comm_intercept_overhead_stage2,
@@ -249,24 +242,23 @@ void final_accumulate(MPI_Comm comm, double last_time){
   comp_intercept_overhead = intercept_overhead[4];
 }
 
-void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide, bool update_statistical_data_overide){
+void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide){
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
 
-  if (clear_statistical_data){
-    // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
-    // Below could be moved to reset, but its basically harmless here
-    comm_pattern_map.clear();
-    comp_pattern_map.clear();
-    steady_state_comm_pattern_keys.clear();
-    active_comm_pattern_keys.clear();
-    steady_state_comp_pattern_keys.clear();
-    active_comp_pattern_keys.clear();
-    steady_state_patterns.clear();
-    active_patterns.clear();
+  if (force_steady_statistical_data_overide){
+    // set all kernels into global steady state -- note this is reasonable for now,
+    //   particularly as a debugging technique, but not sure if this makes sense permanently
+    for (auto it : comm_pattern_map){
+      set_schedule(it.second,false);
+    }
+    for (auto it : comp_pattern_map){
+      set_schedule(it.second,false);
+    }
   }
+
   // Reset these global variables, as some are updated by function arguments for convenience
   if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
     autotuning_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
@@ -340,17 +332,26 @@ void reset(bool track_statistical_data_override, bool clear_statistical_data, bo
   }
   if (autotuning_mode>0){ autotuning_mode = (track_statistical_data_override ? autotuning_mode : 0); }
   if (schedule_kernels==1){ schedule_kernels = (schedule_kernels_override ? schedule_kernels : 0); }
-//  if (autotuning_propagate==1){ autotuning_mode == propagate_statistical_data_overide ? autotuning_mode : 0; }
   if (update_analysis==1){ update_analysis = (update_statistical_data_overide ? update_analysis : 0); }
   autotuning_propagate=1;// means nothing if autotuning_mode != 3
+}
+
+void clear(){
+  // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
+  comm_pattern_map.clear();
+  comp_pattern_map.clear();
+  steady_state_comm_pattern_keys.clear();
+  active_comm_pattern_keys.clear();
+  steady_state_comp_pattern_keys.clear();
+  active_comp_pattern_keys.clear();
+  steady_state_patterns.clear();
+  active_patterns.clear();
   comm_intercept_overhead_stage1=0;
   comm_intercept_overhead_stage2=0;
   comm_intercept_overhead_stage3=0;
   comm_intercept_overhead_stage4=0;
   comp_intercept_overhead=0;
 }
-
-void clear(){}
 
 }
 }

@@ -25,13 +25,13 @@ void allocate(MPI_Comm comm){
   }
 }
 
-void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide, bool update_statistical_data_overide){
+void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide){
   switch (mechanism){
     case 0:
       decomposition::reset();
       break;
     case 1:
-      discretization::reset(track_statistical_data_override,clear_statistical_data,schedule_kernels_override,propagate_statistical_data_overide,update_statistical_data_overide);
+      discretization::reset(track_statistical_data_override,schedule_kernels_override,force_steady_statistical_data_overide,update_statistical_data_overide);
       break;
   }
 }
@@ -233,13 +233,13 @@ void record(std::ofstream& Stream){
   }
 }
 
-void record(std::ostream& Stream, double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data, bool save_statistical_data){
+void record(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
   switch (mechanism){
     case 0:
       decomposition::record::invoke(Stream);
       break;
     case 1:
-      discretization::record::invoke(Stream,data,track_statistical_data_override,clear_statistical_data,print_statistical_data,save_statistical_data);
+      discretization::record::invoke(Stream,data,print_statistical_data,save_statistical_data);
       break;
   }
 }

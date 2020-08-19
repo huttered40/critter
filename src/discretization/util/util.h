@@ -43,6 +43,7 @@ double get_jacque_barra(pattern_key_id index);
 */
 inline void error_test(const pattern_key_id& index, int analysis_param);
 void update(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
+void update_propagation_statistics(const pattern_key_id& index, bool schedule_decision);
 
 int should_schedule(const pattern_key_id& index);
 int should_schedule_global(const pattern_key_id& index);
@@ -52,7 +53,7 @@ void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
-void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide, bool update_statistical_data_overide);
+void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide);
 void clear();
 
 }

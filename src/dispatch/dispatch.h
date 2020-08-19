@@ -7,7 +7,7 @@ namespace critter{
 namespace internal{
 
 void allocate(MPI_Comm comm);
-void reset(bool track_statistical_data_override, bool clear_statistical_data, bool schedule_kernels_override, bool propagate_statistical_data_overide, bool update_statistical_data_overide);
+void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide);
 
 void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm);
 bool initiate_comp(size_t id, volatile double curtime, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
@@ -29,7 +29,7 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 
 void record(std::ofstream& Stream);
-void record(std::ostream& Stream, double* data, bool track_statistical_data_override, bool clear_statistical_data, bool print_statistical_data, bool save_statistical_data);
+void record(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data);
 
 void clear();
 

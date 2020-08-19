@@ -28,9 +28,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   if (schedule_kernels==0){ return false; }
   volatile double overhead_start_time = MPI_Wtime();
 
-  //critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path runtime
-  //volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local runtime
 
   bool schedule_decision = schedule_kernels==1 ? true : false;
@@ -67,12 +65,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       }
       update(comp_pattern_map[p_id_1],comp_analysis_param,comp_time,flop_count);
   }
-  //critical_path_costs[num_critical_path_measures-5] += flop_count;
-  //critical_path_costs[num_critical_path_measures-2] += comp_time;
   critical_path_costs[num_critical_path_measures-1] += comp_time;
-
-  //volume_costs[num_volume_measures-6] += flop_count;
-  //volume_costs[num_volume_measures-2] += comp_time;
   volume_costs[num_volume_measures-1] += comp_time;
 
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
@@ -134,8 +127,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
   bool schedule_decision = schedule_kernels==1 ? true : false;
   int schedule_decision_int; int schedule_decision_foreign_int;
+  comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
   if (autotuning_mode>0){
-    comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
       if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
         schedule_decision = should_schedule_global(comm_pattern_map[p_id_1])==1;
       }
@@ -210,13 +203,10 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
   overhead_start_time = MPI_Wtime();
 
-  //critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
-  //volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
 
   if (autotuning_mode>0 && schedule_decision == true){
-    comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
     if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
       schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
     }
@@ -251,14 +241,11 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     //   and never have to use another internal collective to check again.
     if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
       set_schedule(comm_pattern_map[p_id_1],schedule_decision);
-      if (autotuning_mode == 3){// prevents critical path analysis from changing global steady_state
+      if (autotuning_mode == 3){// prevents critical path analysis from changing global steady_state. Would rather not add to 'set_schedule' because
+				// 'set_schedule' may be called in different contexts.
         active_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0;
       }
     }
-  } else if (schedule_decision == false){
-    // This call is merely to increment the num_non_propagated member
-    comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
-    set_schedule(comm_pattern_map[p_id_1],schedule_decision);
   }
 
   comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
@@ -304,7 +291,9 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
     if (should_schedule_global(comm_pattern_map[p_id_1])==0){
       autotuning_special_bool = true;
+      update_propagation_statistics(comm_pattern_map[p_id_1],false);
     } else{
+      update_propagation_statistics(comm_pattern_map[p_id_1],true);
     }
     if (comm_sample_include_idle == 1){
       sample = comm_time+tracker.barrier_time;
