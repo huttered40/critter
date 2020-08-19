@@ -291,7 +291,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
     if (should_schedule_global(comm_pattern_map[p_id_1])==0){
       autotuning_special_bool = true;
-      update_propagation_statistics(comm_pattern_map[p_id_1],false);
+      update_propagation_statistics(comm_pattern_map[p_id_1],false || (tracker.comm==MPI_COMM_WORLD && tracker.tag==0));
     } else{
       update_propagation_statistics(comm_pattern_map[p_id_1],true);
     }
