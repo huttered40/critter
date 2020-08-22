@@ -158,6 +158,7 @@ void set_schedule(const pattern_key_id& index, bool schedule_decision){
   pattern_list[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
   pattern_list[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
   if (conditional_propagation==0){// force unconditional propagation if not set
+    pattern_list[index.val_index].steady_state = 0;
     pattern_list[index.val_index].global_steady_state = 0;
   }
 }
@@ -197,7 +198,6 @@ void allocate(MPI_Comm comm){
   num_per_process_measures 		= 1;
   num_volume_measures 			= 1;
 
-  // The '3*comm_path_select_size' used below are used to track {computation cost, computation time, idle time} along each of the 'comm_path_select_size' paths.
   critical_path_costs_size            	= num_critical_path_measures;
   per_process_costs_size              	= num_per_process_measures;
   volume_costs_size                   	= num_volume_measures;

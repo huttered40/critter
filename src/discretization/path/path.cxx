@@ -134,6 +134,25 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       }
   }
 
+/*
+  // debug
+  if (tracker.tag > 12){
+    if (schedule_decision!=true){
+      std::cout << "Problem! rank " << rank << " " << tracker.nbytes << " " << tracker.comm_size << " " << tracker.partner1
+                << " " << should_schedule_global(comm_pattern_map[p_id_1]) << " " << should_schedule(comm_pattern_map[p_id_1]) << " " << comm_pattern_map[p_id_1].is_active
+                << " " << comm_pattern_map[p_id_1].key_index << " " << comm_pattern_map[p_id_1].val_index << " " << steady_state_patterns[comm_pattern_map[p_id_1].val_index].M1 << " " << steady_state_patterns[comm_pattern_map[p_id_1].val_index].M2
+                << " " << get_confidence_interval(comm_pattern_map[p_id_1],comm_analysis_param) / (2.*get_estimate(comm_pattern_map[p_id_1],comm_analysis_param))
+                << " " << steady_state_patterns[comm_pattern_map[p_id_1].val_index].num_schedules << " " << steady_state_patterns[comm_pattern_map[p_id_1].val_index].num_non_schedules << " " << steady_state_patterns[comm_pattern_map[p_id_1].val_index].total_exec_time << std::endl;
+    }
+    assert(schedule_decision==true);
+  }
+*/
+/*
+  if (tracker.tag > 12){
+    schedule_decision=true;// unconditional set
+  }
+*/
+
   if (autotuning_mode==0 || schedule_decision==true){
     if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
       assert(partner1 != MPI_ANY_SOURCE);
@@ -240,10 +259,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
     //   and never have to use another internal collective to check again.
     if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
+      assert(should_schedule_global(comm_pattern_map[p_id_1])==1);
       set_schedule(comm_pattern_map[p_id_1],schedule_decision);
       if (autotuning_mode == 3){// prevents critical path analysis from changing global steady_state. Would rather not add to 'set_schedule' because
 				// 'set_schedule' may be called in different contexts.
-        active_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0;
+        if (comm_pattern_map[p_id_1].is_active) { active_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0; }
+        else                                    { steady_state_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0; }
       }
     }
   }
@@ -289,8 +310,10 @@ void path::complete_comm(blocking& tracker, int recv_source){
     if (should_schedule(comm_pattern_map[p_id_1])==0){
       comm_time = get_estimate(comm_pattern_map[p_id_1],comm_analysis_param,tracker.nbytes);
     }
-    if (should_schedule_global(comm_pattern_map[p_id_1])==0){
+    if (should_schedule(comm_pattern_map[p_id_1])==0){
       autotuning_special_bool = true;
+    }
+    if (should_schedule_global(comm_pattern_map[p_id_1])==0){
       update_propagation_statistics(comm_pattern_map[p_id_1],false || (tracker.comm==MPI_COMM_WORLD && tracker.tag==0));
     } else{
       update_propagation_statistics(comm_pattern_map[p_id_1],true);
@@ -367,6 +390,7 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
 void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
 
 void path::flush_patterns(blocking& tracker){
+
   // Iterate over all computation and communication kernel pattern and
   //   flush steady-state patterns currently residing in active buffers into steady-state buffers to avoid propagation cost,
   //     as these patterns are no longer being scheduled, and thus their arithmetic mean is fixed for the rest of the program.
@@ -375,30 +399,106 @@ void path::flush_patterns(blocking& tracker){
   std::vector<comm_pattern_key> active_comm_pattern_keys_mirror;
   std::vector<comp_pattern_key> active_comp_pattern_keys_mirror;
   std::vector<pattern> active_patterns_mirror;
+  std::map<comm_pattern_key,pattern_key_id> p2p_map;
   for (auto it : comm_pattern_map){
     // We only care about those patterns that are stil active. If its not, the profile data will belong to the steady state buffers
     if (it.second.is_active){
-      // If the corresponding kernel reached steady state in the last phase, flush it.
-      if (active_patterns[it.second.val_index].steady_state == 1){// Reason for not using "global_steady_state" is because comp patterns do not use them.
-        // Flush to steady_state_patterns
-        steady_state_patterns.push_back(active_patterns[it.second.val_index]);
-        steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
-        // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
-        // Update the val/key indices to reflect the change in buffers
-        comm_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
-        comm_pattern_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
-        comm_pattern_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
-        steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
-        steady_state_comm_pattern_keys[steady_state_comm_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
+      // Separate out p2p from collectives. p2p coordination is more difficult to manage
+      if (it.first.tag == 16){
+        auto key_copy = it.first; key_copy.tag = 17;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+        if (comm_pattern_map.find(key_copy) == comm_pattern_map.end()){
+          active_patterns[it.second.val_index].steady_state = 0;
+          active_patterns[it.second.val_index].global_steady_state = 0;
+        }
+        p2p_map[it.first] = it.second;
+      }
+      else if (it.first.tag == 17){
+        bool is_steady = true;
+        auto key_copy = it.first; key_copy.tag = 16;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+        if (p2p_map.find(key_copy) == p2p_map.end()){
+          is_steady = false;
+        }
+        else{
+          is_steady = (active_patterns[it.second.val_index].steady_state == 1) && (active_patterns[p2p_map[key_copy].val_index].steady_state == 1);
+        }
+        // If the corresponding kernel reached steady state in the last phase, flush it.
+        if (is_steady){
+          // Flush to steady_state_patterns
+          steady_state_patterns.push_back(active_patterns[it.second.val_index]);
+          steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
+          // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+          // Update the val/key indices to reflect the change in buffers
+          comm_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+          comm_pattern_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
+          comm_pattern_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
+          steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
+          steady_state_comm_pattern_keys[steady_state_comm_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
+          // corresponding send will get flushed below
+        } else{
+          // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+          active_comm_pattern_keys_mirror.push_back(active_comm_pattern_keys[it.second.key_index]);
+          active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
+          comm_pattern_map[it.first].val_index = active_patterns_mirror.size()-1;
+          comm_pattern_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
+          active_comm_pattern_keys_mirror[active_comm_pattern_keys_mirror.size()-1].pattern_index = active_patterns_mirror.size()-1;
+          // must mark corresponding send, if available, to not be in steady_state
+          if (p2p_map.find(key_copy) != p2p_map.end()){
+            active_patterns[p2p_map[key_copy].val_index].steady_state = 0;
+            active_patterns[p2p_map[key_copy].val_index].global_steady_state = 0;
+          }
+        }
       }
       else{
-        // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
-        active_comm_pattern_keys_mirror.push_back(active_comm_pattern_keys[it.second.key_index]);
-        active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
-        comm_pattern_map[it.first].val_index = active_patterns_mirror.size()-1;
-        comm_pattern_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
-        active_comm_pattern_keys_mirror[active_comm_pattern_keys_mirror.size()-1].pattern_index = active_patterns_mirror.size()-1;
+        // If the corresponding kernel reached steady state in the last phase, flush it.
+        if (active_patterns[it.second.val_index].steady_state == 1){// Reason for not using "global_steady_state" is because comp patterns do not use them.
+          // Flush to steady_state_patterns
+          steady_state_patterns.push_back(active_patterns[it.second.val_index]);
+          steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
+          // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+          // Update the val/key indices to reflect the change in buffers
+          comm_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+          comm_pattern_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
+          comm_pattern_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
+          steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
+          steady_state_comm_pattern_keys[steady_state_comm_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
+        }
+        else{
+          // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+          active_comm_pattern_keys_mirror.push_back(active_comm_pattern_keys[it.second.key_index]);
+          active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
+          comm_pattern_map[it.first].val_index = active_patterns_mirror.size()-1;
+          comm_pattern_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
+          active_comm_pattern_keys_mirror[active_comm_pattern_keys_mirror.size()-1].pattern_index = active_patterns_mirror.size()-1;
+        }
       }
+    }
+  }
+  for (auto it : p2p_map){
+    if (active_patterns[it.second.val_index].steady_state == 1){// Reason for not using "global_steady_state" is because comp patterns do not use them.
+      // Flush to steady_state_patterns
+      steady_state_patterns.push_back(active_patterns[it.second.val_index]);
+      steady_state_comm_pattern_keys.push_back(active_comm_pattern_keys[it.second.key_index]);
+      // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+      // Update the val/key indices to reflect the change in buffers
+      comm_pattern_map[it.first].val_index = steady_state_patterns.size()-1;
+      comm_pattern_map[it.first].key_index = steady_state_comm_pattern_keys.size()-1;
+      comm_pattern_map[it.first].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
+      steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
+      steady_state_comm_pattern_keys[steady_state_comm_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
+    }
+    else{
+      // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+      active_comm_pattern_keys_mirror.push_back(active_comm_pattern_keys[it.second.key_index]);
+      active_patterns_mirror.push_back(active_patterns[it.second.val_index]);
+      comm_pattern_map[it.first].val_index = active_patterns_mirror.size()-1;
+      comm_pattern_map[it.first].key_index = active_comm_pattern_keys_mirror.size()-1;
+      active_comm_pattern_keys_mirror[active_comm_pattern_keys_mirror.size()-1].pattern_index = active_patterns_mirror.size()-1;
     }
   }
   for (auto it : comp_pattern_map){
