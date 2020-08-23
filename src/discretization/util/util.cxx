@@ -154,7 +154,6 @@ int should_schedule_global(const pattern_key_id& index){
 void set_schedule(const pattern_key_id& index, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  //assert(index.is_active);
   pattern_list[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
   pattern_list[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
   if (conditional_propagation==0){// force unconditional propagation if not set
@@ -240,6 +239,14 @@ void final_accumulate(MPI_Comm comm, double last_time){
   comm_intercept_overhead_stage3 = intercept_overhead[2];
   comm_intercept_overhead_stage4 = intercept_overhead[3];
   comp_intercept_overhead = intercept_overhead[4];
+
+  // debug
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  for (auto it : comm_pattern_map){
+    if (world_rank==0){
+      std::cout << it.first.tag << " " << it.first.comm_size << " " << it.first.comm_color << " " << it.first.partner_offset << " " << it.first.msg_size << " " << should_schedule(it.second) << " " << should_schedule_global(it.second) << " " << it.second.is_active << std::endl;
+    }
+  }
 }
 
 void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide){
