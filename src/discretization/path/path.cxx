@@ -149,6 +149,17 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     skipped_key = true;
   }
 
+/*
+  // debug
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  if (tracker.tag >= 16 && force_steady_statistical_data_overide_debug){
+    int blah,blah2;
+    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is before initial sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
+    PMPI_Sendrecv(&blah, 1, MPI_INT, tracker.partner1, internal_tag2, &blah2, 1, MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is after initial sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
+  }
+*/
+
   if (autotuning_mode==0 || schedule_decision==true){
     if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
       assert(partner1 != MPI_ANY_SOURCE);
@@ -265,6 +276,17 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
   }
 
+
+/*
+  // debug
+  if (tracker.tag >= 16 && force_steady_statistical_data_overide_debug){
+    int blah,blah2;
+    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is before 2nd sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
+    PMPI_Sendrecv(&blah, 1, MPI_INT, tracker.partner1, internal_tag2, &blah2, 1, MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is after 2nd sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
+  }
+*/
+
   comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
@@ -349,14 +371,14 @@ void path::complete_comm(blocking& tracker, int recv_source){
   overhead_start_time = MPI_Wtime();
 
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
-  if ((autotuning_mode==0) || (autotuning_special_bool==false) || (/*tracker.comm==MPI_COMM_WORLD &&*/ tracker.tag==0)){
+  if ((autotuning_mode==0) || (autotuning_special_bool==false) || (/*tracker.comm==MPI_COMM_WORLD &&*/ no_skip_key(p_id_1))){
     if ((rank == tracker.partner1) && (rank == tracker.partner2)) { ; }
     else{
       propagate(tracker);
       if (autotuning_mode>2 && autotuning_propagate>0){
         propagate_patterns(tracker,p_id_1,rank);
         // check for world communication, in which case we can flush the steady-state kernels out of the active buffers for more efficient propagation
-        if (((tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1)) || (tracker.tag==0)){
+        if (((tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1)) || no_skip_key(p_id_1)){
           flush_patterns(tracker);
         }
       }
@@ -394,7 +416,63 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
 
 void path::flush_patterns(blocking& tracker){
 
+/*
+  // Debug - special. I want to see what this is at the initial MPI_Barrier before the hang
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  for (auto it : comm_pattern_map){
+    // First verify that if a pattern is steady, that its partner is steady as well, as well as explicitely in global steady state
+    if (!it.second.is_active){
+      if (it.first.tag == 16){
+        auto key_copy = it.first; key_copy.tag = 17;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
+        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a send pattern is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a send pattern is not active, it must be in local steady state
+        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a send pattern's partner  is not active, it must be in local steady state
+      }
+      else if (it.first.tag == 17){
+        auto key_copy = it.first; key_copy.tag = 16;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
+        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a recv pattern is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a recv pattern is not active, it must be in local steady state
+        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a rec pattern's partner is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a recv pattern's partner  is not active, it must be in local steady state
+      }
+    }
+    // Next verify that if a pattern is not steady, that its partner is also not steady.
+    //   Then verify that the pattern is not in global steady state, nor its partner
+    else{
+      if (it.first.tag == 16){
+        auto key_copy = it.first; key_copy.tag = 17;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
+//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a send pattern is not active, it must be in global steady state
+        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
+      }
+      else if (it.first.tag == 17){
+        auto key_copy = it.first; key_copy.tag = 16;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
+//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a recv pattern is not active, it must be in global steady state
+        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
+      }
+    }
+  }
+*/
 
   // Iterate over all computation and communication kernel pattern and
   //   flush steady-state patterns currently residing in active buffers into steady-state buffers to avoid propagation cost,
@@ -419,6 +497,7 @@ void path::flush_patterns(blocking& tracker){
           active_patterns[it.second.val_index].global_steady_state = 0;
         }
         else{// debug check
+/*
           if (world_rank==0){
             if (it.second.is_active != comm_pattern_map[key_copy].is_active){
               std::cout << it.first.tag << " " << it.first.comm_size << " " << it.first.comm_color << " " << it.first.partner_offset << " " << it.first.msg_size << " " << it.second.is_active << " " << active_patterns[it.second.val_index].num_schedules << " " << active_patterns[it.second.val_index].num_non_schedules
@@ -428,7 +507,8 @@ void path::flush_patterns(blocking& tracker){
               assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
             }
           }
-          //assert(it.second.is_active == comm_pattern_key[key_copy].is_active);// debug
+*/
+          assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
         }
         p2p_map[it.first] = it.second;
       }
@@ -442,6 +522,7 @@ void path::flush_patterns(blocking& tracker){
           is_steady = false;
         }
         else{
+/*
           if (world_rank==0){
             if (it.second.is_active != comm_pattern_map[key_copy].is_active){
               std::cout << it.first.tag << " " << it.first.comm_size << " " << it.first.comm_color << " " << it.first.partner_offset << " " << it.first.msg_size << " " << it.second.is_active << " " << active_patterns[it.second.val_index].num_schedules << " " << active_patterns[it.second.val_index].num_non_schedules
@@ -451,7 +532,8 @@ void path::flush_patterns(blocking& tracker){
               assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
             }
           }
-          //assert(it.second.is_active == comm_pattern_key[key_copy].is_active);// debug
+*/
+          assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
           is_steady = (active_patterns[it.second.val_index].steady_state == 1) && (active_patterns[p2p_map[key_copy].val_index].steady_state == 1);
         }
         // If the corresponding kernel reached steady state in the last phase, flush it.
@@ -557,6 +639,63 @@ void path::flush_patterns(blocking& tracker){
   active_comm_pattern_keys = active_comm_pattern_keys_mirror;
   active_comp_pattern_keys = active_comp_pattern_keys_mirror;
   active_patterns = active_patterns_mirror;
+/*
+  // Debug - special. I want to see what this is at the initial MPI_Barrier before the hang
+  for (auto it : comm_pattern_map){
+    // First verify that if a pattern is steady, that its partner is steady as well, as well as explicitely in global steady state
+    if (!it.second.is_active){
+      if (it.first.tag == 16){
+        auto key_copy = it.first; key_copy.tag = 17;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
+        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a send pattern is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a send pattern is not active, it must be in local steady state
+        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a send pattern's partner  is not active, it must be in local steady state
+      }
+      else if (it.first.tag == 17){
+        auto key_copy = it.first; key_copy.tag = 16;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
+        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a recv pattern is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a recv pattern is not active, it must be in local steady state
+        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a rec pattern's partner is not active, it must be in global steady state
+        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a recv pattern's partner  is not active, it must be in local steady state
+      }
+    }
+    // Next verify that if a pattern is not steady, that its partner is also not steady.
+    //   Then verify that the pattern is not in global steady state, nor its partner
+    else{
+      if (it.first.tag == 16){
+        auto key_copy = it.first; key_copy.tag = 17;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
+//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a send pattern is not active, it must be in global steady state
+        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
+      }
+      else if (it.first.tag == 17){
+        auto key_copy = it.first; key_copy.tag = 16;
+        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
+        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
+        else { key_copy.partner_offset=-1; }
+//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
+//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
+        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a recv pattern is not active, it must be in global steady state
+        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
+      }
+    }
+  }
+  //if (world_rank==0) std::cout << "Done with flush_patterns\n";
+*/
 }
 
 
@@ -696,6 +835,14 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
       it++;
     }
   }
+
+/*
+  // debug
+  for (auto it : active_comm_pattern_keys){
+    assert(active_patterns[comm_pattern_map[it].val_index].global_steady_state==0);
+    assert(should_schedule_global(comm_pattern_map[it])==1);
+  }
+*/
 }
 
 void path::propagate(blocking& tracker){

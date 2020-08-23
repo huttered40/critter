@@ -222,13 +222,13 @@ void clear(){
   }
 }
 
-void record(std::ofstream& Stream){
+void record(std::ofstream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
   switch (mechanism){
     case 0:
       decomposition::record::invoke(Stream);
       break;
     case 1:
-      discretization::record::invoke(Stream);
+      discretization::record::invoke(Stream,data,print_statistical_data,save_statistical_data);
       break;
   }
 }

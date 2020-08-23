@@ -38,7 +38,7 @@ void stop(){
 
 void record(double* data, bool print_statistical_data, bool save_statistical_data){
   internal::record(std::cout,data,print_statistical_data,save_statistical_data);
-  if (internal::flag) {internal::record(internal::stream);}
+  if (internal::flag) {internal::record(internal::stream,data,print_statistical_data,save_statistical_data);}
 }
 
 void clear(){
@@ -105,14 +105,19 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_DELETE_COMM") != NULL){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
   }
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    stream_name = std::getenv("CRITTER_VIZ_FILE");
+    stream_name += ".txt";
+    flag=1;
+  }
   is_first_iter = true;
-  int _world_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
-  if (_world_rank == 0){ is_world_root = true; }
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  if (world_rank == 0){ is_world_root = true; }
   else                 { is_world_root = false; }
   if (flag == 1){
-    if (_world_rank==0){
-      stream.open(stream_name.c_str());
+    if (world_rank==0){
+      stream.open(stream_name.c_str(),std::ofstream::app);
     }
   }
 
