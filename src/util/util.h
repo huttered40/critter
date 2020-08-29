@@ -68,8 +68,6 @@ struct event{
 // ****************************************************************************************************************************************************
 extern volatile double comm_intercept_overhead_stage1;
 extern volatile double comm_intercept_overhead_stage2;
-extern volatile double comm_intercept_overhead_stage3;
-extern volatile double comm_intercept_overhead_stage4;
 extern volatile double comp_intercept_overhead;
 extern double comp_start_time;
 extern size_t mode_1_width;

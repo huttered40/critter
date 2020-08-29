@@ -194,8 +194,6 @@ void reset(){
 
   comm_intercept_overhead_stage1=0;
   comm_intercept_overhead_stage2=0;
-  comm_intercept_overhead_stage3=0;
-  comm_intercept_overhead_stage4=0;
   comp_intercept_overhead=0;
 }
 

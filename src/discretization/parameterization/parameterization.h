@@ -15,9 +15,12 @@ extern int comm_analysis_param;
 extern int comp_analysis_param;
 
 // ****************************************************************************************************************************************************
-struct comm_pattern_key{
+struct pattern_key{};
 
-  comm_pattern_key(int _rank=-1, int _pattern_index=0, int _tag=0, int _comm_size=0, int _comm_color=0, double _msg_size=0, int _partner=0);
+// ****************************************************************************************************************************************************
+struct comm_pattern_key : public pattern_key{
+
+  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _comm_size=-1, int _comm_color=-1, double _msg_size=-1, int _partner=-1);
   comm_pattern_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset);
   comm_pattern_key(const comm_pattern_key& _copy);
   comm_pattern_key& operator=(const comm_pattern_key& _copy);
@@ -34,9 +37,9 @@ struct comm_pattern_key{
 
 
 // ****************************************************************************************************************************************************
-struct comp_pattern_key{
+struct comp_pattern_key : public pattern_key{
 
-  comp_pattern_key(int _pattern_index=0, int _tag=0, double _flops=0, int =0, int _param2=0, int _param3=0, int _param4=0, int _param5=0);
+  comp_pattern_key(int _pattern_index=-1, int _tag=-1, double _flops=-1, int =-1, int _param2=-1, int _param3=-1, int _param4=-1, int _param5=-1);
   comp_pattern_key(const comp_pattern_key& _copy);
   comp_pattern_key& operator=(const comp_pattern_key& _copy);
   friend bool operator==(const comp_pattern_key& ref1, const comp_pattern_key& ref2);
@@ -67,6 +70,20 @@ struct pattern{
   double num_non_scheduled_units;
   double M1,M2;
   double total_exec_time;
+};
+
+// ****************************************************************************************************************************************************
+struct idle_pattern{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  idle_pattern();
+  idle_pattern(const idle_pattern& _copy);
+  idle_pattern& operator=(const idle_pattern& _copy);
+
+  int num_schedules;
+  int num_non_schedules;
+  double M1,M2;
 };
 
 // ****************************************************************************************************************************************************

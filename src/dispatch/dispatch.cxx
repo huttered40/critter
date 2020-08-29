@@ -161,8 +161,7 @@ void propagate(MPI_Comm comm){
       decomposition::path::propagate(decomposition::_MPI_Barrier);
       break;
     case 1:
-      discretization::_MPI_Barrier.comm = comm;
-      discretization::path::propagate(discretization::_MPI_Barrier);
+      // Do nothing: 4-double reduction is performed in 'discretization::final_accumulate'
       break;
   }
 }

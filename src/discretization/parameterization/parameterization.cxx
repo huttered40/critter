@@ -244,6 +244,28 @@ pattern& pattern::operator=(const pattern& _copy){
 }
 
 // ****************************************************************************************************************************************************
+idle_pattern::idle_pattern(){
+  this->M1=0; this->M2=0;
+  this->num_schedules = 0;
+  this->num_non_schedules = 0;
+}
+
+idle_pattern::idle_pattern(const idle_pattern& _copy){
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = _copy.num_non_schedules;
+}
+
+idle_pattern& idle_pattern::operator=(const idle_pattern& _copy){
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = _copy.num_non_schedules;
+  return *this;
+}
+
+// ****************************************************************************************************************************************************
 pattern_key_id::pattern_key_id(bool _is_active, int _key_index, int _val_index, bool _is_updated){
   this->is_active = _is_active;
   this->key_index = _key_index;

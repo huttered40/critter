@@ -8,14 +8,6 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-static bool no_skip_key(const comm_pattern_key& key){
-  // For now, only barriers cannot be skipped
-  if (key.tag == 0){
-    return true;
-  }
-  return false;
-}
-
 void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   int new_comm_size; MPI_Comm_size(newcomm,&new_comm_size);
   int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
@@ -30,21 +22,20 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
 bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // accumulate computation time
   double save_comp_time = curtime - computation_timer;
+  critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
+  critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
+  volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
+  volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
 
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return false; }
   volatile double overhead_start_time = MPI_Wtime();
 
-  critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-1]        += save_comp_time;		// update local runtime
-
-  bool schedule_decision = schedule_kernels==1 ? true : false;
-  if (autotuning_mode>0){
-    comp_pattern_key p_id_1(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-      if (!(comp_pattern_map.find(p_id_1) == comp_pattern_map.end())){
-        schedule_decision = should_schedule(comp_pattern_map[p_id_1])==1;
-      }
+  bool schedule_decision = true;
+  comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+  if (!(comp_pattern_map.find(key) == comp_pattern_map.end())){
+    schedule_decision = should_schedule(comp_pattern_map[key])==1;
   }
 
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
@@ -61,64 +52,55 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   if (schedule_kernels==0){ return; }
   volatile double overhead_start_time = MPI_Wtime();
 
-  if (autotuning_mode>0){
-    comp_pattern_key p_id_1(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
-      if (comp_pattern_map.find(p_id_1) == comp_pattern_map.end()){
-        active_comp_pattern_keys.emplace_back(p_id_1);
-        active_patterns.emplace_back(pattern());
-        comp_pattern_map[p_id_1] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
-      }
-      if (should_schedule(comp_pattern_map[p_id_1]) == 0){
-        comp_time = get_estimate(comp_pattern_map[p_id_1],comp_analysis_param,flop_count);
-      }
-      update(comp_pattern_map[p_id_1],comp_analysis_param,comp_time,flop_count);
+  comp_pattern_key key(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
+  if (comp_pattern_map.find(key) == comp_pattern_map.end()){
+    active_comp_pattern_keys.emplace_back(key);
+    active_patterns.emplace_back(pattern());
+    comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
+  update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
+  // Note: 'get_estimate' must be called before setting the updated kernel state.
+  if (should_schedule(comp_pattern_map[key]) == 0){
+    comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
+  }
+  // Both non-optimized and optimized variants can update the local kernel state, but not the global kernel state
+  // This gives unoptimized variant more license that that for a communication pattern (which cannot even update
+  //   local steady state within a phase, due to potential of deadlock if done so).
+  bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
+  set_kernel_state(comp_pattern_map[key],!_is_steady);
+
   critical_path_costs[num_critical_path_measures-1] += comp_time;
+  critical_path_costs[num_critical_path_measures-2] += comp_time;
+  critical_path_costs[num_critical_path_measures-3] += comp_time;
   volume_costs[num_volume_measures-1] += comp_time;
+  volume_costs[num_volume_measures-2] += comp_time;
+  volume_costs[num_volume_measures-3] += comp_time;
 
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
   computation_timer = MPI_Wtime();
 }
 
-static void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* len, MPI_Datatype* dtype){
-  int_int_double* invec = in;
-  int_int_double* inoutvec = inout;
-  for (int i=0; i<*len; i++){
-    inoutvec[i].first = std::max(inoutvec[i].first,invec[i].first);
-    inoutvec[i].second = std::max(inoutvec[i].second,invec[i].second);
-    inoutvec[i].third = std::max(inoutvec[i].third,invec[i].third);
-  }
-}
-
-static void update_critical_path(double* in, double* inout, size_t len){
-  assert(len == critical_path_costs_size);	// this assert prevents user from obtaining wrong output if MPI implementation cuts up the message.
-  for (int i=0; i<num_critical_path_measures; i++){
-    inout[i] = std::max(inout[i],in[i]);
-  }
-}
-
-static void propagate_critical_path_op(double* in, double* inout, int* len, MPI_Datatype* dtype){
-  update_critical_path(in,inout,static_cast<size_t>(*len));
-}
-
 bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
-                            bool is_sender, int partner1, int partner2){
+                         bool is_sender, int partner1, int partner2){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
-  int rank; MPI_Comm_rank(comm, &rank);
-
+  critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path execution time
+  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
+  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
+  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local runtime
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return false; }
+
+  // At this point, 'critical_path_costs' tells me the process's time up until now. A barrier won't suffice.
+  int rank; MPI_Comm_rank(comm, &rank);
   volatile double overhead_start_time = MPI_Wtime();
 
   // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
   // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
-  if (true_eager_p2p){
-    MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
-  }
+  if (true_eager_p2p){ MPI_Buffer_attach(&eager_pad[0],eager_pad.size()); }
 
   // Save caller communication attributes into reference object for use in corresponding static method 'complete'
   int word_size,np; MPI_Type_size(t, &word_size);
@@ -131,163 +113,86 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
   tracker.synch_time = 0.;// might get updated below
-  tracker.barrier_time=0.;// might get updated below
+  tracker.barrier_time = 0.;// might get updated below
 
-  bool schedule_decision = schedule_kernels==1 ? true : false;
-  int schedule_decision_int; int schedule_decision_foreign_int;
-  comm_pattern_key p_id_1(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
-  if (autotuning_mode>0){
-      if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
-        schedule_decision = should_schedule_global(comm_pattern_map[p_id_1])==1;
-      }
+  // Non-optimized variant will always post barriers, although of course, just as with the optimized variant, the barriers only remove idle time
+  //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
+  //     critical path root is decided based on a reduction using 'critical_path_costs'.
+  bool post_barrier = true;
+  bool schedule_decision = true;
+  double reduced_info[5] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
+                            critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],0};
+  double reduced_info_foreign[5] = {0,0,0,0,0};
+  comm_pattern_key key(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
+  if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
+    if (is_optimized){ post_barrier = should_schedule_global(comm_pattern_map[key])==1; }
+    schedule_decision = should_schedule(comm_pattern_map[key])==1;
+    reduced_info[4] = (double)should_schedule(comm_pattern_map[key]);
   }
 
-  bool skipped_key = false;
-  // Update schedule_decision if key is not to be skipped
-  if (no_skip_key(p_id_1)){
-    schedule_decision = true;
-    skipped_key = true;
-  }
-
+  // Both unoptimized and optimized variants will reduce an execution time and a schedule_decision.
+  // Note that formally, the unoptimized variant does not need to reduce a schedule_decision, but I allow it becase the
+  //   procedure is synchronization bound anyway.
+  // The unoptimized variant will always perform this reduction of execution time, regardless of its schedule_decision.
+  // The optimized variant will only perform this reduction until it detects steady state.
+  // For the optimized variant, if kernel is not in global steady state, in effort to accelerate convergence
+  //   to both steady state and global steady state (i.e. early detection of steady state convergence at expense of extra communication)
+  //   This early detection optimization is not foolproof, hence why the non-optimized variant does not consider it.
+  if (post_barrier==true){
+    assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
+    if (partner1 == -1){
+      PMPI_Allreduce(MPI_IN_PLACE, &reduced_info[0], 5, MPI_DOUBLE, MPI_MAX, tracker.comm);
+      schedule_decision = reduced_info[4] > 0;
+    }
+    else{
+      if ((true_eager_p2p) && (rank != tracker.partner1)){
+        assert(0);// Not implemented yet. Does eager protocol even make sense, given these methods?
 /*
-  // debug
-  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (tracker.tag >= 16 && force_steady_statistical_data_overide_debug){
-    int blah,blah2;
-    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is before initial sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
-    PMPI_Sendrecv(&blah, 1, MPI_INT, tracker.partner1, internal_tag2, &blah2, 1, MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is after initial sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
-  }
+        if (tracker.is_sender){
+          PMPI_Bsend(&schedule_decision_int, 2, MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm);
+        }
+        else{
+          PMPI_Recv(&schedule_decision_foreign_int, 1, MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+          schedule_decision = (schedule_decision_foreign_int > 0 ? true : false);
+        }
 */
-
-  if (autotuning_mode==0 || schedule_decision==true){
-    if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
-      assert(partner1 != MPI_ANY_SOURCE);
-      if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
-
-      // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
-      // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
-      // Note that unlike the execution-time critical path, critical paths defined by other metrics besides execution-time can incur idle time.
-
-      // Note that the only reason we separate out the blocking p2p idle time communication is due to the possibility that the other side being nonblocking.
-      // Nonblocking sends can not utilize sendrecv because they may be embedded within a Waitall that does not guarantee ordering.
-      // To account for this for blocking sends, we use the synchronous send to avoid automatic eager-protocol (which would have allowed early exit from p2p barrier).
-      // The only reason we do not always issue a sendrecv with partners 1&2 is because of the possibility in which the other side issued a nonblocking communication request and our handling for idle time there
-      //   is for a nonblocking sender to issue a send and a nonblocking receiver to issue a recv, rather than both. This also is more aligned with a future goal of utilizing eager sends, which might be constitute a different mechanism.
-      // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
-      //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
-
-      volatile double init_time = MPI_Wtime();
-      if (partner1 == -1){ PMPI_Barrier(comm); }
-      else {
-        MPI_Request barrier_reqs[3]; int barrier_count=0;
-        char sbuf='H'; char rbuf='H';
-        if ((is_sender) && (rank != partner1)){
-          if (true_eager_p2p) { PMPI_Bsend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm); }
-          else                { PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++; }
-        }
-        if ((!is_sender) && (rank != partner1)){
-          PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
-        }
-        if ((partner2 != -1) && (rank != partner2)){
-          PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner2, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
-        }
-        PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
       }
-      tracker.barrier_time = MPI_Wtime() - init_time;
-
-      // If eager protocol is enabled, its assumed that any message latency the sender incurs is negligable, and thus the receiver incurs its true idle time above
-      // Again, the gray-area is with Sendrecv variants, and we assume they are treated without eager protocol
-      if (!true_eager_p2p){
-        // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
-        // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
-        // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
-        // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
-        double min_idle_time=tracker.barrier_time;
-        double recv_idle_time1=std::numeric_limits<double>::max();
-        double recv_idle_time2=std::numeric_limits<double>::max();
-        if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
-        else {
-          MPI_Request barrier_reqs[3]; int barrier_count=0;
-          if ((is_sender) && (rank != partner1)){
-            PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-          }
-          if ((!is_sender) && (rank != partner1)){
-            PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-          }
-          if ((partner2 != -1) && (rank != partner2)){
-            PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-          }
-          PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
-          min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
+      else if (!true_eager_p2p){
+        PMPI_Sendrecv(&reduced_info[0], 5, MPI_DOUBLE, tracker.partner1, internal_tag2, &reduced_info_foreign[0], 5,
+                      MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+        for (auto i=0; i<4; i++){ reduced_info[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
+        schedule_decision = (reduced_info[4] > 0) || (reduced_info_foreign[4]>0);
+        if (tracker.partner2 != tracker.partner1){
+          // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
+          PMPI_Sendrecv(&reduced_info[0], 5, MPI_DOUBLE, tracker.partner2, internal_tag2, &reduced_info_foreign[0], 5,
+                        MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+          for (auto i=0; i<4; i++){ reduced_info[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
+          schedule_decision = schedule_decision || (reduced_info[4] > 0) || (reduced_info_foreign[4]>0);
         }
-        tracker.barrier_time -= min_idle_time;
       }
     }
+    tracker.barrier_time = reduced_info[3] - critical_path_costs[num_critical_path_measures-1];
+
+    // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
+    //   and never have to use another internal collective to check again.
+    if (is_optimized){
+      if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
+        assert(should_schedule_global(comm_pattern_map[key])==1);
+        set_kernel_state(comm_pattern_map[key],schedule_decision);
+        if (analysis_mode == 3){
+          set_kernel_state_global(comm_pattern_map[key],true);// prevents critical path analysis from changing global steady_state, even in optimized variant
+        } else{
+          set_kernel_state_global(comm_pattern_map[key],schedule_decision);
+          if (!schedule_decision) { flush_pattern(key); }
+        }
+      }
+    }
+    // If kernel is about to be scheduled, post one more barrier for safety if collective,
+    //   because the AllReduce posted above may allow ranks to leave early, thus corrupting the sample measurement.
+    if (schedule_decision && tracker.partner1 == -1){ PMPI_Barrier(tracker.comm); }
   }
 
   comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
-  overhead_start_time = MPI_Wtime();
-
-  critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
-
-  if (autotuning_mode>0 && schedule_decision == true && skipped_key == false){
-    if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
-      schedule_decision = should_schedule(comm_pattern_map[p_id_1])==1;
-    }
-    schedule_decision_int = (int)schedule_decision;
-    if (tracker.partner1 == -1){
-      PMPI_Allreduce(MPI_IN_PLACE, &schedule_decision_int, 1, MPI_INT, MPI_SUM, tracker.comm);
-      schedule_decision = schedule_decision_int > 0;
-    }
-    else{
-      if (true_eager_p2p){
-        if (tracker.is_sender){
-          PMPI_Bsend(&schedule_decision_int, 1, MPI_INT, tracker.partner1, internal_tag2, tracker.comm);
-        }
-        else{
-          PMPI_Recv(&schedule_decision_foreign_int, 1, MPI_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          schedule_decision = (schedule_decision_foreign_int > 0 ? true : false);
-        }
-      }
-      else{
-        PMPI_Sendrecv(&schedule_decision_int, 1, MPI_INT, tracker.partner1, internal_tag2, &schedule_decision_foreign_int, 1,
-                      MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-        schedule_decision = ((schedule_decision_int > 0) || (schedule_decision_foreign_int>0) ? true : false);
-      }
-      if (tracker.partner2 != tracker.partner1){
-        // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
-        PMPI_Sendrecv(&schedule_decision_int, 1, MPI_INT, tracker.partner2, internal_tag2, &schedule_decision_foreign_int, 1,
-                           MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-        schedule_decision = ((schedule_decision_int > 0) || (schedule_decision_foreign_int>0) ? true : false);
-      }
-    }
-    // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
-    //   and never have to use another internal collective to check again.
-    if (!(comm_pattern_map.find(p_id_1) == comm_pattern_map.end())){
-      assert(should_schedule_global(comm_pattern_map[p_id_1])==1);
-      set_schedule(comm_pattern_map[p_id_1],schedule_decision);
-      if (autotuning_mode == 3){// prevents critical path analysis from changing global steady_state. Would rather not add to 'set_schedule' because
-				// 'set_schedule' may be called in different contexts.
-        if (comm_pattern_map[p_id_1].is_active) { active_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0; }
-        else                                    { steady_state_patterns[comm_pattern_map[p_id_1].val_index].global_steady_state=0; }
-      }
-    }
-  }
-
-
-/*
-  // debug
-  if (tracker.tag >= 16 && force_steady_statistical_data_overide_debug){
-    int blah,blah2;
-    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is before 2nd sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
-    PMPI_Sendrecv(&blah, 1, MPI_INT, tracker.partner1, internal_tag2, &blah2, 1, MPI_INT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-    std::cout << "world_rank - " << world_rank << ", rank - " << rank << " is after 2nd sendrecv, tag " << tracker.tag << " and partner - " << tracker.partner1 << " and sd - " << schedule_decision << "\n";
-  }
-*/
-
-  comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
   return schedule_decision;
@@ -315,84 +220,83 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
   }
 
-  bool skipped_key = false;
-  bool autotuning_special_bool = false;
-  comm_pattern_key p_id_1(rank,active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
-  if (autotuning_mode>0){
-    assert(communicator_map.find(tracker.comm) != communicator_map.end());
-    // Update schedule_decision if key is not to be skipped
-    if (no_skip_key(p_id_1)){
-      skipped_key = true;
-    }
-    double sample;
-    if (comm_pattern_map.find(p_id_1) == comm_pattern_map.end()){
-      active_comm_pattern_keys.emplace_back(p_id_1);
-      active_patterns.emplace_back(pattern());
-      comm_pattern_map[p_id_1] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
-    }
-    if (should_schedule(comm_pattern_map[p_id_1])==0){
-      comm_time = get_estimate(comm_pattern_map[p_id_1],comm_analysis_param,tracker.nbytes);
-      autotuning_special_bool = true;
-    }
-    if (should_schedule(comm_pattern_map[p_id_1])==0){
-      update_propagation_statistics(comm_pattern_map[p_id_1],false || skipped_key);
-    } else{
-      update_propagation_statistics(comm_pattern_map[p_id_1],true);
-    }
-    if (comm_sample_include_idle == 1){
-      sample = comm_time+tracker.barrier_time;
-    }
-    else{
-      sample = comm_time;
-    }
-    update(comm_pattern_map[p_id_1],comm_analysis_param,sample,tracker.nbytes);
-    if (skipped_key){
-      set_schedule(comm_pattern_map[p_id_1],true);// override what was set in 'update' above
-      autotuning_special_bool = false;
+  bool should_propagate = true;
+  bool should_update_idle = true;
+  comm_pattern_key key(rank,active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
+  assert(communicator_map.find(tracker.comm) != communicator_map.end());
+  if (comm_pattern_map.find(key) == comm_pattern_map.end()){
+    active_comm_pattern_keys.emplace_back(key);
+    active_patterns.emplace_back(pattern());
+    comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
+  }
+  if (comm_pattern_pair_map.find(std::make_pair(previous_comm_key,key)) == comm_pattern_pair_map.end()){
+    comm_pattern_pair_map[std::make_pair(previous_comm_key,key)] = idle_pattern();
+  }
+  if (should_schedule(comm_pattern_map[key])==0){
+    comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
+    if (is_optimized==1){
+/*
+      if (tracker.barrier_time == -1) { should_update_idle = false;
+                                        tracker.barrier_time = comm_pattern_pair_map[std::make_pair(previous_comm_key,key)].M1;
+                                      }
+*/
+      should_propagate = false;
     }
   }
-
-  critical_path_costs[num_critical_path_measures-1] += comm_time;
-  volume_costs[num_volume_measures-1] += comm_time;
-
-  //TODO: For autotuning_mode>0 and a skipped schedule, we want to add the barrier time as well.
-  if (autotuning_mode>0 && autotuning_special_bool){
-    //critical_path_costs[num_critical_path_measures-1] += tracker.barrier_time;
-  }
-  else{
-    volume_costs[num_volume_measures-1] += tracker.barrier_time;
+  update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
+  //update_kernel_stats(comm_pattern_pair_map[std::make_pair(previous_comm_key,key)],!should_update_idle,tracker.barrier_time);
+  if (is_optimized==1){
+    bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
+    set_kernel_state(comm_pattern_map[key],!is_steady);
   }
 
-  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  volume_costs[num_volume_measures-1] = volume_costs[num_volume_measures-1] > critical_path_costs[num_critical_path_measures-1]
-                                          ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
-
-  comm_intercept_overhead_stage3 += MPI_Wtime() - overhead_start_time;
-  overhead_start_time = MPI_Wtime();
+  critical_path_costs[num_critical_path_measures-1] += (comm_time + tracker.barrier_time);
+  critical_path_costs[num_critical_path_measures-4] += (comm_time + tracker.barrier_time);
+  volume_costs[num_volume_measures-1] += (comm_time + tracker.barrier_time);
+  volume_costs[num_volume_measures-4] += (comm_time + tracker.barrier_time);
 
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
-  if ((autotuning_mode==0) || (autotuning_special_bool==false) || (/*tracker.comm==MPI_COMM_WORLD &&*/ no_skip_key(p_id_1))){
+  if (should_propagate){
+    bool is_world_communication = (tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1);
     if ((rank == tracker.partner1) && (rank == tracker.partner2)) { ; }
     else{
       propagate(tracker);
-      if (autotuning_mode>2 && autotuning_propagate>0){
-        propagate_patterns(tracker,p_id_1,rank);
+      if (analysis_mode==1){
+        // Note: in optimized version, exchange_patterns and flush_patterns would never need to be called
+        if (is_optimized==0){
+          if (is_world_communication && !is_key_skipable(key)){//Note: for practical reasons, we force more constraints on when profile exchanges take place
+            exchange_patterns_per_process(tracker);
+            flush_patterns();
+          }
+        }
+      }
+      else if (analysis_mode==2){
+        // Note: in both unoptimized and optimized versions, exchange_patterns and flush_patterns are useful for merging many samples than possib;e
+        //       with per-process analysis. The goal here, unlike with per-process, is not simply to detect global steady state.
+        if (is_world_communication && !is_key_skipable(key)){
+          exchange_patterns_volumetric(tracker);
+          //flush_patterns();
+        }
+      }
+      else if (analysis_mode==3){
+        propagate_patterns(tracker,key,rank);
         // check for world communication, in which case we can flush the steady-state kernels out of the active buffers for more efficient propagation
-        if (((tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1)) || no_skip_key(p_id_1)){
-          flush_patterns(tracker);
+        if (is_world_communication && !is_key_skipable(key)){
+          flush_patterns();
         }
       }
     }
-    if (true_eager_p2p){
-      void* temp_buf; int temp_size;
-      // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
-      //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
-      MPI_Buffer_detach(&temp_buf,&temp_size);
-    }
+  }
+  if (true_eager_p2p){
+    void* temp_buf; int temp_size;
+    // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
+    //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
+    MPI_Buffer_detach(&temp_buf,&temp_size);
   }
 
-  comm_intercept_overhead_stage4 += MPI_Wtime() - overhead_start_time;
+  comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
   // Prepare to leave interception and re-enter user code by restarting computation timers.
+  previous_comm_key = key;
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
 }
@@ -414,69 +318,96 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
 
 void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
 
-void path::flush_patterns(blocking& tracker){
+void path::flush_pattern(comm_pattern_key key){
+  return;
+  // 'flush_pattern' is used for the sole purpose of keeping the invariant that an inactive kernel's statistical data
+  //    belongs in the steady_state buffers. This procedure need only occur in 'flush_patterns' for critical path analysis,
+  //      but as in per-process/volumetric analysis the global state can change in 'initiate_comm', this routine serves as a way to
+  //        achieve that.
+  assert(comm_pattern_map[key].is_active);
+  assert(analysis_mode>=1 && analysis_mode<=2);
+  assert(is_optimized);
+  assert(active_patterns[comm_pattern_map[key].val_index].steady_state==1);
+  assert(active_patterns[comm_pattern_map[key].val_index].global_steady_state==1);
+  if (active_comp_pattern_keys.size()>0){
+    //TODO: note: this assert is not valid, because after a few flushes, the last keys might point to intermediate patterns.
+    assert((active_comm_pattern_keys[active_comm_pattern_keys.size()-1].pattern_index == active_patterns.size()-1) ||
+           (active_comp_pattern_keys[active_comp_pattern_keys.size()-1].pattern_index == active_patterns.size()-1));
+  }
 
-/*
-  // Debug - special. I want to see what this is at the initial MPI_Barrier before the hang
-  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  for (auto it : comm_pattern_map){
-    // First verify that if a pattern is steady, that its partner is steady as well, as well as explicitely in global steady state
-    if (!it.second.is_active){
-      if (it.first.tag == 16){
-        auto key_copy = it.first; key_copy.tag = 17;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
-        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a send pattern is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a send pattern is not active, it must be in local steady state
-        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a send pattern's partner  is not active, it must be in local steady state
-      }
-      else if (it.first.tag == 17){
-        auto key_copy = it.first; key_copy.tag = 16;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
-        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a recv pattern is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a recv pattern is not active, it must be in local steady state
-        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a rec pattern's partner is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a recv pattern's partner  is not active, it must be in local steady state
-      }
-    }
-    // Next verify that if a pattern is not steady, that its partner is also not steady.
-    //   Then verify that the pattern is not in global steady state, nor its partner
+  // Flush to steady_state_patterns
+  steady_state_patterns.push_back(active_patterns[key.pattern_index]);
+  steady_state_comm_pattern_keys.push_back(key);
+
+  // First check for special corner case that the key we want to remove is the last key in the active key array. The reason this
+  //   is a case to check because it prevents the need to swap with a different active comm key. If this case does not pass,
+  //   then we know we will have to swap with a different active comm key (the last one in the active comm key array)
+  if (comm_pattern_map[key].key_index == (active_comm_pattern_keys.size()-1)){
+    active_comm_pattern_keys.pop_back();
+    if (key.pattern_index == (active_patterns.size()-1)){ active_patterns.pop_back(); }
     else{
-      if (it.first.tag == 16){
-        auto key_copy = it.first; key_copy.tag = 17;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
-//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a send pattern is not active, it must be in global steady state
-        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
-      }
-      else if (it.first.tag == 17){
-        auto key_copy = it.first; key_copy.tag = 16;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
-//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a recv pattern is not active, it must be in global steady state
-        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
-      }
+      // We must swap the key's pattern with the last active pattern, which must be a comp, because the comm key we are operating on is the last
+      // We can leverage the fact that in this case, there must be at least one active comp pattern, because it must be the one stored in the last entry
+      //   of active_patterns. We should include some asserts to check for that
+      assert(active_comp_pattern_keys.size()>0);
+      assert(active_comp_pattern_keys[active_comp_pattern_keys.size()-1].pattern_index == active_patterns.size()-1);
+      // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+      auto lra_active_pattern = active_patterns[active_patterns.size()-1];
+      auto lra_comp_key = active_comp_pattern_keys[active_comp_pattern_keys.size()-1];
+      active_patterns[key.pattern_index] = lra_active_pattern;
+      active_patterns.pop_back();
+      // last comp pattern gets swapped into place of newly steady comm pattern (above), and pattern_index must be updated
+      active_comp_pattern_keys[active_comp_pattern_keys.size()-1].pattern_index = key.pattern_index;
+      comp_pattern_map[lra_comp_key].val_index = key.pattern_index;
     }
   }
-*/
+  else{
+    // Find the key of the last entry in active_patterns (assumed to be the last entry in either
+    //   active_comm_pattern_keys or active_comp_pattern_keys
+    auto lra_active_pattern = active_patterns[active_patterns.size()-1];
+    auto lra_comm_key = active_comm_pattern_keys[active_comm_pattern_keys.size()-1];
+    auto lra_comp_key = active_comp_pattern_keys[active_comp_pattern_keys.size()-1];
+    int dir;
+    if (active_comp_pattern_keys.size()==0){ dir = 1; }
+    else if (active_comm_pattern_keys[active_comm_pattern_keys.size()-1].pattern_index <
+             active_comp_pattern_keys[active_comp_pattern_keys.size()-1].pattern_index){ dir = 0; }
+    else{ dir = 1; }
+    // Update active_patterns and active_comm_pattern_keys to remove that "hole" in each array
+    active_patterns[key.pattern_index] = lra_active_pattern;
+    active_patterns.pop_back();
+    if (dir==0){
+      // last comp pattern gets swapped into place of newly steady comm pattern (above), and pattern_index must be updated
+      active_comp_pattern_keys[active_comp_pattern_keys.size()-1].pattern_index = key.pattern_index;
+      comp_pattern_map[lra_comp_key].val_index = key.pattern_index;
+      // last comm key gets swapped into place of newly steady comm pattern's key, and all relevant indices must be updated
+      active_comm_pattern_keys[comm_pattern_map[key].key_index] = lra_comm_key;
+      active_comm_pattern_keys.pop_back();
+      comm_pattern_map[lra_comm_key].key_index = comm_pattern_map[key].key_index;
+    } else{
+      // last comm pattern gets swapped into place of newly steady comm pattern (above), and all relevant indices must be updated
+      active_comm_pattern_keys[comm_pattern_map[key].key_index] = lra_comm_key;
+      active_comm_pattern_keys.pop_back();
+      active_comm_pattern_keys[comm_pattern_map[key].key_index].pattern_index = key.pattern_index;
+      comm_pattern_map[lra_comm_key].val_index = comm_pattern_map[key].val_index;
+      comm_pattern_map[lra_comm_key].key_index = comm_pattern_map[key].key_index;
+    }
+  }
 
-  // Iterate over all computation and communication kernel pattern and
+  // Update the val/key indices to reflect the change in buffers
+  comm_pattern_map[key].val_index = steady_state_patterns.size()-1;
+  comm_pattern_map[key].key_index = steady_state_comm_pattern_keys.size()-1;
+  comm_pattern_map[key].is_active = false;	// final update to make sure its known that this pattern resides in the steady-state buffers
+  //steady_state_patterns[steady_state_patterns.size()-1].global_steady_state=1;// prevents any more schedules in subsequent phases
+  steady_state_comm_pattern_keys[steady_state_comm_pattern_keys.size()-1].pattern_index = steady_state_patterns.size()-1;
+  // Note: As this routine is to be used for optimized per-process/volumetric statistical analysis, no special care is needed for p2p.
+}
+
+void path::flush_patterns(){
+
+  // Iterate over all computation and communication kernel patterns and
   //   flush steady-state patterns currently residing in active buffers into steady-state buffers to avoid propagation cost,
-  //     as these patterns are no longer being scheduled, and thus their arithmetic mean is fixed for the rest of the program.
+  //     in subsequent exchanges or propagations, as these patterns are no longer being scheduled,
+  //     and thus their arithmetic mean is fixed for the rest of the program.
   // As I iterate over the entries, I will mark "is_updated=true" for those that were flushed.
   // A 3rd and final loop over active_patterns will collapse the array and update the key and value indices in the corresponding map values
   std::vector<comm_pattern_key> active_comm_pattern_keys_mirror;
@@ -497,18 +428,7 @@ void path::flush_patterns(blocking& tracker){
           active_patterns[it.second.val_index].global_steady_state = 0;
         }
         else{// debug check
-/*
-          if (world_rank==0){
-            if (it.second.is_active != comm_pattern_map[key_copy].is_active){
-              std::cout << it.first.tag << " " << it.first.comm_size << " " << it.first.comm_color << " " << it.first.partner_offset << " " << it.first.msg_size << " " << it.second.is_active << " " << active_patterns[it.second.val_index].num_schedules << " " << active_patterns[it.second.val_index].num_non_schedules
-                        << " " << active_patterns[it.second.val_index].steady_state << " " << active_patterns[it.second.val_index].global_steady_state << std::endl;
-              std::cout << key_copy.tag << " " << key_copy.comm_size << " " << key_copy.comm_color << " " << key_copy.partner_offset << " " << key_copy.msg_size << " " << comm_pattern_map[key_copy].is_active << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].num_schedules << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].num_non_schedules
-                        << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].steady_state << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].global_steady_state << std::endl;
-              assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
-            }
-          }
-*/
-          assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
+          //assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
         }
         p2p_map[it.first] = it.second;
       }
@@ -522,18 +442,7 @@ void path::flush_patterns(blocking& tracker){
           is_steady = false;
         }
         else{
-/*
-          if (world_rank==0){
-            if (it.second.is_active != comm_pattern_map[key_copy].is_active){
-              std::cout << it.first.tag << " " << it.first.comm_size << " " << it.first.comm_color << " " << it.first.partner_offset << " " << it.first.msg_size << " " << it.second.is_active << " " << active_patterns[it.second.val_index].num_schedules << " " << active_patterns[it.second.val_index].num_non_schedules
-                        << " " << active_patterns[it.second.val_index].steady_state << " " << active_patterns[it.second.val_index].global_steady_state << std::endl;
-              std::cout << key_copy.tag << " " << key_copy.comm_size << " " << key_copy.comm_color << " " << key_copy.partner_offset << " " << key_copy.msg_size << " " << comm_pattern_map[key_copy].is_active << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].num_schedules << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].num_non_schedules
-                        << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].steady_state << " " << steady_state_patterns[comm_pattern_map[key_copy].val_index].global_steady_state << std::endl;
-              assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
-            }
-          }
-*/
-          assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
+          //assert(it.second.is_active == comm_pattern_map[key_copy].is_active);// debug
           is_steady = (active_patterns[it.second.val_index].steady_state == 1) && (active_patterns[p2p_map[key_copy].val_index].steady_state == 1);
         }
         // If the corresponding kernel reached steady state in the last phase, flush it.
@@ -639,63 +548,6 @@ void path::flush_patterns(blocking& tracker){
   active_comm_pattern_keys = active_comm_pattern_keys_mirror;
   active_comp_pattern_keys = active_comp_pattern_keys_mirror;
   active_patterns = active_patterns_mirror;
-/*
-  // Debug - special. I want to see what this is at the initial MPI_Barrier before the hang
-  for (auto it : comm_pattern_map){
-    // First verify that if a pattern is steady, that its partner is steady as well, as well as explicitely in global steady state
-    if (!it.second.is_active){
-      if (it.first.tag == 16){
-        auto key_copy = it.first; key_copy.tag = 17;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
-        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a send pattern is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a send pattern is not active, it must be in local steady state
-        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a send pattern's partner  is not active, it must be in local steady state
-      }
-      else if (it.first.tag == 17){
-        auto key_copy = it.first; key_copy.tag = 16;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
-        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == false);// Assert 3: if a recv pattern is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[it.first]) == false);// Assert 4: if a recv pattern is not active, it must be in local steady state
-        assert(should_schedule_global(comm_pattern_map[key_copy]) == false);// Assert 5: if a rec pattern's partner is not active, it must be in global steady state
-        assert(should_schedule(comm_pattern_map[key_copy]) == false);// Assert 6: if a recv pattern's partner  is not active, it must be in local steady state
-      }
-    }
-    // Next verify that if a pattern is not steady, that its partner is also not steady.
-    //   Then verify that the pattern is not in global steady state, nor its partner
-    else{
-      if (it.first.tag == 16){
-        auto key_copy = it.first; key_copy.tag = 17;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a send pattern reaches steady state, its partner must as well.
-//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a send pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a send pattern is not active, it must be in global steady state
-        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
-      }
-      else if (it.first.tag == 17){
-        auto key_copy = it.first; key_copy.tag = 16;
-        if (comm_envelope_param == 0) { key_copy.partner_offset *= (-1); }
-        else if (comm_envelope_param == 1) { key_copy.partner_offset = abs(key_copy.partner_offset); }
-        else { key_copy.partner_offset=-1; }
-//        assert(comm_pattern_map.find(key_copy) != comm_pattern_map.end());// Assert 1: if a recv pattern reaches steady state, its partner must as well.
-//        assert(comm_pattern_map[key_copy].is_active == false);// Assert 2: if a recv pattern is not active, its partner cannot be neither
-        assert(should_schedule_global(comm_pattern_map[it.first]) == true);// Assert 3: if a recv pattern is not active, it must be in global steady state
-        if (comm_pattern_map.find(key_copy) != comm_pattern_map.end()) assert(should_schedule_global(comm_pattern_map[key_copy]) == true);// Assert 5: if a send pattern's partner is not active, it must be in global steady state
-      }
-    }
-  }
-  //if (world_rank==0) std::cout << "Done with flush_patterns\n";
-*/
 }
 
 
@@ -770,7 +622,7 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
     comm_pattern_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].comm_size,
                         active_comm_pattern_keys[i].comm_color,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
     if (comm_pattern_map.find(id) == comm_pattern_map.end()){
-      comm_pattern_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, true);
+      comm_pattern_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, false);
     } else{
       comm_pattern_map[id].is_active = true;	// always assumed true
       comm_pattern_map[id].key_index = i;
@@ -816,7 +668,7 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
                                active_comp_pattern_keys[i].param1,active_comp_pattern_keys[i].param2,active_comp_pattern_keys[i].param3,
                                active_comp_pattern_keys[i].param4,active_comp_pattern_keys[i].param5); 
     if (comp_pattern_map.find(id) == comp_pattern_map.end()){
-      comp_pattern_map[id] = pattern_key_id(true, i, active_comp_pattern_keys[i].pattern_index,true);
+      comp_pattern_map[id] = pattern_key_id(true, i, active_comp_pattern_keys[i].pattern_index,false);
     } else{
       comp_pattern_map[id].is_active = true;	// always assumed true
       comp_pattern_map[id].key_index = i;
@@ -835,14 +687,6 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
       it++;
     }
   }
-
-/*
-  // debug
-  for (auto it : active_comm_pattern_keys){
-    assert(active_patterns[comm_pattern_map[it].val_index].global_steady_state==0);
-    assert(should_schedule_global(comm_pattern_map[it])==1);
-  }
-*/
 }
 
 void path::propagate(blocking& tracker){
@@ -850,7 +694,7 @@ void path::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
-  if (autotuning_mode>2){// Autotuning using critical path analysis requires knowledge of which rank determined the cp
+  if (analysis_mode==3){// Autotuning using critical path analysis requires knowledge of which rank determined the cp
     //TODO: Idea for 2-stage reduction: move this out of the mode>=2 if statement, and then after this, scan the critical_path_costs and zero out what is not defining a critical path and then post a MPI_Allreduce (via multi-root hack)
     for (int i=0; i<num_critical_path_measures; i++){
       info_sender[i].first = critical_path_costs[i];
@@ -898,37 +742,264 @@ void path::propagate(blocking& tracker){
       }
     }
   }
-  else{
- 
-   // Exchange the tracked routine critical path data
-    if (tracker.partner1 == -1){
-      PMPI_Allreduce(MPI_IN_PLACE, &critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, MPI_MAX, tracker.comm);
+}
+
+void path::propagate(nonblocking& tracker){}
+
+// No overload on decltype(tracker) because this exchange occurs only with global communication
+// Note: this exchange does not need to exchange computation kernels in the active pathset, because
+//       it does not prevent feasibility of the idea. Deadlock is not possible.
+// Note: entire data structures, rather than just the is_active member, are required to be exchanged,
+//       as otherwise, it wouldn't be feasible: receiver would have no way of verifying whether the sent
+//       order matches its own order.
+// Note: per-process statistical analysis of kernels occurs only within a phase.
+//       at phase-end, we exchange to pdate kernel state in a global way to prevent deadlock in scheduling comm patterns.
+void path::exchange_patterns_per_process(blocking& tracker){
+  assert(analysis_mode==1);// Only per-process statistical kernel data allowed.
+  assert(tracker.comm == MPI_COMM_WORLD);
+  int size; MPI_Comm_size(tracker.comm,&size);
+  int rank; MPI_Comm_rank(tracker.comm,&rank);
+
+  // Update the state of each communication kernel. The computation kernels were able to update their state eagerly.
+  for (auto it : comm_pattern_map){
+    bool is_steady = steady_test(it.first,it.second,comm_analysis_param);
+    set_kernel_state(it.second,!is_steady);// Only set state, not global state!
+  }
+  std::vector<comm_pattern_key> foreign_active_comm_pattern_keys = active_comm_pattern_keys;
+  std::vector<pattern> foreign_active_patterns = active_patterns;
+
+  size_t active_size = size;
+  size_t active_rank = rank;
+  size_t active_mult = 1;
+  while (active_size>1){
+    if (active_rank % 2 == 1){
+      int partner = (active_rank-1)*active_mult;
+      int size_array[2] = {foreign_active_comm_pattern_keys.size(),foreign_active_patterns.size()};
+      // Send sizes before true message so that receiver can be aware of the array sizes for subsequent communication
+      PMPI_Send(&size_array[0],2,MPI_INT,partner,internal_tag,tracker.comm);
+      // Send active patterns with keys
+      PMPI_Send(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,partner,internal_tag2,tracker.comm);
+      PMPI_Send(&foreign_active_patterns[0],size_array[1],pattern_type,partner,internal_tag2,tracker.comm);
+      break;// Incredibely important. Senders must not update {active_size,active_rank,active_mult}
     }
-    else{
-      // Note that a blocking sendrecv allows exchanges even when the other party issued a request via nonblocking communication, as the process with the nonblocking request posts both sends and receives.
-      if (true_eager_p2p){
-        if (tracker.is_sender){
-          PMPI_Bsend(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm);
+    else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+      int partner = (active_rank+1)*active_mult;
+      int size_array[2] = {0,0};
+      // Recv sizes of arrays to create buffers for subsequent communication
+      PMPI_Recv(&size_array[0],2,MPI_INT,partner,internal_tag,tracker.comm,MPI_STATUS_IGNORE);
+      // Recv partner's active patterns with keys
+      foreign_active_comm_pattern_keys.resize(size_array[0]);
+      foreign_active_patterns.resize(size_array[1]);
+      PMPI_Recv(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&foreign_active_patterns[0],size_array[1],pattern_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      /* Iterate over all active patterns and simply perform an AND operation on whether a pattern is in steady state.
+         If just one is active across the world communicator, the kernel must remain active.
+         If kernel does not exist among the sent patterns, it does not count as active. The logical operation is a trivial (AND 1) */
+      for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
+        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
+                            foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+        if (comm_pattern_map.find(id) != comm_pattern_map.end()){
+          // Note: I'd like an assert here that both my local kernel is active and that matches the received kernel of the same signature, but I have no access to that foreign data member.
+          // Must check whether both the foreign process's kernel data and the recv process's kernel data are sufficiently predictable
+          //   (but still set to active, because active -> inactive (global steady state) occurs officially in flush_patterns)
+          // I think I can still get away with simply checking each pattern's 'steady_state' member
+          /* Iterate over all foreign active patterns and simply update the local active pattern steady_state members for each
+            If just one is active across the world communicator, the kernel must remain active.
+            If kernel does not exist among the sent patterns, it does not count as active. The logical operation is a trivial (AND 1) */
+          foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index].steady_state &= active_patterns[comm_pattern_map[id].val_index].steady_state;
+          comm_pattern_map[id].is_updated=true;
+        }
+      }
+      // Add any local patterns that were not in foreign_active_patterns (use set notation)
+      for (auto& it : comm_pattern_map){
+        if (!it.second.is_updated){
+          // Add the unknown kernel into our data structures to keep the loop invariant, as receiver may become sender in a later iteration
+          foreign_active_patterns.push_back(active_patterns[it.second.val_index]);
+          foreign_active_comm_pattern_keys.push_back(it.first);
+          foreign_active_comm_pattern_keys[foreign_active_comm_pattern_keys.size()-1].pattern_index = foreign_active_patterns.size()-1;
         } else{
-          PMPI_Recv(&new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
+          it.second.is_updated=false;// reset
         }
       }
-      else{
-        PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(),
-                      MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-        update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-        if (tracker.partner2 != tracker.partner1){
-          // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
-          PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner2, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-        }
-      }
+    }
+    active_size = active_size/2 + active_size%2;
+    active_rank /= 2;
+    active_mult *= 2;
+  }
+  // Broadcast final exchanged kernel statistics
+  int size_array[2] = {rank==0 ? foreign_active_comm_pattern_keys.size() : 0,
+                       rank==0 ? foreign_active_patterns.size() : 0};
+  PMPI_Bcast(&size_array[0],2,MPI_INT,0,tracker.comm);
+  if (rank != 0){
+    foreign_active_comm_pattern_keys.resize(size_array[0]);
+    foreign_active_patterns.resize(size_array[1]);
+  }
+  PMPI_Bcast(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,0,tracker.comm);
+  PMPI_Bcast(&foreign_active_patterns[0],size_array[1],pattern_type,0,tracker.comm);
+  for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
+    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
+                        foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+    // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
+    // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
+    //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.
+    // Further, there is no harm in doing so, as per-process statistical analysis is still observed. We just get some other process's recorded kernel data.
+    //   In a subsequent phase, a kernel's data might contain multiple process's data, but not really concerned with that. Its rare that the deadlock case would occur anyway.
+    if (comm_pattern_map.find(id) == comm_pattern_map.end()){
+      active_patterns.push_back(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index]);
+      foreign_active_comm_pattern_keys[i].pattern_index = active_patterns.size()-1;
+      active_comm_pattern_keys.push_back(foreign_active_comm_pattern_keys[i]);
+      comm_pattern_map[id] = pattern_key_id(true, active_comm_pattern_keys.size()-1, active_patterns.size()-1, false);
+    } else{
+      // Simply update the steady_state member (global_steady_state member and is_active cannot be updated until flush_patterns for non-optimized per-process statistical analysis
+      active_patterns[comm_pattern_map[id].val_index].steady_state = foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index].steady_state;
     }
   }
 }
 
-void path::propagate(nonblocking& tracker){}
+// No overload on decltype(tracker) because this exchange occurs only with global communication
+// Note: this exchange does need to exchange computation kernels in the active pathset, because
+//       beyond detecting and changing kernel state, it combines statistical data (volumetric statistical analysis) to accelerate convergence to steady state
+// Note: entire data structures, rather than just the is_active member, are required to be exchanged,
+//       as otherwise, it wouldn't be feasible: receiver would have no way of verifying whether the sent
+//       order matches its own order.
+// Note: volumetric statistical analysis of kernels occurs only within a phase.
+//       at phase-end, we exchange to pdate kernel state in a global way to prevent deadlock in scheduling comm patterns.
+void path::exchange_patterns_volumetric(blocking& tracker){
+  assert(analysis_mode==2);// Only volumetric statistical kernel data allowed.
+  assert(tracker.comm == MPI_COMM_WORLD);
+
+  int size; MPI_Comm_size(tracker.comm,&size);
+  int rank; MPI_Comm_rank(tracker.comm,&rank);
+  std::vector<comm_pattern_key> foreign_active_comm_pattern_keys = active_comm_pattern_keys;
+  std::vector<comp_pattern_key> foreign_active_comp_pattern_keys = active_comp_pattern_keys;
+  std::vector<pattern> foreign_active_patterns = active_patterns;
+
+  size_t active_size = size;
+  size_t active_rank = rank;
+  size_t active_mult = 1;
+  while (active_size>1){
+    if (active_rank % 2 == 1){
+      int partner = (active_rank-1)*active_mult;
+      int size_array[3] = {foreign_active_comm_pattern_keys.size(),foreign_active_comp_pattern_keys.size(),foreign_active_patterns.size()};
+      // Send sizes before true message so that receiver can be aware of the array sizes for subsequent communication
+      PMPI_Send(&size_array[0],3,MPI_INT,partner,internal_tag,tracker.comm);
+      // Send active patterns with keys
+      PMPI_Send(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,partner,internal_tag2,tracker.comm);
+      PMPI_Send(&foreign_active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,partner,internal_tag2,tracker.comm);
+      PMPI_Send(&foreign_active_patterns[0],size_array[2],pattern_type,partner,internal_tag2,tracker.comm);
+      break;// Incredibely important. Senders must not update {active_size,active_rank,active_mult}
+    }
+    else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+      int partner = (active_rank+1)*active_mult;
+      int size_array[3] = {0,0,0};
+      // Recv sizes of arrays to create buffers for subsequent communication
+      PMPI_Recv(&size_array[0],3,MPI_INT,partner,internal_tag,tracker.comm,MPI_STATUS_IGNORE);
+      // Recv partner's active patterns with keys
+      foreign_active_comm_pattern_keys.resize(size_array[0]);
+      foreign_active_comp_pattern_keys.resize(size_array[1]);
+      foreign_active_patterns.resize(size_array[2]);
+      PMPI_Recv(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&foreign_active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&foreign_active_patterns[0],size_array[2],pattern_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      /* Iterate over all active patterns and simply perform an AND operation on whether a pattern is in steady state.
+         If just one is active across the world communicator, the kernel must remain active.
+         If kernel does not exist among the sent patterns, it does not count as active. The logical operation is a trivial (AND 1) */
+      for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
+        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
+                            foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+        if (comm_pattern_map.find(id) != comm_pattern_map.end()){
+          update_kernel_stats(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],active_patterns[comm_pattern_map[id].val_index],comm_analysis_param);
+          bool is_steady = steady_test(id,foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],comm_analysis_param);
+          set_kernel_state(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],!is_steady);
+          comm_pattern_map[id].is_updated=true;
+        }
+      }
+      for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
+        comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
+                            foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
+                            foreign_active_comp_pattern_keys[i].param4,foreign_active_comp_pattern_keys[i].param5); 
+        if (comp_pattern_map.find(id) != comp_pattern_map.end()){
+          update_kernel_stats(foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index],active_patterns[comp_pattern_map[id].val_index],comp_analysis_param);
+          bool is_steady = steady_test(id,foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index],comp_analysis_param);
+          set_kernel_state(foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index],!is_steady);
+          comp_pattern_map[id].is_updated=true;
+        }
+      }
+      // Add any local patterns that were not in foreign_active_patterns (use set notation)
+      for (auto& it : comm_pattern_map){
+        if (!it.second.is_updated){
+          // Add the unknown kernel into our data structures to keep the loop invariant, as receiver may become sender in a later iteration
+          foreign_active_patterns.push_back(active_patterns[it.second.val_index]);
+          foreign_active_comm_pattern_keys.push_back(it.first);
+          foreign_active_comm_pattern_keys[foreign_active_comm_pattern_keys.size()-1].pattern_index = foreign_active_patterns.size()-1;
+        } else{
+          it.second.is_updated=false;// reset
+        }
+      }
+      for (auto& it : comp_pattern_map){
+        if (!it.second.is_updated){
+          // Add the unknown kernel into our data structures to keep the loop invariant, as receiver may become sender in a later iteration
+          foreign_active_patterns.push_back(active_patterns[it.second.val_index]);
+          foreign_active_comp_pattern_keys.push_back(it.first);
+          foreign_active_comp_pattern_keys[foreign_active_comp_pattern_keys.size()-1].pattern_index = foreign_active_patterns.size()-1;
+        } else{
+          it.second.is_updated=false;// reset
+        }
+      }
+    }
+    active_size = active_size/2 + active_size%2;
+    active_rank /= 2;
+    active_mult *= 2;
+  }
+  // Broadcast final exchanged kernel statistics
+  int size_array[3] = {rank==0 ? foreign_active_comm_pattern_keys.size() : 0,
+                       rank==0 ? foreign_active_comp_pattern_keys.size() : 0,
+                       rank==0 ? foreign_active_patterns.size() : 0};
+  PMPI_Bcast(&size_array[0],3,MPI_INT,0,tracker.comm);
+  if (rank != 0){
+    foreign_active_comm_pattern_keys.resize(size_array[0]);
+    foreign_active_comp_pattern_keys.resize(size_array[1]);
+    foreign_active_patterns.resize(size_array[2]);
+  }
+  PMPI_Bcast(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,0,tracker.comm);
+  PMPI_Bcast(&foreign_active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,0,tracker.comm);
+  PMPI_Bcast(&foreign_active_patterns[0],size_array[2],pattern_type,0,tracker.comm);
+  for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
+    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
+                        foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+    // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
+    // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
+    //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.
+    // Further, there is no harm in doing so, as volumetric statistical analysis is still observed.
+    if (comm_pattern_map.find(id) == comm_pattern_map.end()){
+      active_patterns.push_back(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index]);
+      foreign_active_comm_pattern_keys[i].pattern_index = active_patterns.size()-1;
+      active_comm_pattern_keys.push_back(foreign_active_comm_pattern_keys[i]);
+      comm_pattern_map[id] = pattern_key_id(true, active_comm_pattern_keys.size()-1, active_patterns.size()-1, false);
+    } else{
+      // Update existing entry.
+      active_patterns[comm_pattern_map[id].val_index] = foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index];
+    }
+  }
+  for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
+    comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
+                        foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
+                        foreign_active_comp_pattern_keys[i].param4,foreign_active_comp_pattern_keys[i].param5); 
+    // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
+    // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
+    //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.
+    // Further, there is no harm in doing so, as volumetric statistical analysis is still observed.
+    if (comp_pattern_map.find(id) == comp_pattern_map.end()){
+      active_patterns.push_back(foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index]);
+      foreign_active_comp_pattern_keys[i].pattern_index = active_patterns.size()-1;
+      active_comp_pattern_keys.push_back(foreign_active_comp_pattern_keys[i]);
+      comp_pattern_map[id] = pattern_key_id(true, active_comp_pattern_keys.size()-1, active_patterns.size()-1, false);
+    } else{
+      // Update existing entry.
+      active_patterns[comp_pattern_map[id].val_index] = foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index];
+    }
+  }
+}
 
 }
 }
