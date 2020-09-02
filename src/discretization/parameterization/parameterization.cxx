@@ -86,7 +86,10 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
   else if (comm_envelope_param == 1){
     this->partner_offset = abs(_rank-_partner);
   }
-  else if (comm_envelope_param == 2){// Note: this parameter specifies that partner rank will not factor into parameterization (but we still need to give the member a value)
+  else if (comm_envelope_param == 2){
+    this->partner_offset = partner;
+  }
+  else if (comm_envelope_param == 3){// Note: this parameter specifies that partner rank will not factor into parameterization (but we still need to give the member a value)
     this->partner_offset = -1;
   }
   // Unit (message-size) parameterization specification
