@@ -221,13 +221,23 @@ void clear(){
   }
 }
 
-void finalize(){
+void _finalize(){
   switch (mechanism){
     case 0:
       decomposition::finalize();
       break;
     case 1:
       discretization::finalize();
+      break;
+  }
+}
+
+void reset_frequencies(){
+  switch (mechanism){
+    case 0:
+      break;
+    case 1:
+      discretization::reset_frequencies();
       break;
   }
 }

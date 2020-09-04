@@ -34,6 +34,11 @@ std::map<MPI_Comm,comm_channel_node*> comm_channel_map;
 std::map<int,comm_channel_node*> p2p_channel_map;
 
 // ****************************************************************************************************************************************************
+comm_channel_node::comm_channel_node(){
+  this->frequency=0;
+  this->children.push_back(std::vector<comm_channel_node*>());
+}
+
 void sample_propagation_forest::generate_sibling_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level, bool& valid_siblings){
   // static_info will shrink as tuples are transfered into gen_info. That means when 
   if (static_info.size()==0){
@@ -102,7 +107,7 @@ bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_chan
     bool found_match=false;
     for (auto j=0; j<node->id.size(); j++){
       found_match = ((tree_node->id[i].second % node->id[j].second == 0) &&
-                    (tree_node->id[i].first <= node->id[j].first) &&
+                    (tree_node->id[i].first < node->id[j].first) &&
                     (tree_node->id[i].second < (node->id[j].first*node->id[j].second)) &&
                     ((tree_node->id[i].first*tree_node->id[i].second) <= (node->id[j].first*node->id[j].second)));
       if (found_match) break;
@@ -111,14 +116,20 @@ bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_chan
   }
   return true;
 }
-bool sample_propagation_forest::sibling_test(comm_channel_node* parent){
+bool sample_propagation_forest::sibling_test(comm_channel_node* parent, int subtree_idx, std::vector<int>& skip_indices){
   // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
   // Return true if parent's children are valid siblings
-  if (parent->children.size()<=1) return true;
+  if (parent->children[subtree_idx].size()<=1) return true;
+
   std::vector<std::pair<int,int>> static_info;
-  for (auto i=0; i<parent->children.size(); i++){
-    for (auto j=0; j<parent->children[i]->id.size(); j++){
-      static_info.push_back(parent->children[i]->id[j]);
+  int skip_index=0;
+  for (auto i=0; i<parent->children[subtree_idx].size(); i++){
+    if ((skip_index<skip_indices.size()) && (i==skip_indices[skip_index])){
+      skip_index++;
+      continue;
+    }
+    for (auto j=0; j<parent->children[subtree_idx][i]->id.size(); j++){
+      static_info.push_back(parent->children[subtree_idx][i]->id[j]);
     }
   }
   std::vector<std::pair<int,int>> gen_info;
@@ -126,13 +137,13 @@ bool sample_propagation_forest::sibling_test(comm_channel_node* parent){
   generate_sibling_perm(static_info,gen_info,0,valid_siblings);
   return valid_siblings;
 }
-bool sample_propagation_forest::partition_test(comm_channel_node* parent){
+bool sample_propagation_forest::partition_test(comm_channel_node* parent, int subtree_idx){
   // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
   // Return true if parent's children are valid siblings
   std::vector<std::pair<int,int>> static_info;
-  for (auto i=0; i<parent->children.size(); i++){
-    for (auto j=0; j<parent->children[i]->id.size(); j++){
-      static_info.push_back(parent->children[i]->id[j]);
+  for (auto i=0; i<parent->children[subtree_idx].size(); i++){
+    for (auto j=0; j<parent->children[subtree_idx][i]->id.size(); j++){
+      static_info.push_back(parent->children[subtree_idx][i]->id[j]);
     }
   }
   std::vector<std::pair<int,int>> gen_info;
@@ -142,10 +153,24 @@ bool sample_propagation_forest::partition_test(comm_channel_node* parent){
   generate_partition_perm(static_info,gen_info,0,valid_partition,parent_max_span,parent_min_stride);
   return valid_partition;
 }
+void sample_propagation_forest::find_parent(comm_channel_node* tree_root, comm_channel_node* tree_node, comm_channel_node*& parent){
+  if (tree_root==nullptr) return;
+  for (auto i=0; i<tree_root->children.size(); i++){
+    for (auto j=0; j<tree_root->children[i].size(); j++){
+      this->find_parent(tree_root->children[i][j],tree_node,parent);// Cannot be nullptrs. Nullptr children mean the children member is empty
+    }
+  }
+  if ((parent==nullptr) && (this->is_child(tree_node,tree_root))){
+    parent = tree_root;
+  }
+  return;
+}
 void sample_propagation_forest::clear_tree_info(comm_channel_node* tree_root){
   if (tree_root==nullptr) return;
   for (auto i=0; i<tree_root->children.size(); i++){
-    this->clear_tree_info(tree_root->children[i]);// Cannot be nullptrs. Nullptr children mean the children member is empty
+    for (auto j=0; j<tree_root->children[i].size(); j++){
+      this->clear_tree_info(tree_root->children[i][j]);// Cannot be nullptrs. Nullptr children mean the children member is empty
+    }
   }
   tree_root->frequency=0;
   return;
@@ -153,7 +178,9 @@ void sample_propagation_forest::clear_tree_info(comm_channel_node* tree_root){
 void sample_propagation_forest::delete_tree(comm_channel_node*& tree_root){
   if (tree_root==nullptr) return;
   for (auto i=0; i<tree_root->children.size(); i++){
-    this->delete_tree(tree_root->children[i]);// Cannot be nullptrs. Nullptr children mean the children member is empty
+    for (auto j=0; j<tree_root->children[i].size(); j++){
+      this->delete_tree(tree_root->children[i][j]);// Cannot be nullptrs. Nullptr children mean the children member is empty
+    }
   }
   free(tree_root);
   tree_root=nullptr;
@@ -171,6 +198,10 @@ void sample_propagation_forest::clear_info(){
     this->clear_tree_info(this->tree_list[i]->root);
   }
 }
+int sample_propagation_forest::translate_rank(MPI_Comm comm, int rank){
+  assert(comm == MPI_COMM_WORLD);// just for now
+  return rank;
+}
 void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   // Fill in parent and children, and iterate over all trees of course.
   // Post-order traversal
@@ -179,36 +210,75 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   comm_channel_node* parent = nullptr;
   //TODO: I assume here that we care about the first SPT in the SPF. Figure out how to fix this later
   this->find_parent(this->tree_list[0]->root,tree_node,parent);
-  // debug
-  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
-  assert(parent!=nullptr);
-
-  // Eager add to parent's children, before checking sibling constraints
-  parent->children.push_back(tree_node);
   tree_node->parent = parent;
-  if (!this->sibling_test(parent)){
-    parent->children.pop_back();
-    // must add tree_node to other tree. But also need to find parent again I think: different node.
-    // Attach children
-    std::vector<int> remove_indices;
-    for (auto child_idx=0; child_idx<parent->children.size(); child_idx++){
-      bool decision1 = this->is_child(parent->children[child_idx],tree_node);
-      if (decision1){
-        assert(0);//TODO: Fix later. It won't happen with CholInv
-        tree_node->children.push_back(parent->children[child_idx]);
-        remove_indices.push_back(child_idx);
+  assert(parent!=nullptr);
+ 
+  // Try adding 'tree_node' to each SPT. If none fit, append parent's children array and add it there, signifying a new tree, rooted at 'parent'
+  bool valid_parent = false;
+  int save_tree_idx=-1;
+  for (auto i=0; i<parent->children.size(); i++){
+    parent->children[i].push_back(tree_node);
+    std::vector<int> sibling_to_child_indices;
+    for (auto j=0; j<parent->children[i].size()-1; j++){
+      if (this->is_child(parent->children[i][j],tree_node)){
+        sibling_to_child_indices.push_back(j);
       }
     }
-    // Erase parent's removed children
-    //TODO:  .. parent->children.erase(parent->children.begin()+child_idx-num_removed);
+    if (this->sibling_test(parent,i,sibling_to_child_indices)){
+      save_tree_idx=i;
+      valid_parent=true;
+      for (auto j=0; j<sibling_to_child_indices.size(); j++){
+        tree_node->children[0].push_back(parent->children[i][sibling_to_child_indices[j]]);
+        parent->children[i][sibling_to_child_indices[j]]->parent=tree_node;
+      }
+      int skip_index=0;
+      int save_index=0;
+      for (auto j=0; j<parent->children[i].size()-1; j++){
+        if ((skip_index<sibling_to_child_indices.size()) && (j==sibling_to_child_indices[skip_index])){
+          skip_index++;
+        } else{
+          parent->children[i][save_index] = parent->children[i][j];
+          save_index++;
+        }
+      }
+      parent->children[i][save_index] = parent->children[i][parent->children[i].size()-1];
+      save_index++;
+      for (auto j=parent->children[i].size()-save_index; j>0; j--){
+        parent->children[i].pop_back();
+      }
+      break;
+    } else{
+      parent->children[i].pop_back();
+    }
   }
+  if (!valid_parent){
+    save_tree_idx=parent->children.size();
+    parent->children.push_back(std::vector<comm_channel_node*>());
+    parent->children[parent->children.size()-1].push_back(tree_node);
+  }
+
   // sanity check for right now
-  bool is_sib = this->sibling_test(parent);// this should always pass right now
-  bool is_part = this->partition_test(parent);
+  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   if (world_comm_rank==0){
-    std::cout << "parent of tree_node (" << tree_node->id[0].first << "," << tree_node->id[0].second << ") is (" << parent->id[0].first << "," << parent->id[0].second << ")\n";
-    std::cout << "Is valid sibling? " << is_sib << std::endl;
-    std::cout << "Is partition? " << is_part << std::endl;
+    std::cout << "parent of tree_node{";
+    for (auto i=0; i<tree_node->id.size(); i++){
+      std::cout << " (" << tree_node->id[i].first << "," << tree_node->id[i].second << ")";
+    }
+    std::cout << " } is {";
+    for (auto i=0; i<parent->id.size(); i++){
+      std::cout << " (" << parent->id[i].first << "," << parent->id[i].second << ")";
+    }
+    std::cout << " }\n";
+    for (auto i=0; i<parent->children.size(); i++){
+      std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
+      for (auto j=0; j<parent->children[i].size(); j++){
+        std::cout << "\t\tchild " << j << " is {";
+        for (auto k=0; k<parent->children[i][j]->id.size(); k++){
+          std::cout << " (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
+        }
+        std::cout << " }\n";
+      }
+    }
   }
 }
 
@@ -476,7 +546,7 @@ void allocate(MPI_Comm comm){
   mode_2_width = 15;
 
   communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,0);
-  comm_channel_node* world_node = new comm_channel_node;
+  comm_channel_node* world_node = new comm_channel_node();
   world_node->id.push_back(std::make_pair(_world_size,1));
   world_node->parent=nullptr;
   sample_propagation_tree* tree = new sample_propagation_tree;
@@ -659,6 +729,10 @@ void reset(bool track_statistical_data_override, bool schedule_kernels_override,
 */
   }
   previous_comm_key = comm_pattern_key();
+}
+
+void reset_frequencies(){
+  spf.clear_info();
 }
 
 void clear(){

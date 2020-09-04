@@ -31,8 +31,10 @@ void close_symbol(const char* symbol, double curtime);
 void record(std::ofstream& Stream, double* data, bool print_statistical_data, bool save_statistical_data);
 void record(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data);
 
+void reset_frequencies();
+
 void clear();
-void finalize();
+void _finalize();
 
 }
 }

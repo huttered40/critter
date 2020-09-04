@@ -9,13 +9,13 @@ namespace discretization{
 
 // ****************************************************************************************************************************************************
 struct comm_channel_node{
-  comm_channel_node(){ this->frequency=0; }
+  comm_channel_node();
 
   int frequency;
   int offset;
   std::vector<std::pair<int,int>> id;
   comm_channel_node* parent;
-  std::vector<comm_channel_node*> children;
+  std::vector<std::vector<comm_channel_node*>> children;
 };
 
 struct sample_propagation_tree{
@@ -26,6 +26,7 @@ struct sample_propagation_forest{
   sample_propagation_forest();
   ~sample_propagation_forest();
 
+  int translate_rank(MPI_Comm comm, int rank);
   void insert_node(comm_channel_node* tree_node);
   void clear_info();
 
@@ -37,8 +38,8 @@ private:
   void generate_partition_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level, bool& valid_partition,
                                int parent_max_span, int parent_min_stride);
   bool is_child(comm_channel_node* tree_node, comm_channel_node* node);
-  bool sibling_test(comm_channel_node* node);
-  bool partition_test(comm_channel_node* parent);
+  bool sibling_test(comm_channel_node* node, int subtree_idx, std::vector<int>& skip_indices);
+  bool partition_test(comm_channel_node* parent, int subtree_idx);
   void find_parent(comm_channel_node* tree_root, comm_channel_node* tree_node, comm_channel_node*& parent);
 };
 
@@ -125,6 +126,7 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
 void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide);
+void reset_frequencies();
 void clear();
 void finalize();
 

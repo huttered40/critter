@@ -58,13 +58,6 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   spf.insert_node(channel);// This call will just fill in SPT via channel's parent/children members, and the members of related channels
   comm_channel_map[newcomm] = channel;
 
-  // debug
-  if (world_comm_rank==0){
-    for (auto i=0; i<channel->id.size(); i++){
-      std::cout << i << " - " << channel->id[i].first << " " << channel->id[i].second << std::endl;
-    }
-  }
-
   int color = new_comm_size>1 ? gathered_ranks[1]-gathered_ranks[0] : 0;
   communicator_map[newcomm] = std::make_pair(new_comm_size,color);
   computation_timer = MPI_Wtime();

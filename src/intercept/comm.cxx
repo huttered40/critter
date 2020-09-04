@@ -45,6 +45,10 @@ void clear(){
   internal::clear();
 }
 
+void reset_frequencies(){
+  internal::reset_frequencies();
+}
+
 namespace internal{
 
 // These routines aim to achieve agnosticity to mechanism.
@@ -731,7 +735,7 @@ void finalize(){
       stream.close();
     }
   }
-  internal::finalize();
+  internal::_finalize();
   PMPI_Finalize();
 }
 

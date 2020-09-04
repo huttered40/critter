@@ -9,6 +9,7 @@ void start(bool track_statistical_data_override = true, bool schedule_kernels_ov
 void stop();
 void record(double* data = nullptr, bool print_statistical_data = false, bool save_statistical_data=false);
 void clear();
+void reset_frequencies();
 
 namespace internal{
 
