@@ -221,6 +221,17 @@ void clear(){
   }
 }
 
+void finalize(){
+  switch (mechanism){
+    case 0:
+      decomposition::finalize();
+      break;
+    case 1:
+      discretization::finalize();
+      break;
+  }
+}
+
 void record(std::ofstream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
   switch (mechanism){
     case 0:

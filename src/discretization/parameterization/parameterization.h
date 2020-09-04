@@ -2,6 +2,8 @@
 #define CRITTER__DISCRETIZATION__PARAMETERIZATION__PARAMETERIZATION_H_
 
 #include <functional>
+#include <utility>
+#include <vector>
 
 namespace critter{
 namespace internal{

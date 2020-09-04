@@ -29,7 +29,191 @@ std::vector<pattern> steady_state_patterns;
 std::vector<pattern> active_patterns;
 comm_pattern_key previous_comm_key;
 std::map<std::pair<comm_pattern_key,comm_pattern_key>,idle_pattern> comm_pattern_pair_map;
+sample_propagation_forest spf;
+std::map<MPI_Comm,comm_channel_node*> comm_channel_map;
+std::map<int,comm_channel_node*> p2p_channel_map;
 
+// ****************************************************************************************************************************************************
+void sample_propagation_forest::generate_sibling_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level, bool& valid_siblings){
+  // static_info will shrink as tuples are transfered into gen_info. That means when 
+  if (static_info.size()==0){
+    valid_siblings=true;
+    return;
+  }
+  // At position 'level' in permutation, lets try all remaining possibilities via iterating over what remains of static_info
+  for (auto i=0; i<static_info.size(); i++){
+    // check if valid BEFORE recursing, except if at first level (no pruning at that level, all possibilities still valid)
+    if ((level==0) || (static_info[i].second == (gen_info[level-1].first*gen_info[level-1].second))){
+      gen_info.push_back(static_info[i]);
+      if (i==static_info.size()-1){
+        static_info.pop_back();
+        this->generate_sibling_perm(static_info,gen_info,level+1,valid_siblings);
+        static_info.push_back(gen_info[gen_info.size()-1]);
+      } else{
+        // swap with last entry and then pop
+        auto temp = static_info[static_info.size()-1];
+        static_info[static_info.size()-1] = static_info[i];
+        static_info[i] = temp;
+        static_info.pop_back();
+        this->generate_sibling_perm(static_info,gen_info,level+1,valid_siblings);
+        static_info.push_back(temp);
+        static_info[i] = gen_info[gen_info.size()-1];
+      }
+      gen_info.pop_back();
+    }
+  }
+}
+void sample_propagation_forest::generate_partition_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level,
+                                                        bool& valid_partition, int parent_max_span, int parent_min_stride){
+  // static_info will shrink as tuples are transfered into gen_info. That means when 
+  if (static_info.size()==0){
+    if ((level>0) && (gen_info[0].second == parent_min_stride) && (gen_info[level-1].first*gen_info[level-1].second == parent_max_span)){ valid_partition=true; }
+    return;
+  }
+  // At position 'level' in permutation, lets try all remaining possibilities via iterating over what remains of static_info
+  int static_info_size=static_info.size();
+  for (auto i=0; i<static_info_size; i++){
+    // check if valid BEFORE recursing, except if at first level (no pruning at that level, all possibilities still valid)
+    if ((level==0) || (static_info[i].second == (gen_info[level-1].first*gen_info[level-1].second))){
+      //if ((level==0) && static_info[i].second!= 1) continue;// constrain initial stride in permutation
+      gen_info.push_back(static_info[i]);
+      if (i==static_info.size()-1){
+        static_info.pop_back();
+        this->generate_partition_perm(static_info,gen_info,level+1,valid_partition,parent_max_span,parent_min_stride);
+        static_info.push_back(gen_info[gen_info.size()-1]);
+      } else{
+        // swap with last entry and then pop
+        auto temp = static_info[static_info.size()-1];
+        static_info[static_info.size()-1] = static_info[i];
+        static_info[i] = temp;
+        static_info.pop_back();
+        this->generate_partition_perm(static_info,gen_info,level+1,valid_partition,parent_max_span,parent_min_stride);
+        static_info.push_back(temp);
+        static_info[i] = gen_info[gen_info.size()-1];
+      }
+      gen_info.pop_back();
+    }
+  }
+}
+bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_channel_node* node){
+  // Returns true iff tree_node is an ancestor of node
+  // Check all tuples
+  for (auto i=0; i<tree_node->id.size(); i++){
+    bool found_match=false;
+    for (auto j=0; j<node->id.size(); j++){
+      found_match = ((tree_node->id[i].second % node->id[j].second == 0) &&
+                    (tree_node->id[i].first <= node->id[j].first) &&
+                    (tree_node->id[i].second < (node->id[j].first*node->id[j].second)) &&
+                    ((tree_node->id[i].first*tree_node->id[i].second) <= (node->id[j].first*node->id[j].second)));
+      if (found_match) break;
+    }// As long as one match is found, tuple id[i] fits
+    if (!found_match) return false;
+  }
+  return true;
+}
+bool sample_propagation_forest::sibling_test(comm_channel_node* parent){
+  // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
+  // Return true if parent's children are valid siblings
+  if (parent->children.size()<=1) return true;
+  std::vector<std::pair<int,int>> static_info;
+  for (auto i=0; i<parent->children.size(); i++){
+    for (auto j=0; j<parent->children[i]->id.size(); j++){
+      static_info.push_back(parent->children[i]->id[j]);
+    }
+  }
+  std::vector<std::pair<int,int>> gen_info;
+  bool valid_siblings=false;
+  generate_sibling_perm(static_info,gen_info,0,valid_siblings);
+  return valid_siblings;
+}
+bool sample_propagation_forest::partition_test(comm_channel_node* parent){
+  // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
+  // Return true if parent's children are valid siblings
+  std::vector<std::pair<int,int>> static_info;
+  for (auto i=0; i<parent->children.size(); i++){
+    for (auto j=0; j<parent->children[i]->id.size(); j++){
+      static_info.push_back(parent->children[i]->id[j]);
+    }
+  }
+  std::vector<std::pair<int,int>> gen_info;
+  bool valid_partition=false;
+  auto parent_max_span = parent->id[parent->id.size()-1].first * parent->id[parent->id.size()-1].second;
+  auto parent_min_stride = parent->id[0].second;
+  generate_partition_perm(static_info,gen_info,0,valid_partition,parent_max_span,parent_min_stride);
+  return valid_partition;
+}
+void sample_propagation_forest::clear_tree_info(comm_channel_node* tree_root){
+  if (tree_root==nullptr) return;
+  for (auto i=0; i<tree_root->children.size(); i++){
+    this->clear_tree_info(tree_root->children[i]);// Cannot be nullptrs. Nullptr children mean the children member is empty
+  }
+  tree_root->frequency=0;
+  return;
+}
+void sample_propagation_forest::delete_tree(comm_channel_node*& tree_root){
+  if (tree_root==nullptr) return;
+  for (auto i=0; i<tree_root->children.size(); i++){
+    this->delete_tree(tree_root->children[i]);// Cannot be nullptrs. Nullptr children mean the children member is empty
+  }
+  free(tree_root);
+  tree_root=nullptr;
+  return;
+}
+sample_propagation_forest::sample_propagation_forest(){}
+sample_propagation_forest::~sample_propagation_forest(){
+  for (auto i=0; i<this->tree_list.size(); i++){
+    this->delete_tree(this->tree_list[i]->root);
+    free(this->tree_list[i]);
+  }
+}
+void sample_propagation_forest::clear_info(){
+  for (auto i=0; i<this->tree_list.size(); i++){
+    this->clear_tree_info(this->tree_list[i]->root);
+  }
+}
+void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
+  // Fill in parent and children, and iterate over all trees of course.
+  // Post-order traversal
+  // Follow rules from paper to deduce first whether tree_node can be a child of the current parent.
+
+  comm_channel_node* parent = nullptr;
+  //TODO: I assume here that we care about the first SPT in the SPF. Figure out how to fix this later
+  this->find_parent(this->tree_list[0]->root,tree_node,parent);
+  // debug
+  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
+  assert(parent!=nullptr);
+
+  // Eager add to parent's children, before checking sibling constraints
+  parent->children.push_back(tree_node);
+  tree_node->parent = parent;
+  if (!this->sibling_test(parent)){
+    parent->children.pop_back();
+    // must add tree_node to other tree. But also need to find parent again I think: different node.
+    // Attach children
+    std::vector<int> remove_indices;
+    for (auto child_idx=0; child_idx<parent->children.size(); child_idx++){
+      bool decision1 = this->is_child(parent->children[child_idx],tree_node);
+      if (decision1){
+        assert(0);//TODO: Fix later. It won't happen with CholInv
+        tree_node->children.push_back(parent->children[child_idx]);
+        remove_indices.push_back(child_idx);
+      }
+    }
+    // Erase parent's removed children
+    //TODO:  .. parent->children.erase(parent->children.begin()+child_idx-num_removed);
+  }
+  // sanity check for right now
+  bool is_sib = this->sibling_test(parent);// this should always pass right now
+  bool is_part = this->partition_test(parent);
+  if (world_comm_rank==0){
+    std::cout << "parent of tree_node (" << tree_node->id[0].first << "," << tree_node->id[0].second << ") is (" << parent->id[0].first << "," << parent->id[0].second << ")\n";
+    std::cout << "Is valid sibling? " << is_sib << std::endl;
+    std::cout << "Is partition? " << is_part << std::endl;
+  }
+}
+
+
+// ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key){
   // For now, only barriers cannot be skipped
   if (key.tag == 0){ return false; }
@@ -292,6 +476,12 @@ void allocate(MPI_Comm comm){
   mode_2_width = 15;
 
   communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,0);
+  comm_channel_node* world_node = new comm_channel_node;
+  world_node->id.push_back(std::make_pair(_world_size,1));
+  world_node->parent=nullptr;
+  sample_propagation_tree* tree = new sample_propagation_tree;
+  tree->root = world_node;
+  spf.tree_list.push_back(tree);
 
   comp_pattern_key ex_1;
   MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
@@ -486,6 +676,12 @@ void clear(){
   comm_intercept_overhead_stage2=0;
   comp_intercept_overhead=0;
   previous_comm_key = comm_pattern_key();
+
+  spf.clear_info();
+}
+
+void finalize(){
+  // 'spf' deletion should occur automatically at program shutdown
 }
 
 }

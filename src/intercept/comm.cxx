@@ -731,6 +731,7 @@ void finalize(){
       stream.close();
     }
   }
+  internal::finalize();
   PMPI_Finalize();
 }
 

@@ -87,7 +87,7 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
     this->partner_offset = abs(_rank-_partner);
   }
   else if (comm_envelope_param == 2){
-    this->partner_offset = partner;
+    this->partner_offset = _partner;
   }
   else if (comm_envelope_param == 3){// Note: this parameter specifies that partner rank will not factor into parameterization (but we still need to give the member a value)
     this->partner_offset = -1;

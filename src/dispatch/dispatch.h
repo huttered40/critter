@@ -32,6 +32,7 @@ void record(std::ofstream& Stream, double* data, bool print_statistical_data, bo
 void record(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data);
 
 void clear();
+void finalize();
 
 }
 }

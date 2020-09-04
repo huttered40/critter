@@ -240,6 +240,8 @@ void clear(){
   symbol_timers.clear();
 }
 
+void finalize(){}
+
 }
 }
 }

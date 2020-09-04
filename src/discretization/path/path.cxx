@@ -10,10 +10,61 @@ namespace discretization{
 
 void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   int new_comm_size; MPI_Comm_size(newcomm,&new_comm_size);
-  int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
+  assert(new_comm_size>0);
+  //int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
+  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   std::vector<int> gathered_ranks(new_comm_size,0);
-  PMPI_Allgather(&old_comm_rank,1,MPI_INT,&gathered_ranks[0],1,MPI_INT,newcomm);
+  PMPI_Allgather(&world_comm_rank,1,MPI_INT,&gathered_ranks[0],1,MPI_INT,newcomm);
   // Now we detect the "color" (really the stride) via iteration
+  // Step 1: subtract out the offset from 0 : assuming that the key arg to comm_split didn't re-shuffle
+  //         I can try to use std::min_element vs. writing my own manual loop
+  int offset = gathered_ranks[0];
+  for (auto i=1; i<gathered_ranks.size(); i++) { offset = std::min(offset,gathered_ranks[i]); }
+  for (auto i=0; i<gathered_ranks.size(); i++) { gathered_ranks[i] -= offset; }
+  std::sort(gathered_ranks.begin(),gathered_ranks.end());
+  comm_channel_node* channel = new comm_channel_node();
+  channel->offset = offset;
+  if (new_comm_size<=1){
+    channel->id.push_back(std::make_pair(new_comm_size,world_comm_rank));
+  }
+  else{
+    int stride = gathered_ranks[1]-gathered_ranks[0];
+    int count = 0;
+    int jump=1;
+    int extra=0;
+    int i=0;
+    while (i < gathered_ranks.size()-1){
+      if ((gathered_ranks[i+jump]-gathered_ranks[i]) != stride){
+        channel->id.push_back(std::make_pair(count+extra+1,stride));
+        stride = gathered_ranks[i+1]-gathered_ranks[0];
+        i += jump;
+        if (channel->id.size()==1){
+          jump=count+extra+1;
+        }
+        else{
+          jump = (count+extra+1)*channel->id[channel->id.size()-2].first;
+        }
+        extra=1;
+        count = 0;
+      } else{
+        count++;
+        i += jump;
+      }
+    }
+    if (count != 0){
+      channel->id.push_back(std::make_pair(count+extra+1,stride));
+    }
+  }
+  spf.insert_node(channel);// This call will just fill in SPT via channel's parent/children members, and the members of related channels
+  comm_channel_map[newcomm] = channel;
+
+  // debug
+  if (world_comm_rank==0){
+    for (auto i=0; i<channel->id.size(); i++){
+      std::cout << i << " - " << channel->id[i].first << " " << channel->id[i].second << std::endl;
+    }
+  }
+
   int color = new_comm_size>1 ? gathered_ranks[1]-gathered_ranks[0] : 0;
   communicator_map[newcomm] = std::make_pair(new_comm_size,color);
   computation_timer = MPI_Wtime();

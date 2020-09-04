@@ -49,6 +49,7 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
 void clear();
+void finalize();
 
 }
 }
