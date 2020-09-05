@@ -101,18 +101,32 @@ void sample_propagation_forest::generate_partition_perm(std::vector<std::pair<in
   }
 }
 bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_channel_node* node){
+  // First check that the root node 'node' is not a p2p, regardless of whether 'tree_node' is a subcomm or p2p
+  if (node->id[0].second == 0) return false;
   // Returns true iff tree_node is an ancestor of node
-  // Check all tuples
-  for (auto i=0; i<tree_node->id.size(); i++){
-    bool found_match=false;
-    for (auto j=0; j<node->id.size(); j++){
-      found_match = ((tree_node->id[i].second % node->id[j].second == 0) &&
-                    (tree_node->id[i].first < node->id[j].first) &&
-                    (tree_node->id[i].second < (node->id[j].first*node->id[j].second)) &&
-                    ((tree_node->id[i].first*tree_node->id[i].second) <= (node->id[j].first*node->id[j].second)));
-      if (found_match) break;
-    }// As long as one match is found, tuple id[i] fits
-    if (!found_match) return false;
+
+  if (tree_node->id[0].second != 0){
+    // Check all tuples
+    for (auto i=0; i<tree_node->id.size(); i++){
+      bool found_match=false;
+      for (auto j=0; j<node->id.size(); j++){
+        found_match = ((tree_node->id[i].second % node->id[j].second == 0) &&
+                      (tree_node->id[i].first < node->id[j].first) &&
+                      (tree_node->id[i].second < (node->id[j].first*node->id[j].second)) &&
+                      ((tree_node->id[i].first*tree_node->id[i].second) <= (node->id[j].first*node->id[j].second)));
+        if (found_match) break;
+      }// As long as one match is found, tuple id[i] fits
+      if (!found_match) return false;
+    }
+  } else{
+    // p2p nodes need special machinery for detecting whether its a child of 'node'
+    int rank = tree_node->offset - node->offset;
+    if (rank<0) return false;// corner case
+    for (int i=node->id.size()-1; i>=0; i--){
+      if (rank >= (node->id[i].first*node->id[i].second)){ return false; }
+      if (i>0) { rank %= node->id[i].second; }
+    }
+    if (rank%node->id[0].second != 0) return false;
   }
   return true;
 }
@@ -120,7 +134,14 @@ bool sample_propagation_forest::sibling_test(comm_channel_node* parent, int subt
   // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
   // Return true if parent's children are valid siblings
   if (parent->children[subtree_idx].size()<=1) return true;
-
+  // Check if all are p2p, all are subcomms, or if there is a mixture.
+  int p2p_count=0; int subcomm_count=0;
+  for (auto i=0; i<parent->children[subtree_idx].size(); i++){
+    if ((parent->children[subtree_idx][i]->id.size()==1) && (parent->children[subtree_idx][i]->id[0].second==-1)){ p2p_count++; }
+    else { subcomm_count++; }
+  }
+  if ((subcomm_count>0) && (p2p_count>0)) return false;
+  if (subcomm_count==0) return true;// all p2p siblings are fine
   std::vector<std::pair<int,int>> static_info;
   int skip_index=0;
   for (auto i=0; i<parent->children[subtree_idx].size(); i++){
@@ -199,8 +220,14 @@ void sample_propagation_forest::clear_info(){
   }
 }
 int sample_propagation_forest::translate_rank(MPI_Comm comm, int rank){
-  assert(comm == MPI_COMM_WORLD);// just for now
-  return rank;
+  // Returns new rank relative to world communicator
+  auto node = comm_channel_map[comm];
+  int new_rank = node->offset;
+  for (auto i=0; i<node->id.size(); i++){
+    new_rank += node->id[i].second*(rank%node->id[i].first);
+    rank /= node->id[i].first;
+  }
+  return new_rank;
 }
 void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   // Fill in parent and children, and iterate over all trees of course.
@@ -211,6 +238,11 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   //TODO: I assume here that we care about the first SPT in the SPF. Figure out how to fix this later
   this->find_parent(this->tree_list[0]->root,tree_node,parent);
   tree_node->parent = parent;
+  // debug
+  MPI_Comm world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  if (parent==nullptr){
+    std::cout << "rank " << world_rank << " has offset " << tree_node->offset << std::endl;
+  }
   assert(parent!=nullptr);
  
   // Try adding 'tree_node' to each SPT. If none fit, append parent's children array and add it there, signifying a new tree, rooted at 'parent'
@@ -260,11 +292,11 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   // sanity check for right now
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   if (world_comm_rank==0){
-    std::cout << "parent of tree_node{";
+    std::cout << "parent of tree_node{ " << tree_node->offset;
     for (auto i=0; i<tree_node->id.size(); i++){
       std::cout << " (" << tree_node->id[i].first << "," << tree_node->id[i].second << ")";
     }
-    std::cout << " } is {";
+    std::cout << " } is { " << parent->offset;
     for (auto i=0; i<parent->id.size(); i++){
       std::cout << " (" << parent->id[i].first << "," << parent->id[i].second << ")";
     }
@@ -272,7 +304,7 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
     for (auto i=0; i<parent->children.size(); i++){
       std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
       for (auto j=0; j<parent->children[i].size(); j++){
-        std::cout << "\t\tchild " << j << " is {";
+        std::cout << "\t\tchild " << j << " is { " << parent->children[i][j]->offset;
         for (auto k=0; k<parent->children[i][j]->id.size(); k++){
           std::cout << " (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
         }
@@ -545,13 +577,15 @@ void allocate(MPI_Comm comm){
   mode_1_width = 25;
   mode_2_width = 15;
 
-  communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,0);
+  communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,1);
   comm_channel_node* world_node = new comm_channel_node();
+  world_node->offset = 0;
   world_node->id.push_back(std::make_pair(_world_size,1));
   world_node->parent=nullptr;
   sample_propagation_tree* tree = new sample_propagation_tree;
   tree->root = world_node;
   spf.tree_list.push_back(tree);
+  comm_channel_map[MPI_COMM_WORLD] = world_node;
 
   comp_pattern_key ex_1;
   MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };

@@ -141,6 +141,22 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   int rank; MPI_Comm_rank(comm, &rank);
   volatile double overhead_start_time = MPI_Wtime();
 
+  assert(comm_channel_map.find(comm) != comm_channel_map.end());// Any sub-communicator must have been registered via comm_split
+  comm_channel_node* tree_node;
+  if (tracker.partner1 != -1){// p2p
+    auto world_rank = spf.translate_rank(comm,tracker.partner1);
+    if (p2p_channel_map.find(world_rank) == p2p_channel_map.end()){
+      comm_channel_node* node = new comm_channel_node();
+      node->offset = world_rank;
+      node->id.push_back(std::make_pair(1,0));
+      spf.insert_node(node);
+      p2p_channel_map[world_rank] = node;
+    }
+    tree_node = p2p_channel_map[world_rank];
+  } else{
+    tree_node = comm_channel_map[comm];
+  }
+
   // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
   // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
