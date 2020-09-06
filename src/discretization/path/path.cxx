@@ -55,6 +55,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
       channel->id.push_back(std::make_pair(count+extra+1,stride));
     }
   }
+  channel->tag = comm_channel_tag_count++;
   spf.insert_node(channel);// This call will just fill in SPT via channel's parent/children members, and the members of related channels
   comm_channel_map[newcomm] = channel;
 
@@ -180,23 +181,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.synch_time = 0.;// might get updated below
   tracker.barrier_time = 0.;// might get updated below
 
-  assert(comm_channel_map.find(comm) != comm_channel_map.end());// Any sub-communicator must have been registered via comm_split
-  comm_channel_node* tree_node;
-  if (tracker.partner1 != -1){// p2p
-    auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
-    if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
-      comm_channel_node* node = new comm_channel_node();
-      node->offset = world_partner_rank;
-      node->id.push_back(std::make_pair(1,0));
-      spf.insert_node(node);
-      p2p_channel_map[world_partner_rank] = node;
-    }
-    tree_node = p2p_channel_map[world_partner_rank];
-  } else{
-    tree_node = comm_channel_map[comm];
-  }
-
-
   // Non-optimized variant will always post barriers, although of course, just as with the optimized variant, the barriers only remove idle time
   //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
   //     critical path root is decided based on a reduction using 'critical_path_costs'.
@@ -217,6 +201,23 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     if (is_optimized){ post_barrier = should_schedule_global(comm_pattern_map[key])==1; }
     schedule_decision = should_schedule(comm_pattern_map[key])==1;
     reduced_info[4] = (double)should_schedule(comm_pattern_map[key]);
+  }
+
+  assert(comm_channel_map.find(comm) != comm_channel_map.end());// Any sub-communicator must have been registered via comm_split
+  comm_channel_node* tree_node;
+  if (tracker.partner1 != -1){// p2p
+    auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
+    if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
+      comm_channel_node* node = new comm_channel_node();
+      node->tag = key.partner_offset;
+      node->offset = world_partner_rank;
+      node->id.push_back(std::make_pair(1,0));
+      spf.insert_node(node);
+      p2p_channel_map[world_partner_rank] = node;
+    }
+    tree_node = p2p_channel_map[world_partner_rank];
+  } else{
+    tree_node = comm_channel_map[comm];
   }
 
   // Both unoptimized and optimized variants will reduce an execution time and a schedule_decision.

@@ -11,6 +11,7 @@ namespace discretization{
 struct comm_channel_node{
   comm_channel_node();
 
+  int tag;
   int frequency;
   int offset;
   std::vector<std::pair<int,int>> id;
@@ -123,6 +124,7 @@ extern MPI_Datatype pattern_type;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
+extern int comm_channel_tag_count;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 extern std::vector<comm_pattern_key> steady_state_comm_pattern_keys;

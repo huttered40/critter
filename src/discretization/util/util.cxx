@@ -18,6 +18,7 @@ MPI_Datatype pattern_type;
 size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
+int comm_channel_tag_count;
 std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
@@ -158,6 +159,7 @@ pattern_key_id& pattern_key_id::operator=(const pattern_key_id& _copy){
 
 // ****************************************************************************************************************************************************
 comm_channel_node::comm_channel_node(){
+  this->tag = -1;
   this->frequency=0;
   this->children.push_back(std::vector<comm_channel_node*>());
 }
@@ -428,7 +430,7 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
     for (auto i=0; i<tree_node->id.size(); i++){
       std::cout << " (" << tree_node->id[i].first << "," << tree_node->id[i].second << ")";
     }
-    std::cout << " } is { " << parent->offset;
+    std::cout << " } is { " << parent->tag << " " << parent->offset;
     for (auto i=0; i<parent->id.size(); i++){
       std::cout << " (" << parent->id[i].first << "," << parent->id[i].second << ")";
     }
@@ -436,7 +438,7 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
     for (auto i=0; i<parent->children.size(); i++){
       std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
       for (auto j=0; j<parent->children[i].size(); j++){
-        std::cout << "\t\tchild " << j << " is { " << parent->children[i][j]->offset;
+        std::cout << "\t\tchild " << j << " is { " << parent->children[i][j]->tag << " " << parent->children[i][j]->offset;
         for (auto k=0; k<parent->children[i][j]->id.size(); k++){
           std::cout << " (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
         }
@@ -708,8 +710,10 @@ void allocate(MPI_Comm comm){
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
   mode_1_width = 25;
   mode_2_width = 15;
+  comm_channel_tag_count=0;
 
   comm_channel_node* world_node = new comm_channel_node();
+  world_node->tag = comm_channel_tag_count++;
   world_node->offset = 0;
   world_node->id.push_back(std::make_pair(_world_size,1));
   world_node->parent=nullptr;
