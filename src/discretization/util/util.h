@@ -29,6 +29,8 @@ struct sample_propagation_forest{
   int translate_rank(MPI_Comm comm, int rank);
   void insert_node(comm_channel_node* tree_node);
   void clear_info();
+  void fill_ancestors(comm_channel_node* tree_node, std::set<comm_channel_node*>& channels);
+  void fill_descendants(comm_channel_node* tree_node, std::set<comm_channel_node*>& channels);
 
   std::vector<sample_propagation_tree*> tree_list;
 private:
@@ -41,6 +43,71 @@ private:
   bool sibling_test(comm_channel_node* node, int subtree_idx, std::vector<int>& skip_indices);
   bool partition_test(comm_channel_node* parent, int subtree_idx);
   void find_parent(comm_channel_node* tree_root, comm_channel_node* tree_node, comm_channel_node*& parent);
+};
+
+// ****************************************************************************************************************************************************
+struct pattern{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  pattern();
+  pattern(const pattern& _copy);
+  pattern& operator=(const pattern& _copy);
+
+  int steady_state;
+  int global_steady_state;
+  int num_schedules;
+  int num_non_schedules;
+  int num_propagations;
+  int num_non_propagations;
+  double num_scheduled_units;
+  double num_non_scheduled_units;
+  double M1,M2;
+  double total_exec_time;
+};
+
+// ****************************************************************************************************************************************************
+struct pattern_batch{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  pattern_batch(comm_channel_node* node = nullptr);
+  pattern_batch(const pattern_batch& _copy);
+  pattern_batch& operator=(const pattern_batch& _copy);
+
+  int state;
+  int num_schedules;
+  double M1,M2;
+  int open_channel_count;
+  std::set<comm_channel_node*> closed_channels;
+};
+
+// ****************************************************************************************************************************************************
+struct idle_pattern{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  idle_pattern();
+  idle_pattern(const idle_pattern& _copy);
+  idle_pattern& operator=(const idle_pattern& _copy);
+
+  int num_schedules;
+  int num_non_schedules;
+  double M1,M2;
+};
+
+// ****************************************************************************************************************************************************
+struct pattern_key_id{
+
+  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false);
+  pattern_key_id(const pattern_key_id& _copy);
+  pattern_key_id& operator=(const pattern_key_id& _copy);
+
+  // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
+  bool is_active;
+  bool is_updated;
+  int key_index;
+  int val_index;
 };
 
 // ****************************************************************************************************************************************************
@@ -70,6 +137,8 @@ extern std::map<std::pair<comm_pattern_key,comm_pattern_key>,idle_pattern> comm_
 extern sample_propagation_forest spf;
 extern std::map<MPI_Comm,comm_channel_node*> comm_channel_map;
 extern std::map<int,comm_channel_node*> p2p_channel_map;
+extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
+extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 
 // ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key);

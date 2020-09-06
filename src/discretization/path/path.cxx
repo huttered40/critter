@@ -102,10 +102,32 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     active_patterns.emplace_back(pattern());
     comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
+  if (comp_batch_map.find(key) == comp_batch_map.end()){
+    //comp_batch_map[key].push_back(pattern_batch());
+    comp_batch_map[key].emplace_back();
+  }
   update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
   // Note: 'get_estimate' must be called before setting the updated kernel state.
   if (should_schedule(comp_pattern_map[key]) == 0){
     comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
+  } else{
+    bool found_batch=false;
+    auto& batch_list = comp_batch_map[key];
+    int index=0;
+    while (index < batch_list.size()){
+      // Look for the first inactive batch and aggregate new sample with it
+      if (batch_list[index].state==0){// inactive state
+        found_batch=true;
+        break;
+      } else{
+        index++;
+      }
+    }
+    if (!found_batch){
+      batch_list.push_back(pattern_batch());
+      index = batch_list.size()-1;
+    }
+    // Update batch_list[index] with sample
   }
   // Both non-optimized and optimized variants can update the local kernel state, but not the global kernel state
   // This gives unoptimized variant more license that that for a communication pattern (which cannot even update
@@ -131,8 +153,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path execution time
   critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
-  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
-  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local runtime
+  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local execution time
+  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
   // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
   //   to be attained with timers outside of critter..
   if (schedule_kernels==0){ return false; }
@@ -140,22 +162,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // At this point, 'critical_path_costs' tells me the process's time up until now. A barrier won't suffice.
   int rank; MPI_Comm_rank(comm, &rank);
   volatile double overhead_start_time = MPI_Wtime();
-
-  assert(comm_channel_map.find(comm) != comm_channel_map.end());// Any sub-communicator must have been registered via comm_split
-  comm_channel_node* tree_node;
-  if (tracker.partner1 != -1){// p2p
-    auto world_rank = spf.translate_rank(comm,tracker.partner1);
-    if (p2p_channel_map.find(world_rank) == p2p_channel_map.end()){
-      comm_channel_node* node = new comm_channel_node();
-      node->offset = world_rank;
-      node->id.push_back(std::make_pair(1,0));
-      spf.insert_node(node);
-      p2p_channel_map[world_rank] = node;
-    }
-    tree_node = p2p_channel_map[world_rank];
-  } else{
-    tree_node = comm_channel_map[comm];
-  }
 
   // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
   // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
@@ -174,6 +180,23 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
   tracker.synch_time = 0.;// might get updated below
   tracker.barrier_time = 0.;// might get updated below
+
+  assert(comm_channel_map.find(comm) != comm_channel_map.end());// Any sub-communicator must have been registered via comm_split
+  comm_channel_node* tree_node;
+  if (tracker.partner1 != -1){// p2p
+    auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
+    if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
+      comm_channel_node* node = new comm_channel_node();
+      node->offset = world_partner_rank;
+      node->id.push_back(std::make_pair(1,0));
+      spf.insert_node(node);
+      p2p_channel_map[world_partner_rank] = node;
+    }
+    tree_node = p2p_channel_map[world_partner_rank];
+  } else{
+    tree_node = comm_channel_map[comm];
+  }
+
 
   // Non-optimized variant will always post barriers, although of course, just as with the optimized variant, the barriers only remove idle time
   //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
@@ -267,6 +290,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   if (schedule_kernels==0){ return; }
   volatile double overhead_start_time = MPI_Wtime();
 
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
@@ -289,6 +313,16 @@ void path::complete_comm(blocking& tracker, int recv_source){
     active_patterns.emplace_back(pattern());
     comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
+  if (comm_batch_map.find(key) == comm_batch_map.end()){
+    if (tracker.partner1 != -1){
+      auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
+      assert(p2p_channel_map.find(world_partner_rank) != p2p_channel_map.end());
+      comm_batch_map[key].emplace_back(p2p_channel_map[world_partner_rank]);
+    } else{
+      assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
+      comm_batch_map[key].emplace_back(comm_channel_map[tracker.comm]);
+    }
+  }
   if (comm_pattern_pair_map.find(std::make_pair(previous_comm_key,key)) == comm_pattern_pair_map.end()){
     comm_pattern_pair_map[std::make_pair(previous_comm_key,key)] = idle_pattern();
   }
@@ -302,6 +336,31 @@ void path::complete_comm(blocking& tracker, int recv_source){
 */
       should_propagate = false;
     }
+  } else{
+    bool found_batch=false;
+    auto& batch_list = comm_batch_map[key];
+    int index=0;
+    while (index < batch_list.size()){
+      // Look for the first inactive batch and aggregate new sample with it
+      if (batch_list[index].state==0){// inactive state
+        found_batch=true;
+        break;
+      } else{
+        index++;
+      }
+    }
+    if (!found_batch){
+      if (tracker.partner1 != -1){
+        auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
+        batch_list.push_back(pattern_batch(p2p_channel_map[world_partner_rank]));
+      } else{
+        batch_list.push_back(pattern_batch(comm_channel_map[tracker.comm]));
+      }
+      index = batch_list.size()-1;
+    }
+    // Update batch_list[index] with sample
+    // realize we want to update state only if comm_batch_list[key]'s open channel count==0, which would happen post-propagation
+    // and to make the most educated decisions on things, we'd used the set pathset[key] as well as all open ones via comm_batch_map[key] and just iterate through and aggregating to some variable that isn't saved.
   }
   update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
   //update_kernel_stats(comm_pattern_pair_map[std::make_pair(previous_comm_key,key)],!should_update_idle,tracker.barrier_time);

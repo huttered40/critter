@@ -32,6 +32,130 @@ std::map<std::pair<comm_pattern_key,comm_pattern_key>,idle_pattern> comm_pattern
 sample_propagation_forest spf;
 std::map<MPI_Comm,comm_channel_node*> comm_channel_map;
 std::map<int,comm_channel_node*> p2p_channel_map;
+std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
+std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
+
+// ****************************************************************************************************************************************************
+pattern::pattern(){
+  this->total_exec_time = 0;
+  this->steady_state=0;
+  this->global_steady_state=0;
+  this->num_schedules = 0;
+  this->num_non_schedules = 0;
+  this->num_scheduled_units = 0;
+  this->num_non_scheduled_units = 0;
+  this->num_propagations=0;
+  this->num_non_propagations=0;
+  this->M1=0; this->M2=0;
+}
+
+pattern::pattern(const pattern& _copy){
+  this->total_exec_time = _copy.total_exec_time;
+  this->steady_state = _copy.steady_state;
+  this->global_steady_state = _copy.global_steady_state;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = _copy.num_non_schedules;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_non_scheduled_units = _copy.num_non_scheduled_units;
+  this->num_propagations=_copy.num_propagations;
+  this->num_non_propagations=_copy.num_non_propagations;
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+}
+
+pattern& pattern::operator=(const pattern& _copy){
+  this->total_exec_time = _copy.total_exec_time;
+  this->steady_state = _copy.steady_state;
+  this->global_steady_state = _copy.global_steady_state;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = _copy.num_non_schedules;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_non_scheduled_units = _copy.num_non_scheduled_units;
+  this->num_propagations=_copy.num_propagations;
+  this->num_non_propagations=_copy.num_non_propagations;
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  return *this;
+}
+
+// ****************************************************************************************************************************************************
+pattern_batch::pattern_batch(comm_channel_node* node){
+  this->state=0;
+  this->num_schedules = 0;
+  this->M1=0; this->M2=0;
+  this->open_channel_count=comm_channel_map.size() + p2p_channel_map.size();
+  // Remove channels that are descendents and ancestors of 'node'
+  if (node != nullptr){
+    // TODO: Add to map those channels that are not feasible
+    spf.fill_ancestors(node,this->closed_channels);
+    spf.fill_descendants(node,this->closed_channels);
+  }
+  this->open_channel_count -= this->closed_channels.size();
+}
+
+pattern_batch::pattern_batch(const pattern_batch& _copy){
+  this->state = _copy.state;
+  this->num_schedules = _copy.num_schedules;
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  this->open_channel_count = _copy.open_channel_count;
+  this->closed_channels = _copy.closed_channels;
+}
+
+pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
+  this->state = _copy.state;
+  this->num_schedules = _copy.num_schedules;
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  this->open_channel_count = _copy.open_channel_count;
+  this->closed_channels = _copy.closed_channels;
+  return *this;
+}
+
+// ****************************************************************************************************************************************************
+idle_pattern::idle_pattern(){
+  this->M1=0; this->M2=0;
+  this->num_schedules = 0;
+  this->num_non_schedules = 0;
+}
+
+idle_pattern::idle_pattern(const idle_pattern& _copy){
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = _copy.num_non_schedules;
+}
+
+idle_pattern& idle_pattern::operator=(const idle_pattern& _copy){
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = _copy.num_non_schedules;
+  return *this;
+}
+
+// ****************************************************************************************************************************************************
+pattern_key_id::pattern_key_id(bool _is_active, int _key_index, int _val_index, bool _is_updated){
+  this->is_active = _is_active;
+  this->key_index = _key_index;
+  this->val_index = _val_index;
+  this->is_updated = _is_updated;
+}
+
+pattern_key_id::pattern_key_id(const pattern_key_id& _copy){
+  this->is_active = _copy.is_active;
+  this->key_index = _copy.key_index;
+  this->val_index = _copy.val_index;
+  this->is_updated = _copy.is_updated;
+}
+
+pattern_key_id& pattern_key_id::operator=(const pattern_key_id& _copy){
+  this->is_active = _copy.is_active;
+  this->key_index = _copy.key_index;
+  this->val_index = _copy.val_index;
+  this->is_updated = _copy.is_updated;
+  return *this;
+}
 
 // ****************************************************************************************************************************************************
 comm_channel_node::comm_channel_node(){
@@ -186,6 +310,20 @@ void sample_propagation_forest::find_parent(comm_channel_node* tree_root, comm_c
   }
   return;
 }
+void sample_propagation_forest::fill_ancestors(comm_channel_node* tree_node, std::set<comm_channel_node*>& channels){
+  if (tree_node==nullptr) return;
+  channels.insert(tree_node);
+  this->fill_ancestors(tree_node->parent,channels);
+}
+void sample_propagation_forest::fill_descendants(comm_channel_node* tree_node, std::set<comm_channel_node*>& channels){
+  if (tree_node==nullptr) return;
+  channels.insert(tree_node);
+  for (auto i=0; i<tree_node->children.size(); i++){
+    for (auto j=0; j<tree_node->children[i].size(); j++){
+      this->fill_descendants(tree_node->children[i][j],channels);
+    }
+  }
+}
 void sample_propagation_forest::clear_tree_info(comm_channel_node* tree_root){
   if (tree_root==nullptr) return;
   for (auto i=0; i<tree_root->children.size(); i++){
@@ -238,11 +376,6 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   //TODO: I assume here that we care about the first SPT in the SPF. Figure out how to fix this later
   this->find_parent(this->tree_list[0]->root,tree_node,parent);
   tree_node->parent = parent;
-  // debug
-  MPI_Comm world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (parent==nullptr){
-    std::cout << "rank " << world_rank << " has offset " << tree_node->offset << std::endl;
-  }
   assert(parent!=nullptr);
  
   // Try adding 'tree_node' to each SPT. If none fit, append parent's children array and add it there, signifying a new tree, rooted at 'parent'
@@ -291,7 +424,7 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
 
   // sanity check for right now
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
-  if (world_comm_rank==0){
+  if (world_comm_rank==8){
     std::cout << "parent of tree_node{ " << tree_node->offset;
     for (auto i=0; i<tree_node->id.size(); i++){
       std::cout << " (" << tree_node->id[i].first << "," << tree_node->id[i].second << ")";

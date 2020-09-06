@@ -53,55 +53,6 @@ struct comp_pattern_key : public pattern_key{
   double flops;
 };
 
-// ****************************************************************************************************************************************************
-struct pattern{
-  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
-  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
-  //     to handle that.
-  pattern();
-  pattern(const pattern& _copy);
-  pattern& operator=(const pattern& _copy);
-
-  int steady_state;
-  int global_steady_state;
-  int num_schedules;
-  int num_non_schedules;
-  int num_propagations;
-  int num_non_propagations;
-  double num_scheduled_units;
-  double num_non_scheduled_units;
-  double M1,M2;
-  double total_exec_time;
-};
-
-// ****************************************************************************************************************************************************
-struct idle_pattern{
-  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
-  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
-  //     to handle that.
-  idle_pattern();
-  idle_pattern(const idle_pattern& _copy);
-  idle_pattern& operator=(const idle_pattern& _copy);
-
-  int num_schedules;
-  int num_non_schedules;
-  double M1,M2;
-};
-
-// ****************************************************************************************************************************************************
-struct pattern_key_id{
-
-  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false);
-  pattern_key_id(const pattern_key_id& _copy);
-  pattern_key_id& operator=(const pattern_key_id& _copy);
-
-  // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
-  bool is_active;
-  bool is_updated;
-  int key_index;
-  int val_index;
-};
-
 }
 }
 }
