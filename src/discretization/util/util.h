@@ -123,7 +123,6 @@ extern MPI_Datatype pattern_type;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
-extern std::map<MPI_Comm,std::pair<int,int>> communicator_map;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 extern std::vector<comm_pattern_key> steady_state_comm_pattern_keys;

@@ -108,8 +108,8 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
       auto& key_list = it.second.is_active == true ? active_comm_pattern_keys : steady_state_comm_pattern_keys;
       if (world_rank==0) {
         Stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
-               << "," << key_list[it.second.key_index].comm_size
-               << "," << key_list[it.second.key_index].comm_color
+               << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << "," << key_list[it.second.key_index].dim_sizes[2] << ")"
+               << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << "," << key_list[it.second.key_index].dim_strides[2] << ")"
                << "," << key_list[it.second.key_index].msg_size
                << "," << key_list[it.second.key_index].partner_offset
                << ") - with byte-count " << key_list[it.second.key_index].msg_size
@@ -137,13 +137,13 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
     for (auto& it : comm_pattern_pair_map){
       if (world_rank==0) {
         Stream << "Rank 0 Communication pattern pair {(" << it.first.first.tag
-               << "," << it.first.first.comm_size
-               << "," << it.first.first.comm_color
+               << ",(" << it.first.first.dim_sizes[0] << "," << it.first.first.dim_sizes[1] << "," << it.first.first.dim_sizes[2] << ")"
+               << ",(" << it.first.first.dim_strides[0] << "," << it.first.first.dim_strides[1] << "," << it.first.first.dim_strides[2] << ")"
                << "," << it.first.first.msg_size
                << "," << it.first.first.partner_offset
                << "),(" << it.first.second.tag
-               << "," << it.first.second.comm_size
-               << "," << it.first.second.comm_color
+               << ",(" << it.first.second.dim_sizes[0] << "," << it.first.second.dim_sizes[1] << "," << it.first.second.dim_sizes[2] << ")"
+               << ",(" << it.first.second.dim_strides[0] << "," << it.first.second.dim_strides[1] << "," << it.first.second.dim_strides[2] << ")"
                << "," << it.first.second.msg_size
                << "," << it.first.second.partner_offset
                << ")}"

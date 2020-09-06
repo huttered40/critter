@@ -18,7 +18,6 @@ MPI_Datatype pattern_type;
 size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
-std::map<MPI_Comm,std::pair<int,int>> communicator_map;
 std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
@@ -710,7 +709,6 @@ void allocate(MPI_Comm comm){
   mode_1_width = 25;
   mode_2_width = 15;
 
-  communicator_map[MPI_COMM_WORLD] = std::make_pair(_world_size,1);
   comm_channel_node* world_node = new comm_channel_node();
   world_node->offset = 0;
   world_node->id.push_back(std::make_pair(_world_size,1));
@@ -729,7 +727,7 @@ void allocate(MPI_Comm comm){
 
   comm_pattern_key ex_2;
   MPI_Datatype comm_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comm_pattern_key_internal_type_block_len[2] = { 5,1 };
+  int comm_pattern_key_internal_type_block_len[2] = { 9,1 };
   MPI_Aint comm_pattern_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
   PMPI_Type_create_struct(2,comm_pattern_key_internal_type_block_len,comm_pattern_key_internal_type_disp,comm_pattern_key_internal_type,&comm_pattern_key_type);
   PMPI_Type_commit(&comm_pattern_key_type);

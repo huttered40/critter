@@ -22,16 +22,16 @@ struct pattern_key{};
 // ****************************************************************************************************************************************************
 struct comm_pattern_key : public pattern_key{
 
-  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _comm_size=-1, int _comm_color=-1, double _msg_size=-1, int _partner=-1);
-  comm_pattern_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset);
+  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _dim_sizes[3]=nullptr, int _dim_strides[3]=nullptr, double _msg_size=-1, int _partner=-1);
+  comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[3], int _dim_strides[3], double _msg_size, int _partner_offset);
   comm_pattern_key(const comm_pattern_key& _copy);
   comm_pattern_key& operator=(const comm_pattern_key& _copy);
   friend bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
   friend bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
 
   int tag;
-  int comm_size;
-  int comm_color;
+  int dim_sizes[3];// Allow up to 3 dimensions
+  int dim_strides[3];// Allow up to 3 dimensions
   int partner_offset;
   int pattern_index;
   double msg_size;
@@ -57,6 +57,7 @@ struct comp_pattern_key : public pattern_key{
 }
 }
 
+/*
 namespace std{
   template <>
   struct hash<critter::internal::discretization::comm_pattern_key>{
@@ -73,13 +74,13 @@ namespace std{
       res = res*23+hash<int>()(k.partner_offset);
       res = res*23+hash<double>()(k.msg_size);
       return res;
-/*
-      return ((hash<int>()(k.tag)
-           ^ (hash<int>()(k.comm_size) << 1)) >> 1)
-           ^ (hash<int>()(k.comm_color) << 1)
-           ^ (hash<int>()(k.partner_offset) << 2)
-           ^ (hash<double>()(k.msg_size) << 3);
-*/
+//
+//      return ((hash<int>()(k.tag)
+//           ^ (hash<int>()(k.comm_size) << 1)) >> 1)
+//           ^ (hash<int>()(k.comm_color) << 1)
+//           ^ (hash<int>()(k.partner_offset) << 2)
+//           ^ (hash<double>()(k.msg_size) << 3);
+//
     }
   };
   template <>
@@ -99,17 +100,18 @@ namespace std{
       res = res*23+hash<int>()(k.param5);
       res = res*23+hash<double>()(k.flops);
       return res;
-/*
-      return ((hash<int>()(k.tag)
-           ^ (hash<int>()(k.param1) << 1)) >> 1)
-           ^ (hash<int>()(k.param2) << 1)
-           ^ (hash<int>()(k.param3) << 2)
-           ^ (hash<int>()(k.param4) << 3)
-           ^ (hash<int>()(k.param5) << 4)
-           ^ (hash<double>()(k.flops) << 5);
-*/
+//
+//      return ((hash<int>()(k.tag)
+//           ^ (hash<int>()(k.param1) << 1)) >> 1)
+//           ^ (hash<int>()(k.param2) << 1)
+//           ^ (hash<int>()(k.param3) << 2)
+//           ^ (hash<int>()(k.param4) << 3)
+//           ^ (hash<int>()(k.param5) << 4)
+//           ^ (hash<double>()(k.flops) << 5);
+//
     }
   };
 };
+*/
 
 #endif /*CRITTER__DISCRETIZATION__PARAMETERIZATION__PARAMETERIZATION_H_*/

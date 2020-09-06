@@ -59,7 +59,6 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   comm_channel_map[newcomm] = channel;
 
   int color = new_comm_size>1 ? gathered_ranks[1]-gathered_ranks[0] : 0;
-  communicator_map[newcomm] = std::make_pair(new_comm_size,color);
   computation_timer = MPI_Wtime();
 }
 
@@ -206,7 +205,14 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   double reduced_info[5] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
                             critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],0};
   double reduced_info_foreign[5] = {0,0,0,0,0};
-  comm_pattern_key key(rank,-1,tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
+
+  assert(comm_channel_map[tracker.comm]->id.size()<=3);
+  int comm_sizes[3]={0,0,0}; int comm_strides[3]={0,0,0};
+  for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
+    comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
+    comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
+  }
+  comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
   if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
     if (is_optimized){ post_barrier = should_schedule_global(comm_pattern_map[key])==1; }
     schedule_decision = should_schedule(comm_pattern_map[key])==1;
@@ -306,8 +312,12 @@ void path::complete_comm(blocking& tracker, int recv_source){
 
   bool should_propagate = true;
   bool should_update_idle = true;
-  comm_pattern_key key(rank,active_patterns.size(),tracker.tag,communicator_map[tracker.comm].first,communicator_map[tracker.comm].second,tracker.nbytes,tracker.partner1);
-  assert(communicator_map.find(tracker.comm) != communicator_map.end());
+  int comm_sizes[3]={0,0,0}; int comm_strides[3]={0,0,0};
+  for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
+    comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
+    comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
+  }
+  comm_pattern_key key(rank,active_patterns.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
   if (comm_pattern_map.find(key) == comm_pattern_map.end()){
     active_comm_pattern_keys.emplace_back(key);
     active_patterns.emplace_back(pattern());
@@ -738,8 +748,8 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
   // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
   bool key_match = ( (comm_key.tag <= 12) || (comm_key.tag >= 19) ? true : false);// Only start as false if dealing with p2p
   for (auto i=0; i<active_comm_pattern_keys.size(); i++){
-    comm_pattern_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].comm_size,
-                        active_comm_pattern_keys[i].comm_color,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
+    comm_pattern_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].dim_sizes,
+                        active_comm_pattern_keys[i].dim_strides,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
     if (comm_pattern_map.find(id) == comm_pattern_map.end()){
       comm_pattern_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, false);
     } else{
@@ -915,8 +925,8 @@ void path::exchange_patterns_per_process(blocking& tracker){
          If just one is active across the world communicator, the kernel must remain active.
          If kernel does not exist among the sent patterns, it does not count as active. The logical operation is a trivial (AND 1) */
       for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
-        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
-                            foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
+                            foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
         if (comm_pattern_map.find(id) != comm_pattern_map.end()){
           // Note: I'd like an assert here that both my local kernel is active and that matches the received kernel of the same signature, but I have no access to that foreign data member.
           // Must check whether both the foreign process's kernel data and the recv process's kernel data are sufficiently predictable
@@ -956,8 +966,8 @@ void path::exchange_patterns_per_process(blocking& tracker){
   PMPI_Bcast(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,0,tracker.comm);
   PMPI_Bcast(&foreign_active_patterns[0],size_array[1],pattern_type,0,tracker.comm);
   for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
-    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
-                        foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
+                        foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
     // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
     // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
     //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.
@@ -1024,8 +1034,8 @@ void path::exchange_patterns_volumetric(blocking& tracker){
          If just one is active across the world communicator, the kernel must remain active.
          If kernel does not exist among the sent patterns, it does not count as active. The logical operation is a trivial (AND 1) */
       for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
-        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
-                            foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
+                            foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
         if (comm_pattern_map.find(id) != comm_pattern_map.end()){
           update_kernel_stats(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],active_patterns[comm_pattern_map[id].val_index],comm_analysis_param);
           bool is_steady = steady_test(id,foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],comm_analysis_param);
@@ -1084,8 +1094,8 @@ void path::exchange_patterns_volumetric(blocking& tracker){
   PMPI_Bcast(&foreign_active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,0,tracker.comm);
   PMPI_Bcast(&foreign_active_patterns[0],size_array[2],pattern_type,0,tracker.comm);
   for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
-    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].comm_size,
-                        foreign_active_comm_pattern_keys[i].comm_color,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
+                        foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
     // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
     // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
     //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.

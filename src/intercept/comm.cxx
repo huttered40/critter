@@ -188,6 +188,7 @@ void init(int* argc, char*** argv){
 }
 
 void init_thread(int* argc, char*** argv, int required, int* provided){
+  assert(required == MPI_THREAD_SINGLE);
   PMPI_Init_thread(argc,argv,required,provided);
   _init(argc, argv);
 }

@@ -1,8 +1,7 @@
 #include "parameterization.h"
 
+#include <cstring>
 #include <stdint.h>
-#include <assert.h>
-#include <iostream>
 
 namespace critter{
 namespace internal{
@@ -74,12 +73,12 @@ int comp_unit_param;
 int comm_analysis_param;
 int comp_analysis_param;
 // ****************************************************************************************************************************************************
-comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner){
+comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int _dim_sizes[3], int _dim_strides[3], double _msg_size, int _partner){
   this->pattern_index = _pattern_index;
   // Envelope (non-message-size) parameterization specification
   this->tag = _tag;
-  this->comm_size = _comm_size;
-  this->comm_color = _comm_color;
+  if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],3*sizeof(int));
+  if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],3*sizeof(int));
   if (comm_envelope_param == 0){
     this->partner_offset = _rank-_partner;
   }
@@ -99,11 +98,11 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
 }
 
 // This constructor is used when transferring ownership of kernels following path propagation.
-comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _comm_size, int _comm_color, double _msg_size, int _partner_offset){
+comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[3], int _dim_strides[3], double _msg_size, int _partner_offset){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
-  this->comm_size = _comm_size;
-  this->comm_color = _comm_color;
+  if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],3*sizeof(int));
+  if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],3*sizeof(int));
   this->partner_offset = _partner_offset;
   this->msg_size = _msg_size;
 }
@@ -111,8 +110,8 @@ comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _comm_size,
 comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
-  this->comm_size = _copy.comm_size;
-  this->comm_color = _copy.comm_color;
+  if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],3*sizeof(int));
+  if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],3*sizeof(int));
   this->msg_size = _copy.msg_size;
   this->partner_offset = _copy.partner_offset;
 }
@@ -120,8 +119,8 @@ comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
 comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
-  this->comm_size = _copy.comm_size;
-  this->comm_color = _copy.comm_color;
+  if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],3*sizeof(int));
+  if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],3*sizeof(int));
   this->msg_size = _copy.msg_size;
   this->partner_offset = _copy.partner_offset;
   return *this;
@@ -129,17 +128,28 @@ comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
 
 bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
   // Note that because of how we set the member variables in the constructor based on envlope, unit, and analysis parameterizations, no branching is required here.
-  if ((ref1.tag==ref2.tag) && (ref1.comm_size == ref2.comm_size) && (ref1.comm_color == ref2.comm_color) && (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
+  if ((ref1.tag==ref2.tag) &&
+      (ref1.dim_sizes[0] == ref2.dim_sizes[0]) && (ref1.dim_sizes[1] == ref2.dim_sizes[1]) && (ref1.dim_sizes[2] == ref2.dim_sizes[2]) &&
+      (ref1.dim_strides[0] == ref2.dim_strides[0]) && (ref1.dim_strides[1] == ref2.dim_strides[1]) && (ref1.dim_strides[2] == ref2.dim_strides[2]) &&
+      (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
   else return false;
 }
 
 bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
   if (ref1.tag < ref2.tag) return true;
   else if (ref1.tag > ref2.tag) return false;
-  if (ref1.comm_size < ref2.comm_size) return true;
-  else if (ref1.comm_size > ref2.comm_size) return false;
-  if (ref1.comm_color < ref2.comm_color) return true;
-  else if (ref1.comm_color > ref2.comm_color) return false;
+  if (ref1.dim_sizes[0] < ref2.dim_sizes[0]) return true;
+  else if (ref1.dim_sizes[0] > ref2.dim_sizes[0]) return false;
+  if (ref1.dim_sizes[1] < ref2.dim_sizes[1]) return true;
+  else if (ref1.dim_sizes[1] > ref2.dim_sizes[1]) return false;
+  if (ref1.dim_sizes[2] < ref2.dim_sizes[2]) return true;
+  else if (ref1.dim_sizes[2] > ref2.dim_sizes[2]) return false;
+  if (ref1.dim_strides[0] < ref2.dim_strides[0]) return true;
+  else if (ref1.dim_strides[0] > ref2.dim_strides[0]) return false;
+  if (ref1.dim_strides[1] < ref2.dim_strides[1]) return true;
+  else if (ref1.dim_strides[1] > ref2.dim_strides[1]) return false;
+  if (ref1.dim_strides[2] < ref2.dim_strides[2]) return true;
+  else if (ref1.dim_strides[2] > ref2.dim_strides[2]) return false;
   if (ref1.msg_size < ref2.msg_size) return true;
   else if (ref1.msg_size > ref2.msg_size) return false;
   if (ref1.partner_offset < ref2.partner_offset) return true;
