@@ -23,9 +23,9 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   for (auto i=0; i<gathered_ranks.size(); i++) { gathered_ranks[i] -= offset; }
   std::sort(gathered_ranks.begin(),gathered_ranks.end());
   comm_channel_node* channel = new comm_channel_node();
-  channel->offset = offset;
+  channel->offset.push_back(offset);
   if (new_comm_size<=1){
-    channel->id.push_back(std::make_pair(new_comm_size,world_comm_rank));
+    channel->id.push_back(std::make_pair(new_comm_size,1));
   }
   else{
     int stride = gathered_ranks[1]-gathered_ranks[0];
@@ -59,7 +59,6 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   spf.insert_node(channel);// This call will just fill in SPT via channel's parent/children members, and the members of related channels
   comm_channel_map[newcomm] = channel;
 
-  int color = new_comm_size>1 ? gathered_ranks[1]-gathered_ranks[0] : 0;
   computation_timer = MPI_Wtime();
 }
 
@@ -116,7 +115,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     int index=0;
     while (index < batch_list.size()){
       // Look for the first inactive batch and aggregate new sample with it
-      if (batch_list[index].state==0){// inactive state
+      if (batch_list[index].channel_count==0){// inactive state
         found_batch=true;
         break;
       } else{
@@ -210,8 +209,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
       comm_channel_node* node = new comm_channel_node();
       node->tag = key.partner_offset;
-      node->offset = world_partner_rank;
-      node->id.push_back(std::make_pair(1,0));
+      node->offset.push_back(world_partner_rank);
+      node->id.push_back(std::make_pair(1,1));
       spf.insert_node(node);
       p2p_channel_map[world_partner_rank] = node;
     }
@@ -353,7 +352,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     int index=0;
     while (index < batch_list.size()){
       // Look for the first inactive batch and aggregate new sample with it
-      if (batch_list[index].state==0){// inactive state
+      if (batch_list[index].channel_count==0){// inactive state
         found_batch=true;
         break;
       } else{
