@@ -390,12 +390,12 @@ void path::complete_comm(blocking& tracker, int recv_source){
       propagate(tracker);
       if (analysis_mode==1){
         // Note: in optimized version, exchange_patterns and flush_patterns would never need to be called
-//        if (is_optimized==0){
-//          if (is_world_communication && !is_key_skipable(key)){//Note: for practical reasons, we force more constraints on when profile exchanges take place
-//            exchange_patterns_per_process(tracker);
-//            flush_patterns();
-//          }
-//        }
+        if (is_optimized==0){
+          if (is_world_communication && !is_key_skipable(key)){//Note: for practical reasons, we force more constraints on when profile exchanges take place
+            exchange_patterns_per_process(tracker);
+            flush_patterns();
+          }
+        }
       }
 /*
       else if (analysis_mode==3){
