@@ -137,7 +137,6 @@ extern std::vector<comp_pattern_key> steady_state_comp_pattern_keys;
 extern std::vector<comp_pattern_key> active_comp_pattern_keys;
 extern std::vector<pattern> steady_state_patterns;
 extern std::vector<pattern> active_patterns;
-extern comm_pattern_key previous_comm_key;
 extern std::map<std::pair<comm_pattern_key,comm_pattern_key>,idle_pattern> comm_pattern_pair_map;
 extern sample_propagation_forest spf;
 extern std::map<MPI_Comm,comm_channel_node*> comm_channel_map;

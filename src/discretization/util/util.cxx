@@ -29,7 +29,6 @@ std::vector<comp_pattern_key> steady_state_comp_pattern_keys;
 std::vector<comp_pattern_key> active_comp_pattern_keys;
 std::vector<pattern> steady_state_patterns;
 std::vector<pattern> active_patterns;
-comm_pattern_key previous_comm_key;
 std::map<std::pair<comm_pattern_key,comm_pattern_key>,idle_pattern> comm_pattern_pair_map;
 sample_propagation_forest spf;
 std::map<MPI_Comm,comm_channel_node*> comm_channel_map;
@@ -162,7 +161,7 @@ pattern_key_id& pattern_key_id::operator=(const pattern_key_id& _copy){
 
 // ****************************************************************************************************************************************************
 comm_channel_node::comm_channel_node(){
-  this->tag = -1;
+  this->tag = 0;	// This member MUST be overwritten immediately after instantiation
   this->frequency=0;
   this->children.push_back(std::vector<comm_channel_node*>());
 }
@@ -251,10 +250,10 @@ void sample_propagation_forest::generate_partition_perm(std::vector<std::pair<in
 bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_channel_node* node){
   // First check that the root node 'node' is not a p2p, regardless of whether 'tree_node' is a subcomm or p2p
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
-  if (node->tag >= world_size) return false;
+  if (node->tag >= ((-1)*world_size)) return false;
   // Returns true iff tree_node is an ancestor of node
 
-  if (tree_node->tag < world_size){
+  if (tree_node->tag < ((-1)*world_size)){
     // Check all tuples
     for (auto i=0; i<tree_node->id.size(); i++){
       bool found_match=false;
@@ -287,7 +286,7 @@ bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subt
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int p2p_count=0; int subcomm_count=0;
   for (auto i=0; i<parent->children[subtree_idx].size(); i++){
-    if (parent->children[subtree_idx][i]->tag >= world_size){ p2p_count++; }
+    if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){ p2p_count++; }
     else { subcomm_count++; }
   }
   //if ((subcomm_count>0) && (p2p_count>0)) return false;
@@ -299,7 +298,7 @@ bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subt
       skip_index++;
       continue;
     }
-    if (parent->children[subtree_idx][i]->tag >= world_size){
+    if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){
       continue;
     }
     for (auto j=0; j<parent->children[subtree_idx][i]->id.size(); j++){
@@ -317,7 +316,7 @@ bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subt
       auto* span_node = new comm_channel_node;
       generate_span(span_node,save_info);
       for (auto i=0; i<parent->children[subtree_idx].size(); i++){
-        if (parent->children[subtree_idx][i]->tag >= world_size){
+        if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){
           valid_siblings = this->is_child(parent->children[subtree_idx][i],span_node);
           if (!valid_siblings){
             delete span_node;
@@ -337,7 +336,7 @@ bool sample_propagation_forest::partition_test(comm_channel_node* parent, int su
   std::vector<std::pair<int,int>> static_info;
   for (auto i=0; i<parent->children[subtree_idx].size(); i++){
     for (auto j=0; j<parent->children[subtree_idx][i]->id.size(); j++){
-      if (parent->children[subtree_idx][i]->tag < world_size){
+      if (parent->children[subtree_idx][i]->tag < ((-1)*world_size)){
         static_info.push_back(parent->children[subtree_idx][i]->id[j]);
       }
     }
@@ -945,7 +944,6 @@ void reset(bool track_statistical_data_override, bool schedule_kernels_override,
     ..   because I think they would still update the "non" pattern members, right?
 */
   }
-  previous_comm_key = comm_pattern_key();
 }
 
 void reset_frequencies(){
@@ -966,7 +964,6 @@ void clear(){
   comm_intercept_overhead_stage1=0;
   comm_intercept_overhead_stage2=0;
   comp_intercept_overhead=0;
-  previous_comm_key = comm_pattern_key();
 
   spf.clear_info();
 }

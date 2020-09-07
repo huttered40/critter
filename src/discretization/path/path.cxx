@@ -63,20 +63,22 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
 }
 
 bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
-  // accumulate computation time
+  // Save and accumulate the computation time between last communication routine as both execution-time and computation time
+  //   into both the execution-time critical path data structures and the per-process data structures.
   double save_comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
   critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
   volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
-
-  // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
-  //   to be attained with timers outside of critter..
+  // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
+  //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
   volatile double overhead_start_time = MPI_Wtime();
 
   bool schedule_decision = true;
   comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+  //TODO: We should check either comp_pattern_map or comp_batch_map, because we may have an active batch that hasn't been liquidated to the complete pathset (comp_pattern_map) yet
+  //      The schedule_decision should be derived from both. Here, we may more license because we don't need to worry about deadlock.
   if (!(comp_pattern_map.find(key) == comp_pattern_map.end())){
     schedule_decision = should_schedule(comp_pattern_map[key])==1;
   }
@@ -89,22 +91,24 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 
 void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
-
-  // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
-  //   to be attained with timers outside of critter..
+  // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
+  //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return; }
   volatile double overhead_start_time = MPI_Wtime();
 
   comp_pattern_key key(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
+  //TODO: We should check either comp_pattern_map or comp_batch_map, because we may have an active batch that hasn't been liquidated to the complete pathset (comp_pattern_map) yet
+  //      The schedule_decision should be derived from both. Here, we may more license because we don't need to worry about deadlock.
   if (comp_pattern_map.find(key) == comp_pattern_map.end()){
-    active_comp_pattern_keys.emplace_back(key);
-    active_patterns.emplace_back(pattern());
+    active_comp_pattern_keys.push_back(key);
+    active_patterns.emplace_back();//TODO: Make sure this emplace_batck works. I changed "pattern() -> void"
     comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
   if (comp_batch_map.find(key) == comp_batch_map.end()){
-    //comp_batch_map[key].push_back(pattern_batch());
     comp_batch_map[key].emplace_back();
   }
+  //TODO: 'update_kernel_stats' should not be called here, because this is updating the complete pathset, when we need to update the
+  //      active batch first. Only inactive batches (those that have finished propagation) can be added to pathset, and that happens at the end of 'complete_comm'.
   update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
   // Note: 'get_estimate' must be called before setting the updated kernel state.
   if (should_schedule(comp_pattern_map[key]) == 0){
@@ -123,23 +127,27 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       }
     }
     if (!found_batch){
-      batch_list.push_back(pattern_batch());
+      batch_list.emplace_back();
       index = batch_list.size()-1;
     }
-    // Update batch_list[index] with sample
+    //TODO: Update batch_list[index] with single sample using existing infrastructure, just with different signature.
   }
   // Both non-optimized and optimized variants can update the local kernel state, but not the global kernel state
   // This gives unoptimized variant more license that that for a communication pattern (which cannot even update
   //   local steady state within a phase, due to potential of deadlock if done so).
+
+ // TODO: These two calls must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
+ //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
+ //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
   bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
   set_kernel_state(comp_pattern_map[key],!_is_steady);
 
-  critical_path_costs[num_critical_path_measures-1] += comp_time;
-  critical_path_costs[num_critical_path_measures-2] += comp_time;
-  critical_path_costs[num_critical_path_measures-3] += comp_time;
-  volume_costs[num_volume_measures-1] += comp_time;
-  volume_costs[num_volume_measures-2] += comp_time;
-  volume_costs[num_volume_measures-3] += comp_time;
+  critical_path_costs[num_critical_path_measures-1] += comp_time;	// execution time
+  critical_path_costs[num_critical_path_measures-2] += comp_time;	// computation time
+  critical_path_costs[num_critical_path_measures-3] += comp_time;	// comp kernel time
+  volume_costs[num_volume_measures-1] += comp_time;			// execution time
+  volume_costs[num_volume_measures-2] += comp_time;			// computation time
+  volume_costs[num_volume_measures-3] += comp_time;			// comp kernel time
 
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
   computation_timer = MPI_Wtime();
@@ -154,20 +162,20 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local execution time
   volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
-  // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
-  //   to be attained with timers outside of critter..
+  // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
+  //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
 
-  // At this point, 'critical_path_costs' tells me the process's time up until now. A barrier won't suffice.
+  // At this point, 'critical_path_costs' tells me the process's time up until now. A barrier won't suffice when kernels are conditionally scheduled.
   int rank; MPI_Comm_rank(comm, &rank);
   volatile double overhead_start_time = MPI_Wtime();
 
   // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
-  // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
+  // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Recvs would be expecting internal communications
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   if (true_eager_p2p){ MPI_Buffer_attach(&eager_pad[0],eager_pad.size()); }
 
-  // Save caller communication attributes into reference object for use in corresponding static method 'complete'
+  // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
   int64_t nbytes = word_size * nelem;
   MPI_Comm_size(comm, &np);
@@ -182,13 +190,15 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
   // Non-optimized variant will always post barriers, although of course, just as with the optimized variant, the barriers only remove idle time
   //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
-  //     critical path root is decided based on a reduction using 'critical_path_costs'.
+  //     critical path root is decided based on a reduction using 'critical_path_costs'. Therefore, no explicit barriers are invoked, instead relying on Allreduce
   bool post_barrier = true;
   bool schedule_decision = true;
   double reduced_info[5] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
                             critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],0};
   double reduced_info_foreign[5] = {0,0,0,0,0};
 
+  // Assume that the communicator of either collective/p2p is registered via comm_split, and that its described using a max of 3 dimension tuples.
+  assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
   assert(comm_channel_map[tracker.comm]->id.size()<=3);
   int comm_sizes[3]={0,0,0}; int comm_strides[3]={0,0,0};
   for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -196,13 +206,15 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
   }
   comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+  //TODO: We should check either comm_pattern_map or comm_batch_map, because we may have an active batch that hasn't been liquidated to the complete pathset (comm_pattern_map) yet
+  //      The schedule_decision should be derived from both. We must worry about deadlock. Any global_schedule_decision must come following a propagation within thhe communicator
+  //        in question, perhaps following a completed aggregation. That decision could be made right in this very function actually, similar to whats currently happening.
   if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
     if (is_optimized){ post_barrier = should_schedule_global(comm_pattern_map[key])==1; }
     schedule_decision = should_schedule(comm_pattern_map[key])==1;
-    reduced_info[4] = (double)should_schedule(comm_pattern_map[key]);
+    reduced_info[4] = (double)schedule_decision;
   }
 
-  assert(comm_channel_map.find(comm) != comm_channel_map.end());// Any sub-communicator must have been registered via comm_split
   comm_channel_node* tree_node;
   if (tracker.partner1 != -1){// p2p
     auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
@@ -218,12 +230,13 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   } else{
     tree_node = comm_channel_map[comm];
   }
+  //TODO: Do something with tree_node?
 
-  // Both unoptimized and optimized variants will reduce an execution time and a schedule_decision.
+  // Both unoptimized and optimized variants will reduce an execution time and a schedule_decision if post_barrier==true.
   // Note that formally, the unoptimized variant does not need to reduce a schedule_decision, but I allow it becase the
-  //   procedure is synchronization bound anyway.
+  //   procedure is synchronization bound anyway and adding an extra double won't matter.
   // The unoptimized variant will always perform this reduction of execution time, regardless of its schedule_decision.
-  // The optimized variant will only perform this reduction until it detects steady state.
+  // The optimized variant will only perform this reduction until it detects global steady state.
   // For the optimized variant, if kernel is not in global steady state, in effort to accelerate convergence
   //   to both steady state and global steady state (i.e. early detection of steady state convergence at expense of extra communication)
   //   This early detection optimization is not foolproof, hence why the non-optimized variant does not consider it.
@@ -265,15 +278,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
     //   and never have to use another internal collective to check again.
     if (is_optimized){
+      // TODO: Again, we must check both within comm_pattern_map (complete pathset) as well as comm_batch_map for the full scope of independent samples.
       if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
         assert(should_schedule_global(comm_pattern_map[key])==1);
         set_kernel_state(comm_pattern_map[key],schedule_decision);
-        if (analysis_mode == 3){
-          set_kernel_state_global(comm_pattern_map[key],true);// prevents critical path analysis from changing global steady_state, even in optimized variant
-        } else{
-          set_kernel_state_global(comm_pattern_map[key],schedule_decision);
-          if (!schedule_decision) { flush_pattern(key); }
-        }
+        set_kernel_state_global(comm_pattern_map[key],schedule_decision);
+        if (!schedule_decision) { flush_pattern(key); }
       }
     }
     // If kernel is about to be scheduled, post one more barrier for safety if collective,
@@ -290,37 +300,31 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 // Used only for p2p communication. All blocking collectives use sychronous protocol
 void path::complete_comm(blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
-
-  // Special exit if no kernels are to be scheduled -- the whole point is to get a reading on the total time it takes, which is
-  //   to be attained with timers outside of critter..
+  // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
+  //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return; }
   volatile double overhead_start_time = MPI_Wtime();
 
-  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
   if (recv_source != -1){
-    if ((tracker.tag == 13) || (tracker.tag == 14)){
-      tracker.partner2=recv_source;
-    }
-    else{
-      assert(tracker.tag==17);
-      tracker.partner1=recv_source;
-    }
+    if ((tracker.tag == 13) || (tracker.tag == 14)){ tracker.partner2=recv_source; }
+    else{ assert(tracker.tag==17); tracker.partner1=recv_source; }
   }
 
   bool should_propagate = true;
-  bool should_update_idle = true;
   int comm_sizes[3]={0,0,0}; int comm_strides[3]={0,0,0};
   for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
     comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
     comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
   }
   comm_pattern_key key(rank,active_patterns.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+  //TODO: We should check either comm_pattern_map or comm_batch_map, because we may have an active batch that hasn't been liquidated to the commlete pathset (comm_pattern_map) yet
+  //      The schedule_decision should be derived from both. Here, we may more license because we don't need to worry about deadlock.
   if (comm_pattern_map.find(key) == comm_pattern_map.end()){
-    active_comm_pattern_keys.emplace_back(key);
-    active_patterns.emplace_back(pattern());
+    active_comm_pattern_keys.push_back(key);
+    active_patterns.emplace_back();
     comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
   if (comm_batch_map.find(key) == comm_batch_map.end()){
@@ -333,20 +337,12 @@ void path::complete_comm(blocking& tracker, int recv_source){
       comm_batch_map[key].emplace_back(comm_channel_map[tracker.comm]);
     }
   }
-  if (comm_pattern_pair_map.find(std::make_pair(previous_comm_key,key)) == comm_pattern_pair_map.end()){
-    comm_pattern_pair_map[std::make_pair(previous_comm_key,key)] = idle_pattern();
-  }
+  //TODO: Again, this decision should be based on both comm_pattern_map, as wellas comm_batch_map.
   if (should_schedule(comm_pattern_map[key])==0){
     comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
-    if (is_optimized==1){
-/*
-      if (tracker.barrier_time == -1) { should_update_idle = false;
-                                        tracker.barrier_time = comm_pattern_pair_map[std::make_pair(previous_comm_key,key)].M1;
-                                      }
-*/
-      should_propagate = false;
-    }
-  } else{
+    if (is_optimized==1){ should_propagate = false; }
+  }
+  else{
     bool found_batch=false;
     auto& batch_list = comm_batch_map[key];
     int index=0;
@@ -372,9 +368,11 @@ void path::complete_comm(blocking& tracker, int recv_source){
     // realize we want to update state only if comm_batch_list[key]'s open channel count==0, which would happen post-propagation
     // and to make the most educated decisions on things, we'd used the set pathset[key] as well as all open ones via comm_batch_map[key] and just iterate through and aggregating to some variable that isn't saved.
   }
+  //TODO: 'update_kernel_stats' should not be called here, because this is updating the complete pathset, when we need to update the
+  //      active batch first. Only inactive batches (those that have finished propagation) can be added to pathset, and that should happen near the end of this function.
   update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
-  //update_kernel_stats(comm_pattern_pair_map[std::make_pair(previous_comm_key,key)],!should_update_idle,tracker.barrier_time);
   if (is_optimized==1){
+    //TODO: Again, these decisions below must come from both the complete pathset as well as the active batches.
     bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
     set_kernel_state(comm_pattern_map[key],!is_steady);
   }
@@ -392,21 +390,14 @@ void path::complete_comm(blocking& tracker, int recv_source){
       propagate(tracker);
       if (analysis_mode==1){
         // Note: in optimized version, exchange_patterns and flush_patterns would never need to be called
-        if (is_optimized==0){
-          if (is_world_communication && !is_key_skipable(key)){//Note: for practical reasons, we force more constraints on when profile exchanges take place
-            exchange_patterns_per_process(tracker);
-            flush_patterns();
-          }
-        }
+//        if (is_optimized==0){
+//          if (is_world_communication && !is_key_skipable(key)){//Note: for practical reasons, we force more constraints on when profile exchanges take place
+//            exchange_patterns_per_process(tracker);
+//            flush_patterns();
+//          }
+//        }
       }
-      else if (analysis_mode==2){
-        // Note: in both unoptimized and optimized versions, exchange_patterns and flush_patterns are useful for merging many samples than possib;e
-        //       with per-process analysis. The goal here, unlike with per-process, is not simply to detect global steady state.
-        if (is_world_communication && !is_key_skipable(key)){
-          exchange_patterns_volumetric(tracker);
-          //flush_patterns();
-        }
-      }
+/*
       else if (analysis_mode==3){
         propagate_patterns(tracker,key,rank);
         // check for world communication, in which case we can flush the steady-state kernels out of the active buffers for more efficient propagation
@@ -414,6 +405,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
           flush_patterns();
         }
       }
+*/
     }
   }
   if (true_eager_p2p){
@@ -425,7 +417,6 @@ void path::complete_comm(blocking& tracker, int recv_source){
 
   comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
   // Prepare to leave interception and re-enter user code by restarting computation timers.
-  previous_comm_key = key;
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
 }
