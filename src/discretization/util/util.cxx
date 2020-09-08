@@ -84,7 +84,6 @@ pattern& pattern::operator=(const pattern& _copy){
 pattern_batch::pattern_batch(comm_channel_node* node){
   this->total_exec_time = 0;
   this->num_scheduled_units = 0;
-  this->num_propagations=0;
   this->channel_count=0;
   this->num_schedules = 0;
   this->M1=0; this->M2=0;
@@ -101,7 +100,6 @@ pattern_batch::pattern_batch(comm_channel_node* node){
 pattern_batch::pattern_batch(const pattern_batch& _copy){
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
-  this->num_propagations=_copy.num_propagations;
   this->channel_count = _copy.channel_count;
   this->num_schedules = _copy.num_schedules;
   this->M1 = _copy.M1;
@@ -113,7 +111,6 @@ pattern_batch::pattern_batch(const pattern_batch& _copy){
 pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
-  this->num_propagations=_copy.num_propagations;
   this->channel_count = _copy.channel_count;
   this->num_schedules = _copy.num_schedules;
   this->M1 = _copy.M1;
@@ -506,6 +503,32 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
 
 
 // ****************************************************************************************************************************************************
+intermediate_stats::intermediate_stats(const pattern& p, const std::vector<pattern_batch>& active_batches){
+  double M1_1 = p.M1;
+  double M1_2 = active_batches[0].M1;
+  double M2_1 = p.M2;
+  double M2_2 = active_batches[0].M2;
+  size_t n1 = p.num_schedules;
+  size_t n2 = active_batches[0].num_schedules;
+  assert(n2>0);
+  double delta = M1_1 - M1_2;
+  this->M1 = (n1*M1_1 + n2*M1_2)/(n1+n2);
+  this->M2 = M2_1 + M2_2 + delta/(n1+n2)*delta*(n1*n2);
+  this->num_schedules = n1+n2;
+  this->total_exec_time = p.total_exec_time + active_batches[0].total_exec_time;
+  for (auto i=1; i<active_batches.size(); i++){
+    M1_2 = active_batches[i].M1;
+    M2_2 = active_batches[i].M2;
+    n2 = active_batches[i].num_schedules;
+    assert(n2>0);
+    delta = this->M1 - M1_2;
+    this->M1 = (this->num_schedules*this->M1 + n2*M1_2)/(this->num_schedules+n2);
+    this->M2 = this->M2 + M2_2 + delta/(this->num_schedules+n2)*delta*(this->num_schedules*n2);
+    this->num_schedules += n2;
+    this->total_exec_time += active_batches[i].total_exec_time;
+  }
+}
+
 bool is_key_skipable(const comm_pattern_key& key){
   // For now, only barriers cannot be skipped
   if (key.tag == 0){ return false; }
@@ -532,22 +555,18 @@ double get_estimate(const pattern_key_id& index, int analysis_param, double unit
 double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count){
   assert(active_batches.size()>=1);
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  double M1_1 = pattern_list[index.val_index].M1;
-  double M1_2 = active_batches[0].M1;
-  size_t n1 = pattern_list[index.val_index].num_schedules;
-  size_t n2 = active_batches[0].num_schedules;
-  double running_M1 = (n1*M1_1 + n2*M1_2)/(n1+n2);
-  double running_n = n1+n2;
-  for (auto i=1; i<active_batches.size(); i++){
-    M1_2 = active_batches[i].M1;
-    n2 = active_batches[i].num_schedules;
-    running_M1 = (running_n*running_M1 + n2*M1_2)/(running_n+n2);
-    running_n += n2;
-  }
+  auto stats = intermediate_stats(pattern_list[index.val_index],active_batches);
   if (analysis_param == 0){// arithmetic mean
-    return running_M1;
+    return stats.M1;
   } else{
-    return unit_count*(1./running_M1);
+    return unit_count*(1./stats.M1);
+  }
+}
+double get_estimate(const intermediate_stats& p, int analysis_param, double unit_count){
+  if (analysis_param == 0){// arithmetic mean
+    return get_arithmetic_mean(p);
+  } else{
+    return unit_count*get_harmonic_mean(p);
   }
 }
 
@@ -560,6 +579,10 @@ double get_arithmetic_mean(const pattern_key_id& index){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   return pattern_list[index.val_index].M1;
 }
+double get_arithmetic_mean(const intermediate_stats& p){
+  // returns arithmetic mean
+  return p.M1;
+}
 
 double get_harmonic_mean(const pattern& p){
   // returns arithmetic mean
@@ -569,6 +592,10 @@ double get_harmonic_mean(const pattern_key_id& index){
   // returns arithmetic mean
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   return 1./pattern_list[index.val_index].M1;
+}
+double get_harmonic_mean(const intermediate_stats& p){
+  // returns arithmetic mean
+  return 1./p.M1;
 }
 
 double get_variance(const pattern& p, int analysis_param){
@@ -592,6 +619,16 @@ double get_variance(const pattern_key_id& index, int analysis_param){
     return 1./pattern_list[index.val_index].M2 / (n-1.);
   }
 }
+double get_variance(const intermediate_stats& p, int analysis_param){
+  // returns variance
+  size_t n = p.num_schedules;
+  if (n<=1) return 1000.;
+  if (analysis_param == 0){
+    return p.M2 / (n-1.);
+  } else{
+    return 1./p.M2 / (n-1.);
+  }
+}
 
 double get_std_dev(const pattern& p, int analysis_param){
   // returns variance
@@ -600,6 +637,10 @@ double get_std_dev(const pattern& p, int analysis_param){
 double get_std_dev(const pattern_key_id& index, int analysis_param){
   // returns variance
   return pow(get_variance(index,analysis_param),1./2.);
+}
+double get_std_dev(const intermediate_stats& p, int analysis_param){
+  // returns variance
+  return pow(get_variance(p,analysis_param),1./2.);
 }
 
 double get_std_error(const pattern& p, int analysis_param){
@@ -613,6 +654,11 @@ double get_std_error(const pattern_key_id& index, int analysis_param){
   size_t n = pattern_list[index.val_index].num_schedules;
   return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
 }
+double get_std_error(const intermediate_stats& p, int analysis_param){
+  // returns standard error
+  size_t n = p.num_schedules;
+  return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
+}
 
 double get_confidence_interval(const pattern& p, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
@@ -621,6 +667,10 @@ double get_confidence_interval(const pattern& p, int analysis_param, double leve
 double get_confidence_interval(const pattern_key_id& index, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(index,analysis_param);
+}
+double get_confidence_interval(const intermediate_stats& p, int analysis_param, double level){
+  // returns confidence interval length with 95% confidence level
+  return 1.96*get_std_error(p,analysis_param);
 }
 
 bool is_steady(const pattern& p, int analysis_param){
@@ -634,6 +684,11 @@ bool is_steady(const pattern_key_id& index, int analysis_param){
           (pattern_list[index.val_index].num_schedules >= pattern_count_limit) &&
           (pattern_list[index.val_index].total_exec_time >= pattern_time_limit);
 }
+bool is_steady(const intermediate_stats& p, int analysis_param){
+  return ((get_confidence_interval(p,analysis_param) / (2.*get_estimate(p,analysis_param))) < pattern_error_limit) &&
+          (p.num_schedules >= pattern_count_limit) &&
+          (p.total_exec_time >= pattern_time_limit);
+}
 
 bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
@@ -641,7 +696,13 @@ bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  return is_steady(index,analysis_param);
+  if (analysis_mode == 1){ return is_steady(index,analysis_param); }
+  else if (analysis_mode >= 2){
+    auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+    auto& active_batches = comm_batch_map[key];
+    auto stats = intermediate_stats(pattern_list[index.val_index],active_batches);
+    return is_steady(stats,analysis_param);
+  }
 }
 bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
@@ -649,7 +710,13 @@ bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  return is_steady(index,analysis_param);
+  if (analysis_mode == 1){ return is_steady(index,analysis_param); }
+  else if (analysis_mode >= 2){
+    auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+    auto& active_batches = comp_batch_map[key];
+    auto stats = intermediate_stats(pattern_list[index.val_index],active_batches);
+    return is_steady(stats,analysis_param);
+  }
 }
 
 void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_time, double unit_count){
@@ -658,7 +725,6 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
   if (p.steady_state == 0){
     p.num_schedules++;
     p.num_scheduled_units += unit_count;
-    p.num_propagations++;
     p.total_exec_time += exec_time;
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = p.num_schedules-1;
@@ -686,7 +752,6 @@ void update_kernel_stats(const pattern_key_id& index, int analysis_param, volati
   if (pattern_list[index.val_index].steady_state == 0){
     pattern_list[index.val_index].num_schedules++;
     pattern_list[index.val_index].num_scheduled_units += unit_count;
-    pattern_list[index.val_index].num_propagations++;
     pattern_list[index.val_index].total_exec_time += exec_time;
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = pattern_list[index.val_index].num_schedules-1;
@@ -720,7 +785,6 @@ void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
   dest.num_scheduled_units += src.num_scheduled_units;
   dest.num_non_schedules += src.num_non_schedules;
   dest.num_non_scheduled_units += src.num_non_scheduled_units;
-  dest.num_propagations += src.num_propagations;
   dest.num_non_propagations += src.num_non_propagations;
   dest.total_exec_time += src.total_exec_time;
 }
@@ -750,7 +814,6 @@ void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile doub
   if (exec_time == 0) { exec_time=1.e-9; }
   batch.num_schedules++;
   batch.num_scheduled_units += unit_count;
-  batch.num_propagations++;
   batch.total_exec_time += exec_time;
   // Online computation of up to 4th-order central moments using compunication time samples
   size_t n1 = batch.num_schedules-1;

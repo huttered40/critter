@@ -81,7 +81,6 @@ struct pattern_batch{
 
   int channel_count;
   int num_schedules;
-  int num_propagations;
   int open_channel_count;
   double num_scheduled_units;
   double total_exec_time;
@@ -117,6 +116,14 @@ struct pattern_key_id{
   int val_index;
 };
 
+// ****************************************************************************************************************************************************
+struct intermediate_stats{
+  intermediate_stats(const pattern& p, const std::vector<pattern_batch>& active_batches);
+
+  int num_schedules;
+  double M1,M2;
+  double total_exec_time;
+};
 
 // ****************************************************************************************************************************************************
 extern int analysis_mode;
@@ -155,27 +162,35 @@ bool is_key_skipable(const comp_pattern_key& key);
 double get_estimate(const pattern& p, int analysis_param, double unit_count=1.);
 double get_estimate(const pattern_key_id& index, int analysis_param, double unit_count=1.);
 double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count);
+double get_estimate(const intermediate_stats& p, int analysis_param, double unit_count=1.);
 
 double get_arithmetic_mean(const pattern& p);
 double get_arithmetic_mean(const pattern_key_id& index);
+double get_arithmetic_mean(const intermediate_stats& p);
 
 double get_harmonic_mean(const pattern& p);
 double get_harmonic_mean(const pattern_key_id& index);
+double get_harmonic_mean(const intermediate_stats& p);
 
 double get_variance(const pattern& p, int analysis_param);
 double get_variance(const pattern_key_id& index, int analysis_param);
+double get_variance(const intermediate_stats& p, int analysis_param);
 
 double get_std_dev(const pattern& p, int analysis_param);
 double get_std_dev(const pattern_key_id& index, int analysis_param);
+double get_std_dev(const intermediate_stats& p, int analysis_param);
 
 double get_std_error(const pattern& p, int analysis_param);
 double get_std_error(const pattern_key_id& index, int analysis_param);
+double get_std_error(const intermediate_stats& p, int analysis_param);
 
 double get_confidence_interval(const pattern& p, int analysis_param, double level = .95);
 double get_confidence_interval(const pattern_key_id& index, int analysis_param, double level = .95);
+double get_confidence_interval(const intermediate_stats& p, int analysis_param, double level = .95);
 
 bool is_steady(const pattern& p, int analysis_param);
 bool is_steady(const pattern_key_id& index, int analysis_param);
+bool is_steady(const intermediate_stats& p, int analysis_param);
 
 bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param);
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);

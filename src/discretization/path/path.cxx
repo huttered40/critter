@@ -141,21 +141,12 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       comp_time = get_estimate(comp_pattern_map[key],comp_batch_map[key],comp_analysis_param,flop_count);
     }
   } else{
-    // Both non-optimized and optimized variants can update the local kernel state, but not the global kernel state
-    // This gives unoptimized variant more license that that for a communication pattern (which cannot even update
-    //   local steady state within a phase, due to potential of deadlock if done so).
-    if (analysis_mode == 1){
-      bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
-      set_kernel_state(comp_pattern_map[key],!_is_steady);
-    }
-    else if (analysis_mode >= 2){
-      // TODO: The setting of kernel state must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
-      //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
-      //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
-      assert(0);
-      // bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
-      bool _is_steady=false;//TODO: Replace
-      set_kernel_state(comp_pattern_map[key],!_is_steady);
+    // Both non-optimized and optimized variants can update the local kernel state and the global kernel state (no chance of deadlock)
+    bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
+    set_kernel_state(comp_pattern_map[key],!_is_steady);
+    set_kernel_state_global(comp_pattern_map[key],!_is_steady);
+    if (_is_steady && (analysis_mode >= 2)){
+      // TODO: Liquidate all active batches into the complete pathset.
     }
   }
 
@@ -297,6 +288,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         assert(should_schedule_global(comm_pattern_map[key])==1);
         set_kernel_state(comm_pattern_map[key],schedule_decision);
         set_kernel_state_global(comm_pattern_map[key],schedule_decision);
+        if (schedule_decision && (analysis_mode >= 2)){
+          // TODO: Liquidate all active batches into the complete pathset.
+        }
         if (!schedule_decision) { flush_pattern(key); }
       }
     }
@@ -391,21 +385,8 @@ void path::complete_comm(blocking& tracker, int recv_source){
       if (is_optimized==1){ should_propagate = false; }
     }
   } else{
-    if (analysis_mode == 1){
-      if (is_optimized==1){
-        bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
-        set_kernel_state(comm_pattern_map[key],!is_steady);
-      }
-    }
-    else if (analysis_mode >= 2){
-      // TODO: The setting of kernel state must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
-      //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
-      //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
-      assert(0);
-      // bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
-      bool is_steady=false;//TODO: Replace
-      set_kernel_state(comm_pattern_map[key],!is_steady);
-    }
+    bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
+    set_kernel_state(comm_pattern_map[key],!is_steady);
   }
 
   critical_path_costs[num_critical_path_measures-1] += (comm_time + tracker.barrier_time);
@@ -428,9 +409,12 @@ void path::complete_comm(blocking& tracker, int recv_source){
         }
       }
       else if (analysis_mode >= 2){
-        // Note: I expect to update each kernel's state (not global state though, and only if kernel's state is active, as specified in the complete_pathset)
+        // TODO: Note: I expect to update each kernel's state (not global state though, and only if kernel's state is active, as specified in the complete_pathset)
         //         in comm_pattern_map and comp_pattern_map. Remember, the state specified in the complete_pathset does not entirely reflect the data set in the complete_pathset,
         //           as it takes into account data still in active batches.
+        // TODO: Note: post-propagation, check if any batch has an open_count==0. If so, add it to the complete pathset.
+        //         Then figure out whether to update its values to indicate no samples, or remove it altogether. After thinking about it,
+        //           its probably safest to swap with the last pattern_batch, and then pop_back.
       }
     }
   }
