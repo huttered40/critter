@@ -503,30 +503,28 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
 
 
 // ****************************************************************************************************************************************************
-intermediate_stats::intermediate_stats(const pattern& p, const std::vector<pattern_batch>& active_batches){
-  double M1_1 = p.M1;
-  double M1_2 = active_batches[0].M1;
-  double M2_1 = p.M2;
-  double M2_2 = active_batches[0].M2;
-  size_t n1 = p.num_schedules;
-  size_t n2 = active_batches[0].num_schedules;
-  assert(n2>0);
-  double delta = M1_1 - M1_2;
-  this->M1 = (n1*M1_1 + n2*M1_2)/(n1+n2);
-  this->M2 = M2_1 + M2_2 + delta/(n1+n2)*delta*(n1*n2);
-  this->num_schedules = n1+n2;
-  this->total_exec_time = p.total_exec_time + active_batches[0].total_exec_time;
-  for (auto i=1; i<active_batches.size(); i++){
-    M1_2 = active_batches[i].M1;
-    M2_2 = active_batches[i].M2;
-    n2 = active_batches[i].num_schedules;
+void intermediate_stats::generate(const pattern& p, const std::vector<pattern_batch>& active_batches){
+  this->M1 = p.M1;
+  this->M2 = p.M2;
+  this->num_schedules = p.num_schedules;
+  this->num_scheduled_units = p.num_scheduled_units;
+  this->total_exec_time = p.total_exec_time;
+  for (auto i=0; i<active_batches.size(); i++){
+    double M1_2 = active_batches[i].M1;
+    double M2_2 = active_batches[i].M2;
+    int n2 = active_batches[i].num_schedules;
     assert(n2>0);
-    delta = this->M1 - M1_2;
+    double delta = this->M1 - M1_2;
     this->M1 = (this->num_schedules*this->M1 + n2*M1_2)/(this->num_schedules+n2);
     this->M2 = this->M2 + M2_2 + delta/(this->num_schedules+n2)*delta*(this->num_schedules*n2);
     this->num_schedules += n2;
+    this->num_scheduled_units += active_batches[i].num_scheduled_units;
     this->total_exec_time += active_batches[i].total_exec_time;
   }
+}
+intermediate_stats::intermediate_stats(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches){
+  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+  this->generate(pattern_list[index.val_index],active_batches);
 }
 
 bool is_key_skipable(const comm_pattern_key& key){
@@ -553,9 +551,7 @@ double get_estimate(const pattern_key_id& index, int analysis_param, double unit
   }
 }
 double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count){
-  assert(active_batches.size()>=1);
-  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  auto stats = intermediate_stats(pattern_list[index.val_index],active_batches);
+  auto stats = intermediate_stats(index,active_batches);
   if (analysis_param == 0){// arithmetic mean
     return stats.M1;
   } else{
@@ -698,9 +694,8 @@ bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int a
   if (!is_key_skipable(key)) return false;
   if (analysis_mode == 1){ return is_steady(index,analysis_param); }
   else if (analysis_mode >= 2){
-    auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
     auto& active_batches = comm_batch_map[key];
-    auto stats = intermediate_stats(pattern_list[index.val_index],active_batches);
+    auto stats = intermediate_stats(index,active_batches);
     return is_steady(stats,analysis_param);
   }
 }
@@ -712,9 +707,8 @@ bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int a
   if (!is_key_skipable(key)) return false;
   if (analysis_mode == 1){ return is_steady(index,analysis_param); }
   else if (analysis_mode >= 2){
-    auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
     auto& active_batches = comp_batch_map[key];
-    auto stats = intermediate_stats(pattern_list[index.val_index],active_batches);
+    auto stats = intermediate_stats(index,active_batches);
     return is_steady(stats,analysis_param);
   }
 }
@@ -827,6 +821,16 @@ void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile doub
   double term1 = delta*delta_n*n1;
   batch.M1 += delta_n;
   batch.M2 += term1;
+}
+void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats){
+  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
+  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+
+  pattern_list[index.val_index].num_schedules = stats.num_schedules;
+  pattern_list[index.val_index].num_scheduled_units = stats.num_scheduled_units;
+  pattern_list[index.val_index].total_exec_time = stats.total_exec_time;
+  pattern_list[index.val_index].M1 = stats.M1;
+  pattern_list[index.val_index].M2 = stats.M2;
 }
 
 int should_schedule(const pattern& p){
@@ -942,6 +946,19 @@ void close_symbol(const char* symbol, double curtime){}
 void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
+
+  if (analysis_mode >= 2){
+    for (auto& it : comp_pattern_map){
+      auto stats = intermediate_stats(it.second,comp_batch_map[it.first]);
+      update_kernel_stats(comp_pattern_map[it.first],stats);
+      comp_batch_map[it.first].clear();
+    }
+    for (auto& it : comm_pattern_map){
+      auto stats = intermediate_stats(it.second,comm_batch_map[it.first]);
+      update_kernel_stats(comm_pattern_map[it.first],stats);
+      comm_batch_map[it.first].clear();
+    }
+  }
 
   PMPI_Allreduce(MPI_IN_PLACE,&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,MPI_MAX,comm);
   PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_MAX,comm);

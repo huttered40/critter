@@ -118,10 +118,12 @@ struct pattern_key_id{
 
 // ****************************************************************************************************************************************************
 struct intermediate_stats{
-  intermediate_stats(const pattern& p, const std::vector<pattern_batch>& active_batches);
+  intermediate_stats(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches);
+  void generate(const pattern& p, const std::vector<pattern_batch>& active_batches);
 
   int num_schedules;
   double M1,M2;
+  double num_scheduled_units;
   double total_exec_time;
 };
 
@@ -202,6 +204,7 @@ void update_kernel_stats(const pattern_key_id& index, int analysis_param, volati
 void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param);
 void update_kernel_stats(idle_pattern& p, bool is_global_steady_state, volatile double exec_time);
 void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats);
 
 int should_schedule(const pattern& p);
 int should_schedule(const pattern_key_id& index);

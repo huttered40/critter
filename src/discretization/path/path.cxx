@@ -142,12 +142,15 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     }
   } else{
     // Both non-optimized and optimized variants can update the local kernel state and the global kernel state (no chance of deadlock)
-    bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
-    set_kernel_state(comp_pattern_map[key],!_is_steady);
-    set_kernel_state_global(comp_pattern_map[key],!_is_steady);
-    if (_is_steady && (analysis_mode >= 2)){
-      // TODO: Liquidate all active batches into the complete pathset.
+    bool is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
+    set_kernel_state(comp_pattern_map[key],!is_steady);
+    set_kernel_state_global(comp_pattern_map[key],!is_steady);
+    if (is_steady && (analysis_mode >= 2)){
+      auto stats = intermediate_stats(comp_pattern_map[key],comp_batch_map[key]);
+      update_kernel_stats(comp_pattern_map[key],stats);
+      comp_batch_map[key].clear();
     }
+    if (is_steady) { flush_pattern(key); }
   }
 
   critical_path_costs[num_critical_path_measures-1] += comp_time;	// execution time
@@ -220,19 +223,19 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     if (is_optimized){ post_barrier = should_schedule_global(comm_pattern_map[key])==1; }
     schedule_decision = should_schedule(comm_pattern_map[key])==1;
     reduced_info[4] = (double)schedule_decision;
-    // Register the p2p channel
-    if (analysis_mode >= 2){
-      if (tracker.partner1 != -1){// p2p
-        auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
-        if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
-          comm_channel_node* node = new comm_channel_node();
-          node->tag = key.partner_offset;
-          node->offset.push_back(world_partner_rank);
-          node->id.push_back(std::make_pair(1,1));
-          spf.insert_node(node);
-          p2p_channel_map[world_partner_rank] = node;
-       }
-     }
+  }
+  // Register the p2p channel
+  if (analysis_mode >= 2){
+    if (tracker.partner1 != -1){// p2p
+      auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
+      if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
+        comm_channel_node* node = new comm_channel_node();
+        node->tag = key.partner_offset;
+        node->offset.push_back(world_partner_rank);
+        node->id.push_back(std::make_pair(1,1));
+        spf.insert_node(node);
+        p2p_channel_map[world_partner_rank] = node;
+      }
     }
   }
 
@@ -289,7 +292,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         set_kernel_state(comm_pattern_map[key],schedule_decision);
         set_kernel_state_global(comm_pattern_map[key],schedule_decision);
         if (schedule_decision && (analysis_mode >= 2)){
-          // TODO: Liquidate all active batches into the complete pathset.
+          auto stats = intermediate_stats(comm_pattern_map[key],comm_batch_map[key]);
+          update_kernel_stats(comm_pattern_map[key],stats);
+          comm_batch_map[key].clear();
         }
         if (!schedule_decision) { flush_pattern(key); }
       }
@@ -447,6 +452,10 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
                         MPI_Status array_of_statuses[]){}
 
 void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
+
+void path::flush_pattern(comp_pattern_key key){
+  return;
+}
 
 void path::flush_pattern(comm_pattern_key key){
   return;

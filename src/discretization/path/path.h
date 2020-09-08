@@ -27,6 +27,7 @@ private:
   static void exchange_patterns_per_process(blocking& tracker);
   static void exchange_patterns_volumetric(blocking& tracker);
   static void propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int rank);
+  static void flush_pattern(comp_pattern_key key);
   static void flush_pattern(comm_pattern_key key);
   static void flush_patterns();
 };
