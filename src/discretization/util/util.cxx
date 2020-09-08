@@ -82,6 +82,9 @@ pattern& pattern::operator=(const pattern& _copy){
 
 // ****************************************************************************************************************************************************
 pattern_batch::pattern_batch(comm_channel_node* node){
+  this->total_exec_time = 0;
+  this->num_scheduled_units = 0;
+  this->num_propagations=0;
   this->channel_count=0;
   this->num_schedules = 0;
   this->M1=0; this->M2=0;
@@ -96,6 +99,9 @@ pattern_batch::pattern_batch(comm_channel_node* node){
 }
 
 pattern_batch::pattern_batch(const pattern_batch& _copy){
+  this->total_exec_time = _copy.total_exec_time;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_propagations=_copy.num_propagations;
   this->channel_count = _copy.channel_count;
   this->num_schedules = _copy.num_schedules;
   this->M1 = _copy.M1;
@@ -105,6 +111,9 @@ pattern_batch::pattern_batch(const pattern_batch& _copy){
 }
 
 pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
+  this->total_exec_time = _copy.total_exec_time;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_propagations=_copy.num_propagations;
   this->channel_count = _copy.channel_count;
   this->num_schedules = _copy.num_schedules;
   this->M1 = _copy.M1;
@@ -520,6 +529,27 @@ double get_estimate(const pattern_key_id& index, int analysis_param, double unit
     return unit_count*get_harmonic_mean(index);
   }
 }
+double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count){
+  assert(active_batches.size()>=1);
+  auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
+  double M1_1 = pattern_list[index.val_index].M1;
+  double M1_2 = active_batches[0].M1;
+  size_t n1 = pattern_list[index.val_index].num_schedules;
+  size_t n2 = active_batches[0].num_schedules;
+  double running_M1 = (n1*M1_1 + n2*M1_2)/(n1+n2);
+  double running_n = n1+n2;
+  for (auto i=1; i<active_batches.size(); i++){
+    M1_2 = active_batches[i].M1;
+    n2 = active_batches[i].num_schedules;
+    running_M1 = (running_n*running_M1 + n2*M1_2)/(running_n+n2);
+    running_n += n2;
+  }
+  if (analysis_param == 0){// arithmetic mean
+    return running_M1;
+  } else{
+    return unit_count*(1./running_M1);
+  }
+}
 
 double get_arithmetic_mean(const pattern& p){
   // returns arithmetic mean
@@ -713,6 +743,27 @@ void update_kernel_stats(idle_pattern& p, bool is_global_steady_state, volatile 
   else{
     p.num_non_schedules++;
   }
+}
+
+void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count){
+  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
+  if (exec_time == 0) { exec_time=1.e-9; }
+  batch.num_schedules++;
+  batch.num_scheduled_units += unit_count;
+  batch.num_propagations++;
+  batch.total_exec_time += exec_time;
+  // Online computation of up to 4th-order central moments using compunication time samples
+  size_t n1 = batch.num_schedules-1;
+  size_t n = batch.num_schedules;
+  double x;
+  if (analysis_param == 0){x = exec_time; }	// prep for arithmetic mean
+  else                   {x = (unit_count>0 ? unit_count : 1.)/exec_time; }	// prep for harmonic mean
+  double delta = x - batch.M1;
+  double delta_n = delta / n;
+  double delta_n2 = delta_n*delta_n;
+  double term1 = delta*delta_n*n1;
+  batch.M1 += delta_n;
+  batch.M2 += term1;
 }
 
 int should_schedule(const pattern& p){

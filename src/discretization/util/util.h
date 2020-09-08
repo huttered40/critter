@@ -81,8 +81,11 @@ struct pattern_batch{
 
   int channel_count;
   int num_schedules;
-  double M1,M2;
+  int num_propagations;
   int open_channel_count;
+  double num_scheduled_units;
+  double total_exec_time;
+  double M1,M2;
   std::set<comm_channel_node*> closed_channels;
 };
 
@@ -151,6 +154,7 @@ bool is_key_skipable(const comp_pattern_key& key);
 
 double get_estimate(const pattern& p, int analysis_param, double unit_count=1.);
 double get_estimate(const pattern_key_id& index, int analysis_param, double unit_count=1.);
+double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count);
 
 double get_arithmetic_mean(const pattern& p);
 double get_arithmetic_mean(const pattern_key_id& index);
@@ -182,6 +186,7 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
 void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
 void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param);
 void update_kernel_stats(idle_pattern& p, bool is_global_steady_state, volatile double exec_time);
+void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
 
 int should_schedule(const pattern& p);
 int should_schedule(const pattern_key_id& index);

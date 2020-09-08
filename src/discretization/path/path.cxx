@@ -104,10 +104,12 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     active_patterns.emplace_back();
     comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
-  if (analysis_mode==1){
+  if ((analysis_mode==1) || (should_schedule(comp_pattern_map[key]) == 0)){
+    // Because of the second case in the branch, this will be called even if in analysis_mode>=2 as long as the kernel is no longer being scheduled (i.e. is in steady state)
     update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
   }
   else if (analysis_mode >= 2){
+    // Its assumed that this branch is entered iff the kernel was scheduled and comm_time is reliable
     if (comp_batch_map.find(key) == comp_batch_map.end()){
       comp_batch_map[key].emplace_back();// initialize an empty pattern_batch
     }
@@ -128,8 +130,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       batch_list.emplace_back();
       index = batch_list.size()-1;
     }
-    //TODO: Update batch_list[index] with single sample, rather than the complete pathset via 'update_kernel_stats'
-    assert(0);
+    update_kernel_stats(batch_list[index],comp_analysis_param,comp_time,flop_count);
   }
   // Note: 'get_estimate' must be called before setting the updated kernel state. If kernel was not scheduled, comp_time set below overwrites 'comp_time'
   if (should_schedule(comp_pattern_map[key]) == 0){
@@ -137,27 +138,25 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
     }
     else if (analysis_mode >= 2){
-      //TODO: I want to generate an intermediate based on complete pathset and active pathsets, so the M1's across these pathsets
-      // comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
-      assert(0);
+      comp_time = get_estimate(comp_pattern_map[key],comp_batch_map[key],comp_analysis_param,flop_count);
     }
-  }
-
-  // Both non-optimized and optimized variants can update the local kernel state, but not the global kernel state
-  // This gives unoptimized variant more license that that for a communication pattern (which cannot even update
-  //   local steady state within a phase, due to potential of deadlock if done so).
-  if (analysis_mode == 1){
-    bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
-    set_kernel_state(comp_pattern_map[key],!_is_steady);
-  }
-  else if (analysis_mode >= 2){
-    // TODO: The setting of kernel state must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
-    //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
-    //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
-    assert(0);
-    // bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
-    bool _is_steady=false;//TODO: Replace
-    set_kernel_state(comp_pattern_map[key],!_is_steady);
+  } else{
+    // Both non-optimized and optimized variants can update the local kernel state, but not the global kernel state
+    // This gives unoptimized variant more license that that for a communication pattern (which cannot even update
+    //   local steady state within a phase, due to potential of deadlock if done so).
+    if (analysis_mode == 1){
+      bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
+      set_kernel_state(comp_pattern_map[key],!_is_steady);
+    }
+    else if (analysis_mode >= 2){
+      // TODO: The setting of kernel state must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
+      //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
+      //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
+      assert(0);
+      // bool _is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
+      bool _is_steady=false;//TODO: Replace
+      set_kernel_state(comp_pattern_map[key],!_is_steady);
+    }
   }
 
   critical_path_costs[num_critical_path_measures-1] += comp_time;	// execution time
@@ -344,12 +343,8 @@ void path::complete_comm(blocking& tracker, int recv_source){
     active_patterns.emplace_back();
     comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
-  if (analysis_mode == 1){
+  if ((analysis_mode==1) || (should_schedule(comm_pattern_map[key]) == 0)){
     update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
-    if (should_schedule(comm_pattern_map[key])==0){
-      comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
-      if (is_optimized==1){ should_propagate = false; }
-    }
   }
   else if (analysis_mode >= 2){
     if (comm_batch_map.find(key) == comm_batch_map.end()){
@@ -384,29 +379,33 @@ void path::complete_comm(blocking& tracker, int recv_source){
       }
       index = batch_list.size()-1;
     }
-    // TODO: Update batch_list[index] with sample
-    assert(0);
-    if (should_schedule(comm_pattern_map[key])==0){
-      // TODO: Attain comm_time estimate if kernel wasn't scheduled
-      //comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
+    update_kernel_stats(batch_list[index],comm_analysis_param,comm_time,tracker.nbytes);
+  }
+  if (should_schedule(comm_pattern_map[key])==0){
+    if (analysis_mode == 1){
+      comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
       if (is_optimized==1){ should_propagate = false; }
     }
-  }
-
-  if (analysis_mode == 1){
-    if (is_optimized==1){
-      bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
+    else if (analysis_mode >= 2){
+      comm_time = get_estimate(comm_pattern_map[key],comm_batch_map[key],comm_analysis_param,tracker.nbytes);
+      if (is_optimized==1){ should_propagate = false; }
+    }
+  } else{
+    if (analysis_mode == 1){
+      if (is_optimized==1){
+        bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
+        set_kernel_state(comm_pattern_map[key],!is_steady);
+      }
+    }
+    else if (analysis_mode >= 2){
+      // TODO: The setting of kernel state must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
+      //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
+      //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
+      assert(0);
+      // bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
+      bool is_steady=false;//TODO: Replace
       set_kernel_state(comm_pattern_map[key],!is_steady);
     }
-  }
-  else if (analysis_mode >= 2){
-    // TODO: The setting of kernel state must be based on the combination of the key in complete_pathset, as well as all active keys in comp_batch_map[key]
-    //       Currently its being used solely with data from the complete_pathset, and we are not guaranteed that propagation channels will be found
-    //         to make forward progress in aggregating each batch. Therefore, we must use this combination of complete/active/inactive samples to decide on state.
-    assert(0);
-    // bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
-    bool is_steady=false;//TODO: Replace
-    set_kernel_state(comm_pattern_map[key],!is_steady);
   }
 
   critical_path_costs[num_critical_path_measures-1] += (comm_time + tracker.barrier_time);
