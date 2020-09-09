@@ -156,6 +156,7 @@ extern std::map<int,comm_channel_node*> p2p_channel_map;
 extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 extern std::vector<comm_channel_node*> intermediate_channels;
+extern std::map<comm_pattern_key,bool> p2p_global_state_override;
 
 // ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key);

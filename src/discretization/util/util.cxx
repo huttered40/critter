@@ -36,6 +36,7 @@ std::map<int,comm_channel_node*> p2p_channel_map;
 std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 std::vector<comm_channel_node*> intermediate_channels;
+std::map<comm_pattern_key,bool> p2p_global_state_override;
 
 // ****************************************************************************************************************************************************
 pattern::pattern(){

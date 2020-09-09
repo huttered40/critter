@@ -219,15 +219,28 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_pattern_key, although it will be empty.
   comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+  auto world_key = key; int world_rank;
+  if (tracker.partner1 != -1){
+    world_rank = spf.translate_rank(tracker.comm,tracker.partner1); 
+    world_key.partner_offset = tracker.partner1;//world_rank;
+    if (p2p_global_state_override.find(world_key) == p2p_global_state_override.end()){
+      p2p_global_state_override[world_key] = true;// not in global steady state
+    }
+  }
   if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
-    if (is_optimized){ post_barrier = should_schedule_global(comm_pattern_map[key])==1; }
+    if (is_optimized){
+      post_barrier = should_schedule_global(comm_pattern_map[key])==1;
+      if (tracker.partner1 != -1){
+        post_barrier = post_barrier || p2p_global_state_override[world_key];
+      }
+    }
     schedule_decision = should_schedule(comm_pattern_map[key])==1;
     reduced_info[4] = (double)schedule_decision;
   }
   // Register the p2p channel
   if (analysis_mode >= 2){
     if (tracker.partner1 != -1){// p2p
-      auto world_partner_rank = spf.translate_rank(comm,tracker.partner1);
+      auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
       if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
         comm_channel_node* node = new comm_channel_node();
         node->tag = key.partner_offset;
@@ -288,20 +301,29 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
       //   create an entry in comm_pattern_key, although it will be empty.
       if (!(comm_pattern_map.find(key) == comm_pattern_map.end())){
-        assert(should_schedule_global(comm_pattern_map[key])==1);
-        set_kernel_state(comm_pattern_map[key],schedule_decision);
-        set_kernel_state_global(comm_pattern_map[key],schedule_decision);
-        if (schedule_decision && (analysis_mode >= 2)){
+        // Do not update kernel state after its been set to steady. This situation can occur with use of 'p2p_global_state_override' to prevent deadlock
+        // That also means we won't update our statistics with the scheduled comm_time, for better or for worse.
+        if (should_schedule_global(comm_pattern_map[key])==1){
+          set_kernel_state(comm_pattern_map[key],schedule_decision);
+          set_kernel_state_global(comm_pattern_map[key],schedule_decision);
+        }
+        if (tracker.partner1 != -1){
+          //TODO: Why is this not working???
+          //p2p_global_state_override[world_key] = schedule_decision;
+        }
+        if (!schedule_decision && (analysis_mode >= 2)){
           auto stats = intermediate_stats(comm_pattern_map[key],comm_batch_map[key]);
           update_kernel_stats(comm_pattern_map[key],stats);
           comm_batch_map[key].clear();
         }
+        // TODO: The statement below worries me in the presence of 'p2p_global_state_override'
         if (!schedule_decision) { flush_pattern(key); }
       }
     }
     // If kernel is about to be scheduled, post one more barrier for safety if collective,
     //   because the AllReduce posted above may allow ranks to leave early, thus corrupting the sample measurement.
     if (schedule_decision && tracker.partner1 == -1){ PMPI_Barrier(tracker.comm); }
+    //TODO: Might consider a sendrecv here if tracker.partner1 != -1
   }
 
   comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
