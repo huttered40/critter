@@ -39,6 +39,16 @@ std::vector<comm_channel_node*> intermediate_channels;
 std::map<comm_pattern_key,bool> p2p_global_state_override;
 
 // ****************************************************************************************************************************************************
+static int gcd(int a, int b){
+  if (a==b) return a;
+  if (a>b) return gcd(a-b,b);
+  else return gcd(a,b-a);
+}
+static int lcm(int a, int b){
+  return a*b / gcd(a,b);
+}
+
+// ****************************************************************************************************************************************************
 pattern::pattern(){
   this->total_exec_time = 0;
   this->steady_state=0;
@@ -173,6 +183,9 @@ comm_channel_node::comm_channel_node(){
   this->children.push_back(std::vector<comm_channel_node*>());
 }
 
+int sample_propagation_forest::span(std::pair<int,int>& id){
+  return (id.first-1)*id.second;
+}
 void sample_propagation_forest::generate_span(comm_channel_node* node, std::vector<std::pair<int,int>>& perm_tuples){
   // Assumed that perm_tuples define a permutation of comm_channel_nodes that are communicator siblings
   //   Thus, 'perm_tuples' will be in sorted order of stride
@@ -255,11 +268,11 @@ void sample_propagation_forest::generate_partition_perm(std::vector<std::pair<in
   }
 }
 bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_channel_node* node){
-  // First check that the root node 'node' is not a p2p, regardless of whether 'tree_node' is a subcomm or p2p
+  // First check that the parent 'node' is not a p2p, regardless of whether 'tree_node' is a subcomm or p2p
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   if (node->tag >= ((-1)*world_size)) return false;
   // Returns true iff tree_node is an ancestor of node
-
+/*
   if (tree_node->tag < ((-1)*world_size)){
     // Check all tuples
     for (auto i=0; i<tree_node->id.size(); i++){
@@ -284,6 +297,22 @@ bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_chan
     if (rank%node->id[0].second != 0) return false;
   }
   return true;
+*/
+  // Check all tuples -- for now just one
+  assert(tree_node->id.size() == 1);
+  assert(node->id.size() == 1);
+  for (auto i=0; i<tree_node->id.size(); i++){
+    bool found_match=false;
+    for (auto j=0; j<node->id.size(); j++){
+      found_match = ((tree_node->offset[0] >= node->offset[0]) &&
+                    (tree_node->offset[0]+span(tree_node->id[i]) <= node->offset[0]+span(node->id[j])) &&
+                    ((tree_node->offset[0] - node->offset[0]) % node->id[j].second == 0) &&
+                    ((tree_node->id[i].second % node->id[j].second) == 0));
+      if (found_match) break;
+    }// As long as one match is found, tuple id[i] fits
+    if (!found_match) return false;
+  }
+  return true;
 }
 bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subtree_idx, std::vector<int>& skip_indices){
   // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
@@ -296,8 +325,9 @@ bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subt
     if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){ p2p_count++; }
     else { subcomm_count++; }
   }
-  //if ((subcomm_count>0) && (p2p_count>0)) return false;
+  if ((subcomm_count>0) && (p2p_count>0)) return false;
   if (subcomm_count==0) return true;// all p2p siblings are fine
+/*
   std::vector<std::pair<int,int>> static_info;
   int skip_index=0;
   for (auto i=0; i<parent->children[subtree_idx].size(); i++){
@@ -335,6 +365,44 @@ bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subt
     }
   }
   return valid_siblings;
+*/
+  // Compare last node in 'parent->children[subtree_idx]' against those that are not skipped
+  auto& potential_sibling = parent->children[subtree_idx][parent->children[subtree_idx].size()-1];
+  assert(potential_sibling->id.size() == 1);
+  int skip_index=0;
+  for (auto i=0; i<parent->children[subtree_idx].size()-1; i++){
+    if ((skip_index < skip_indices.size()) && (i == skip_indices[skip_index])){
+      skip_index++;
+      continue;
+    }
+    assert(parent->children[subtree_idx][i]->id.size() == 1);
+    int min1 = potential_sibling->offset[0] + span(potential_sibling->id[0]);
+    int min2 = parent->children[subtree_idx][i]->offset[0] + span(parent->children[subtree_idx][i]->id[0]);
+    int _min_ = std::min(min1,min2);
+    int max1 = potential_sibling->offset[0];
+    int max2 = parent->children[subtree_idx][i]->offset[0];
+    int _max_ = std::max(max1,max2);
+    int _lcm_ = lcm(potential_sibling->id[0].second,parent->children[subtree_idx][i]->id[0].second);
+    if (_lcm_ < (_min_-_max_)) return false;
+    else{// corner case check
+      int count=0;
+      if (_max_ == max1){
+        if ((_max_ - max2) % parent->children[subtree_idx][i]->id[0].second == 0) count++;
+      } else{
+        if ((_max_ - max1) % potential_sibling->id[0].second == 0) count++;
+      }
+      if (_min_ == min1){
+        if ((min2 - _min_) % parent->children[subtree_idx][i]->id[0].second == 0) count++;
+      } else{
+        if ((min1 - _min_) % potential_sibling->id[0].second == 0) count++;
+      }
+      // If count == 2, then we have a situation in which the endpoints match, and we must have the lcm be >= _min_-_max_, but > _min_-_max_
+      if (count==2){
+        if (_lcm_ == (_min_-_max_)) return false;
+      }
+    }
+  }
+  return true;
 }
 bool sample_propagation_forest::partition_test(comm_channel_node* parent, int subtree_idx){
   // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
@@ -472,7 +540,6 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
     }
   }
   if (!valid_parent){
-    save_tree_idx=parent->children.size();
     parent->children.push_back(std::vector<comm_channel_node*>());
     parent->children[parent->children.size()-1].push_back(tree_node);
   }

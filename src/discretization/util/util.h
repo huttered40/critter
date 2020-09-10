@@ -47,6 +47,7 @@ private:
   bool are_siblings(comm_channel_node* node, int subtree_idx, std::vector<int>& skip_indices);
   bool partition_test(comm_channel_node* parent, int subtree_idx);
   void find_parent(comm_channel_node* tree_root, comm_channel_node* tree_node, comm_channel_node*& parent);
+  int span(std::pair<int,int>& id);
 };
 
 // ****************************************************************************************************************************************************

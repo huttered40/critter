@@ -240,12 +240,13 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // Register the p2p channel
   if (analysis_mode >= 2){
     if (tracker.partner1 != -1){// p2p
+      int my_world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_world_rank);
       auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
       if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
         comm_channel_node* node = new comm_channel_node();
         node->tag = key.partner_offset;
-        node->offset.push_back(world_partner_rank);
-        node->id.push_back(std::make_pair(1,1));
+        node->offset.push_back(std::min(my_world_rank,world_partner_rank));
+        node->id.push_back(std::make_pair(2,abs(my_world_rank-world_partner_rank)));
         spf.insert_node(node);
         p2p_channel_map[world_partner_rank] = node;
       }
