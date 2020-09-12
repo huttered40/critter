@@ -13,9 +13,10 @@ struct pattern_batch;
 struct comm_channel_node{
   comm_channel_node();
 
+  int hash_tag;
   int tag;
   int frequency;
-  std::vector<int> offset;// Always size 1 for communicators. Only of size >1 if describing a sequence of p2p aggregated as part of an intermediate
+  int offset;
   std::vector<std::pair<int,int>> id;
   comm_channel_node* parent;
   std::vector<std::vector<comm_channel_node*>> children;

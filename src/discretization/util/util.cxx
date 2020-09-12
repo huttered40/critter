@@ -288,7 +288,7 @@ bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_chan
     }
   } else{
     // p2p nodes need special machinery for detecting whether its a child of 'node'
-    int rank = tree_node->offset[0] - node->offset[0];//TODO; Fix if tree_node describes a aggregated p2p (rare case, we haven't needed it yet)
+    int rank = tree_node->offset - node->offset;//TODO; Fix if tree_node describes a aggregated p2p (rare case, we haven't needed it yet)
     if (rank<0) return false;// corner case
     for (int i=node->id.size()-1; i>=0; i--){
       if (rank >= (node->id[i].first*node->id[i].second)){ return false; }
@@ -304,9 +304,9 @@ bool sample_propagation_forest::is_child(comm_channel_node* tree_node, comm_chan
   for (auto i=0; i<tree_node->id.size(); i++){
     bool found_match=false;
     for (auto j=0; j<node->id.size(); j++){
-      found_match = ((tree_node->offset[0] >= node->offset[0]) &&
-                    (tree_node->offset[0]+span(tree_node->id[i]) <= node->offset[0]+span(node->id[j])) &&
-                    ((tree_node->offset[0] - node->offset[0]) % node->id[j].second == 0) &&
+      found_match = ((tree_node->offset >= node->offset) &&
+                    (tree_node->offset+span(tree_node->id[i]) <= node->offset+span(node->id[j])) &&
+                    ((tree_node->offset - node->offset) % node->id[j].second == 0) &&
                     ((tree_node->id[i].second % node->id[j].second) == 0));
       if (found_match) break;
     }// As long as one match is found, tuple id[i] fits
@@ -376,11 +376,11 @@ bool sample_propagation_forest::are_siblings(comm_channel_node* parent, int subt
       continue;
     }
     assert(parent->children[subtree_idx][i]->id.size() == 1);
-    int min1 = potential_sibling->offset[0] + span(potential_sibling->id[0]);
-    int min2 = parent->children[subtree_idx][i]->offset[0] + span(parent->children[subtree_idx][i]->id[0]);
+    int min1 = potential_sibling->offset + span(potential_sibling->id[0]);
+    int min2 = parent->children[subtree_idx][i]->offset + span(parent->children[subtree_idx][i]->id[0]);
     int _min_ = std::min(min1,min2);
-    int max1 = potential_sibling->offset[0];
-    int max2 = parent->children[subtree_idx][i]->offset[0];
+    int max1 = potential_sibling->offset;
+    int max2 = parent->children[subtree_idx][i]->offset;
     int _max_ = std::max(max1,max2);
     int _lcm_ = lcm(potential_sibling->id[0].second,parent->children[subtree_idx][i]->id[0].second);
     if (_lcm_ < (_min_-_max_)) return false;
@@ -481,7 +481,7 @@ void sample_propagation_forest::clear_info(){
 int sample_propagation_forest::translate_rank(MPI_Comm comm, int rank){
   // Returns new rank relative to world communicator
   auto node = comm_channel_map[comm];
-  int new_rank = node->offset[0];
+  int new_rank = node->offset;
   for (auto i=0; i<node->id.size(); i++){
     new_rank += node->id[i].second*(rank%node->id[i].first);
     rank /= node->id[i].first;
@@ -547,11 +547,11 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
   // sanity check for right now
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   if (world_comm_rank==8){
-    std::cout << "parent of tree_node{ " << tree_node->offset[0];
+    std::cout << "parent of tree_node{ " << tree_node->offset;
     for (auto i=0; i<tree_node->id.size(); i++){
       std::cout << " (" << tree_node->id[i].first << "," << tree_node->id[i].second << ")";
     }
-    std::cout << " } is { " << parent->tag << " " << parent->offset[0];
+    std::cout << " } is { " << parent->tag << " " << parent->offset;
     for (auto i=0; i<parent->id.size(); i++){
       std::cout << " (" << parent->id[i].first << "," << parent->id[i].second << ")";
     }
@@ -559,7 +559,7 @@ void sample_propagation_forest::insert_node(comm_channel_node* tree_node){
     for (auto i=0; i<parent->children.size(); i++){
       std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
       for (auto j=0; j<parent->children[i].size(); j++){
-        std::cout << "\t\tchild " << j << " is { " << parent->children[i][j]->tag << " " << parent->children[i][j]->offset[0];
+        std::cout << "\t\tchild " << j << " is { " << parent->children[i][j]->tag << " " << parent->children[i][j]->offset;
         for (auto k=0; k<parent->children[i][j]->id.size(); k++){
           std::cout << " (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
         }
@@ -947,7 +947,7 @@ void allocate(MPI_Comm comm){
 
   comm_channel_node* world_node = new comm_channel_node();
   world_node->tag = comm_channel_tag_count++;
-  world_node->offset.push_back(0);
+  world_node->offset = 0;
   world_node->id.push_back(std::make_pair(_world_size,1));
   world_node->parent=nullptr;
   sample_propagation_tree* tree = new sample_propagation_tree;

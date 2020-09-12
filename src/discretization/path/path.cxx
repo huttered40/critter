@@ -23,7 +23,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   for (auto i=0; i<gathered_ranks.size(); i++) { gathered_ranks[i] -= offset; }
   std::sort(gathered_ranks.begin(),gathered_ranks.end());
   comm_channel_node* channel = new comm_channel_node();
-  channel->offset.push_back(offset);
+  channel->offset = offset;
   if (new_comm_size<=1){
     channel->id.push_back(std::make_pair(new_comm_size,1));
   }
@@ -56,9 +56,21 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
     }
   }
   channel->tag = comm_channel_tag_count++;
+  std::string channel_hash_str = "";
+  for (auto i=0; i<channel->id.size(); i++){
+    channel_hash_str += ".." + std::to_string(channel->id[i].first) + "." + std::to_string(channel->id[i].second);
+  }
+  channel->hash_tag = std::hash<std::string>()(channel_hash_str);
   spf.insert_node(channel);// This call will just fill in SPT via channel's parent/children members, and the members of related channels
   comm_channel_map[newcomm] = channel;
 
+  // Note that a communicator may be split in a way in which the sizes or strides do not align among the new split sub-communicators
+  // For that reason, we must only check whether the hash is valid within newcomm itself, rather than within oldcomm
+  int min_hash_tag=0;
+  PMPI_Allreduce(&channel->hash_tag,&min_hash_tag,1,MPI_INT,MPI_MIN,newcomm);
+  assert(min_hash_tag == channel->hash_tag);
+
+  PMPI_Barrier(oldcomm);
   computation_timer = MPI_Wtime();
 }
 
@@ -245,8 +257,10 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
         comm_channel_node* node = new comm_channel_node();
         node->tag = key.partner_offset;
-        node->offset.push_back(std::min(my_world_rank,world_partner_rank));
+        node->offset = std::min(my_world_rank,world_partner_rank);
         node->id.push_back(std::make_pair(2,abs(my_world_rank-world_partner_rank)));
+        std::string channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
+        node->hash_tag = std::hash<std::string>()(channel_hash_str);
         spf.insert_node(node);
         p2p_channel_map[world_partner_rank] = node;
       }
