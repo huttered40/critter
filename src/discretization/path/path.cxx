@@ -22,10 +22,10 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   for (auto i=1; i<gathered_ranks.size(); i++) { offset = std::min(offset,gathered_ranks[i]); }
   for (auto i=0; i<gathered_ranks.size(); i++) { gathered_ranks[i] -= offset; }
   std::sort(gathered_ranks.begin(),gathered_ranks.end());
-  comm_channel_node* channel = new comm_channel_node();
-  channel->offset = offset;
+  channel* node = new channel();
+  node->offset = offset;
   if (new_comm_size<=1){
-    channel->id.push_back(std::make_pair(new_comm_size,1));
+    node->id.push_back(std::make_pair(new_comm_size,1));
   }
   else{
     int stride = gathered_ranks[1]-gathered_ranks[0];
@@ -35,14 +35,14 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
     int i=0;
     while (i < gathered_ranks.size()-1){
       if ((gathered_ranks[i+jump]-gathered_ranks[i]) != stride){
-        channel->id.push_back(std::make_pair(count+extra+1,stride));
+        node->id.push_back(std::make_pair(count+extra+1,stride));
         stride = gathered_ranks[i+1]-gathered_ranks[0];
         i += jump;
-        if (channel->id.size()==1){
+        if (node->id.size()==1){
           jump=count+extra+1;
         }
         else{
-          jump = (count+extra+1)*channel->id[channel->id.size()-2].first;
+          jump = (count+extra+1)*node->id[node->id.size()-2].first;
         }
         extra=1;
         count = 0;
@@ -52,24 +52,38 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
       }
     }
     if (count != 0){
-      channel->id.push_back(std::make_pair(count+extra+1,stride));
+      node->id.push_back(std::make_pair(count+extra+1,stride));
     }
   }
-  channel->tag = comm_channel_tag_count++;
+  node->tag = communicator_count++;
   std::string channel_hash_str = "";
-  for (auto i=0; i<channel->id.size(); i++){
-    channel_hash_str += ".." + std::to_string(channel->id[i].first) + "." + std::to_string(channel->id[i].second);
+  for (auto i=0; i<node->id.size(); i++){
+    channel_hash_str += ".." + std::to_string(node->id[i].first) + "." + std::to_string(node->id[i].second);
   }
-  channel->hash_tag = std::hash<std::string>()(channel_hash_str);
-  spf.insert_node(channel);// This call will just fill in SPT via channel's parent/children members, and the members of related channels
-  comm_channel_map[newcomm] = channel;
+  node->hash_tag = std::hash<std::string>()(channel_hash_str);// will avoid any local overlap. This is a local hash
+  spf.insert_node(node);// This call will just fill in SPT via node's parent/children members, and the members of related channels
+  comm_channel_map[newcomm] = node;
 
+  //TODO: Recursively build up other legal aggregate channels that include 'node'
+  for (auto& it : aggregate_channel_map){
+    // Check if 'node' is a sibling of all existing aggregates already formed. Note that we do not include p2p aggregates, nor p2p+comm aggregates.
+    // Once the p2p tree is chosen, the batch is stuck with it. Same thing for comm tree if its chosen by a batch.
+    // If current aggregate forms a larger one with 'node', reset its 'is_final' member to be false, and always set a new aggregate's 'is_final' member to true
+  }
+  // Always treat 1-communicator channels as trivial aggregate channels.
+  aggregate_channel* agg_node = new aggregate_channel();
+  aggregate_channel_map[node->hash_tag] = agg_node;
+
+  //TODO: Either add the butterfly communication pattern before or after the 2 lines above.
+  
+
+/*
   // Note that a communicator may be split in a way in which the sizes or strides do not align among the new split sub-communicators
   // For that reason, we must only check whether the hash is valid within newcomm itself, rather than within oldcomm
   int min_hash_tag=0;
   PMPI_Allreduce(&channel->hash_tag,&min_hash_tag,1,MPI_INT,MPI_MIN,newcomm);
   assert(min_hash_tag == channel->hash_tag);
-
+*/
   PMPI_Barrier(oldcomm);
   computation_timer = MPI_Wtime();
 }
@@ -255,12 +269,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       int my_world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_world_rank);
       auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
       if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
-        comm_channel_node* node = new comm_channel_node();
+        channel* node = new channel();
         node->tag = key.partner_offset;
         node->offset = std::min(my_world_rank,world_partner_rank);
         node->id.push_back(std::make_pair(2,abs(my_world_rank-world_partner_rank)));
         std::string channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
-        node->hash_tag = std::hash<std::string>()(channel_hash_str);
+        node->hash_tag = world_partner_rank;// will avoid any local overlap. This is a local hash
         spf.insert_node(node);
         p2p_channel_map[world_partner_rank] = node;
       }

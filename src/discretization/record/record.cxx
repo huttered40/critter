@@ -134,31 +134,6 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
       total_scheduled_comm_time += pattern_list[it.second.val_index].total_exec_time;
     }
     if (world_rank==0) { Stream << std::endl << std::endl; }
-    for (auto& it : comm_pattern_pair_map){
-      if (world_rank==0) {
-        Stream << "Rank 0 Communication pattern pair {(" << it.first.first.tag
-               << ",(" << it.first.first.dim_sizes[0] << "," << it.first.first.dim_sizes[1] << "," << it.first.first.dim_sizes[2] << ")"
-               << ",(" << it.first.first.dim_strides[0] << "," << it.first.first.dim_strides[1] << "," << it.first.first.dim_strides[2] << ")"
-               << "," << it.first.first.msg_size
-               << "," << it.first.first.partner_offset
-               << "),(" << it.first.second.tag
-               << ",(" << it.first.second.dim_sizes[0] << "," << it.first.second.dim_sizes[1] << "," << it.first.second.dim_sizes[2] << ")"
-               << ",(" << it.first.second.dim_strides[0] << "," << it.first.second.dim_strides[1] << "," << it.first.second.dim_strides[2] << ")"
-               << "," << it.first.second.msg_size
-               << "," << it.first.second.partner_offset
-               << ")}"
-               << std::endl;
-        Stream << "\tNumSchedules - " << it.second.num_schedules
-               << ", NumScheduleSkips - " << it.second.num_non_schedules
-               << ", M1 - " << it.second.M1
-               << ", M2 - " << it.second.M2
-               << std::endl;
-      } else{
-        // debug
-        //if (it.second.M1 != 0) std::cout << it.second.M1 << std::endl;
-      }
-    }
-    if (world_rank==0) { Stream << std::endl << std::endl; }
     for (auto& it : comp_pattern_map){
       auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
       auto& key_list = it.second.is_active == true ? active_comp_pattern_keys : steady_state_comp_pattern_keys;

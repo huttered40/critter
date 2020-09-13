@@ -10,44 +10,51 @@ namespace discretization{
 struct pattern_batch;
 
 // ****************************************************************************************************************************************************
-struct comm_channel_node{
-  comm_channel_node();
+struct channel{
+  channel();
 
   int hash_tag;
   int tag;
   int frequency;
   int offset;
   std::vector<std::pair<int,int>> id;
-  comm_channel_node* parent;
-  std::vector<std::vector<comm_channel_node*>> children;
+  channel* parent;
+  std::vector<std::vector<channel*>> children;
+};
+
+struct aggregate_channel{
+  aggregate_channel();
+
+  int offset;
+  std::vector<std::vector<std::pair<int,int>>> channels;
 };
 
 struct sample_propagation_tree{
-  comm_channel_node* root;
+ channel* root;
 };
 
 struct sample_propagation_forest{
   sample_propagation_forest();
   ~sample_propagation_forest();
 
-  void generate_span(comm_channel_node* node, std::vector<std::pair<int,int>>& perm_tuples);
+  void generate_span(channel* node, std::vector<std::pair<int,int>>& perm_tuples);
   int translate_rank(MPI_Comm comm, int rank);
-  void insert_node(comm_channel_node* tree_node);
+  void insert_node(channel* node);
   void clear_info();
-  void fill_ancestors(comm_channel_node* tree_node, pattern_batch& batch);
-  void fill_descendants(comm_channel_node* tree_node, pattern_batch& batch);
+  void fill_ancestors(channel* node, pattern_batch& batch);
+  void fill_descendants(channel* node, pattern_batch& batch);
 
   sample_propagation_tree* tree;
 private:
-  void delete_tree(comm_channel_node*& tree_root);
-  void clear_tree_info(comm_channel_node* tree_root);
+  void delete_tree(channel*& tree_root);
+  void clear_tree_info(channel* tree_root);
   void generate_sibling_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, std::vector<std::pair<int,int>>& save_info, int level, bool& valid_siblings);
   void generate_partition_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level, bool& valid_partition,
                                int parent_max_span, int parent_min_stride);
-  bool is_child(comm_channel_node* tree_node, comm_channel_node* node);
-  bool are_siblings(comm_channel_node* node, int subtree_idx, std::vector<int>& skip_indices);
-  bool partition_test(comm_channel_node* parent, int subtree_idx);
-  void find_parent(comm_channel_node* tree_root, comm_channel_node* tree_node, comm_channel_node*& parent);
+  bool is_child(channel* tree_node, channel* node);
+  bool are_siblings(channel* node, int subtree_idx, std::vector<int>& skip_indices);
+  bool partition_test(channel* parent, int subtree_idx);
+  void find_parent(channel* tree_root, channel* tree_node, channel*& parent);
   int span(std::pair<int,int>& id);
 };
 
@@ -77,7 +84,7 @@ struct pattern_batch{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  pattern_batch(comm_channel_node* node = nullptr);
+  pattern_batch(channel* node = nullptr);
   pattern_batch(const pattern_batch& _copy);
   pattern_batch& operator=(const pattern_batch& _copy);
 
@@ -87,7 +94,7 @@ struct pattern_batch{
   double num_scheduled_units;
   double total_exec_time;
   double M1,M2;
-  std::set<comm_channel_node*> closed_channels;
+  std::set<channel*> closed_channels;
 };
 
 // ****************************************************************************************************************************************************
@@ -142,7 +149,7 @@ extern MPI_Datatype pattern_type;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
-extern int comm_channel_tag_count;
+extern int communicator_count;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 extern std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
@@ -151,14 +158,14 @@ extern std::vector<comp_pattern_key> steady_state_comp_pattern_keys;
 extern std::vector<comp_pattern_key> active_comp_pattern_keys;
 extern std::vector<pattern> steady_state_patterns;
 extern std::vector<pattern> active_patterns;
-extern std::map<std::pair<comm_pattern_key,comm_pattern_key>,idle_pattern> comm_pattern_pair_map;
 extern sample_propagation_forest spf;
-extern std::map<MPI_Comm,comm_channel_node*> comm_channel_map;
-extern std::map<int,comm_channel_node*> p2p_channel_map;
+extern std::map<MPI_Comm,channel*> comm_channel_map;
+extern std::map<int,channel*> p2p_channel_map;
 extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
-extern std::vector<comm_channel_node*> intermediate_channels;
+extern std::vector<channel*> intermediate_channels;
 extern std::map<comm_pattern_key,bool> p2p_global_state_override;
+extern std::map<int,aggregate_channel*> aggregate_channel_map;
 
 // ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key);
