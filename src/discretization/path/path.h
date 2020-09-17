@@ -30,6 +30,8 @@ private:
   static void flush_pattern(comp_pattern_key key);
   static void flush_pattern(comm_pattern_key key);
   static void flush_patterns();
+  static void single_stage_sample_aggregation(blocking& tracker);
+  static void multi_stage_sample_aggregation(blocking& tracker);
 };
 
 }

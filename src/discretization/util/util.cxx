@@ -8,15 +8,14 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-int analysis_mode;
 int is_optimized;
-int autotuning_propagate;
+int aggregation_mode;
 int schedule_kernels;
 int update_analysis;
-int comm_sample_include_idle;
 MPI_Datatype comm_pattern_key_type;
 MPI_Datatype comp_pattern_key_type;
 MPI_Datatype pattern_type;
+MPI_Datatype batch_type;
 size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
@@ -97,6 +96,10 @@ pattern_batch::pattern_batch(channel* node){
   this->channel_count=0;
   this->num_schedules = 0;
   this->M1=0; this->M2=0;
+
+  if (node != nullptr){
+    this->registered_channels.insert(node);
+  }
 /*
   this->open_channel_count=comm_channel_map.size() + p2p_channel_map.size();
   // Remove channels that are descendents and ancestors of 'node'
@@ -116,8 +119,7 @@ pattern_batch::pattern_batch(const pattern_batch& _copy){
   this->num_schedules = _copy.num_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
-  this->open_channel_count = _copy.open_channel_count;
-  this->closed_channels = _copy.closed_channels;
+  this->registered_channels = _copy.registered_channels;
 }
 
 pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
@@ -127,8 +129,7 @@ pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
   this->num_schedules = _copy.num_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
-  this->open_channel_count = _copy.open_channel_count;
-  this->closed_channels = _copy.closed_channels;
+  this->registered_channels = _copy.registered_channels;
   return *this;
 }
 
@@ -560,11 +561,14 @@ void sample_propagation_forest::find_parent(solo_channel* tree_root, solo_channe
   return;
 }
 void sample_propagation_forest::fill_ancestors(solo_channel* node, pattern_batch& batch){
+/*
   if (node==nullptr) return;
   batch.closed_channels.insert(node);
   this->fill_ancestors(node->parent,batch);
+*/
 }
 void sample_propagation_forest::fill_descendants(solo_channel* node, pattern_batch& batch){
+/*
   if (node==nullptr) return;
   batch.closed_channels.insert(node);
   for (auto i=0; i<node->children.size(); i++){
@@ -572,6 +576,7 @@ void sample_propagation_forest::fill_descendants(solo_channel* node, pattern_bat
       this->fill_descendants(node->children[i][j],batch);
     }
   }
+*/
 }
 void sample_propagation_forest::clear_tree_info(solo_channel* tree_root){
   if (tree_root==nullptr) return;
@@ -874,8 +879,8 @@ bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (analysis_mode == 1){ return is_steady(index,analysis_param); }
-  else if (analysis_mode >= 2){
+  if (aggregation_mode == 0){ return is_steady(index,analysis_param); }
+  else if (aggregation_mode >= 1){
     auto& active_batches = comm_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
     return is_steady(stats,analysis_param);
@@ -887,8 +892,8 @@ bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (analysis_mode == 1){ return is_steady(index,analysis_param); }
-  else if (analysis_mode >= 2){
+  if (aggregation_mode == 0){ return is_steady(index,analysis_param); }
+  else if (aggregation_mode >= 1){
     auto& active_batches = comp_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
     return is_steady(stats,analysis_param);
@@ -960,7 +965,7 @@ void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
   dest.num_schedules += src.num_schedules;
   dest.num_scheduled_units += src.num_scheduled_units;
   dest.num_non_schedules += src.num_non_schedules;
-  dest.num_non_scheduled_units += src.num_non_scheduled_units;
+  dest.num_non_scheduled_units += src.num_non_scheduled_units;// Wouldn't these be zero?
   dest.num_non_propagations += src.num_non_propagations;
   dest.total_exec_time += src.total_exec_time;
 }
@@ -983,6 +988,19 @@ void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile doub
   double term1 = delta*delta_n*n1;
   batch.M1 += delta_n;
   batch.M2 += term1;
+}
+void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param){
+  // This function will implement the parallel algorithm computing the mean and variance of two partitions
+  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
+  // Online computation of up to 4th-order central moments using compunication time samples
+  size_t n1 = dest.num_schedules;
+  size_t n2 = src.num_schedules;
+  double delta = dest.M1 - src.M1;
+  dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
+  dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
+  dest.num_schedules += src.num_schedules;
+  dest.num_scheduled_units += src.num_scheduled_units;
+  dest.total_exec_time += src.total_exec_time;
 }
 void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
@@ -1070,6 +1088,13 @@ void allocate(MPI_Comm comm){
   PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
   PMPI_Type_commit(&pattern_type);
 
+  pattern_batch ex_4;
+  MPI_Datatype batch_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int batch_internal_block_len[2] = { 2,4 };
+  MPI_Aint batch_internal_disp[2] = { (char*)&ex_4.channel_count-(char*)&ex_4, (char*)&ex_4.num_scheduled_units-(char*)&ex_4 };
+  PMPI_Type_create_struct(2,batch_internal_block_len,batch_internal_disp,batch_internal_type,&batch_type);
+  PMPI_Type_commit(&batch_type);
+
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
 
   // Communication kernel time, computation kernel time, computation time, execution time
@@ -1109,7 +1134,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
 
-  if (analysis_mode >= 2){
+  //TODO: What is the point of this??
+  if (aggregation_mode >= 1){
     for (auto& it : comp_pattern_map){
       auto stats = intermediate_stats(it.second,comp_batch_map[it.first]);
       update_kernel_stats(comp_pattern_map[it.first],stats);
@@ -1140,17 +1166,18 @@ void reset(bool track_statistical_data_override, bool schedule_kernels_override,
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
 
   // Reset these global variables, as some are updated by function arguments for convenience
-  if (std::getenv("CRITTER_AUTOTUNING_MODE") != NULL){
-    analysis_mode = atoi(std::getenv("CRITTER_AUTOTUNING_MODE"));
-    assert(analysis_mode>0 && analysis_mode<=3);
-  } else{
-    analysis_mode = 0;
-  }
   if (std::getenv("CRITTER_AUTOTUNING_OPTIMIZE") != NULL){
     is_optimized = atoi(std::getenv("CRITTER_AUTOTUNING_OPTIMIZE"));
     assert(is_optimized>=0 && is_optimized<=1);
   } else{
     is_optimized = 0;
+  }
+  if (std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE") != NULL){
+    aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE"));
+    assert(aggregation_mode>=0 && aggregation_mode<=2);
+    if (is_optimized==0) { assert(aggregation_mode==0); }
+  } else{
+    aggregation_mode = 0;
   }
   if (std::getenv("CRITTER_COMM_ENVELOPE_PARAM") != NULL){
     comm_envelope_param = atoi(std::getenv("CRITTER_COMM_ENVELOPE_PARAM"));
@@ -1202,16 +1229,10 @@ void reset(bool track_statistical_data_override, bool schedule_kernels_override,
   } else{
     schedule_kernels = 1;
   }
-  if (std::getenv("CRITTER_COMM_SAMPLE_INCLUDE_IDLE") != NULL){
-    comm_sample_include_idle = atoi(std::getenv("CRITTER_COMM_SAMPLE_INCLUDE_IDLE"));
-  } else{
-    comm_sample_include_idle = 0;
-  }
-  if (analysis_mode>0){ analysis_mode = (track_statistical_data_override ? analysis_mode : 0); }
+//  if (aggregation_mode>0){ aggregation_mode = (track_statistical_data_override ? aggregation_mode : 0); }
   if (schedule_kernels==1){ schedule_kernels = (schedule_kernels_override ? schedule_kernels : 0); }
   update_analysis = (update_statistical_data_overide ? 1 : 0);
-  autotuning_propagate=1;// means nothing if analysis_mode != 3
-  if (force_steady_statistical_data_overide && analysis_mode<3){// DO NOT SET TO STEADY_STATE WHEN PERFORMING CRITICAL PATH ANALYSIS
+  if (force_steady_statistical_data_overide){// DO NOT SET TO STEADY_STATE WHEN PERFORMING CRITICAL PATH ANALYSIS
     // This branch is to be entered only after tuning a space of algorithmic parameterizations, in which the expectation is that all kernels,
     //   both comm and comp, have reached a sufficiently-predictable state (steady state). It is also only valid for per-process or volumetric analysis.
 /*

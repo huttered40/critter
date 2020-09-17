@@ -106,11 +106,10 @@ struct pattern_batch{
 
   int channel_count;
   int num_schedules;
-  int open_channel_count;
   double num_scheduled_units;
   double total_exec_time;
   double M1,M2;
-  std::set<channel*> closed_channels;
+  std::set<channel*> registered_channels;
 };
 
 // ****************************************************************************************************************************************************
@@ -139,15 +138,14 @@ struct intermediate_stats{
 };
 
 // ****************************************************************************************************************************************************
-extern int analysis_mode;
 extern int is_optimized;
-extern int autotuning_propagate;
+extern int aggregation_mode;
 extern int schedule_kernels;
 extern int update_analysis;
-extern int comm_sample_include_idle;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
 extern MPI_Datatype pattern_type;
+extern MPI_Datatype batch_type;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
@@ -214,6 +212,7 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
 void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
 void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param);
 void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param);
 void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats);
 
 int should_schedule(const pattern& p);
