@@ -73,12 +73,12 @@ int comp_unit_param;
 int comm_analysis_param;
 int comp_analysis_param;
 // ****************************************************************************************************************************************************
-comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int _dim_sizes[3], int _dim_strides[3], double _msg_size, int _partner){
+comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner){
   this->pattern_index = _pattern_index;
   // Envelope (non-message-size) parameterization specification
   this->tag = _tag;
-  if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],3*sizeof(int));
-  if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],3*sizeof(int));
+  if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],2*sizeof(int));
+  if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],2*sizeof(int));
   if (comm_envelope_param == 0){
     this->partner_offset = _rank-_partner;
   }
@@ -98,11 +98,11 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
 }
 
 // This constructor is used when transferring ownership of kernels following path propagation.
-comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[3], int _dim_strides[3], double _msg_size, int _partner_offset){
+comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset){
   this->pattern_index = _pattern_index;
   this->tag = _tag;
-  if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],3*sizeof(int));
-  if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],3*sizeof(int));
+  if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],2*sizeof(int));
+  if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],2*sizeof(int));
   this->partner_offset = _partner_offset;
   this->msg_size = _msg_size;
 }
@@ -110,8 +110,8 @@ comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[
 comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
-  if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],3*sizeof(int));
-  if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],3*sizeof(int));
+  if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],2*sizeof(int));
+  if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],2*sizeof(int));
   this->msg_size = _copy.msg_size;
   this->partner_offset = _copy.partner_offset;
 }
@@ -119,8 +119,8 @@ comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
 comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
   this->pattern_index = _copy.pattern_index;
   this->tag = _copy.tag;
-  if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],3*sizeof(int));
-  if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],3*sizeof(int));
+  if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],2*sizeof(int));
+  if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],2*sizeof(int));
   this->msg_size = _copy.msg_size;
   this->partner_offset = _copy.partner_offset;
   return *this;

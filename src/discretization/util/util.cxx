@@ -30,11 +30,10 @@ std::vector<comp_pattern_key> active_comp_pattern_keys;
 std::vector<pattern> steady_state_patterns;
 std::vector<pattern> active_patterns;
 sample_propagation_forest spf;
-std::map<MPI_Comm,channel*> comm_channel_map;
-std::map<int,channel*> p2p_channel_map;
+std::map<MPI_Comm,solo_channel*> comm_channel_map;
+std::map<int,solo_channel*> p2p_channel_map;
 std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
-std::vector<channel*> intermediate_channels;
 std::map<comm_pattern_key,bool> p2p_global_state_override;
 std::map<int,aggregate_channel*> aggregate_channel_map;
 
@@ -98,6 +97,7 @@ pattern_batch::pattern_batch(channel* node){
   this->channel_count=0;
   this->num_schedules = 0;
   this->M1=0; this->M2=0;
+/*
   this->open_channel_count=comm_channel_map.size() + p2p_channel_map.size();
   // Remove channels that are descendents and ancestors of 'node'
   if (node != nullptr){
@@ -106,6 +106,7 @@ pattern_batch::pattern_batch(channel* node){
     spf.fill_descendants(node,*this);
   }
   this->open_channel_count -= this->closed_channels.size();
+*/
 }
 
 pattern_batch::pattern_batch(const pattern_batch& _copy){
@@ -128,28 +129,6 @@ pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
   this->M2 = _copy.M2;
   this->open_channel_count = _copy.open_channel_count;
   this->closed_channels = _copy.closed_channels;
-  return *this;
-}
-
-// ****************************************************************************************************************************************************
-idle_pattern::idle_pattern(){
-  this->M1=0; this->M2=0;
-  this->num_schedules = 0;
-  this->num_non_schedules = 0;
-}
-
-idle_pattern::idle_pattern(const idle_pattern& _copy){
-  this->M1 = _copy.M1;
-  this->M2 = _copy.M2;
-  this->num_schedules = _copy.num_schedules;
-  this->num_non_schedules = _copy.num_non_schedules;
-}
-
-idle_pattern& idle_pattern::operator=(const idle_pattern& _copy){
-  this->M1 = _copy.M1;
-  this->M2 = _copy.M2;
-  this->num_schedules = _copy.num_schedules;
-  this->num_non_schedules = _copy.num_non_schedules;
   return *this;
 }
 
@@ -178,16 +157,289 @@ pattern_key_id& pattern_key_id::operator=(const pattern_key_id& _copy){
 
 // ****************************************************************************************************************************************************
 channel::channel(){
-  this->tag = 0;	// This member MUST be overwritten immediately after instantiation
-  this->frequency=0;
-  this->children.push_back(std::vector<channel*>());
+  this->offset = INT_MIN;	// will be updated later
 }
 
-aggregate_channel::aggregate_channel(){}
+std::vector<std::pair<int,int>> channel::generate_tuple(std::vector<int>& ranks, int new_comm_size){
+  std::vector<std::pair<int,int>> tuple_list;
+  if (new_comm_size<=1){
+    tuple_list.emplace_back(new_comm_size,1);
+  }
+  else{
+    int stride = ranks[1]-ranks[0];
+    int count = 0;
+    int jump=1;
+    int extra=0;
+    int i=0;
+    while (i < ranks.size()-1){
+      if ((ranks[i+jump]-ranks[i]) != stride){
+        tuple_list.emplace_back(count+extra+1,stride);// node->id.push_back(std::make_pair(count+extra+1,stride));
+        stride = ranks[i+1]-ranks[0];
+        i += jump;
+        if (tuple_list.size()==1){
+          jump=count+extra+1;
+        }
+        else{
+          jump = (count+extra+1)*tuple_list[tuple_list.size()-2].first;
+        }
+        extra=1;
+        count = 0;
+      } else{
+        count++;
+        i += jump;
+      }
+    }
+    if (count != 0){
+      tuple_list.emplace_back(count+extra+1,stride);//node->id.push_back(std::make_pair(count+extra+1,stride));
+    }
+  }
+  assert(tuple_list.size() >= 1);
+  assert(tuple_list.size() <= 2);
+  return tuple_list;
+}
+void channel::contract_tuple(std::vector<std::pair<int,int>>& tuple_list){
+  int index=0;
+  for (int i=1; i<tuple_list.size(); i++){
+    if (tuple_list[index].first*tuple_list[index].second == tuple_list[i].second){
+      tuple_list[index].first *= tuple_list[i].first;
+      tuple_list[index].second = std::min(tuple_list[index].second,tuple_list[i].second);
+    }
+    else{
+      index++;
+    }
+  }
+  int remove_len = tuple_list.size() - index - 1;
+  for (auto i=0; i<remove_len; i++){ tuple_list.pop_back(); }
+}
+int channel::enumerate_tuple(channel* node, std::vector<int>& process_list){
+  int count = 0;
+  if (node->id.size()==1){
+    int offset = node->offset;
+    for (auto i=0; i<node->id[0].first; i++){
+      process_list.push_back(offset + i*node->id[0].second);
+      count++;
+    }
+  } else{
+    assert(node->id.size()==2);
+    bool op = (node->id[0].first*node->id[0].second) < node->id[0].second;
+    int max_process;
+    if (op){
+      max_process = node->offset + channel::span(node->id[0]) + channel::span(node->id[1]);
+    } else{
+      max_process = node->offset + std::max(channel::span(node->id[0]), channel::span(node->id[1]));
+    }
+    int offset = node->offset;
+    for (auto i=0; i<node->id[1].first; i++){
+      for (auto j=0; j<node->id[0].first; j++){
+        if (offset + i*node->id[0].second <= max_process){ process_list.push_back(offset + i*node->id[0].second); count++; }
+      }
+      offset += node->id[1].second;
+    }
+  }
+  return count;
+}
+int channel::duplicate_process_count(std::vector<int>& process_list){
+  int count=0;
+  int save = process_list[0];
+  for (int i=0; i<process_list.size(); i++){
+    if (process_list[i] == save){
+      count++;
+    } else{
+      save = process_list[i];// restart duplicate tracking
+    }
+  }
+  return count;
+}
+int channel::translate_rank(MPI_Comm comm, int rank){
+  // Returns new rank relative to world communicator
+  auto node = comm_channel_map[comm];
+  int new_rank = node->offset;
+  for (auto i=0; i<node->id.size(); i++){
+    new_rank += node->id[i].second*(rank%node->id[i].first);
+    rank /= node->id[i].first;
+  }
+  return new_rank;
+}
+std::string channel::generate_tuple_string(channel* comm){
+  std::string str1 = "{ offset = " + std::to_string(comm->offset) + ", ";
+  for (auto it : comm->id){
+    str1 += " (" + std::to_string(it.first) + "," + std::to_string(it.second) + ")";
+  }
+  str1+=" }";
+  return str1;
+}
 
-int sample_propagation_forest::span(std::pair<int,int>& id){
+bool channel::verify_ancestor_relation(channel* comm1, channel* comm2){
+/*
+  // First check that the parent 'comm2' is not a p2p, regardless of whether 'tree_node' is a subcomm or p2p
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+  if (comm2->tag >= ((-1)*world_size)) return false;
+  //TODO: Commented out is old support for checking if a p2p is a child of a channel. Not sure if still correct.
+  // p2p nodes need special machinery for detecting whether its a child of 'node'
+  int rank = tree_node->offset - node->offset;//TODO; Fix if tree_node describes a aggregated p2p (rare case, we haven't needed it yet)
+  if (rank<0) return false;// corner case
+  for (int i=node->id.size()-1; i>=0; i--){
+    if (rank >= (node->id[i].first*node->id[i].second)){ return false; }
+    if (i>0) { rank %= node->id[i].second; }
+  }
+  if (rank%node->id[0].second != 0) return false;
+  return true;
+*/
+  if ((comm1->id.size() == 1) && (comm2->id.size() == 1)){
+    return ((comm1->offset >= comm2->offset) &&
+            (comm1->offset+channel::span(comm1->id[0]) <= comm2->offset+channel::span(comm2->id[0])) &&
+            ((comm1->offset - comm2->offset) % comm2->id[0].second == 0) &&
+            ((comm1->id[0].second % comm2->id[0].second) == 0));
+  }
+  // Spill to process list, sort, identify if |comm1| duplicates.
+  std::vector<int> process_list;
+  int count1 = channel::enumerate_tuple(comm1,process_list);
+  int count2 = channel::enumerate_tuple(comm2,process_list);
+  std::sort(process_list.begin(),process_list.end());
+  assert(process_list.size()>0);
+  int count = channel::duplicate_process_count(process_list);
+  return (count==count1);
+}
+bool channel::verify_sibling_relation(channel* comm1, channel* comm2){
+  if ((comm1->id.size() == 1) && (comm2->id.size() == 1)){
+    int min1 = comm1->offset + span(comm1->id[0]);
+    int min2 = comm2->offset + span(comm2->id[0]);
+    int _min_ = std::min(min1,min2);
+    int max1 = comm1->offset;
+    int max2 = comm2->offset;
+    int _max_ = std::max(max1,max2);
+    int _lcm_ = lcm(comm1->id[0].second,comm2->id[0].second);
+    return _lcm_ > (_min_ - _max_);
+  }
+  // Spill to process list, sort, identify if 1 duplicate.
+  // This is in place of a more specialized routine that iterates over the tuples to identify the pairs that identify as siblings.
+  std::vector<int> process_list;
+  int count1 = channel::enumerate_tuple(comm1,process_list);
+  int count2 = channel::enumerate_tuple(comm2,process_list);
+  std::sort(process_list.begin(),process_list.end());
+  assert(process_list.size()>0);
+  int count = channel::duplicate_process_count(process_list);
+  return (count==1);
+}
+int channel::span(std::pair<int,int>& id){
   return (id.first-1)*id.second;
 }
+
+
+solo_channel::solo_channel(){
+  this->tag = 0;	// This member MUST be overwritten immediately after instantiation
+  this->frequency=0;
+  this->children.push_back(std::vector<solo_channel*>());
+}
+bool solo_channel::verify_sibling_relation(solo_channel* node, int subtree_idx, std::vector<int>& skip_indices){
+  // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
+  // Return true if node's children are valid siblings
+  if (node->children[subtree_idx].size()<=1) return true;
+  // Check if all are p2p, all are subcomms, or if there is a mixture.
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+  int p2p_count=0; int subcomm_count=0;
+  for (auto i=0; i<node->children[subtree_idx].size(); i++){
+    if (node->children[subtree_idx][i]->tag >= ((-1)*world_size)){ p2p_count++; }
+    else { subcomm_count++; }
+  }
+  if ((subcomm_count>0) && (p2p_count>0)) return false;
+  if (subcomm_count==0) return true;// all p2p siblings are fine
+/*
+  std::vector<std::pair<int,int>> static_info;
+  int skip_index=0;
+  for (auto i=0; i<node->children[subtree_idx].size(); i++){
+    if ((skip_index<skip_indices.size()) && (i==skip_indices[skip_index])){
+      skip_index++;
+      continue;
+    }
+    if (node->children[subtree_idx][i]->tag >= ((-1)*world_size)){
+      continue;
+    }
+    for (auto j=0; j<node->children[subtree_idx][i]->id.size(); j++){
+      static_info.push_back(node->children[subtree_idx][i]->id[j]);
+    }
+  }
+  std::vector<std::pair<int,int>> gen_info;
+  std::vector<std::pair<int,int>> save_info;
+  bool valid_siblings=false;
+  generate_sibling_perm(static_info,gen_info,save_info,0,valid_siblings);
+  if (valid_siblings){
+    // Now we must run through the p2p, if any. I don't think we need to check if a p2p is also skipped via 'skip_indices', because if its a child of one of the communicators,
+    //   it'll b a child of the generated span
+    if (p2p_count>0){
+      auto* span_node = new solo_channel;
+      generate_span(span_node,save_info);
+      for (auto i=0; i<node->children[subtree_idx].size(); i++){
+        if (node->children[subtree_idx][i]->tag >= ((-1)*world_size)){
+          valid_siblings = channel::verify_ancestor_relation(node->children[subtree_idx][i],span_node);
+          if (!valid_siblings){
+            delete span_node;
+            return false;
+          }
+        }
+      }
+      delete span_node;
+    }
+  }
+  return valid_siblings;
+*/
+  // Compare last node in 'node->children[subtree_idx]' against those that are not skipped
+  auto& potential_sibling = node->children[subtree_idx][node->children[subtree_idx].size()-1];
+  assert(potential_sibling->id.size() == 1);
+  int skip_index=0;
+  for (auto i=0; i<node->children[subtree_idx].size()-1; i++){
+    if ((skip_index < skip_indices.size()) && (i == skip_indices[skip_index])){
+      skip_index++;
+      continue;
+    }
+    assert(node->children[subtree_idx][i]->id.size() == 1);
+    int min1 = potential_sibling->offset + span(potential_sibling->id[0]);
+    int min2 = node->children[subtree_idx][i]->offset + span(node->children[subtree_idx][i]->id[0]);
+    int _min_ = std::min(min1,min2);
+    int max1 = potential_sibling->offset;
+    int max2 = node->children[subtree_idx][i]->offset;
+    int _max_ = std::max(max1,max2);
+    int _lcm_ = lcm(potential_sibling->id[0].second,node->children[subtree_idx][i]->id[0].second);
+    if (_lcm_ < (_min_-_max_)) return false;
+    else{// corner case check
+      int count=0;
+      if (_max_ == max1){
+        if ((_max_ - max2) % node->children[subtree_idx][i]->id[0].second == 0) count++;
+      } else{
+        if ((_max_ - max1) % potential_sibling->id[0].second == 0) count++;
+      }
+      if (_min_ == min1){
+        if ((min2 - _min_) % node->children[subtree_idx][i]->id[0].second == 0) count++;
+      } else{
+        if ((min1 - _min_) % potential_sibling->id[0].second == 0) count++;
+      }
+      // If count == 2, then we have a situation in which the endpoints match, and we must have the lcm be >= _min_-_max_, but > _min_-_max_
+      if (count==2){
+        if (_lcm_ == (_min_-_max_)) return false;
+      }
+    }
+  }
+  return true;
+}
+
+aggregate_channel::aggregate_channel(std::vector<std::pair<int,int>>& tuple_list, int local_hash, int global_hash, int offset, int channel_size){
+  this->local_hash_tag = local_hash;
+  this->global_hash_tag = global_hash;
+  this->is_final = false;
+  this->num_channels=channel_size;
+  this->offset = offset;
+  this->id = tuple_list;
+}
+std::string aggregate_channel::generate_hash_history(aggregate_channel* comm){
+  std::string str1 = "{ hashes = ";
+  for (auto it : comm->channels){
+    str1 += std::to_string(it) + ",";
+  }
+  str1+=" }";
+  return str1;
+}
+
+/*
 void sample_propagation_forest::generate_span(channel* node, std::vector<std::pair<int,int>>& perm_tuples){
   // Assumed that perm_tuples define a permutation of channels that are communicator siblings
   //   Thus, 'perm_tuples' will be in sorted order of stride
@@ -206,6 +458,8 @@ void sample_propagation_forest::generate_span(channel* node, std::vector<std::pa
     else { assert(0); }
   }
 }
+*/
+/*
 void sample_propagation_forest::generate_sibling_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info,
                                                       std::vector<std::pair<int,int>>& save_info, int level, bool& valid_siblings){
   // static_info will shrink as tuples are transfered into gen_info. That means when 
@@ -237,6 +491,8 @@ void sample_propagation_forest::generate_sibling_perm(std::vector<std::pair<int,
     }
   }
 }
+*/
+/*
 void sample_propagation_forest::generate_partition_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level,
                                                         bool& valid_partition, int parent_max_span, int parent_min_stride){
   // static_info will shrink as tuples are transfered into gen_info. That means when 
@@ -269,143 +525,8 @@ void sample_propagation_forest::generate_partition_perm(std::vector<std::pair<in
     }
   }
 }
-bool sample_propagation_forest::is_child(channel* tree_node, channel* node){
-  // First check that the parent 'node' is not a p2p, regardless of whether 'tree_node' is a subcomm or p2p
-  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
-  if (node->tag >= ((-1)*world_size)) return false;
-  // Returns true iff tree_node is an ancestor of node
-/*
-  if (tree_node->tag < ((-1)*world_size)){
-    // Check all tuples
-    for (auto i=0; i<tree_node->id.size(); i++){
-      bool found_match=false;
-      for (auto j=0; j<node->id.size(); j++){
-        found_match = ((tree_node->id[i].second % node->id[j].second == 0) &&
-                      (tree_node->id[i].first < node->id[j].first) &&
-                      (tree_node->id[i].second < (node->id[j].first*node->id[j].second)) &&
-                      ((tree_node->id[i].first*tree_node->id[i].second) <= (node->id[j].first*node->id[j].second)));
-        if (found_match) break;
-      }// As long as one match is found, tuple id[i] fits
-      if (!found_match) return false;
-    }
-  } else{
-    // p2p nodes need special machinery for detecting whether its a child of 'node'
-    int rank = tree_node->offset - node->offset;//TODO; Fix if tree_node describes a aggregated p2p (rare case, we haven't needed it yet)
-    if (rank<0) return false;// corner case
-    for (int i=node->id.size()-1; i>=0; i--){
-      if (rank >= (node->id[i].first*node->id[i].second)){ return false; }
-      if (i>0) { rank %= node->id[i].second; }
-    }
-    if (rank%node->id[0].second != 0) return false;
-  }
-  return true;
 */
-  // Check all tuples -- for now just one
-  assert(tree_node->id.size() == 1);
-  assert(node->id.size() == 1);
-  for (auto i=0; i<tree_node->id.size(); i++){
-    bool found_match=false;
-    for (auto j=0; j<node->id.size(); j++){
-      found_match = ((tree_node->offset >= node->offset) &&
-                    (tree_node->offset+span(tree_node->id[i]) <= node->offset+span(node->id[j])) &&
-                    ((tree_node->offset - node->offset) % node->id[j].second == 0) &&
-                    ((tree_node->id[i].second % node->id[j].second) == 0));
-      if (found_match) break;
-    }// As long as one match is found, tuple id[i] fits
-    if (!found_match) return false;
-  }
-  return true;
-}
-bool sample_propagation_forest::are_siblings(channel* parent, int subtree_idx, std::vector<int>& skip_indices){
-  // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
-  // Return true if parent's children are valid siblings
-  if (parent->children[subtree_idx].size()<=1) return true;
-  // Check if all are p2p, all are subcomms, or if there is a mixture.
-  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
-  int p2p_count=0; int subcomm_count=0;
-  for (auto i=0; i<parent->children[subtree_idx].size(); i++){
-    if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){ p2p_count++; }
-    else { subcomm_count++; }
-  }
-  if ((subcomm_count>0) && (p2p_count>0)) return false;
-  if (subcomm_count==0) return true;// all p2p siblings are fine
 /*
-  std::vector<std::pair<int,int>> static_info;
-  int skip_index=0;
-  for (auto i=0; i<parent->children[subtree_idx].size(); i++){
-    if ((skip_index<skip_indices.size()) && (i==skip_indices[skip_index])){
-      skip_index++;
-      continue;
-    }
-    if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){
-      continue;
-    }
-    for (auto j=0; j<parent->children[subtree_idx][i]->id.size(); j++){
-      static_info.push_back(parent->children[subtree_idx][i]->id[j]);
-    }
-  }
-  std::vector<std::pair<int,int>> gen_info;
-  std::vector<std::pair<int,int>> save_info;
-  bool valid_siblings=false;
-  generate_sibling_perm(static_info,gen_info,save_info,0,valid_siblings);
-  if (valid_siblings){
-    // Now we must run through the p2p, if any. I don't think we need to check if a p2p is also skipped via 'skip_indices', because if its a child of one of the communicators,
-    //   it'll b a child of the generated span
-    if (p2p_count>0){
-      auto* span_node = new channel;
-      generate_span(span_node,save_info);
-      for (auto i=0; i<parent->children[subtree_idx].size(); i++){
-        if (parent->children[subtree_idx][i]->tag >= ((-1)*world_size)){
-          valid_siblings = this->is_child(parent->children[subtree_idx][i],span_node);
-          if (!valid_siblings){
-            delete span_node;
-            return false;
-          }
-        }
-      }
-      delete span_node;
-    }
-  }
-  return valid_siblings;
-*/
-  // Compare last node in 'parent->children[subtree_idx]' against those that are not skipped
-  auto& potential_sibling = parent->children[subtree_idx][parent->children[subtree_idx].size()-1];
-  assert(potential_sibling->id.size() == 1);
-  int skip_index=0;
-  for (auto i=0; i<parent->children[subtree_idx].size()-1; i++){
-    if ((skip_index < skip_indices.size()) && (i == skip_indices[skip_index])){
-      skip_index++;
-      continue;
-    }
-    assert(parent->children[subtree_idx][i]->id.size() == 1);
-    int min1 = potential_sibling->offset + span(potential_sibling->id[0]);
-    int min2 = parent->children[subtree_idx][i]->offset + span(parent->children[subtree_idx][i]->id[0]);
-    int _min_ = std::min(min1,min2);
-    int max1 = potential_sibling->offset;
-    int max2 = parent->children[subtree_idx][i]->offset;
-    int _max_ = std::max(max1,max2);
-    int _lcm_ = lcm(potential_sibling->id[0].second,parent->children[subtree_idx][i]->id[0].second);
-    if (_lcm_ < (_min_-_max_)) return false;
-    else{// corner case check
-      int count=0;
-      if (_max_ == max1){
-        if ((_max_ - max2) % parent->children[subtree_idx][i]->id[0].second == 0) count++;
-      } else{
-        if ((_max_ - max1) % potential_sibling->id[0].second == 0) count++;
-      }
-      if (_min_ == min1){
-        if ((min2 - _min_) % parent->children[subtree_idx][i]->id[0].second == 0) count++;
-      } else{
-        if ((min1 - _min_) % potential_sibling->id[0].second == 0) count++;
-      }
-      // If count == 2, then we have a situation in which the endpoints match, and we must have the lcm be >= _min_-_max_, but > _min_-_max_
-      if (count==2){
-        if (_lcm_ == (_min_-_max_)) return false;
-      }
-    }
-  }
-  return true;
-}
 bool sample_propagation_forest::partition_test(channel* parent, int subtree_idx){
   // Perform recursive permutation generation to identify if a permutation of tuples among siblings is valid
   // Return true if parent's children are valid siblings
@@ -425,24 +546,25 @@ bool sample_propagation_forest::partition_test(channel* parent, int subtree_idx)
   generate_partition_perm(static_info,gen_info,0,valid_partition,parent_max_span,parent_min_stride);
   return valid_partition;
 }
-void sample_propagation_forest::find_parent(channel* tree_root, channel* tree_node, channel*& parent){
+*/
+void sample_propagation_forest::find_parent(solo_channel* tree_root, solo_channel* tree_node, solo_channel*& parent){
   if (tree_root==nullptr) return;
   for (auto i=0; i<tree_root->children.size(); i++){
     for (auto j=0; j<tree_root->children[i].size(); j++){
       this->find_parent(tree_root->children[i][j],tree_node,parent);// Cannot be nullptrs. Nullptr children mean the children member is empty
     }
   }
-  if ((parent==nullptr) && (this->is_child(tree_node,tree_root))){
+  if ((parent==nullptr) && (channel::verify_ancestor_relation(tree_node,tree_root))){
     parent = tree_root;
   }
   return;
 }
-void sample_propagation_forest::fill_ancestors(channel* node, pattern_batch& batch){
+void sample_propagation_forest::fill_ancestors(solo_channel* node, pattern_batch& batch){
   if (node==nullptr) return;
   batch.closed_channels.insert(node);
   this->fill_ancestors(node->parent,batch);
 }
-void sample_propagation_forest::fill_descendants(channel* node, pattern_batch& batch){
+void sample_propagation_forest::fill_descendants(solo_channel* node, pattern_batch& batch){
   if (node==nullptr) return;
   batch.closed_channels.insert(node);
   for (auto i=0; i<node->children.size(); i++){
@@ -451,7 +573,7 @@ void sample_propagation_forest::fill_descendants(channel* node, pattern_batch& b
     }
   }
 }
-void sample_propagation_forest::clear_tree_info(channel* tree_root){
+void sample_propagation_forest::clear_tree_info(solo_channel* tree_root){
   if (tree_root==nullptr) return;
   for (auto i=0; i<tree_root->children.size(); i++){
     for (auto j=0; j<tree_root->children[i].size(); j++){
@@ -461,7 +583,7 @@ void sample_propagation_forest::clear_tree_info(channel* tree_root){
   tree_root->frequency=0;
   return;
 }
-void sample_propagation_forest::delete_tree(channel*& tree_root){
+void sample_propagation_forest::delete_tree(solo_channel*& tree_root){
   if (tree_root==nullptr) return;
   for (auto i=0; i<tree_root->children.size(); i++){
     for (auto j=0; j<tree_root->children[i].size(); j++){
@@ -480,23 +602,13 @@ sample_propagation_forest::~sample_propagation_forest(){
 void sample_propagation_forest::clear_info(){
   this->clear_tree_info(this->tree->root);
 }
-int sample_propagation_forest::translate_rank(MPI_Comm comm, int rank){
-  // Returns new rank relative to world communicator
-  auto node = comm_channel_map[comm];
-  int new_rank = node->offset;
-  for (auto i=0; i<node->id.size(); i++){
-    new_rank += node->id[i].second*(rank%node->id[i].first);
-    rank /= node->id[i].first;
-  }
-  return new_rank;
-}
-void sample_propagation_forest::insert_node(channel* node){
+void sample_propagation_forest::insert_node(solo_channel* node){
   // Fill in parent and children, and iterate over all trees of course.
   // Post-order traversal
   // Follow rules from paper to deduce first whether node can be a child of the current parent.
   assert(node != nullptr);
   bool is_comm = !(node->id.size()==1 && node->id[0].second==0);
-  channel* parent = nullptr;
+  solo_channel* parent = nullptr;
   //TODO: I assume here that we care about the first SPT in the SPF. Figure out how to fix this later
   this->find_parent(this->tree->root,node,parent);
   node->parent = parent;
@@ -509,11 +621,11 @@ void sample_propagation_forest::insert_node(channel* node){
     parent->children[i].push_back(node);
     std::vector<int> sibling_to_child_indices;
     for (auto j=0; j<parent->children[i].size()-1; j++){
-      if (this->is_child(parent->children[i][j],node)){
+      if (channel::verify_ancestor_relation(parent->children[i][j],node)){
         sibling_to_child_indices.push_back(j);
       }
     }
-    bool sibling_decision = this->are_siblings(parent,i,sibling_to_child_indices);
+    bool sibling_decision = solo_channel::verify_sibling_relation(parent,i,sibling_to_child_indices);
     if (sibling_decision){
       save_tree_idx=i;
       valid_parent=true;
@@ -542,18 +654,18 @@ void sample_propagation_forest::insert_node(channel* node){
     }
   }
   if (!valid_parent){
-    parent->children.push_back(std::vector<channel*>());
+    parent->children.push_back(std::vector<solo_channel*>());
     parent->children[parent->children.size()-1].push_back(node);
   }
 
   // sanity check for right now
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   if (world_comm_rank==8){
-    std::cout << "parent of node{ (" << node->hash_tag << "," << node->tag << "," << node->offset;
+    std::cout << "parent of node{ (" << node->local_hash_tag << "," << node->tag << "," << node->offset;
     for (auto i=0; i<node->id.size(); i++){
       std::cout << ") (" << node->id[i].first << "," << node->id[i].second << ")";
     }
-    std::cout << " } is { (" << parent->hash_tag << "," << parent->tag << "," << parent->offset;
+    std::cout << " } is { (" << parent->local_hash_tag << "," << parent->tag << "," << parent->offset;
     for (auto i=0; i<parent->id.size(); i++){
       std::cout << ") (" << parent->id[i].first << "," << parent->id[i].second << ")";
     }
@@ -561,7 +673,7 @@ void sample_propagation_forest::insert_node(channel* node){
     for (auto i=0; i<parent->children.size(); i++){
       std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
       for (auto j=0; j<parent->children[i].size(); j++){
-        std::cout << "\t\tchild " << j << " is { (" << parent->children[i][j]->hash_tag << "," << parent->children[i][j]->tag << "," << parent->children[i][j]->offset;
+        std::cout << "\t\tchild " << j << " is { (" << parent->children[i][j]->local_hash_tag << "," << parent->children[i][j]->tag << "," << parent->children[i][j]->offset;
         for (auto k=0; k<parent->children[i][j]->id.size(); k++){
           std::cout << ") (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
         }
@@ -853,26 +965,6 @@ void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
   dest.total_exec_time += src.total_exec_time;
 }
 
-void update_kernel_stats(idle_pattern& p, bool is_global_steady_state, volatile double exec_time){
-  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (!is_global_steady_state){
-    p.num_schedules++;
-    // Online computation of up to 4th-order central moments using compunication time samples
-    size_t n1 = p.num_schedules-1;
-    size_t n = p.num_schedules;
-    double x = exec_time;
-    double delta = x - p.M1;
-    double delta_n = delta / n;
-    double delta_n2 = delta_n*delta_n;
-    double term1 = delta*delta_n*n1;
-    p.M1 += delta_n;
-    p.M2 += term1;
-  }
-  else{
-    p.num_non_schedules++;
-  }
-}
-
 void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
@@ -947,7 +1039,7 @@ void allocate(MPI_Comm comm){
   mode_2_width = 15;
   communicator_count=INT_MIN;// to avoid conflict with p2p, which could range from (-p,p)
 
-  channel* world_node = new channel();
+  solo_channel* world_node = new solo_channel();
   world_node->tag = communicator_count++;
   world_node->offset = 0;
   world_node->id.push_back(std::make_pair(_world_size,1));
@@ -1170,10 +1262,6 @@ void clear(){
 
 void finalize(){
   // 'spf' deletion should occur automatically at program shutdown
-  //TODO: Fix memory leak of allocated channels in comm_channel_map and p2p_channel_map.
-  for (auto it : intermediate_channels){
-    delete it;
-  }
 }
 
 }

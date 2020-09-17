@@ -22,16 +22,16 @@ struct pattern_key{};
 // ****************************************************************************************************************************************************
 struct comm_pattern_key : public pattern_key{
 
-  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _dim_sizes[3]=nullptr, int _dim_strides[3]=nullptr, double _msg_size=-1, int _partner=-1);
-  comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[3], int _dim_strides[3], double _msg_size, int _partner_offset);
+  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _dim_sizes[2]=nullptr, int _dim_strides[2]=nullptr, double _msg_size=-1, int _partner=-1);
+  comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset);
   comm_pattern_key(const comm_pattern_key& _copy);
   comm_pattern_key& operator=(const comm_pattern_key& _copy);
   friend bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
   friend bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
 
   int tag;
-  int dim_sizes[3];// Allow up to 3 dimensions
-  int dim_strides[3];// Allow up to 3 dimensions
+  int dim_sizes[2];// Allow up to 2 dimensions
+  int dim_strides[2];// Allow up to 2 dimensions
   int partner_offset;
   int pattern_index;
   double msg_size;

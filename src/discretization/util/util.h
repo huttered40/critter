@@ -12,50 +12,66 @@ struct pattern_batch;
 // ****************************************************************************************************************************************************
 struct channel{
   channel();
-
-  int hash_tag;
-  int tag;
-  int frequency;
+  static std::vector<std::pair<int,int>> generate_tuple(std::vector<int>& ranks, int new_comm_size);
+  static void contract_tuple(std::vector<std::pair<int,int>>& tuple_list);
+  static int enumerate_tuple(channel* node, std::vector<int>& process_list);
+  static int duplicate_process_count(std::vector<int>& process_list);
+  static int translate_rank(MPI_Comm comm, int rank);
+  static bool verify_ancestor_relation(channel* comm1, channel* comm2);
+  static bool verify_sibling_relation(channel* comm1, channel* comm2);
+  static int span(std::pair<int,int>& id);
+  static std::string generate_tuple_string(channel* comm);
+ 
   int offset;
+  int local_hash_tag;
+  int global_hash_tag;
   std::vector<std::pair<int,int>> id;
-  channel* parent;
-  std::vector<std::vector<channel*>> children;
 };
 
-struct aggregate_channel{
-  aggregate_channel();
+struct aggregate_channel : public channel{
+  aggregate_channel(std::vector<std::pair<int,int>>& tuple_list, int local_hash, int global_hash, int offset, int channel_size);
+  static std::string generate_hash_history(aggregate_channel* comm);
 
-  int offset;
-  std::vector<std::vector<std::pair<int,int>>> channels;
+  bool is_final;
+  int num_channels;
+  std::set<int> channels;
+};
+
+struct solo_channel : public channel{
+  solo_channel();
+  static bool verify_sibling_relation(solo_channel* node, int subtree_idx, std::vector<int>& skip_indices);
+
+  int tag;
+  int frequency;
+  solo_channel* parent;
+  std::vector<std::vector<solo_channel*>> children;
 };
 
 struct sample_propagation_tree{
- channel* root;
+ solo_channel* root;
 };
 
 struct sample_propagation_forest{
   sample_propagation_forest();
   ~sample_propagation_forest();
 
-  void generate_span(channel* node, std::vector<std::pair<int,int>>& perm_tuples);
-  int translate_rank(MPI_Comm comm, int rank);
-  void insert_node(channel* node);
+  //void generate_span(channel* node, std::vector<std::pair<int,int>>& perm_tuples);
+  void insert_node(solo_channel* node);
   void clear_info();
-  void fill_ancestors(channel* node, pattern_batch& batch);
-  void fill_descendants(channel* node, pattern_batch& batch);
+  void fill_ancestors(solo_channel* node, pattern_batch& batch);
+  void fill_descendants(solo_channel* node, pattern_batch& batch);
 
   sample_propagation_tree* tree;
 private:
-  void delete_tree(channel*& tree_root);
-  void clear_tree_info(channel* tree_root);
+  void delete_tree(solo_channel*& tree_root);
+  void clear_tree_info(solo_channel* tree_root);
+/*
   void generate_sibling_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, std::vector<std::pair<int,int>>& save_info, int level, bool& valid_siblings);
   void generate_partition_perm(std::vector<std::pair<int,int>>& static_info, std::vector<std::pair<int,int>>& gen_info, int level, bool& valid_partition,
                                int parent_max_span, int parent_min_stride);
-  bool is_child(channel* tree_node, channel* node);
-  bool are_siblings(channel* node, int subtree_idx, std::vector<int>& skip_indices);
-  bool partition_test(channel* parent, int subtree_idx);
-  void find_parent(channel* tree_root, channel* tree_node, channel*& parent);
-  int span(std::pair<int,int>& id);
+*/
+  //bool partition_test(channel* parent, int subtree_idx);
+  void find_parent(solo_channel* tree_root, solo_channel* tree_node, solo_channel*& parent);
 };
 
 // ****************************************************************************************************************************************************
@@ -95,20 +111,6 @@ struct pattern_batch{
   double total_exec_time;
   double M1,M2;
   std::set<channel*> closed_channels;
-};
-
-// ****************************************************************************************************************************************************
-struct idle_pattern{
-  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
-  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
-  //     to handle that.
-  idle_pattern();
-  idle_pattern(const idle_pattern& _copy);
-  idle_pattern& operator=(const idle_pattern& _copy);
-
-  int num_schedules;
-  int num_non_schedules;
-  double M1,M2;
 };
 
 // ****************************************************************************************************************************************************
@@ -159,11 +161,10 @@ extern std::vector<comp_pattern_key> active_comp_pattern_keys;
 extern std::vector<pattern> steady_state_patterns;
 extern std::vector<pattern> active_patterns;
 extern sample_propagation_forest spf;
-extern std::map<MPI_Comm,channel*> comm_channel_map;
-extern std::map<int,channel*> p2p_channel_map;
+extern std::map<MPI_Comm,solo_channel*> comm_channel_map;
+extern std::map<int,solo_channel*> p2p_channel_map;
 extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
-extern std::vector<channel*> intermediate_channels;
 extern std::map<comm_pattern_key,bool> p2p_global_state_override;
 extern std::map<int,aggregate_channel*> aggregate_channel_map;
 
@@ -212,7 +213,6 @@ bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int a
 void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_time, double unit_count);
 void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
 void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param);
-void update_kernel_stats(idle_pattern& p, bool is_global_steady_state, volatile double exec_time);
 void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
 void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats);
 

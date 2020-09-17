@@ -9,81 +9,143 @@ namespace internal{
 namespace discretization{
 
 void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
+  int world_comm_size; MPI_Comm_size(MPI_COMM_WORLD,&world_comm_size);
+  int old_comm_size; MPI_Comm_size(oldcomm,&old_comm_size);
   int new_comm_size; MPI_Comm_size(newcomm,&new_comm_size);
-  assert(new_comm_size>0);
-  //int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
-  std::vector<int> gathered_ranks(new_comm_size,0);
-  PMPI_Allgather(&world_comm_rank,1,MPI_INT,&gathered_ranks[0],1,MPI_INT,newcomm);
+  int new_comm_rank; MPI_Comm_rank(newcomm,&new_comm_rank);
+
+  // There is no way to know whether each generated newcomm is of equal size without global knowledge of all colors specified (i.e. an Allgather)
+  //   Therefore, I will just set the below assert inside the branch, which is motivated by the fact that I am not yet sure how to handle stride-specification for channels with a single process.
+  if (world_comm_size>1) assert(new_comm_size>1);
+  //int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
+  solo_channel* node = new solo_channel();
+  std::vector<int> gathered_info(new_comm_size,0);
+  PMPI_Allgather(&world_comm_rank,1,MPI_INT,&gathered_info[0],1,MPI_INT,newcomm);
   // Now we detect the "color" (really the stride) via iteration
   // Step 1: subtract out the offset from 0 : assuming that the key arg to comm_split didn't re-shuffle
   //         I can try to use std::min_element vs. writing my own manual loop
-  int offset = gathered_ranks[0];
-  for (auto i=1; i<gathered_ranks.size(); i++) { offset = std::min(offset,gathered_ranks[i]); }
-  for (auto i=0; i<gathered_ranks.size(); i++) { gathered_ranks[i] -= offset; }
-  std::sort(gathered_ranks.begin(),gathered_ranks.end());
-  channel* node = new channel();
-  node->offset = offset;
-  if (new_comm_size<=1){
-    node->id.push_back(std::make_pair(new_comm_size,1));
-  }
-  else{
-    int stride = gathered_ranks[1]-gathered_ranks[0];
-    int count = 0;
-    int jump=1;
-    int extra=0;
-    int i=0;
-    while (i < gathered_ranks.size()-1){
-      if ((gathered_ranks[i+jump]-gathered_ranks[i]) != stride){
-        node->id.push_back(std::make_pair(count+extra+1,stride));
-        stride = gathered_ranks[i+1]-gathered_ranks[0];
-        i += jump;
-        if (node->id.size()==1){
-          jump=count+extra+1;
-        }
-        else{
-          jump = (count+extra+1)*node->id[node->id.size()-2].first;
-        }
-        extra=1;
-        count = 0;
-      } else{
-        count++;
-        i += jump;
-      }
-    }
-    if (count != 0){
-      node->id.push_back(std::make_pair(count+extra+1,stride));
-    }
-  }
+  std::sort(gathered_info.begin(),gathered_info.end());
+  node->offset = gathered_info[0];
+  for (auto i=0; i<gathered_info.size(); i++) { gathered_info[i] -= node->offset; }
+  node->id = channel::generate_tuple(gathered_info,new_comm_size);
   node->tag = communicator_count++;
-  std::string channel_hash_str = "";
+  // Local hash_str will include (size,stride) of each tuple
+  // Global hash_str will include (stride) of each tuple
+  std::string local_channel_hash_str = "";
+  std::string global_channel_hash_str = "";
   for (auto i=0; i<node->id.size(); i++){
-    channel_hash_str += ".." + std::to_string(node->id[i].first) + "." + std::to_string(node->id[i].second);
+    local_channel_hash_str += ".." + std::to_string(node->id[i].first) + "." + std::to_string(node->id[i].second);
+    global_channel_hash_str += "." + std::to_string(node->id[i].second);
   }
-  node->hash_tag = std::hash<std::string>()(channel_hash_str);// will avoid any local overlap. This is a local hash
+  node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);// will avoid any local overlap.
+  node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);// will avoid any global overlap.
   spf.insert_node(node);// This call will just fill in SPT via node's parent/children members, and the members of related channels
   comm_channel_map[newcomm] = node;
 
-  //TODO: Recursively build up other legal aggregate channels that include 'node'
-  for (auto& it : aggregate_channel_map){
-    // Check if 'node' is a sibling of all existing aggregates already formed. Note that we do not include p2p aggregates, nor p2p+comm aggregates.
-    // Once the p2p tree is chosen, the batch is stuck with it. Same thing for comm tree if its chosen by a batch.
-    // If current aggregate forms a larger one with 'node', reset its 'is_final' member to be false, and always set a new aggregate's 'is_final' member to true
+  // Recursively build up other legal aggregate channels that include 'node'
+  std::vector<int> local_hash_array;
+  std::vector<aggregate_channel*> new_aggregate_channels;
+  int max_sibling_node_size=0;
+  std::vector<int> save_max_indices;
+  // Check if 'node' is a sibling of all existing aggregates already formed. Note that we do not include p2p aggregates, nor p2p+comm aggregates.
+  for (auto it : aggregate_channel_map){
+    // 0. Check that each process in newcomm is processing the same aggregate. Can use local_hash_tag because we are checking within newcomm alone.
+    int verify_global_agg_hash;
+    PMPI_Allreduce(&it.second->local_hash_tag,&verify_global_agg_hash,1,MPI_INT,MPI_MIN,newcomm);
+    assert(verify_global_agg_hash == it.second->local_hash_tag);
+    // 1. Check if 'node' is a child of 'aggregate'
+    bool is_child_1 = channel::verify_ancestor_relation(it.second,node);
+    // 2. Check if 'aggregate' is a child of 'node'
+    bool is_child_2 = channel::verify_ancestor_relation(node,it.second);
+    // 3. Check if 'node'+'aggregate' form a sibling
+    bool is_sibling = channel::verify_sibling_relation(it.second,node);
+    if (is_sibling && !is_child_1 && !is_child_2){
+      // If current aggregate forms a larger one with 'node', reset its 'is_final' member to be false, and always set a new aggregate's 'is_final' member to true
+      it.second->is_final = false;
+      int new_local_hash_tag = it.second->local_hash_tag ^ node->local_hash_tag;
+      int new_global_hash_tag = it.second->global_hash_tag ^ node->global_hash_tag;
+      auto new_aggregate_channel = new aggregate_channel(it.second->id,new_local_hash_tag,new_global_hash_tag,0,it.second->num_channels+1);// '0' gets updated below
+      // Set the hashes of each communicator.
+      new_aggregate_channel->channels.insert(node->local_hash_tag);
+      for (auto it_2 : it.second->channels){
+        new_aggregate_channel->channels.insert(it_2);
+      }
+      // Communicate to attain the minimum offset of all process in newcomm's aggregate channel.
+      PMPI_Allgather(&it.second->offset,1,MPI_INT,&gathered_info[0],1,MPI_INT,newcomm);
+      std::sort(gathered_info.begin(),gathered_info.end());
+      new_aggregate_channel->offset = gathered_info[0];
+      assert(new_aggregate_channel->offset <= it.second->offset);
+      for (auto i=0; i<gathered_info.size(); i++) { gathered_info[i] -= new_aggregate_channel->offset; }
+      auto tuple_list = channel::generate_tuple(gathered_info,new_comm_size);
+      // Generate IR for new aggregate by replacing necomm's tuple with that of the offsets of its distinct aggregates.
+      for (auto it : tuple_list){
+        new_aggregate_channel->id.push_back(it);
+      }
+      std::sort(new_aggregate_channel->id.begin(),new_aggregate_channel->id.end(),[](const std::pair<int,int>& p1, const std::pair<int,int>& p2){return p1.second < p2.second;});
+      channel::contract_tuple(new_aggregate_channel->id);
+      new_aggregate_channels.push_back(new_aggregate_channel);
+      local_hash_array.push_back(new_local_hash_tag);
+      if (new_aggregate_channels[new_aggregate_channels.size()-1]->num_channels > max_sibling_node_size){
+        max_sibling_node_size = new_aggregate_channels[new_aggregate_channels.size()-1]->num_channels;
+        save_max_indices.clear();
+        save_max_indices.push_back(new_aggregate_channels.size()-1);
+      }
+      else if (new_aggregate_channels[new_aggregate_channels.size()-1]->num_channels == max_sibling_node_size){
+        save_max_indices.push_back(new_aggregate_channels.size()-1);
+      }
+    }
   }
-  // Always treat 1-communicator channels as trivial aggregate channels.
-  aggregate_channel* agg_node = new aggregate_channel();
-  aggregate_channel_map[node->hash_tag] = agg_node;
+  // Populate the aggregate_channel_map with the saved pointers that were created in the loop above.
+  int index_window=0;
+  for (auto i=0; i<new_aggregate_channels.size(); i++){
+    // Update is_final to true iff its the largest subset size that includes 'node' (or if there are multiple)
+    if ((index_window < save_max_indices.size()) && (save_max_indices[index_window]==i)){ 
+      new_aggregate_channels[i]->is_final=true;
+      index_window++;
+    }
+    assert(aggregate_channel_map.find(new_aggregate_channels[i]->local_hash_tag) == aggregate_channel_map.end());
+    aggregate_channel_map[new_aggregate_channels[i]->local_hash_tag] = new_aggregate_channels[i];
+    if (world_comm_rank == 8){
+      auto str1 = channel::generate_tuple_string(new_aggregate_channels[i]);
+      auto str2 = aggregate_channel::generate_hash_history(new_aggregate_channels[i]);
+      std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << new_aggregate_channels[i]->local_hash_tag << " " << new_aggregate_channels[i]->global_hash_tag << "), num_channels - " << new_aggregate_channels[i]->num_channels << std::endl;
+    }
+  }
 
-  //TODO: Either add the butterfly communication pattern before or after the 2 lines above.
-  
-
+  // Verify that the aggregates are build with the same hashes
+  int local_sibling_size = local_hash_array.size();
 /*
-  // Note that a communicator may be split in a way in which the sizes or strides do not align among the new split sub-communicators
-  // For that reason, we must only check whether the hash is valid within newcomm itself, rather than within oldcomm
-  int min_hash_tag=0;
-  PMPI_Allreduce(&channel->hash_tag,&min_hash_tag,1,MPI_INT,MPI_MIN,newcomm);
-  assert(min_hash_tag == channel->hash_tag);
+  int global_sibling_size;
+  PMPI_Allreduce(&local_sibling_size,&global_sibling_size,1,MPI_INT,MPI_MIN,newcomm);
+  assert(local_sibling_size == global_sibling_size);
+  if (global_sibling_size > 0){
+    std::vector<int> global_hash_array(global_sibling_size);
+    std::vector<int> global_offset_array(global_sibling_size);
+    PMPI_Allreduce(&local_hash_array[0],&global_hash_array[0],global_sibling_size,MPI_INT,MPI_MIN,newcomm);
+    for (auto i=0; i<local_hash_array.size(); i++){
+      assert(local_hash_array[i] == global_hash_array[i]);
+    }
+    PMPI_Allreduce(&local_offset_array[0],&global_offset_array[0],global_sibling_size,MPI_INT,MPI_MIN,newcomm);
+    for (auto i=0; i<global_offset_array.size(); i++){
+      aggregate_channel_map[local_hash_array[i]]->offset = global_offset_array[i];
+    }
+  }
 */
+  // Always treat 1-communicator channels as trivial aggregate channels.
+  aggregate_channel* agg_node = new aggregate_channel(node->id,node->local_hash_tag,node->global_hash_tag,node->offset,1);
+  agg_node->channels.insert(node->local_hash_tag);
+  assert(aggregate_channel_map.find(node->local_hash_tag) == aggregate_channel_map.end());
+  aggregate_channel_map[node->local_hash_tag] = agg_node;
+  if (world_comm_rank == 8){
+    auto str1 = channel::generate_tuple_string(agg_node);
+    auto str2 = aggregate_channel::generate_hash_history(agg_node);
+    std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
+  }
+  
+  if (local_sibling_size==0){// Only if 'node' exists as the smallest trivial aggregate should it be considered final. Think of 'node==world' of the very first registered channel
+    aggregate_channel_map[node->local_hash_tag]->is_final=true;
+  }
   PMPI_Barrier(oldcomm);
   computation_timer = MPI_Wtime();
 }
@@ -247,7 +309,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
   auto world_key = key; int world_rank;
   if (tracker.partner1 != -1){
-    world_rank = spf.translate_rank(tracker.comm,tracker.partner1); 
+    world_rank = channel::translate_rank(tracker.comm,tracker.partner1); 
     world_key.partner_offset = tracker.partner1;//world_rank;
     if (p2p_global_state_override.find(world_key) == p2p_global_state_override.end()){
       p2p_global_state_override[world_key] = true;// not in global steady state
@@ -267,14 +329,16 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   if (analysis_mode >= 2){
     if (tracker.partner1 != -1){// p2p
       int my_world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_world_rank);
-      auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
+      auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
       if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
-        channel* node = new channel();
+        solo_channel* node = new solo_channel();
         node->tag = key.partner_offset;
         node->offset = std::min(my_world_rank,world_partner_rank);
         node->id.push_back(std::make_pair(2,abs(my_world_rank-world_partner_rank)));
         std::string channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
-        node->hash_tag = world_partner_rank;// will avoid any local overlap. This is a local hash
+        //TODO: Not sure yet what I am doing with these two hashes.
+        node->local_hash_tag = world_partner_rank;// will avoid any local overlap. This is a local hash
+        node->global_hash_tag = world_partner_rank;// will avoid any local overlap. This is a local hash
         spf.insert_node(node);
         p2p_channel_map[world_partner_rank] = node;
       }
@@ -400,12 +464,12 @@ void path::complete_comm(blocking& tracker, int recv_source){
     if (comm_batch_map.find(key) == comm_batch_map.end()){
       // Register the channel's batches
       if (tracker.partner1 != -1){
-        auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
+        auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
         assert(p2p_channel_map.find(world_partner_rank) != p2p_channel_map.end());
         comm_batch_map[key].emplace_back(p2p_channel_map[world_partner_rank]);
       } else{
         assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
-        comm_batch_map[key].emplace_back(comm_channel_map[tracker.comm]);
+        comm_batch_map[key].emplace_back(aggregate_channel_map[comm_channel_map[tracker.comm]->local_hash_tag]);
       }
     }
     bool found_batch=false;
@@ -422,10 +486,10 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
     if (!found_batch){
       if (tracker.partner1 != -1){
-        auto world_partner_rank = spf.translate_rank(tracker.comm,tracker.partner1);
+        auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
         batch_list.push_back(pattern_batch(p2p_channel_map[world_partner_rank]));
       } else{
-        batch_list.push_back(pattern_batch(comm_channel_map[tracker.comm]));
+        batch_list.push_back(pattern_batch(aggregate_channel_map[comm_channel_map[tracker.comm]->local_hash_tag]));
       }
       index = batch_list.size()-1;
     }
@@ -471,6 +535,35 @@ void path::complete_comm(blocking& tracker, int recv_source){
         // TODO: Note: post-propagation, check if any batch has an open_count==0. If so, add it to the complete pathset.
         //         Then figure out whether to update its values to indicate no samples, or remove it altogether. After thinking about it,
         //           its probably safest to swap with the last pattern_batch, and then pop_back.
+        if (tracker.partner1 == -1){
+        /*
+          //TODO: Either add the butterfly communication pattern before or after the 2 lines above.
+          size_t active_size = new_comm_size;
+          size_t active_rank = new_comm_rank;
+          size_t active_mult = 1;
+          while (active_size>1){
+            if (active_rank % 2 == 1){
+              int partner = (active_rank-1)*active_mult;
+              int blah1 = 0;
+              // Send sizes before true message so that receiver can be aware of the array sizes for subsequent communication
+              PMPI_Send(&blah1,1,MPI_INT,partner,internal_tag,newcomm);
+              break;// Incredibely important. Senders must not update {active_size,active_rank,active_mult}
+            }
+            else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+              int partner = (active_rank+1)*active_mult;
+              int blah1;
+              // Recv sizes of arrays to create buffers for subsequent communication
+              PMPI_Recv(&blah1,1,MPI_INT,partner,internal_tag,newcomm,MPI_STATUS_IGNORE);
+            }
+            active_size = active_size/2 + active_size%2;
+            active_rank /= 2;
+            active_mult *= 2;
+          }
+          // Broadcast final exchanged kernel statistics
+          int blah1 = 0;
+          PMPI_Bcast(&blah1,1,MPI_INT,0,newcomm);
+        */
+        }
       }
     }
   }
