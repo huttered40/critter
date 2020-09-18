@@ -916,7 +916,7 @@ bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (aggregation_mode == 0){ return is_steady(index,analysis_param); }
+  if (aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){ return is_steady(index,analysis_param); }
   else if (aggregation_mode >= 1){
     auto& active_batches = comm_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
@@ -929,7 +929,7 @@ bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (aggregation_mode == 0){ return is_steady(index,analysis_param); }
+  if (aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){ return is_steady(index,analysis_param); }
   else if (aggregation_mode >= 1){
     auto& active_batches = comp_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);

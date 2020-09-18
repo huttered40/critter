@@ -190,7 +190,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
     int index=0;
     while (index < batch_list.size()){
       // Look for the first inactive batch and aggregate new sample with it
-      if (batch_list[index].channel_count==0){// inactive state
+      if (batch_list[index].hash_id==0){// inactive state
         found_batch=true;
         break;
       } else{
@@ -460,7 +460,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     int index=0;
     while (index < batch_list.size()){
       // Look for the first inactive batch and aggregate new sample with it
-      if (batch_list[index].channel_count==0){// inactive state
+      if (batch_list[index].hash_id==0){// inactive state
         found_batch=true;
         break;
       } else{
@@ -1287,6 +1287,9 @@ void path::single_stage_sample_aggregation(blocking& tracker){
     active_rank /= 2;
     active_mult *= 2;
   }
+  // Clear batch maps as samples residing in them have been exhausted in this aggregation strategy.
+  comm_batch_map.clear();
+  comp_batch_map.clear();
   // Broadcast final exchanged kernel statistics
   if (comm_rank==0){
     for (auto& it : comm_batch_map){
@@ -1335,7 +1338,6 @@ void path::single_stage_sample_aggregation(blocking& tracker){
     bool is_steady = steady_test(id,comm_pattern_map[id],comm_analysis_param);
     set_kernel_state(comm_pattern_map[id],!is_steady);
   }
-  //TODO: Now incoroporate this not into comp_batch_map, but into comp_pattern_map
   for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
     comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
                         foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
@@ -1356,12 +1358,212 @@ void path::single_stage_sample_aggregation(blocking& tracker){
     bool is_steady = steady_test(id,comp_pattern_map[id],comp_analysis_param);
     set_kernel_state(comp_pattern_map[id],!is_steady);
   }
-  // Clear batch maps as samples residing in them have been exhausted in this aggregation strategy.
-  comm_batch_map.clear();
-  comp_batch_map.clear();
 }
 void path::multi_stage_sample_aggregation(blocking& tracker){
-  assert(0);
+/*
+  int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
+  int comm_size; MPI_Comm_size(tracker.comm,&comm_size);
+  std::vector<comm_pattern_key> foreign_active_comm_pattern_keys;
+  std::vector<comp_pattern_key> foreign_active_comp_pattern_keys;
+  std::vector<pattern_batch_propagate> foreign_active_batches;
+
+  // Each process must update its batches' state uniformally to allow fair comparison within the butterfly
+  for (auto& it : comm_batch_map){
+    for (auto j=0; j<it.second.size(); j++){
+      // First check to see if the batch has propgated with this channel before
+      if (it.second[j].registered_channels.find(comm_channel_map[tracker.comm]) == it.second[j].registered_channels.end()){
+        // Second check to see if this is a valid channel ton propagate in
+        int temp_tag = it.second[j].hash_id ^ comm_channel_map[tracker.comm]->global_hash_tag;
+        if (aggregate_channel_map.find(temp_tag) != aggregate_channel_map.end()){
+          it.hash_id ^= comm_channel_map[tracker.comm]->global_hash_tag;
+        }
+      }
+    }
+  }
+  for (auto& it : comp_batch_map){
+    for (auto j=0; j<it.second.size(); j++){
+      // First check to see if the batch has propgated with this channel before
+      if (it.second[j].registered_channels.find(comm_channel_map[tracker.comm]) == it.second[j].registered_channels.end()){
+        // Second check to see if this is a valid channel ton propagate in
+        int temp_tag = it.second[j].hash_id ^ comm_channel_map[tracker.comm]->global_hash_tag;
+        if (aggregate_channel_map.find(temp_tag) != aggregate_channel_map.end()){
+          it.hash_id ^= comm_channel_map[tracker.comm]->global_hash_tag;
+        }
+      }
+    }
+  }
+
+  //TODO: Either add the butterfly communication pattern before or after the 2 lines above.
+  size_t active_size = comm_size;
+  size_t active_rank = comm_rank;
+  size_t active_mult = 1;
+  while (active_size>1){
+    if (active_rank % 2 == 1){
+      std::vector<comm_pattern_key> comm_pattern_key_list;
+      std::vector<comp_pattern_key> comp_pattern_key_list;
+      std::vector<pattern_batch_propagate> batch_list;
+      // Local batches can only be added into batch list once. This should be done here, rather than before the loop
+      for (auto& it : comm_batch_map){
+        for (auto j=0; j<it.second.size(); j++){
+          // First check to see if the batch has propgated with this channel before
+          if (it.second[j].registered_channels.find(comm_channel_map[tracker.comm]) == it.second[j].registered_channels.end()){
+            // Second check to see if this is a valid channel ton propagate in
+            if (aggregate_channel_map.find(it.second[j].hash_id) != aggregate_channel_map.end()){
+              comm_pattern_key_list.push_back(it.first);
+              batch_list.emplace_back(it.second[j]);
+            }
+          }
+        }
+      }
+      for (auto& it : comp_batch_map){
+        for (auto j=0; j<it.second.size(); j++){
+          // First check to see if the batch has propgated with this channel before
+          if (it.second[j].registered_channels.find(comm_channel_map[tracker.comm]) == it.second[j].registered_channels.end()){
+            // Second check to see if this is a valid channel ton propagate in
+            if (aggregate_channel_map.find(it.second[j].hash_id) != aggregate_channel_map.end()){
+              comp_pattern_key_list.push_back(it.first);
+              batch_list.emplace_back(it.second[j]);
+            }
+          }
+        }
+      }
+      int partner = (active_rank-1)*active_mult;
+      int size_array[3] = {comm_pattern_key_list.size(),comp_pattern_key_list.size(),batch_list.size()};
+      // Send sizes before true message so that receiver can be aware of the array sizes for subsequent communication
+      PMPI_Send(&size_array[0],3,MPI_INT,partner,internal_tag,tracker.comm);
+      // Send active patterns with keys
+      PMPI_Send(&comm_pattern_key_list[0],size_array[0],comm_pattern_key_type,partner,internal_tag2,tracker.comm);
+      PMPI_Send(&comp_pattern_key_list[0],size_array[1],comp_pattern_key_type,partner,internal_tag2,tracker.comm);
+      PMPI_Send(&batch_list[0],size_array[2],batch_type,partner,internal_tag2,tracker.comm);
+      break;// Incredibely important. Senders must not update {active_size,active_rank,active_mult}
+    }
+    else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+      int partner = (active_rank+1)*active_mult;
+      int size_array[3] = {0,0,0};
+      // Recv sizes of arrays to create buffers for subsequent communication
+      PMPI_Recv(&size_array[0],3,MPI_INT,partner,internal_tag,tracker.comm,MPI_STATUS_IGNORE);
+      // Recv partner's active patterns with keys
+      foreign_active_comm_pattern_keys.resize(size_array[0]);
+      foreign_active_comp_pattern_keys.resize(size_array[1]);
+      foreign_active_batches.resize(size_array[2]);
+      PMPI_Recv(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&foreign_active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&foreign_active_batches[0],size_array[2],batch_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      // Iterate over each received batch and incproporate it into its running list of batches in the other arrays
+      for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
+        comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
+                            foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+        pattern_batch temp; temp.M1 = foreign_active_batches[i].M1; temp.M2 = foreign_active_batches[i].M2; temp.hash_id = foreign_active_batches[i].hash_id;
+                            temp.channel_count = foreign_active_batches[i].channel_count; temp.num_schedules = foreign_active_batches[i].num_schedules;
+                            temp.num_scheduled_units = foreign_active_batches[i].num_scheduled_units; temp.total_exec_time = foreign_active_batches[i].total_exec_time;
+        if (comm_batch_map.find(id) != comm_batch_map.end()){
+          // Search for match from within comm_batch_map -- this forces careful hash_id state updating to keep state consistent across processors for accurate matching.
+          for (auto& it : comm_batch_map[id]){
+            if (it.hash_id == foreign_active_batches[i].hash_id){
+              update_kernel_stats(it,temp,comm_analysis_param);
+              break;
+            }
+          }
+        }
+      }
+      for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
+        comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
+                            foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
+                            foreign_active_comp_pattern_keys[i].param4,foreign_active_comp_pattern_keys[i].param5); 
+        int j = size_array[0]+i;
+        pattern_batch temp; temp.M1 = foreign_active_batches[j].M1; temp.M2 = foreign_active_batches[j].M2; temp.hash_id = foreign_active_batches[j].hash_id;
+                            temp.channel_count = foreign_active_batches[j].channel_count; temp.num_schedules = foreign_active_batches[j].num_schedules;
+                            temp.num_scheduled_units = foreign_active_batches[j].num_scheduled_units; temp.total_exec_time = foreign_active_batches[j].total_exec_time;
+        if (comp_batch_map.find(id) != comp_batch_map.end()){
+          // Search for match from within comm_batch_map -- this forces careful hash_id state updating to keep state consistent across processors for accurate matching.
+          for (auto& it : comp_batch_map[id]){
+            if (it.hash_id == foreign_active_batches[j].hash_id){
+              update_kernel_stats(it,temp,comm_analysis_param);
+              break;
+            }
+          }
+        }
+      }
+    }
+    active_size = active_size/2 + active_size%2;
+    active_rank /= 2;
+    active_mult *= 2;
+  }
+  // Broadcast final exchanged kernel statistics
+  if (comm_rank==0){
+    for (auto& it : comm_batch_map){
+      assert(it.second.size() < 2);
+      if (it.second.size() == 1){
+        foreign_active_comm_pattern_keys.push_back(it.first);
+        foreign_active_batches.push_back(it.second[0]);
+      }
+    }
+    for (auto& it : comp_batch_map){
+      assert(it.second.size() < 2);
+      if (it.second.size() == 1){
+        foreign_active_comp_pattern_keys.push_back(it.first);
+        foreign_active_batches.push_back(it.second[0]);
+      }
+    }
+  }
+  int size_array[3] = {comm_rank==0 ? foreign_active_comm_pattern_keys.size() : 0,
+                       comm_rank==0 ? foreign_active_comp_pattern_keys.size() : 0,
+                       comm_rank==0 ? foreign_active_batches.size() : 0};
+  PMPI_Bcast(&size_array[0],3,MPI_INT,0,tracker.comm);
+  if (comm_rank != 0){
+    foreign_active_comm_pattern_keys.resize(size_array[0]);
+    foreign_active_comp_pattern_keys.resize(size_array[1]);
+    foreign_active_batches.resize(size_array[2]);
+  }
+  PMPI_Bcast(&foreign_active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,0,tracker.comm);
+  PMPI_Bcast(&foreign_active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,0,tracker.comm);
+  PMPI_Bcast(&foreign_active_batches[0],size_array[2],batch_type,0,tracker.comm);
+  // Note: we were able to update 'comm_batch_map' above without corrupting it because the only batches that were updated had matches and
+  //       are going to be re-updated again right now
+  for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
+    comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
+                        foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+    pattern_batch temp; temp.M1 = foreign_active_batches[i].M1; temp.M2 = foreign_active_batches[i].M2; temp.hash_id = foreign_active_batches[i].hash_id;
+                        temp.channel_count = foreign_active_batches[i].channel_count; temp.num_schedules = foreign_active_batches[i].num_schedules;
+                        temp.num_scheduled_units = foreign_active_batches[i].num_scheduled_units; temp.total_exec_time = foreign_active_batches[i].total_exec_time;
+    if (comm_batch_map.find(id) != comm_batch_map.end()){
+      // Search for match from within comm_batch_map
+      for (auto& it : comm_batch_map[id]){
+        if ((it.hash_id == foreign_active_batches[i].hash_id) && (it.is_updated==0)){
+          //TODO: Watch out: if we update it.hash_id here, it may trigger unintended matches
+          update_kernel_stats(it,temp,comm_analysis_param);
+          .. check if is_final, then if so, update_kernel_stats into the comm_pattern_map pathset, merge with others now with matching state, swap out/pop_back the corresponding batch state entry
+          break;
+        }
+      }
+    }
+    bool is_steady = steady_test(id,comm_pattern_map[id],comm_analysis_param);
+    set_kernel_state(comm_pattern_map[id],!is_steady);
+  }
+  //TODO: Now incoroporate this not into comp_batch_map, but into comp_pattern_map
+  for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
+    comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
+                        foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
+                        foreign_active_comp_pattern_keys[i].param4,foreign_active_comp_pattern_keys[i].param5); 
+    int j = size_array[0]+i;
+    pattern_batch temp; temp.M1 = foreign_active_batches[j].M1; temp.M2 = foreign_active_batches[j].M2; temp.hash_id = foreign_active_batches[j].hash_id;
+                        temp.channel_count = foreign_active_batches[j].channel_count; temp.num_schedules = foreign_active_batches[j].num_schedules;
+                        temp.num_scheduled_units = foreign_active_batches[j].num_scheduled_units; temp.total_exec_time = foreign_active_batches[j].total_exec_time;
+    if (comp_batch_map.find(id) != comp_batch_map.end()){
+      // Search for match from within comm_batch_map
+      for (auto& it : comp_batch_map[id]){
+        if ((it.hash_id == foreign_active_batches[j].hash_id) && (it.is_updated==0)){
+          //TODO: Watch out: if we update it.hash_id here, it may trigger unintended matches
+          update_kernel_stats(it,temp,comm_analysis_param);
+          break;
+        }
+      }
+    }
+    bool is_steady = steady_test(id,comp_pattern_map[id],comp_analysis_param);
+    set_kernel_state(comp_pattern_map[id],!is_steady);
+  }
+  .. issue is that I have to iterate over again and change is_updated member back to false for this to work, and thats just too much work/
+*/
 }
 
 }
