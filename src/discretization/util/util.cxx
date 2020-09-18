@@ -59,7 +59,19 @@ pattern::pattern(){
   this->num_non_propagations=0;
   this->M1=0; this->M2=0;
 }
-
+pattern::pattern(const pattern_batch& _copy){
+  this->total_exec_time = _copy.total_exec_time;
+  this->steady_state=0;
+  this->global_steady_state=0;
+  this->num_schedules = _copy.num_schedules;
+  this->num_non_schedules = 0;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_non_scheduled_units = 0;
+  this->num_propagations=0;
+  this->num_non_propagations=0;
+  this->M1=_copy.M1;
+  this->M2=_copy.M2;
+}
 pattern::pattern(const pattern& _copy){
   this->total_exec_time = _copy.total_exec_time;
   this->steady_state = _copy.steady_state;
@@ -91,28 +103,20 @@ pattern& pattern::operator=(const pattern& _copy){
 
 // ****************************************************************************************************************************************************
 pattern_batch::pattern_batch(channel* node){
+  this->hash_id = 0;
   this->total_exec_time = 0;
   this->num_scheduled_units = 0;
   this->channel_count=0;
   this->num_schedules = 0;
   this->M1=0; this->M2=0;
-
   if (node != nullptr){
+    this->hash_id = node->global_hash_tag;// This can also be 'local_hash_tag'
     this->registered_channels.insert(node);
   }
-/*
-  this->open_channel_count=comm_channel_map.size() + p2p_channel_map.size();
-  // Remove channels that are descendents and ancestors of 'node'
-  if (node != nullptr){
-    // TODO: Add to map those channels that are not feasible
-    spf.fill_ancestors(node,*this);
-    spf.fill_descendants(node,*this);
-  }
-  this->open_channel_count -= this->closed_channels.size();
-*/
 }
 
 pattern_batch::pattern_batch(const pattern_batch& _copy){
+  this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
   this->channel_count = _copy.channel_count;
@@ -123,6 +127,7 @@ pattern_batch::pattern_batch(const pattern_batch& _copy){
 }
 
 pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
+  this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
   this->channel_count = _copy.channel_count;
@@ -130,6 +135,38 @@ pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
   this->registered_channels = _copy.registered_channels;
+  return *this;
+}
+
+// ****************************************************************************************************************************************************
+pattern_batch_propagate::pattern_batch_propagate(const pattern_batch& _copy){
+  this->hash_id = _copy.hash_id;
+  this->total_exec_time = _copy.total_exec_time;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->channel_count=_copy.channel_count;
+  this->num_schedules = _copy.num_schedules;
+  this->M1=_copy.M1;
+  this->M2=_copy.M2;
+}
+
+pattern_batch_propagate::pattern_batch_propagate(const pattern_batch_propagate& _copy){
+  this->hash_id = _copy.hash_id;
+  this->total_exec_time = _copy.total_exec_time;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->channel_count = _copy.channel_count;
+  this->num_schedules = _copy.num_schedules;
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
+}
+
+pattern_batch_propagate& pattern_batch_propagate::operator=(const pattern_batch_propagate& _copy){
+  this->hash_id = _copy.hash_id;
+  this->total_exec_time = _copy.total_exec_time;
+  this->num_scheduled_units = _copy.num_scheduled_units;
+  this->channel_count = _copy.channel_count;
+  this->num_schedules = _copy.num_schedules;
+  this->M1 = _copy.M1;
+  this->M2 = _copy.M2;
   return *this;
 }
 
@@ -989,6 +1026,19 @@ void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile doub
   batch.M1 += delta_n;
   batch.M2 += term1;
 }
+void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_param){
+  // This function will implement the parallel algorithm computing the mean and variance of two partitions
+  if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
+  // Online computation of up to 4th-order central moments using compunication time samples
+  size_t n1 = dest.num_schedules;
+  size_t n2 = src.num_schedules;
+  double delta = dest.M1 - src.M1;
+  dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
+  dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
+  dest.num_schedules += src.num_schedules;
+  dest.num_scheduled_units += src.num_scheduled_units;
+  dest.total_exec_time += src.total_exec_time;
+}
 void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param){
   // This function will implement the parallel algorithm computing the mean and variance of two partitions
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
@@ -1088,10 +1138,10 @@ void allocate(MPI_Comm comm){
   PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
   PMPI_Type_commit(&pattern_type);
 
-  pattern_batch ex_4;
+  pattern_batch_propagate ex_4;
   MPI_Datatype batch_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int batch_internal_block_len[2] = { 2,4 };
-  MPI_Aint batch_internal_disp[2] = { (char*)&ex_4.channel_count-(char*)&ex_4, (char*)&ex_4.num_scheduled_units-(char*)&ex_4 };
+  int batch_internal_block_len[2] = { 3,4 };
+  MPI_Aint batch_internal_disp[2] = { (char*)&ex_4.hash_id-(char*)&ex_4, (char*)&ex_4.num_scheduled_units-(char*)&ex_4 };
   PMPI_Type_create_struct(2,batch_internal_block_len,batch_internal_disp,batch_internal_type,&batch_type);
   PMPI_Type_commit(&batch_type);
 

@@ -75,11 +75,48 @@ private:
 };
 
 // ****************************************************************************************************************************************************
+struct pattern_batch{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  pattern_batch(channel* node = nullptr);
+  pattern_batch(const pattern_batch& _copy);
+  pattern_batch& operator=(const pattern_batch& _copy);
+
+  int hash_id;
+  int channel_count;
+  int num_schedules;
+  double num_scheduled_units;
+  double total_exec_time;
+  double M1,M2;
+  std::set<channel*> registered_channels;
+};
+
+// ****************************************************************************************************************************************************
+struct pattern_batch_propagate{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  pattern_batch_propagate(){};
+  pattern_batch_propagate(const pattern_batch& _copy);
+  pattern_batch_propagate(const pattern_batch_propagate& _copy);
+  pattern_batch_propagate& operator=(const pattern_batch_propagate& _copy);
+
+  int hash_id;
+  int channel_count;
+  int num_schedules;
+  double num_scheduled_units;
+  double total_exec_time;
+  double M1,M2;
+};
+
+// ****************************************************************************************************************************************************
 struct pattern{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
   pattern();
+  pattern(const pattern_batch& _copy);
   pattern(const pattern& _copy);
   pattern& operator=(const pattern& _copy);
 
@@ -93,23 +130,6 @@ struct pattern{
   double num_non_scheduled_units;
   double M1,M2;
   double total_exec_time;
-};
-
-// ****************************************************************************************************************************************************
-struct pattern_batch{
-  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
-  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
-  //     to handle that.
-  pattern_batch(channel* node = nullptr);
-  pattern_batch(const pattern_batch& _copy);
-  pattern_batch& operator=(const pattern_batch& _copy);
-
-  int channel_count;
-  int num_schedules;
-  double num_scheduled_units;
-  double total_exec_time;
-  double M1,M2;
-  std::set<channel*> registered_channels;
 };
 
 // ****************************************************************************************************************************************************
@@ -212,6 +232,7 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
 void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
 void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param);
 void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_param);
 void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param);
 void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats);
 

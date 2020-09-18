@@ -485,7 +485,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
     else if (aggregation_mode >= 1){
       comm_time = get_estimate(comm_pattern_map[key],comm_batch_map[key],comm_analysis_param,tracker.nbytes);
-      if (is_optimized==1){ should_propagate = false; }
+      should_propagate = false;
     }
   } else{
     bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
@@ -1187,17 +1187,11 @@ void path::exchange_patterns_volumetric(blocking& tracker){
 }
 
 void path::single_stage_sample_aggregation(blocking& tracker){
-/*
-  .. create vectors for the global batch list.
-  .. iterate over all active batches
-  .. check if the batch can use this channel before adding i
-  .. update state for each batch that can use the channel.
-*/
   int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
   int comm_size; MPI_Comm_size(tracker.comm,&comm_size);
   std::vector<comm_pattern_key> foreign_active_comm_pattern_keys;
   std::vector<comp_pattern_key> foreign_active_comp_pattern_keys;
-  std::vector<pattern_batch> foreign_active_batches;
+  std::vector<pattern_batch_propagate> foreign_active_batches;
 
   //TODO: Either add the butterfly communication pattern before or after the 2 lines above.
   size_t active_size = comm_size;
@@ -1207,19 +1201,23 @@ void path::single_stage_sample_aggregation(blocking& tracker){
     if (active_rank % 2 == 1){
       std::vector<comm_pattern_key> comm_pattern_key_list;
       std::vector<comp_pattern_key> comp_pattern_key_list;
-      std::vector<pattern_batch> batch_list;
+      std::vector<pattern_batch_propagate> batch_list;
       // Local batches can only be added into batch list once. This should be done here, rather than before the loop
       for (auto& it : comm_batch_map){
-        assert(it.second.size() == 1);
-        if (it.second[0].registered_channels.find(comm_channel_map[tracker.comm]) == it.second[0].registered_channels.end()){
-          comm_pattern_key_list.push_back(it.first);
-          batch_list.push_back(it.second[0]);
+        assert(it.second.size() < 2);
+        if (it.second.size() == 1){
+          if (it.second[0].registered_channels.find(comm_channel_map[tracker.comm]) == it.second[0].registered_channels.end()){
+            comm_pattern_key_list.push_back(it.first);
+            batch_list.emplace_back(it.second[0]);
+          }
         }
       }
       for (auto& it : comp_batch_map){
-        assert(it.second.size() == 1);
-        comp_pattern_key_list.push_back(it.first);
-        batch_list.push_back(it.second[0]);
+        assert(it.second.size() < 2);
+        if (it.second.size() == 1){
+          comp_pattern_key_list.push_back(it.first);
+          batch_list.emplace_back(it.second[0]);
+        }
       }
       int partner = (active_rank-1)*active_mult;
       int size_array[3] = {comm_pattern_key_list.size(),comp_pattern_key_list.size(),batch_list.size()};
@@ -1247,22 +1245,41 @@ void path::single_stage_sample_aggregation(blocking& tracker){
       for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
         comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
                             foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
+        pattern_batch temp; temp.M1 = foreign_active_batches[i].M1; temp.M2 = foreign_active_batches[i].M2; temp.hash_id = foreign_active_batches[i].hash_id;
+                            temp.channel_count = foreign_active_batches[i].channel_count; temp.num_schedules = foreign_active_batches[i].num_schedules;
+                            temp.num_scheduled_units = foreign_active_batches[i].num_scheduled_units; temp.total_exec_time = foreign_active_batches[i].total_exec_time;
         if (comm_batch_map.find(id) != comm_batch_map.end()){
-          assert(comm_batch_map[id].size()==1);
-          update_kernel_stats(comm_batch_map[id][0],foreign_active_batches[i],comm_analysis_param);
+          assert(comm_batch_map[id].size() < 2);
+          if (comm_batch_map[id].size() == 0){
+            // No need updating the registered_channels member because this aggregation strategy liquidates batches immediately.
+            comm_batch_map[id].push_back(temp);
+          } else{
+            update_kernel_stats(comm_batch_map[id][0],temp,comm_analysis_param);
+          }
         } else{
-          comm_batch_map[id].push_back(foreign_active_batches[i]);
+          // No need updating the registered_channels member because this aggregation strategy liquidates batches immediately.
+          comm_batch_map[id].push_back(temp);
         }
       }
       for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
         comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
                             foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
                             foreign_active_comp_pattern_keys[i].param4,foreign_active_comp_pattern_keys[i].param5); 
+        int j = size_array[0]+i;
+        pattern_batch temp; temp.M1 = foreign_active_batches[j].M1; temp.M2 = foreign_active_batches[j].M2; temp.hash_id = foreign_active_batches[j].hash_id;
+                            temp.channel_count = foreign_active_batches[j].channel_count; temp.num_schedules = foreign_active_batches[j].num_schedules;
+                            temp.num_scheduled_units = foreign_active_batches[j].num_scheduled_units; temp.total_exec_time = foreign_active_batches[j].total_exec_time;
         if (comp_batch_map.find(id) != comp_batch_map.end()){
-          assert(comp_batch_map[id].size()==1);
-          update_kernel_stats(comp_batch_map[id][0],foreign_active_batches[size_array[0]+i],comp_analysis_param);
+          assert(comp_batch_map[id].size() < 2);
+          if (comp_batch_map[id].size() == 0){
+            // No need updating the registered_channels member because this aggregation strategy liquidates batches immediately.
+            comp_batch_map[id].push_back(temp);
+          } else{
+            update_kernel_stats(comp_batch_map[id][0],temp,comp_analysis_param);
+          }
         } else{
-          comp_batch_map[id].push_back(foreign_active_batches[size_array[0]+i]);
+          // No need updating the registered_channels member because this aggregation strategy liquidates batches immediately.
+          comp_batch_map[id].push_back(temp);
         }
       }
     }
@@ -1273,12 +1290,18 @@ void path::single_stage_sample_aggregation(blocking& tracker){
   // Broadcast final exchanged kernel statistics
   if (comm_rank==0){
     for (auto& it : comm_batch_map){
-      foreign_active_comm_pattern_keys.push_back(it.first);
-      foreign_active_batches.push_back(it.second[0]);
+      assert(it.second.size() < 2);
+      if (it.second.size() == 1){
+        foreign_active_comm_pattern_keys.push_back(it.first);
+        foreign_active_batches.push_back(it.second[0]);
+      }
     }
     for (auto& it : comp_batch_map){
-      foreign_active_comp_pattern_keys.push_back(it.first);
-      foreign_active_batches.push_back(it.second[0]);
+      assert(it.second.size() < 2);
+      if (it.second.size() == 1){
+        foreign_active_comp_pattern_keys.push_back(it.first);
+        foreign_active_batches.push_back(it.second[0]);
+      }
     }
   }
   int size_array[3] = {comm_rank==0 ? foreign_active_comm_pattern_keys.size() : 0,
@@ -1297,46 +1320,41 @@ void path::single_stage_sample_aggregation(blocking& tracker){
   for (auto i=0; i<foreign_active_comm_pattern_keys.size(); i++){
     comm_pattern_key id(foreign_active_comm_pattern_keys[i].pattern_index,foreign_active_comm_pattern_keys[i].tag,foreign_active_comm_pattern_keys[i].dim_sizes,
                         foreign_active_comm_pattern_keys[i].dim_strides,foreign_active_comm_pattern_keys[i].msg_size,foreign_active_comm_pattern_keys[i].partner_offset); 
-    // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
-    // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
-    //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.
-    // Further, there is no harm in doing so, as volumetric statistical analysis is still observed.
-/*
-    .. update each;s local kernel state
-//          bool is_steady = steady_test(id,foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],comm_analysis_param);
-//          set_kernel_state(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index],!is_steady);
-//          comm_pattern_map[id].is_updated=true;
-
+    pattern_batch temp; temp.M1 = foreign_active_batches[i].M1; temp.M2 = foreign_active_batches[i].M2; temp.hash_id = foreign_active_batches[i].hash_id;
+                        temp.channel_count = foreign_active_batches[i].channel_count; temp.num_schedules = foreign_active_batches[i].num_schedules;
+                        temp.num_scheduled_units = foreign_active_batches[i].num_scheduled_units; temp.total_exec_time = foreign_active_batches[i].total_exec_time;
     if (comm_pattern_map.find(id) == comm_pattern_map.end()){
-      active_patterns.push_back(foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index]);
+      active_patterns.emplace_back(temp);
       foreign_active_comm_pattern_keys[i].pattern_index = active_patterns.size()-1;
       active_comm_pattern_keys.push_back(foreign_active_comm_pattern_keys[i]);
       comm_pattern_map[id] = pattern_key_id(true, active_comm_pattern_keys.size()-1, active_patterns.size()-1, false);
     } else{
       // Update existing entry.
-      active_patterns[comm_pattern_map[id].val_index] = foreign_active_patterns[foreign_active_comm_pattern_keys[i].pattern_index];
+      update_kernel_stats(active_patterns[comm_pattern_map[id].val_index], temp, comm_analysis_param);
     }
+    bool is_steady = steady_test(id,comm_pattern_map[id],comm_analysis_param);
+    set_kernel_state(comm_pattern_map[id],!is_steady);
   }
-  .. Now incoroporate this not into comp_batch_map, but into comp_pattern_map
+  //TODO: Now incoroporate this not into comp_batch_map, but into comp_pattern_map
   for (auto i=0; i<foreign_active_comp_pattern_keys.size(); i++){
     comp_pattern_key id(foreign_active_comp_pattern_keys[i].pattern_index,foreign_active_comp_pattern_keys[i].tag,foreign_active_comp_pattern_keys[i].flops,
                         foreign_active_comp_pattern_keys[i].param1,foreign_active_comp_pattern_keys[i].param2,foreign_active_comp_pattern_keys[i].param3,
                         foreign_active_comp_pattern_keys[i].param4,foreign_active_comp_pattern_keys[i].param5); 
-    // If this process doesn't have a key matching that of the foreigner's, then we simply add in the key to our local data structures.
-    // The logic here is that not doing so would allow potential deadlock in the next phase, if say there was a new communication routine with a matching signature to that
-    //   already specified as a key. Some processes might recognize the key while others might not, causing deadlock in some cases.
-    // Further, there is no harm in doing so, as volumetric statistical analysis is still observed.
+    int j = size_array[0]+i;
+    pattern_batch temp; temp.M1 = foreign_active_batches[j].M1; temp.M2 = foreign_active_batches[j].M2; temp.hash_id = foreign_active_batches[j].hash_id;
+                        temp.channel_count = foreign_active_batches[j].channel_count; temp.num_schedules = foreign_active_batches[j].num_schedules;
+                        temp.num_scheduled_units = foreign_active_batches[j].num_scheduled_units; temp.total_exec_time = foreign_active_batches[j].total_exec_time;
     if (comp_pattern_map.find(id) == comp_pattern_map.end()){
-      active_patterns.push_back(foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index]);
+      active_patterns.emplace_back(temp);
       foreign_active_comp_pattern_keys[i].pattern_index = active_patterns.size()-1;
       active_comp_pattern_keys.push_back(foreign_active_comp_pattern_keys[i]);
       comp_pattern_map[id] = pattern_key_id(true, active_comp_pattern_keys.size()-1, active_patterns.size()-1, false);
     } else{
       // Update existing entry.
-      active_patterns[comp_pattern_map[id].val_index] = foreign_active_patterns[foreign_active_comp_pattern_keys[i].pattern_index];
+      update_kernel_stats(active_patterns[comp_pattern_map[id].val_index], temp, comp_analysis_param);
     }
-  }
-*/
+    bool is_steady = steady_test(id,comp_pattern_map[id],comp_analysis_param);
+    set_kernel_state(comp_pattern_map[id],!is_steady);
   }
   // Clear batch maps as samples residing in them have been exhausted in this aggregation strategy.
   comm_batch_map.clear();
