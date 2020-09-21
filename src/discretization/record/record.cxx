@@ -18,52 +18,56 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
 
   // Lets iterate over the map to create two counters, then reduce them to get a global idea:
   //   Another idea is to cache this list over the critical path, but that might be too much.
-  int max_patterns[4] = {0,0,0,0};
-  double max_units[4] = {0,0,0,0};
-  double max_exec_times[2] = {0,0};
-  int max_propagations[2] = {0,0};
-  int vol_patterns[4] = {0,0,0,0};
-  double vol_units[4] = {0,0,0,0};
-  double vol_exec_times[2] = {0,0};
-  int vol_propagations[2] = {0,0};
+  int max_patterns[6] = {0,0,0,0,0,0};
+  double max_units[6] = {0,0,0,0,0,0};
+  double max_exec_times[4] = {0,0,0,0};
+  int vol_patterns[6] = {0,0,0,0,0,0};
+  double vol_units[6] = {0,0,0,0,0,0};
+  double vol_exec_times[4] = {0,0,0,0};
   for (auto& it : comm_pattern_map){
     auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
     max_patterns[0] += pattern_list[it.second.val_index].num_schedules;
-    max_patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
+    max_patterns[1] += pattern_list[it.second.val_index].num_local_schedules;
+    max_patterns[2] += pattern_list[it.second.val_index].num_non_schedules;
     max_units[0] += pattern_list[it.second.val_index].num_scheduled_units;
-    max_units[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
+    max_units[1] += pattern_list[it.second.val_index].num_local_scheduled_units;
+    max_units[2] += pattern_list[it.second.val_index].num_non_scheduled_units;
     max_exec_times[0] += pattern_list[it.second.val_index].total_exec_time;
-    max_propagations[0] += pattern_list[it.second.val_index].num_propagations;
-    max_propagations[1] += pattern_list[it.second.val_index].num_non_propagations;
+    max_exec_times[1] += pattern_list[it.second.val_index].total_local_exec_time;
     vol_patterns[0] += pattern_list[it.second.val_index].num_schedules;
-    vol_patterns[1] += pattern_list[it.second.val_index].num_non_schedules;
+    vol_patterns[1] += pattern_list[it.second.val_index].num_local_schedules;
+    vol_patterns[2] += pattern_list[it.second.val_index].num_non_schedules;
     vol_units[0] += pattern_list[it.second.val_index].num_scheduled_units;
-    vol_units[1] += pattern_list[it.second.val_index].num_non_scheduled_units;
+    vol_units[1] += pattern_list[it.second.val_index].num_local_scheduled_units;
+    vol_units[2] += pattern_list[it.second.val_index].num_non_scheduled_units;
     vol_exec_times[0] += pattern_list[it.second.val_index].total_exec_time;
-    vol_propagations[0] += pattern_list[it.second.val_index].num_propagations;
-    vol_propagations[1] += pattern_list[it.second.val_index].num_non_propagations;
+    vol_exec_times[1] += pattern_list[it.second.val_index].total_local_exec_time;
   }
   for (auto& it : comp_pattern_map){
     auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-    max_patterns[2] += pattern_list[it.second.val_index].num_schedules;
-    max_patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
-    max_units[2] += pattern_list[it.second.val_index].num_scheduled_units;
-    max_units[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
-    max_exec_times[1] += pattern_list[it.second.val_index].total_exec_time;
-    vol_patterns[2] += pattern_list[it.second.val_index].num_schedules;
-    vol_patterns[3] += pattern_list[it.second.val_index].num_non_schedules;
-    vol_units[2] += pattern_list[it.second.val_index].num_scheduled_units;
-    vol_units[3] += pattern_list[it.second.val_index].num_non_scheduled_units;
-    vol_exec_times[1] += pattern_list[it.second.val_index].total_exec_time;
+    max_patterns[3] += pattern_list[it.second.val_index].num_schedules;
+    max_patterns[4] += pattern_list[it.second.val_index].num_local_schedules;
+    max_patterns[5] += pattern_list[it.second.val_index].num_non_schedules;
+    max_units[3] += pattern_list[it.second.val_index].num_scheduled_units;
+    max_units[4] += pattern_list[it.second.val_index].num_local_scheduled_units;
+    max_units[5] += pattern_list[it.second.val_index].num_non_scheduled_units;
+    max_exec_times[2] += pattern_list[it.second.val_index].total_exec_time;
+    max_exec_times[3] += pattern_list[it.second.val_index].total_local_exec_time;
+    vol_patterns[3] += pattern_list[it.second.val_index].num_schedules;
+    vol_patterns[4] += pattern_list[it.second.val_index].num_local_schedules;
+    vol_patterns[5] += pattern_list[it.second.val_index].num_non_schedules;
+    vol_units[3] += pattern_list[it.second.val_index].num_scheduled_units;
+    vol_units[4] += pattern_list[it.second.val_index].num_local_scheduled_units;
+    vol_units[5] += pattern_list[it.second.val_index].num_non_scheduled_units;
+    vol_exec_times[2] += pattern_list[it.second.val_index].total_exec_time;
+    vol_exec_times[3] += pattern_list[it.second.val_index].total_local_exec_time;
   }
-  PMPI_Allreduce(MPI_IN_PLACE,&max_patterns[0],4,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&max_units[0],4,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&max_exec_times[0],2,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&max_propagations[0],2,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_patterns[0],4,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_units[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_exec_times[0],2,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_propagations[0],2,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&max_patterns[0],6,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&max_units[0],6,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&max_exec_times[0],4,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&vol_patterns[0],6,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&vol_units[0],6,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&vol_exec_times[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 
   if (save_statistical_data && data != nullptr){
     data[0] = critical_path_costs[num_critical_path_measures-1];
@@ -72,31 +76,39 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
     data[3] = critical_path_costs[num_critical_path_measures-4];
     data[4] = max_patterns[0];
     data[5] = max_patterns[1];
-    data[6] = max_units[0];
-    data[7] = max_units[1];
-    data[8] = max_exec_times[0];
-    data[9] = max_patterns[2];
-    data[10] = max_patterns[3];
-    data[11] = max_units[2];
-    data[12] = max_units[3];
-    data[13] = max_exec_times[1];
-    data[14] = max_propagations[0];
-    data[15] = max_propagations[1];
-    data[16] = vol_patterns[0];
-    data[17] = vol_patterns[1];
-    data[18] = vol_units[0];
-    data[19] = vol_units[1];
-    data[20] = vol_exec_times[0];
-    data[21] = vol_patterns[2];
-    data[22] = vol_patterns[3];
-    data[23] = vol_units[2];
-    data[24] = vol_units[3];
-    data[25] = vol_exec_times[1];
-    data[26] = vol_propagations[0];
-    data[27] = vol_propagations[1];
-    data[28] = comp_intercept_overhead;
-    data[29] = comm_intercept_overhead_stage1;
-    data[30] = comm_intercept_overhead_stage2;
+    data[6] = max_patterns[2];
+    data[7] = max_units[0];
+    data[8] = max_units[1];
+    data[9] = max_units[2];
+    data[10] = max_exec_times[0];
+    data[11] = max_exec_times[1];
+    data[12] = max_patterns[3];
+    data[13] = max_patterns[4];
+    data[14] = max_patterns[5];
+    data[15] = max_units[3];
+    data[16] = max_units[4];
+    data[17] = max_units[5];
+    data[18] = max_exec_times[2];
+    data[19] = max_exec_times[3];
+    data[20] = vol_patterns[0];
+    data[21] = vol_patterns[1];
+    data[22] = vol_patterns[2];
+    data[23] = vol_units[0];
+    data[24] = vol_units[1];
+    data[25] = vol_units[2];
+    data[26] = vol_exec_times[0];
+    data[27] = vol_exec_times[1];
+    data[28] = vol_patterns[3];
+    data[29] = vol_patterns[4];
+    data[30] = vol_patterns[5];
+    data[31] = vol_units[3];
+    data[32] = vol_units[4];
+    data[33] = vol_units[5];
+    data[34] = vol_exec_times[2];
+    data[35] = vol_exec_times[3];
+    data[36] = comp_intercept_overhead;
+    data[37] = comm_intercept_overhead_stage1;
+    data[38] = comm_intercept_overhead_stage2;
   }
   if (print_statistical_data){
     if (world_rank==0) { Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
@@ -115,12 +127,13 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
                << ") - with byte-count " << key_list[it.second.key_index].msg_size
                << std::endl;
         Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+               << "\tLocalScheduledTime - " << pattern_list[it.second.val_index].total_local_exec_time
                << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
+               << ", NumLocalSchedules - " << pattern_list[it.second.val_index].num_local_schedules
                << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
                << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
+               << ", NumLocalScheduledBytes - " << pattern_list[it.second.val_index].num_local_scheduled_units
                << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units
-               << ", NumPropagations - " << pattern_list[it.second.val_index].num_propagations
-               << ", NumSkippedPropagations - " << pattern_list[it.second.val_index].num_non_propagations
                << ", M1 - " << pattern_list[it.second.val_index].M1
                << ", M2 - " << pattern_list[it.second.val_index].M2
                << std::endl;
@@ -131,7 +144,7 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
                << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comm_analysis_param)/(2*discretization::get_estimate(it.second,comm_analysis_param))
                << std::endl;
       }
-      total_scheduled_comm_time += pattern_list[it.second.val_index].total_exec_time;
+      total_scheduled_comm_time += pattern_list[it.second.val_index].total_local_exec_time;
     }
     if (world_rank==0) { Stream << std::endl << std::endl; }
     for (auto& it : comp_pattern_map){
@@ -148,9 +161,12 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
                 << it.first.flops
                 << std::endl;
          Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+                << "\tLocalScheduledTime - " << pattern_list[it.second.val_index].total_local_exec_time
                 << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
+                << ", NumLocalSchedules - " << pattern_list[it.second.val_index].num_local_schedules
                 << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
                 << ", NumScheduledFlops - " << pattern_list[it.second.val_index].num_scheduled_units
+                << ", NumLocalScheduledFlops - " << pattern_list[it.second.val_index].num_local_scheduled_units
                 << ", NumSkippedFlops - " << pattern_list[it.second.val_index].num_non_scheduled_units
                 << ", M1 - " << pattern_list[it.second.val_index].M1
                 << ", M2 - " << pattern_list[it.second.val_index].M2
@@ -162,7 +178,7 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
                 << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comp_analysis_param)/(2*discretization::get_estimate(it.second,comp_analysis_param))
                 << std::endl;
        }
-      total_scheduled_comp_time += pattern_list[it.second.val_index].total_exec_time;
+      total_scheduled_comp_time += pattern_list[it.second.val_index].total_local_exec_time;
     }
 /*
     std::vector<double> total_schedled_comm_time_gather(world_size);
@@ -174,42 +190,36 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
       Stream << std::endl;
       Stream << "Max -- communication\n";
       Stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled max_patterns - " << max_patterns[0] << std::endl;
-      Stream << "\t\tNum total max_patterns - " << max_patterns[0]+max_patterns[1] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[0] * 1. / (max_patterns[0]+max_patterns[1])) << std::endl;
-      Stream << "\t\tNum scheduled max_propagations - " << max_propagations[0] << std::endl;
-      Stream << "\t\tNum total max_propagations - " << max_propagations[0]+max_propagations[1] << std::endl;
-      Stream << "\t\tPropagation hit ratio - " << 1.-(max_propagations[0] * 1. / (max_propagations[0]+max_propagations[1])) << std::endl;
-      Stream << "\t\tNum scheduled bytes - " << max_units[0] << std::endl;
-      Stream << "\t\tNum total bytes - " << max_units[0]+max_units[1] << std::endl;
-      Stream << "\t\tCommunication byte hit ratio - " << 1. - (max_units[0] * 1. / (max_units[0]+max_units[1])) << std::endl;
+      Stream << "\t\tNum scheduled max_patterns - " << max_patterns[1] << std::endl;
+      Stream << "\t\tNum total max_patterns - " << max_patterns[1]+max_patterns[2] << std::endl;
+      Stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[1] * 1. / (max_patterns[1]+max_patterns[2])) << std::endl;
+      Stream << "\t\tNum scheduled bytes - " << max_units[1] << std::endl;
+      Stream << "\t\tNum total bytes - " << max_units[1]+max_units[2] << std::endl;
+      Stream << "\t\tCommunication byte hit ratio - " << 1. - (max_units[1] * 1. / (max_units[1]+max_units[2])) << std::endl;
       Stream << "Max -- computation\n";
       Stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled max_patterns - " << max_patterns[2] << std::endl;
-      Stream << "\t\tNum total max_patterns - " << max_patterns[2]+max_patterns[3] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[2] * 1. / (max_patterns[2]+max_patterns[3])) << std::endl;
-      Stream << "\t\tNum scheduled flops - " << max_units[2] << std::endl;
-      Stream << "\t\tNum total flops - " << max_units[2]+max_units[3] << std::endl;
-      Stream << "\t\tComputation flop hit ratio - " << 1. - (max_units[2] * 1. / (max_units[2]+max_units[3])) << std::endl;
+      Stream << "\t\tNum scheduled max_patterns - " << max_patterns[4] << std::endl;
+      Stream << "\t\tNum total max_patterns - " << max_patterns[4]+max_patterns[5] << std::endl;
+      Stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[4] * 1. / (max_patterns[4]+max_patterns[5])) << std::endl;
+      Stream << "\t\tNum scheduled flops - " << max_units[4] << std::endl;
+      Stream << "\t\tNum total flops - " << max_units[4]+max_units[5] << std::endl;
+      Stream << "\t\tComputation flop hit ratio - " << 1. - (max_units[4] * 1. / (max_units[4]+max_units[5])) << std::endl;
       Stream << "Vol -- communication\n";
       Stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[0] << std::endl;
-      Stream << "\t\tNum total vol_patterns - " << vol_patterns[0]+vol_patterns[1] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[0] * 1. / (vol_patterns[0]+vol_patterns[1])) << std::endl;
-      Stream << "\t\tNum scheduled vol_propagations - " << vol_propagations[0] << std::endl;
-      Stream << "\t\tNum total vol_propagations - " << vol_propagations[0]+vol_propagations[1] << std::endl;
-      Stream << "\t\tPropagation hit ratio - " << 1.-(vol_propagations[0] * 1. / (vol_propagations[0]+vol_propagations[1])) << std::endl;
-      Stream << "\t\tNum scheduled bytes - " << vol_units[0] << std::endl;
-      Stream << "\t\tNum total bytes - " << vol_units[0]+vol_units[1] << std::endl;
-      Stream << "\t\tCommunication byte hit ratio - " << 1. - (vol_units[0] * 1. / (vol_units[0]+vol_units[1])) << std::endl;
+      Stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[1] << std::endl;
+      Stream << "\t\tNum total vol_patterns - " << vol_patterns[1]+vol_patterns[2] << std::endl;
+      Stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[1] * 1. / (vol_patterns[1]+vol_patterns[2])) << std::endl;
+      Stream << "\t\tNum scheduled bytes - " << vol_units[1] << std::endl;
+      Stream << "\t\tNum total bytes - " << vol_units[1]+vol_units[2] << std::endl;
+      Stream << "\t\tCommunication byte hit ratio - " << 1. - (vol_units[1] * 1. / (vol_units[1]+vol_units[2])) << std::endl;
       Stream << "Vol -- computation\n";
       Stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[2] << std::endl;
-      Stream << "\t\tNum total vol_patterns - " << vol_patterns[2]+vol_patterns[3] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[2] * 1. / (vol_patterns[2]+vol_patterns[3])) << std::endl;
-      Stream << "\t\tNum scheduled flops - " << vol_units[2] << std::endl;
-      Stream << "\t\tNum total flops - " << vol_units[2]+vol_units[3] << std::endl;
-      Stream << "\t\tComputation flop hit ratio - " << 1. - (vol_units[2] * 1. / (vol_units[2]+vol_units[3])) << std::endl;
+      Stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[4] << std::endl;
+      Stream << "\t\tNum total vol_patterns - " << vol_patterns[4]+vol_patterns[5] << std::endl;
+      Stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[4] * 1. / (vol_patterns[4]+vol_patterns[5])) << std::endl;
+      Stream << "\t\tNum scheduled flops - " << vol_units[4] << std::endl;
+      Stream << "\t\tNum total flops - " << vol_units[4]+vol_units[5] << std::endl;
+      Stream << "\t\tComputation flop hit ratio - " << 1. - (vol_units[4] * 1. / (vol_units[4]+vol_units[5])) << std::endl;
       Stream << "Critter computational overheads:\n";
       Stream << "\tMax per-process: " << comp_intercept_overhead << std::endl;
       Stream << "Critter communication overheads:\n";

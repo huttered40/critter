@@ -49,53 +49,57 @@ static int lcm(int a, int b){
 // ****************************************************************************************************************************************************
 pattern::pattern(){
   this->total_exec_time = 0;
+  this->total_local_exec_time = 0;
   this->steady_state=0;
   this->global_steady_state=0;
   this->num_schedules = 0;
   this->num_non_schedules = 0;
   this->num_scheduled_units = 0;
+  this->num_local_scheduled_units = 0;
   this->num_non_scheduled_units = 0;
-  this->num_propagations=0;
-  this->num_non_propagations=0;
+  this->num_local_schedules=0;
   this->M1=0; this->M2=0;
 }
 pattern::pattern(const pattern_batch& _copy){
   this->total_exec_time = _copy.total_exec_time;
+  this->total_local_exec_time = _copy.total_local_exec_time;
   this->steady_state=0;
   this->global_steady_state=0;
   this->num_schedules = _copy.num_schedules;
   this->num_non_schedules = 0;
   this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->num_non_scheduled_units = 0;
-  this->num_propagations=0;
-  this->num_non_propagations=0;
+  this->num_local_schedules=_copy.num_local_schedules;
   this->M1=_copy.M1;
   this->M2=_copy.M2;
 }
 pattern::pattern(const pattern& _copy){
   this->total_exec_time = _copy.total_exec_time;
+  this->total_local_exec_time = _copy.total_local_exec_time;
   this->steady_state = _copy.steady_state;
   this->global_steady_state = _copy.global_steady_state;
   this->num_schedules = _copy.num_schedules;
   this->num_non_schedules = _copy.num_non_schedules;
   this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
-  this->num_propagations=_copy.num_propagations;
-  this->num_non_propagations=_copy.num_non_propagations;
+  this->num_local_schedules=_copy.num_local_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
 }
 
 pattern& pattern::operator=(const pattern& _copy){
   this->total_exec_time = _copy.total_exec_time;
+  this->total_local_exec_time = _copy.total_local_exec_time;
   this->steady_state = _copy.steady_state;
   this->global_steady_state = _copy.global_steady_state;
   this->num_schedules = _copy.num_schedules;
   this->num_non_schedules = _copy.num_non_schedules;
   this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
-  this->num_propagations=_copy.num_propagations;
-  this->num_non_propagations=_copy.num_non_propagations;
+  this->num_local_schedules=_copy.num_local_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
   return *this;
@@ -105,12 +109,15 @@ pattern& pattern::operator=(const pattern& _copy){
 pattern_batch::pattern_batch(channel* node){
   this->hash_id = 0;
   this->total_exec_time = 0;
+  this->total_local_exec_time = 0;
   this->num_scheduled_units = 0;
+  this->num_local_scheduled_units = 0;
   this->channel_count=0;
   this->num_schedules = 0;
+  this->num_local_schedules = 0;
   this->M1=0; this->M2=0;
   if (node != nullptr){
-    this->hash_id = node->global_hash_tag;// This can also be 'local_hash_tag'
+    this->hash_id = node->global_hash_tag;
     this->registered_channels.insert(node);
   }
 }
@@ -118,9 +125,12 @@ pattern_batch::pattern_batch(channel* node){
 pattern_batch::pattern_batch(const pattern_batch& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
+  this->total_local_exec_time = _copy.total_local_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->channel_count = _copy.channel_count;
   this->num_schedules = _copy.num_schedules;
+  this->num_local_schedules = _copy.num_local_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
   this->registered_channels = _copy.registered_channels;
@@ -129,9 +139,12 @@ pattern_batch::pattern_batch(const pattern_batch& _copy){
 pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
+  this->total_local_exec_time = _copy.total_local_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
+  this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->channel_count = _copy.channel_count;
   this->num_schedules = _copy.num_schedules;
+  this->num_local_schedules = _copy.num_local_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
   this->registered_channels = _copy.registered_channels;
@@ -256,6 +269,7 @@ int channel::enumerate_tuple(channel* node, std::vector<int>& process_list){
     for (auto i=0; i<node->id[0].first; i++){
       process_list.push_back(offset + i*node->id[0].second);
       count++;
+      if (node->id[0].second==0) break;// this might occur if a p2p send/receives with itself
     }
   } else{
     assert(node->id.size()==2);
@@ -346,6 +360,8 @@ bool channel::verify_sibling_relation(channel* comm1, channel* comm2){
     int max1 = comm1->offset;
     int max2 = comm2->offset;
     int _max_ = std::max(max1,max2);
+     // Two special cases -- if stride of one channel is 0, that means that a single intersection point is guaranteed.
+    if (comm2->id[0].second == 0 || comm1->id[0].second == 0){ return true; }
     int _lcm_ = lcm(comm1->id[0].second,comm2->id[0].second);
     return _lcm_ > (_min_ - _max_);
   }
@@ -470,8 +486,11 @@ aggregate_channel::aggregate_channel(std::vector<std::pair<int,int>>& tuple_list
 }
 std::string aggregate_channel::generate_hash_history(aggregate_channel* comm){
   std::string str1 = "{ hashes = ";
+  int count=0;
   for (auto it : comm->channels){
-    str1 += std::to_string(it) + ",";
+    if (count>0) str1 += ",";
+    str1 += std::to_string(it);
+    count++;
   }
   str1+=" }";
   return str1;
@@ -703,11 +722,11 @@ void sample_propagation_forest::insert_node(solo_channel* node){
   // sanity check for right now
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   if (world_comm_rank==8){
-    std::cout << "parent of node{ (" << node->local_hash_tag << "," << node->tag << "," << node->offset;
+    std::cout << "parent of node{ (" << node->local_hash_tag << "," << node->global_hash_tag << "," << node->offset;
     for (auto i=0; i<node->id.size(); i++){
       std::cout << ") (" << node->id[i].first << "," << node->id[i].second << ")";
     }
-    std::cout << " } is { (" << parent->local_hash_tag << "," << parent->tag << "," << parent->offset;
+    std::cout << " } is { (" << parent->local_hash_tag << "," << parent->global_hash_tag << "," << parent->offset;
     for (auto i=0; i<parent->id.size(); i++){
       std::cout << ") (" << parent->id[i].first << "," << parent->id[i].second << ")";
     }
@@ -715,7 +734,7 @@ void sample_propagation_forest::insert_node(solo_channel* node){
     for (auto i=0; i<parent->children.size(); i++){
       std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
       for (auto j=0; j<parent->children[i].size(); j++){
-        std::cout << "\t\tchild " << j << " is { (" << parent->children[i][j]->local_hash_tag << "," << parent->children[i][j]->tag << "," << parent->children[i][j]->offset;
+        std::cout << "\t\tchild " << j << " is { (" << parent->children[i][j]->local_hash_tag << "," << parent->children[i][j]->global_hash_tag << "," << parent->children[i][j]->offset;
         for (auto k=0; k<parent->children[i][j]->id.size(); k++){
           std::cout << ") (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
         }
@@ -731,19 +750,25 @@ void intermediate_stats::generate(const pattern& p, const std::vector<pattern_ba
   this->M1 = p.M1;
   this->M2 = p.M2;
   this->num_schedules = p.num_schedules;
+  this->num_local_schedules = p.num_local_schedules;
   this->num_scheduled_units = p.num_scheduled_units;
+  this->num_local_scheduled_units = p.num_local_scheduled_units;
   this->total_exec_time = p.total_exec_time;
+  this->total_local_exec_time = p.total_local_exec_time;
   for (auto i=0; i<active_batches.size(); i++){
     double M1_2 = active_batches[i].M1;
     double M2_2 = active_batches[i].M2;
     int n2 = active_batches[i].num_schedules;
-    assert(n2>0);
+    //assert(n2>0);
     double delta = this->M1 - M1_2;
     this->M1 = (this->num_schedules*this->M1 + n2*M1_2)/(this->num_schedules+n2);
     this->M2 = this->M2 + M2_2 + delta/(this->num_schedules+n2)*delta*(this->num_schedules*n2);
     this->num_schedules += n2;
+    this->num_local_schedules += active_batches[i].num_local_schedules;
     this->num_scheduled_units += active_batches[i].num_scheduled_units;
+    this->num_local_scheduled_units += active_batches[i].num_local_scheduled_units;
     this->total_exec_time += active_batches[i].total_exec_time;
+    this->total_local_exec_time += active_batches[i].total_local_exec_time;
   }
 }
 intermediate_stats::intermediate_stats(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches){
@@ -942,8 +967,11 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
   if (exec_time == 0) { exec_time=1.e-9; }
   if (p.steady_state == 0){
     p.num_schedules++;
+    p.num_local_schedules++;
     p.num_scheduled_units += unit_count;
+    p.num_local_scheduled_units += unit_count;
     p.total_exec_time += exec_time;
+    p.total_local_exec_time += exec_time;
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = p.num_schedules-1;
     size_t n = p.num_schedules;
@@ -960,7 +988,6 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
   else{
     p.num_non_schedules++;
     p.num_non_scheduled_units += unit_count;
-    p.num_non_propagations++;
   }
 }
 void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count){
@@ -969,8 +996,11 @@ void update_kernel_stats(const pattern_key_id& index, int analysis_param, volati
   if (exec_time == 0) { exec_time=1.e-9; }
   if (pattern_list[index.val_index].steady_state == 0){
     pattern_list[index.val_index].num_schedules++;
+    pattern_list[index.val_index].num_local_schedules++;
     pattern_list[index.val_index].num_scheduled_units += unit_count;
+    pattern_list[index.val_index].num_local_scheduled_units += unit_count;
     pattern_list[index.val_index].total_exec_time += exec_time;
+    pattern_list[index.val_index].total_local_exec_time += exec_time;
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = pattern_list[index.val_index].num_schedules-1;
     size_t n = pattern_list[index.val_index].num_schedules;
@@ -987,7 +1017,6 @@ void update_kernel_stats(const pattern_key_id& index, int analysis_param, volati
   else{
     pattern_list[index.val_index].num_non_schedules++;
     pattern_list[index.val_index].num_non_scheduled_units += unit_count;
-    pattern_list[index.val_index].num_non_propagations++;
   }
 }
 void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
@@ -1000,19 +1029,31 @@ void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
   dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
+  dest.num_local_schedules += src.num_local_schedules;
   dest.num_scheduled_units += src.num_scheduled_units;
+  dest.num_local_scheduled_units += src.num_local_scheduled_units;
   dest.num_non_schedules += src.num_non_schedules;
   dest.num_non_scheduled_units += src.num_non_scheduled_units;// Wouldn't these be zero?
-  dest.num_non_propagations += src.num_non_propagations;
   dest.total_exec_time += src.total_exec_time;
+  dest.total_local_exec_time += src.total_local_exec_time;
 }
 
 void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
   batch.num_schedules++;
+  batch.num_local_schedules++;
+/*
+  // debug
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  if (world_rank == 0 && batch.num_local_schedules > 1){
+    std::cout << "Rank 0 is registering a local batch size of " << batch.num_local_schedules << std::endl;
+  }
+*/
   batch.num_scheduled_units += unit_count;
+  batch.num_local_scheduled_units += unit_count;
   batch.total_exec_time += exec_time;
+  batch.total_local_exec_time += exec_time;
   // Online computation of up to 4th-order central moments using compunication time samples
   size_t n1 = batch.num_schedules-1;
   size_t n = batch.num_schedules;
@@ -1036,8 +1077,11 @@ void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_p
   dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
+  dest.num_local_schedules += src.num_local_schedules;
   dest.num_scheduled_units += src.num_scheduled_units;
+  dest.num_local_scheduled_units += src.num_local_scheduled_units;
   dest.total_exec_time += src.total_exec_time;
+  dest.total_local_exec_time += src.total_local_exec_time;
 }
 void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param){
   // This function will implement the parallel algorithm computing the mean and variance of two partitions
@@ -1051,14 +1095,18 @@ void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int anal
   dest.num_schedules += src.num_schedules;
   dest.num_scheduled_units += src.num_scheduled_units;
   dest.total_exec_time += src.total_exec_time;
+ // Don't update the three 'local' members
 }
 void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
 
   pattern_list[index.val_index].num_schedules = stats.num_schedules;
+  pattern_list[index.val_index].num_local_schedules = stats.num_local_schedules;
   pattern_list[index.val_index].num_scheduled_units = stats.num_scheduled_units;
+  pattern_list[index.val_index].num_local_scheduled_units = stats.num_local_scheduled_units;
   pattern_list[index.val_index].total_exec_time = stats.total_exec_time;
+  pattern_list[index.val_index].total_local_exec_time = stats.total_local_exec_time;
   pattern_list[index.val_index].M1 = stats.M1;
   pattern_list[index.val_index].M2 = stats.M2;
 }
@@ -1112,11 +1160,26 @@ void allocate(MPI_Comm comm){
   world_node->offset = 0;
   world_node->id.push_back(std::make_pair(_world_size,1));
   world_node->parent=nullptr;
+  std::string local_channel_hash_str = ".." + std::to_string(world_node->id[0].first) + "." + std::to_string(world_node->id[0].second);
+  std::string global_channel_hash_str = ".." + std::to_string(world_node->id[0].first) + "." + std::to_string(world_node->id[0].second);
+  world_node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);// will avoid any local overlap.
+  world_node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);// will avoid any global overlap.
   sample_propagation_tree* tree = new sample_propagation_tree;
   tree->root = world_node;
   spf.tree = tree;
   comm_channel_map[MPI_COMM_WORLD] = world_node;
-
+  // Always treat 1-communicator channels as trivial aggregate channels.
+  aggregate_channel* agg_node = new aggregate_channel(world_node->id,world_node->local_hash_tag,world_node->global_hash_tag,world_node->offset,1);
+  agg_node->channels.insert(world_node->local_hash_tag);
+  assert(aggregate_channel_map.find(world_node->local_hash_tag) == aggregate_channel_map.end());
+  aggregate_channel_map[world_node->local_hash_tag] = agg_node;
+  aggregate_channel_map[world_node->local_hash_tag]->is_final=true;
+  if (_world_rank == 8){
+    auto str1 = channel::generate_tuple_string(agg_node);
+    auto str2 = aggregate_channel::generate_hash_history(agg_node);
+    std::cout << "Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
+  }
+  
   comp_pattern_key ex_1;
   MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
   int comp_pattern_key_internal_type_block_len[2] = { 7,1 };
@@ -1133,7 +1196,7 @@ void allocate(MPI_Comm comm){
 
   pattern ex_3;
   MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int pattern_internal_block_len[2] = { 6,5 };
+  int pattern_internal_block_len[2] = { 5,7 };
   MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.steady_state-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
   PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
   PMPI_Type_commit(&pattern_type);

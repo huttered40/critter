@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <stdint.h>
+#include <limits.h>
 
 namespace critter{
 namespace internal{
@@ -93,8 +94,8 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
   }
   // Unit (message-size) parameterization specification
   this->msg_size = truncate(_msg_size,comm_unit_param);
-  // Regardless of the specified envelope parameterization, non-p2p communication requires all processes to set partner_offset <- -1
-  if (_partner == -1){ this->partner_offset = -1; }
+  // Regardless of the specified envelope parameterization, non-p2p communication requires all processes to set partner_offset <- INT_MIN (-1 is not sufficient)
+  if (_partner == -1){ this->partner_offset = INT_MIN; }
 }
 
 // This constructor is used when transferring ownership of kernels following path propagation.

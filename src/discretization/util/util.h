@@ -86,8 +86,11 @@ struct pattern_batch{
   int hash_id;
   int channel_count;
   int num_schedules;
+  int num_local_schedules;
   double num_scheduled_units;
+  double num_local_scheduled_units;
   double total_exec_time;
+  double total_local_exec_time;
   double M1,M2;
   std::set<channel*> registered_channels;
 };
@@ -124,12 +127,13 @@ struct pattern{
   int global_steady_state;
   int num_schedules;
   int num_non_schedules;
-  int num_propagations;
-  int num_non_propagations;
+  int num_local_schedules;
   double num_scheduled_units;
   double num_non_scheduled_units;
+  double num_local_scheduled_units;
   double M1,M2;
   double total_exec_time;
+  double total_local_exec_time;
 };
 
 // ****************************************************************************************************************************************************
@@ -152,9 +156,12 @@ struct intermediate_stats{
   void generate(const pattern& p, const std::vector<pattern_batch>& active_batches);
 
   int num_schedules;
+  int num_local_schedules;
   double M1,M2;
   double num_scheduled_units;
+  double num_local_scheduled_units;
   double total_exec_time;
+  double total_local_exec_time;
 };
 
 // ****************************************************************************************************************************************************
