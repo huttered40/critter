@@ -255,6 +255,8 @@ void set_kernel_state(const pattern_key_id& index, bool schedule_decision);
 void set_kernel_state_global(pattern& p, bool schedule_decision);
 void set_kernel_state_global(const pattern_key_id& index, bool schedule_decision);
 
+void merge_batches(std::vector<pattern_batch>& batches, int analysis_param);
+
 void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);

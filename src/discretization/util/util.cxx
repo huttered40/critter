@@ -1147,6 +1147,30 @@ void set_kernel_state_global(const pattern_key_id& index, bool schedule_decision
   pattern_list[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
 }
 
+void merge_batches(std::vector<pattern_batch>& batches, int analysis_param){
+  if (batches.size() == 0) return;
+  // At first, I wanted to leverage the 'is_final' info from the aggregate (which can be obtained from a batch's hash_id
+  //   However, I think I don't need to do this. I can just keep that state within the batch and accumulate in there.
+  // Iterate over the entires to merge any two batches with the same state.
+  std::sort(batches.begin(),batches.end(),[](const pattern_batch& p1, const pattern_batch& p2){return p1.hash_id < p2.hash_id;});
+   // Assumption: no more than 2 batches can have the same state.
+  int start_index = 0;
+  for (auto i=1; i<batches.size(); i++){
+    if (batches[i].hash_id == batches[start_index].hash_id){
+      // Merge batches[i] into batches[start_index]
+      update_kernel_stats(batches[start_index],batches[i],analysis_param);
+      batches[start_index].num_local_schedules += batches[i].num_local_schedules;
+      batches[start_index].num_local_scheduled_units += batches[i].num_local_scheduled_units;
+      batches[start_index].total_local_exec_time += batches[i].total_local_exec_time;
+    } else{
+      batches[++start_index] = batches[i];
+    }
+  }
+  // TODO: pop_back the remaining ones.
+  for (int i=batches.size()-start_index-1; i>0; i--){
+    batches.pop_back();
+  }
+}
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -1379,6 +1403,8 @@ void reset_frequencies(){
 
 void clear(){
   // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
+  comm_batch_map.clear();
+  comp_batch_map.clear();
   comm_pattern_map.clear();
   comp_pattern_map.clear();
   steady_state_comm_pattern_keys.clear();
