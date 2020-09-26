@@ -92,9 +92,23 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
   }
 }
 
-void record::invoke(std::ofstream& Stream){
+void record::invoke(std::ofstream& Stream, double* data){
   assert(internal_comm_info.size() == 0);
   if (mode){
+
+    if (data != nullptr){
+      int data_count=0;
+      for (size_t i=0; i<num_critical_path_measures; i++){
+        data[data_count++] = critical_path_costs[i];
+      }
+      for (size_t i=0; i<num_per_process_measures; i++){
+        data[data_count++] = max_per_process_costs[i];
+      }
+      for (size_t i=0; i<num_volume_measures; i++){
+        data[data_count++] = volume_costs[i];
+      }
+    }
+
     auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
     if (is_world_root){
       auto inputs = parse_file_string();
@@ -167,7 +181,7 @@ void record::invoke(std::ofstream& Stream){
   }
 }
 
-void record::invoke(std::ostream& Stream){
+void record::invoke(std::ostream& Stream, double* data){
   assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   if (mode==0){
@@ -180,6 +194,20 @@ void record::invoke(std::ostream& Stream){
     }
   }
   if (mode){
+
+    if (data != nullptr){
+      int data_count=0;
+      for (size_t i=0; i<num_critical_path_measures; i++){
+        data[data_count++] = critical_path_costs[i];
+      }
+      for (size_t i=0; i<num_per_process_measures; i++){
+        data[data_count++] = max_per_process_costs[i];
+      }
+      for (size_t i=0; i<num_volume_measures; i++){
+        data[data_count++] = volume_costs[i];
+      }
+    }
+
     if (is_world_root){
       Stream << "\n\n";
       Stream << std::left << std::setw(mode_1_width) << "Critical path:";

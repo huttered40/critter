@@ -935,6 +935,19 @@ bool is_steady(const intermediate_stats& p, int analysis_param){
           (p.total_exec_time >= pattern_time_limit);
 }
 
+double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
+  assert(aggregation_mode >= 1);
+  auto& active_batches = comm_batch_map[key];
+  auto stats = intermediate_stats(index,active_batches);
+  return get_confidence_interval(stats,analysis_param) / (2.*get_estimate(stats,analysis_param));
+}
+double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
+  assert(aggregation_mode >= 1);
+  auto& active_batches = comp_batch_map[key];
+  auto stats = intermediate_stats(index,active_batches);
+  return get_confidence_interval(stats,analysis_param) / (2.*get_estimate(stats,analysis_param));
+}
+
 bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
   return is_steady(p,analysis_param);
@@ -1271,14 +1284,20 @@ void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
 
-  //TODO: What is the point of this??
+  // Complete any active and incomplete batches. Liquidate them into the pathset.
   if (aggregation_mode >= 1){
     for (auto& it : comp_pattern_map){
+      // Invalid assert-> this case is possible assert(comp_batch_map.find(it.first) != comp_batch_map.end());
+      //if (comp_batch_map[it.first].size() == 0) continue;
       auto stats = intermediate_stats(it.second,comp_batch_map[it.first]);
       update_kernel_stats(comp_pattern_map[it.first],stats);
       comp_batch_map[it.first].clear();
     }
+    // debug
+    int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     for (auto& it : comm_pattern_map){
+      // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
+      //if (comm_batch_map[it.first].size() == 0) continue;
       auto stats = intermediate_stats(it.second,comm_batch_map[it.first]);
       update_kernel_stats(comm_pattern_map[it.first],stats);
       comm_batch_map[it.first].clear();
@@ -1296,7 +1315,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
   comp_intercept_overhead = intercept_overhead[2];
 }
 
-void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide){
+void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
@@ -1312,7 +1331,6 @@ void reset(bool track_statistical_data_override, bool schedule_kernels_override,
   if (std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE") != NULL){
     aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE"));
     assert(aggregation_mode>=0 && aggregation_mode<=2);
-    if (is_optimized==0) { assert(aggregation_mode==0); }
   } else{
     aggregation_mode = 0;
   }
@@ -1366,34 +1384,27 @@ void reset(bool track_statistical_data_override, bool schedule_kernels_override,
   } else{
     schedule_kernels = 1;
   }
-//  if (aggregation_mode>0){ aggregation_mode = (track_statistical_data_override ? aggregation_mode : 0); }
   if (schedule_kernels==1){ schedule_kernels = (schedule_kernels_override ? schedule_kernels : 0); }
-  update_analysis = (update_statistical_data_overide ? 1 : 0);
-  if (force_steady_statistical_data_overide){// DO NOT SET TO STEADY_STATE WHEN PERFORMING CRITICAL PATH ANALYSIS
+  update_analysis = 1;
+  if (force_steady_statistical_data_overide){
     // This branch is to be entered only after tuning a space of algorithmic parameterizations, in which the expectation is that all kernels,
-    //   both comm and comp, have reached a sufficiently-predictable state (steady state). It is also only valid for per-process or volumetric analysis.
+    //   both comm and comp, have reached a sufficiently-predictable state (steady state).
 /*
     .. my problem with this now is that it breaks the invariant that kernels in global steady state must be both inactive and in the steady state buffers.
     ..   I have recently modified the routines in path.cxx to expect this, which I did not do before (and thus is the reason the code below worked for pp/vol analysis).
     .. I cannot simply flush each pattern that is not aleady in global steady state, as 
     // set all kernels into global steady state -- note this is reasonable for now,
     //   particularly as a debugging technique, but not sure if this makes sense permanently
+*/
     for (auto it : comm_pattern_map){
       set_kernel_state(it.second,false);
       set_kernel_state_global(it.second,false);
     }
     for (auto it : comp_pattern_map){
       set_kernel_state(it.second,false);
-      set_kernel_schedule_global(it.second,false);
+      set_kernel_state_global(it.second,false);
     }
-*/
-  }
-  else{
-    update_analysis=1;// Its too risky to allow no updating to pattern members when performing critical path analysis.
-/*
-    .. yes but how do we protect the statistics generated when tuning the parameterization space from being corrupted, even if most kernels are already steady?
-    ..   because I think they would still update the "non" pattern members, right?
-*/
+    update_analysis=0;
   }
 }
 

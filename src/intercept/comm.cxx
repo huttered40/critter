@@ -5,7 +5,7 @@
 
 namespace critter{
 
-void start(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide){
+void start(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{
@@ -15,7 +15,7 @@ void start(bool track_statistical_data_override, bool schedule_kernels_override,
   if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true;
-  internal::reset(track_statistical_data_override,schedule_kernels_override,force_steady_statistical_data_overide,update_statistical_data_overide);
+  internal::reset(schedule_kernels_override,force_steady_statistical_data_overide);
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
@@ -33,7 +33,7 @@ void stop(){
   internal::propagate(MPI_COMM_WORLD);
   internal::collect(MPI_COMM_WORLD);
 
-  internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
+  //internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
 }
 
 void record(double* data, bool print_statistical_data, bool save_statistical_data){
@@ -42,6 +42,7 @@ void record(double* data, bool print_statistical_data, bool save_statistical_dat
 }
 
 void clear(){
+  internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
   internal::clear();
 }
 

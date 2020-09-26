@@ -9,8 +9,8 @@ namespace decomposition{
 
 class record{
 public:
-  static void invoke(std::ofstream& Stream);
-  static void invoke(std::ostream& Stream);
+  static void invoke(std::ofstream& Stream, double* data = nullptr);
+  static void invoke(std::ostream& Stream, double* data = nullptr);
 };
 
 }

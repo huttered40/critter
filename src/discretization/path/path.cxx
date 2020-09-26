@@ -17,7 +17,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
 
   // There is no way to know whether each generated newcomm is of equal size without global knowledge of all colors specified (i.e. an Allgather)
   //   Therefore, I will just set the below assert inside the branch, which is motivated by the fact that I am not yet sure how to handle stride-specification for channels with a single process.
-  if (world_comm_size>1) assert(new_comm_size>1);
+  if (world_comm_size<=1) return;
   //int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
   solo_channel* node = new solo_channel();
   std::vector<int> gathered_info(new_comm_size,0);
@@ -209,18 +209,16 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   }
   // Note: 'get_estimate' must be called before setting the updated kernel state. If kernel was not scheduled, comp_time set below overwrites 'comp_time'
   if (should_schedule(comp_pattern_map[key]) == 0){
-    if (aggregation_mode == 0){
-      comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
-    }
-    else if (aggregation_mode >= 1){
-      comp_time = get_estimate(comp_pattern_map[key],comp_batch_map[key],comp_analysis_param,flop_count);
-    }
+    assert(comp_batch_map[key].size() == 0);
+    comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
   } else{
     // Both non-optimized and optimized variants can update the local kernel state and the global kernel state (no chance of deadlock)
     bool is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
     set_kernel_state(comp_pattern_map[key],!is_steady);
     set_kernel_state_global(comp_pattern_map[key],!is_steady);
     // If steady, and aggregation_mode>=1, then liquidate all batch states into the pathset and clear the corresponding batch entry in map.
+    //   Only need to perform this once. Note that this is allowed, whereas it is not allowed in 'complete_comm', because
+    //   a processor's kernel may be steady, yet its not globally steady.
     if (is_steady && (aggregation_mode >= 1)){
       auto stats = intermediate_stats(comp_pattern_map[key],comp_batch_map[key]);
       update_kernel_stats(comp_pattern_map[key],stats);
@@ -297,15 +295,17 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   if (tracker.partner1 != -1){
     world_rank = channel::translate_rank(tracker.comm,tracker.partner1); 
     world_key.partner_offset = tracker.partner1;//world_rank;
+/*
     if (p2p_global_state_override.find(world_key) == p2p_global_state_override.end()){
       p2p_global_state_override[world_key] = true;// not in global steady state
     }
+*/
   }
   if (comm_pattern_map.find(key) != comm_pattern_map.end()){
     if (is_optimized){
       post_barrier = should_schedule_global(comm_pattern_map[key])==1;
       if (tracker.partner1 != -1){
-        post_barrier = post_barrier || p2p_global_state_override[world_key];
+        //post_barrier = post_barrier || p2p_global_state_override[world_key];
       }
     }
     schedule_decision = should_schedule(comm_pattern_map[key])==1;
@@ -404,35 +404,50 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
     tracker.barrier_time = reduced_info[3] - critical_path_costs[num_critical_path_measures-1];
 
-    // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
-    //   and never have to use another internal collective to check again.
-    if (is_optimized){
-      // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
-      //   create an entry in comm_pattern_key, although it will be empty.
-      if (comm_pattern_map.find(key) != comm_pattern_map.end()){
+    // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
+    //   create an entry in comm_pattern_key, although it will be empty.
+    if (comm_pattern_map.find(key) != comm_pattern_map.end()){
+      // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
+      //   and never have to use another internal collective to check again.
+      if (is_optimized){
         // Do not update kernel state after its been set to steady. This situation can occur with use of 'p2p_global_state_override' to prevent deadlock
         // That also means we won't update our statistics with the scheduled comm_time, for better or for worse.
-        if (should_schedule_global(comm_pattern_map[key])==1){
+        //if (should_schedule_global(comm_pattern_map[key])==1){
           set_kernel_state(comm_pattern_map[key],schedule_decision);
           set_kernel_state_global(comm_pattern_map[key],schedule_decision);
-        }
+        //}
         if (tracker.partner1 != -1){
           //TODO: Why is this not working???
           //p2p_global_state_override[world_key] = schedule_decision;
         }
-        if (!schedule_decision && (aggregation_mode >= 1)){
+        // TODO: The statement below worries me in the presence of 'p2p_global_state_override'
+        if (!schedule_decision) { flush_pattern(key); }
+      } else{
+        // Not sure if this is needed. It will keep setting to steady if all processors in tracker.comm have a steady kernel, yet never
+        //   in global steady state (i.e. we will always need a reduction to make sure).
+        set_kernel_state(comm_pattern_map[key],schedule_decision);
+      }
+      // Note: once a kernel is steady, we want to liquidate batch information into the static pathset. Only need to do this once
+      if ((!schedule_decision) && (aggregation_mode >= 1)){
+        assert(comm_batch_map.find(key) != comm_batch_map.end());
+        if (comm_batch_map[key].size() > 0){
           auto stats = intermediate_stats(comm_pattern_map[key],comm_batch_map[key]);
           update_kernel_stats(comm_pattern_map[key],stats);
           comm_batch_map[key].clear();
         }
-        // TODO: The statement below worries me in the presence of 'p2p_global_state_override'
-        if (!schedule_decision) { flush_pattern(key); }
       }
     }
     // If kernel is about to be scheduled, post one more barrier for safety if collective,
     //   because the AllReduce posted above may allow ranks to leave early, thus corrupting the sample measurement.
     if (schedule_decision && tracker.partner1 == -1){ PMPI_Barrier(tracker.comm); }
     //TODO: Might consider a sendrecv here if tracker.partner1 != -1
+  }
+  else{
+    if (comm_pattern_map.find(key) != comm_pattern_map.end()){
+      if (comm_batch_map.find(key) != comm_batch_map.end()){
+        assert(comm_batch_map[key].size()==0);
+      }
+    }
   }
 
   comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
@@ -467,16 +482,19 @@ void path::complete_comm(blocking& tracker, int recv_source){
   // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_pattern_key, although it will be empty.
   comm_pattern_key key(rank,active_patterns.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+  //if (world_rank == 8) std::cout << "******" << key.tag << " " << key.dim_sizes[0] << " " << key.dim_strides[0] << " " << key.msg_size << " " << key.partner_offset << ")\n";
   if (comm_pattern_map.find(key) == comm_pattern_map.end()){
     active_comm_pattern_keys.push_back(key);
     active_patterns.emplace_back();
     comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
   }
   int comm_hash_tag;
+  if (should_schedule_global(comm_pattern_map[key]) == 0) assert(should_schedule(comm_pattern_map[key])==0);
   if ((aggregation_mode==0) || (should_schedule(comm_pattern_map[key]) == 0)){
     update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
   }
   else if (aggregation_mode >= 1){
+    assert(should_schedule_global(comm_pattern_map[key]) == 1);
     // Note: its common for a key's entry into the batch_map to be deleted many times (especially aggregation strategy #1)
     if (comm_batch_map.find(key) == comm_batch_map.end()){
       // Register the channel's batches
@@ -517,16 +535,10 @@ void path::complete_comm(blocking& tracker, int recv_source){
     //   on this is difficult.
     // Note: I think branching on aggregation mode is not needed. The pathset should contain all batch samples and the batch should be cleared.
     comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
-/* TODO: I might be able to delete this. See note above.
-    if (aggregation_mode == 0){
-      comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
-    }
-    else if (aggregation_mode >= 1){
-      comm_time = get_estimate(comm_pattern_map[key],comm_batch_map[key],comm_analysis_param,tracker.nbytes);
-    }
-*/
+    assert(comm_batch_map[key].size() == 0);
     if (is_optimized==1){ should_propagate = false; }
   } else{
+    assert(should_schedule_global(comm_pattern_map[key]) == 1);
     bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
     set_kernel_state(comm_pattern_map[key],!is_steady);
   }
@@ -1307,7 +1319,8 @@ void path::single_stage_sample_aggregation(blocking& tracker){
     }
     // Update existing entry.
     bool is_steady = steady_test(id,comm_pattern_map[id],comm_analysis_param);
-    if (!is_steady){
+    bool is_global_steady = should_schedule_global(comm_pattern_map[id]);
+    if (!is_steady && is_global_steady){
       update_kernel_stats(active_patterns[comm_pattern_map[id].val_index], temp, comm_analysis_param);
       bool is_steady = steady_test(id,comm_pattern_map[id],comm_analysis_param);
       set_kernel_state(comm_pattern_map[id],!is_steady);
@@ -1344,7 +1357,8 @@ void path::single_stage_sample_aggregation(blocking& tracker){
     }
     // Update existing entry.
     bool is_steady = steady_test(id,comp_pattern_map[id],comp_analysis_param);
-    if (!is_steady){
+    bool is_global_steady = should_schedule_global(comp_pattern_map[id]);
+    if (!is_steady && is_global_steady){
       update_kernel_stats(active_patterns[comp_pattern_map[id].val_index], temp, comp_analysis_param);
       bool is_steady = steady_test(id,comp_pattern_map[id],comp_analysis_param);
       set_kernel_state(comp_pattern_map[id],!is_steady);
@@ -1354,7 +1368,7 @@ void path::single_stage_sample_aggregation(blocking& tracker){
 }
 void path::multi_stage_sample_aggregation(blocking& tracker){
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  //if (world_rank == 8) std::cout << "Channel - " << comm_channel_map[tracker.comm]->id[0].first << " " << comm_channel_map[tracker.comm]->id[0].second << " " << comm_channel_map[tracker.comm]->global_hash_tag << " " << comm_channel_map[tracker.comm] << std::endl;
+  //if (world_rank == 8) std::cout << "\n\nChannel - " << comm_channel_map[tracker.comm]->id[0].first << " " << comm_channel_map[tracker.comm]->id[0].second << " " << comm_channel_map[tracker.comm]->global_hash_tag << " " << comm_channel_map[tracker.comm] << " with msg size " << tracker.nbytes << std::endl;
   int comm_rank; MPI_Comm_rank(tracker.comm,&comm_rank);
   int comm_size; MPI_Comm_size(tracker.comm,&comm_size);
   std::vector<comm_pattern_key> foreign_active_comm_pattern_keys;
@@ -1365,9 +1379,9 @@ void path::multi_stage_sample_aggregation(blocking& tracker){
   std::map<comp_pattern_key,std::vector<pattern_batch>> temp_comp_batch_map;
   // Fill up temporary maps with those local batches fit to aggregate across this channel 'tracker.comm'
   for (auto& it : comm_batch_map){
-    //if (world_rank == 8) std::cout << "comm key " << it.first.tag << " " << it.first.dim_sizes[0] << " " << it.first.dim_strides[0] << " " << it.first.msg_size << " " << it.first.partner_offset << ") has " << it.second.size() << " active batches\n";
+//    if (world_rank == 8) std::cout << "comm key " << it.first.tag << " " << it.first.dim_sizes[0] << " " << it.first.dim_strides[0] << " " << it.first.msg_size << " " << it.first.partner_offset << ") has " << it.second.size() << " active batches and " << active_patterns[comm_pattern_map[it.first].val_index].num_schedules << " total samples and " << active_patterns[comm_pattern_map[it.first].val_index].num_local_schedules << " local samples\n";
     for (auto& batch_state : it.second){
-      //if (world_rank == 8) std::cout << "\tWith state " << batch_state.hash_id << ", num_schedules " << batch_state.num_schedules << ", num_local_schedules - " << batch_state.num_local_schedules << std::endl;
+//      if (world_rank == 8) std::cout << "\tWith state " << batch_state.hash_id << ", num_schedules " << batch_state.num_schedules << ", num_local_schedules - " << batch_state.num_local_schedules << ", M1 - " << batch_state.M1 << ", M2 - " << batch_state.M2 << " " << get_error_estimate(it.first,comm_pattern_map[it.first],comm_analysis_param) << std::endl;
       // Three checks below:
       //   1. Does this propagation channel match the channel of the particular batch, or has it been used before?
       //   2. Does this propagation channel form an aggregate with the channel of the particular batch?
@@ -1375,7 +1389,7 @@ void path::multi_stage_sample_aggregation(blocking& tracker){
       if (batch_state.registered_channels.find(comm_channel_map[tracker.comm]) != batch_state.registered_channels.end()) continue;
       // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
       if (aggregate_channel_map.find(batch_state.hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
-      // if ((it.second[0].hash_id == 1) && (it.second[0].id[0].second == 0)) continue;
+//      if ((it.second[0].hash_id == 1) && (it.second[0].id[0].second == 0)) continue;
       temp_comm_batch_map[it.first].push_back(batch_state);
 /*
       if (world_rank == 8){
@@ -1387,9 +1401,9 @@ void path::multi_stage_sample_aggregation(blocking& tracker){
     }
   }
   for (auto& it : comp_batch_map){
-    //if (world_rank == 8) std::cout << "comp key " << it.first.tag << " " << it.first.flops << " " << it.first.param1 << " " << it.first.param2 << " " << it.first.param3 << ") has " << it.second.size() << " active batches\n";
+//    if (world_rank == 8) std::cout << "comp key " << it.first.tag << " " << it.first.flops << " " << it.first.param1 << " " << it.first.param2 << " " << it.first.param3 << ") has " << it.second.size() << " active batches and " << active_patterns[comp_pattern_map[it.first].val_index].num_schedules << " total samples\n";
     for (auto& batch_state : it.second){
-      //if (world_rank == 8) std::cout << "\tWith state " << batch_state.hash_id << ", num_schedules " << batch_state.num_schedules << ", num_local_schedules - " << batch_state.num_local_schedules << std::endl;
+//      if (world_rank == 8) std::cout << "\tWith state " << batch_state.hash_id << ", num_schedules " << batch_state.num_schedules << ", num_local_schedules - " << batch_state.num_local_schedules << ", M1 - " << batch_state.M1 << ", M2 - " << batch_state.M2 << " " << get_error_estimate(it.first,comp_pattern_map[it.first],comp_analysis_param) << std::endl;
       // Three checks below:
       //   1. Has this propagation channel been used before?
       //   2. Does this propagation channel form an aggregate with the channel of the particular batch?
@@ -1610,7 +1624,8 @@ void path::multi_stage_sample_aggregation(blocking& tracker){
       assert(it.second.size() == 1);
       // TODO: liquidate p2p batch into its pathset
       bool is_steady = steady_test(it.first,comm_pattern_map[it.first],comm_analysis_param);
-      if (!is_steady){
+      bool is_global_steady = should_schedule_global(comm_pattern_map[it.first]);
+      if (!is_steady && is_global_steady){
         // No need to update kernel statistics, because its already been done in the loops above
         set_kernel_state(comm_pattern_map[it.first],!is_steady);
       }
@@ -1619,7 +1634,8 @@ void path::multi_stage_sample_aggregation(blocking& tracker){
     }
     merge_batches(it.second,comm_analysis_param);
     bool is_steady = steady_test(it.first,comm_pattern_map[it.first],comm_analysis_param);
-    if (!is_steady){
+    bool is_global_steady = should_schedule_global(comm_pattern_map[it.first]);
+    if (!is_steady && is_global_steady){
       // No need to update kernel statistics, because its already been done in the loops above
       set_kernel_state(comm_pattern_map[it.first],!is_steady);
     }
@@ -1637,12 +1653,13 @@ void path::multi_stage_sample_aggregation(blocking& tracker){
     //assert(comp_pattern_map.find(it.first) != comp_pattern_map.end());
     merge_batches(it.second,comp_analysis_param);
     bool is_steady = steady_test(it.first,comp_pattern_map[it.first],comp_analysis_param);
-    if (!is_steady){
+    bool is_global_steady = should_schedule_global(comp_pattern_map[it.first]);
+    if (!is_steady && is_global_steady){
       // No need to update kernel statistics, because its already been done in the loops above
       set_kernel_state(comp_pattern_map[it.first],!is_steady);
     }
   }
-  //if (world_rank == 8) std::cout << "LEAVE\n";
+//  if (world_rank == 8) std::cout << "LEAVE\n";
 }
 
 }

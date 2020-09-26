@@ -230,6 +230,9 @@ bool is_steady(const pattern& p, int analysis_param);
 bool is_steady(const pattern_key_id& index, int analysis_param);
 bool is_steady(const intermediate_stats& p, int analysis_param);
 
+double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);
+double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param);
+
 bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param);
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);
 bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_param);
@@ -261,7 +264,7 @@ void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
-void reset(bool track_statistical_data_override, bool schedule_kernels_override, bool force_steady_statistical_data_overide, bool update_statistical_data_overide);
+void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide);
 void reset_frequencies();
 void clear();
 void finalize();
