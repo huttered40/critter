@@ -28,8 +28,8 @@ void final_accumulate(MPI_Comm comm, double last_time);
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 
-void record(std::ofstream& Stream, double* data, bool print_statistical_data, bool save_statistical_data);
-void record(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data);
+void record(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data);
+void record(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data);
 
 void reset_frequencies();
 

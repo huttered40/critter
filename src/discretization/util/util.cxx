@@ -12,6 +12,7 @@ int is_optimized;
 int aggregation_mode;
 int schedule_kernels;
 int update_analysis;
+int autotuning_test_id;
 MPI_Datatype comm_pattern_key_type;
 MPI_Datatype comp_pattern_key_type;
 MPI_Datatype pattern_type;
@@ -35,6 +36,7 @@ std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 std::map<comm_pattern_key,bool> p2p_global_state_override;
 std::map<int,aggregate_channel*> aggregate_channel_map;
+std::ofstream stream_overhead,stream_tune,stream_reconstruct;
 
 // ****************************************************************************************************************************************************
 static int gcd(int a, int b){
@@ -1263,6 +1265,92 @@ void allocate(MPI_Comm comm){
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
 
+  // Reset these global variables, as some are updated by function arguments for convenience
+  if (std::getenv("CRITTER_AUTOTUNING_TEST") != NULL){
+    autotuning_test_id = atoi(std::getenv("CRITTER_AUTOTUNING_TEST"));
+    assert(autotuning_test_id>=0 && autotuning_test_id<=2);
+    if (flag == 1){
+      if (_world_rank==0){
+        if (autotuning_test_id == 0){
+          std::string stream_overhead_name = std::getenv("CRITTER_VIZ_FILE");
+          stream_overhead_name += "_overhead.txt";
+          stream_overhead.open(stream_overhead_name.c_str(),std::ofstream::app);
+        } else if (autotuning_test_id == 1){
+          std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
+          std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
+          stream_tune_name += "_tune.txt";
+          stream_reconstruct_name += "_reconstruct.txt";
+          stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
+          stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
+        } else if (autotuning_test_id == 2){
+          std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
+          std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
+          stream_tune_name += "_tune.txt";
+          stream_reconstruct_name += "_reconstruct.txt";
+          stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
+          stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
+        }
+      } 
+    }
+  } else assert(0);
+  if (std::getenv("CRITTER_AUTOTUNING_OPTIMIZE") != NULL){
+    is_optimized = atoi(std::getenv("CRITTER_AUTOTUNING_OPTIMIZE"));
+    assert(is_optimized>=0 && is_optimized<=1);
+  } else{
+    is_optimized = 0;
+  }
+  if (std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE") != NULL){
+    aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE"));
+    assert(aggregation_mode>=0 && aggregation_mode<=2);
+  } else{
+    aggregation_mode = 0;
+  }
+  if (std::getenv("CRITTER_COMM_ENVELOPE_PARAM") != NULL){
+    comm_envelope_param = atoi(std::getenv("CRITTER_COMM_ENVELOPE_PARAM"));
+  } else{
+    comm_envelope_param = 0;
+  }
+  if (std::getenv("CRITTER_COMM_UNIT_PARAM") != NULL){
+    comm_unit_param = atoi(std::getenv("CRITTER_COMM_UNIT_PARAM"));
+  } else{
+    comm_unit_param = 0;
+  }
+  if (std::getenv("CRITTER_COMM_ANALYSIS_PARAM") != NULL){
+    comm_analysis_param = atoi(std::getenv("CRITTER_COMM_ANALYSIS_PARAM"));
+  } else{
+    comm_analysis_param = 0;
+  }
+  if (std::getenv("CRITTER_COMP_ENVELOPE_PARAM") != NULL){
+    comp_envelope_param = atoi(std::getenv("CRITTER_COMP_ENVELOPE_PARAM"));
+  } else{
+    comp_envelope_param = 0;
+  }
+  if (std::getenv("CRITTER_COMP_UNIT_PARAM") != NULL){
+    comp_unit_param = atoi(std::getenv("CRITTER_COMP_UNIT_PARAM"));
+  } else{
+    comp_unit_param = 0;
+  }
+  if (std::getenv("CRITTER_COMP_ANALYSIS_PARAM") != NULL){
+    comp_analysis_param = atoi(std::getenv("CRITTER_COMP_ANALYSIS_PARAM"));
+  } else{
+    comp_analysis_param = 0;
+  }
+  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
+    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
+  } else{
+    pattern_count_limit = 1;
+  }
+  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
+    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
+  } else{
+    pattern_time_limit = .00001;
+  }
+  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
+    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
+  } else{
+    pattern_error_limit = .5;
+  }
+
   if (eager_p2p){
     int eager_msg_sizes[5];
     MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
@@ -1321,64 +1409,6 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
 
-  // Reset these global variables, as some are updated by function arguments for convenience
-  if (std::getenv("CRITTER_AUTOTUNING_OPTIMIZE") != NULL){
-    is_optimized = atoi(std::getenv("CRITTER_AUTOTUNING_OPTIMIZE"));
-    assert(is_optimized>=0 && is_optimized<=1);
-  } else{
-    is_optimized = 0;
-  }
-  if (std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE") != NULL){
-    aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE"));
-    assert(aggregation_mode>=0 && aggregation_mode<=2);
-  } else{
-    aggregation_mode = 0;
-  }
-  if (std::getenv("CRITTER_COMM_ENVELOPE_PARAM") != NULL){
-    comm_envelope_param = atoi(std::getenv("CRITTER_COMM_ENVELOPE_PARAM"));
-  } else{
-    comm_envelope_param = 0;
-  }
-  if (std::getenv("CRITTER_COMM_UNIT_PARAM") != NULL){
-    comm_unit_param = atoi(std::getenv("CRITTER_COMM_UNIT_PARAM"));
-  } else{
-    comm_unit_param = 0;
-  }
-  if (std::getenv("CRITTER_COMM_ANALYSIS_PARAM") != NULL){
-    comm_analysis_param = atoi(std::getenv("CRITTER_COMM_ANALYSIS_PARAM"));
-  } else{
-    comm_analysis_param = 0;
-  }
-  if (std::getenv("CRITTER_COMP_ENVELOPE_PARAM") != NULL){
-    comp_envelope_param = atoi(std::getenv("CRITTER_COMP_ENVELOPE_PARAM"));
-  } else{
-    comp_envelope_param = 0;
-  }
-  if (std::getenv("CRITTER_COMP_UNIT_PARAM") != NULL){
-    comp_unit_param = atoi(std::getenv("CRITTER_COMP_UNIT_PARAM"));
-  } else{
-    comp_unit_param = 0;
-  }
-  if (std::getenv("CRITTER_COMP_ANALYSIS_PARAM") != NULL){
-    comp_analysis_param = atoi(std::getenv("CRITTER_COMP_ANALYSIS_PARAM"));
-  } else{
-    comp_analysis_param = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
-    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
-  } else{
-    pattern_count_limit = 1;
-  }
-  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
-    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
-  } else{
-    pattern_time_limit = .00001;
-  }
-  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
-    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
-  } else{
-    pattern_error_limit = .5;
-  }
   if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
     schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
   } else{
@@ -1433,6 +1463,19 @@ void clear(){
 
 void finalize(){
   // 'spf' deletion should occur automatically at program shutdown
+  if (is_world_root){
+    if (flag == 1){
+      if (autotuning_test_id == 0){
+        stream_overhead.close();
+      } else if (autotuning_test_id == 1){
+        stream_tune.close();
+        stream_reconstruct.close();
+      } else if (autotuning_test_id == 2){
+        stream_tune.close();
+        stream_reconstruct.close();
+      }
+    }
+  }
 }
 
 }

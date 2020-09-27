@@ -7,15 +7,9 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
+std::vector<double> record::set_tuning_statistics(std::ofstream& Stream, bool print_statistical_data, bool save_statistical_data){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (data != nullptr){
-    for (auto i=0; i<critical_path_costs.size(); i++){
-      data[critical_path_costs.size()-1-i] = critical_path_costs[i];
-    }
-  }
-
   // Lets iterate over the map to create two counters, then reduce them to get a global idea:
   //   Another idea is to cache this list over the critical path, but that might be too much.
   int max_patterns[6] = {0,0,0,0,0,0};
@@ -69,47 +63,6 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
   PMPI_Allreduce(MPI_IN_PLACE,&vol_units[0],6,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
   PMPI_Allreduce(MPI_IN_PLACE,&vol_exec_times[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 
-  if (save_statistical_data && data != nullptr){
-    data[0] = critical_path_costs[num_critical_path_measures-1];
-    data[1] = critical_path_costs[num_critical_path_measures-2];
-    data[2] = critical_path_costs[num_critical_path_measures-3];
-    data[3] = critical_path_costs[num_critical_path_measures-4];
-    data[4] = max_patterns[0];
-    data[5] = max_patterns[1];
-    data[6] = max_patterns[2];
-    data[7] = max_units[0];
-    data[8] = max_units[1];
-    data[9] = max_units[2];
-    data[10] = max_exec_times[0];
-    data[11] = max_exec_times[1];
-    data[12] = max_patterns[3];
-    data[13] = max_patterns[4];
-    data[14] = max_patterns[5];
-    data[15] = max_units[3];
-    data[16] = max_units[4];
-    data[17] = max_units[5];
-    data[18] = max_exec_times[2];
-    data[19] = max_exec_times[3];
-    data[20] = vol_patterns[0];
-    data[21] = vol_patterns[1];
-    data[22] = vol_patterns[2];
-    data[23] = vol_units[0];
-    data[24] = vol_units[1];
-    data[25] = vol_units[2];
-    data[26] = vol_exec_times[0];
-    data[27] = vol_exec_times[1];
-    data[28] = vol_patterns[3];
-    data[29] = vol_patterns[4];
-    data[30] = vol_patterns[5];
-    data[31] = vol_units[3];
-    data[32] = vol_units[4];
-    data[33] = vol_units[5];
-    data[34] = vol_exec_times[2];
-    data[35] = vol_exec_times[3];
-    data[36] = comp_intercept_overhead;
-    data[37] = comm_intercept_overhead_stage1;
-    data[38] = comm_intercept_overhead_stage2;
-  }
   if (print_statistical_data){
     if (world_rank==0) { Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
 
@@ -235,9 +188,228 @@ void record::invoke(std::ofstream& Stream, double* data, bool print_statistical_
 */
     }
   }
+
+  std::vector<double> tuning_stats(35);
+  tuning_stats[0] = max_patterns[0];
+  tuning_stats[1] = max_patterns[1];
+  tuning_stats[2] = max_patterns[2];
+  tuning_stats[3] = max_units[0];
+  tuning_stats[4] = max_units[1];
+  tuning_stats[5] = max_units[2];
+  tuning_stats[6] = max_exec_times[0];
+  tuning_stats[7] = max_exec_times[1];
+  tuning_stats[8] = max_patterns[3];
+  tuning_stats[9] = max_patterns[4];
+  tuning_stats[10] = max_patterns[5];
+  tuning_stats[11] = max_units[3];
+  tuning_stats[12] = max_units[4];
+  tuning_stats[13] = max_units[5];
+  tuning_stats[14] = max_exec_times[2];
+  tuning_stats[15] = max_exec_times[3];
+  tuning_stats[16] = vol_patterns[0];
+  tuning_stats[17] = vol_patterns[1];
+  tuning_stats[18] = vol_patterns[2];
+  tuning_stats[19] = vol_units[0];
+  tuning_stats[20] = vol_units[1];
+  tuning_stats[21] = vol_units[2];
+  tuning_stats[22] = vol_exec_times[0];
+  tuning_stats[23] = vol_exec_times[1];
+  tuning_stats[24] = vol_patterns[3];
+  tuning_stats[25] = vol_patterns[4];
+  tuning_stats[26] = vol_patterns[5];
+  tuning_stats[27] = vol_units[3];
+  tuning_stats[28] = vol_units[4];
+  tuning_stats[29] = vol_units[5];
+  tuning_stats[30] = vol_exec_times[2];
+  tuning_stats[31] = vol_exec_times[3];
+  tuning_stats[32] = comp_intercept_overhead;
+  tuning_stats[33] = comm_intercept_overhead_stage1;
+  tuning_stats[34] = comm_intercept_overhead_stage2;
+  return tuning_stats;
 }
 
-void record::invoke(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){}
+void record::invoke(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data){
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+
+  if (autotuning_test_id==0){
+    double _wall_time = wall_timer;
+    PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+    if (world_rank==0){
+      if (is_first_iter){
+        stream_overhead << std::left << std::setw(mode_1_width) << "ID";
+        stream_overhead << std::left << std::setw(mode_1_width) << "TestID";
+        stream_overhead << std::left << std::setw(mode_1_width) << "AppOverhead";// Stage 0
+        stream_overhead << std::endl;
+      }
+      stream_overhead << std::left << std::setw(mode_1_width) << variantID;
+      stream_overhead << std::left << std::setw(mode_1_width) << autotuning_test_id;
+      stream_overhead << std::left << std::setw(mode_1_width) << _wall_time;
+      stream_overhead << std::endl;
+    }
+  }
+  else if (autotuning_test_id>=1){
+    double _wall_time = wall_timer;
+    PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+
+    if (world_rank==0){
+      if (is_first_iter){
+        if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << "ID";
+        stream_tune << std::left << std::setw(mode_1_width) << "TestID";
+        stream_tune << std::left << std::setw(mode_1_width) << "IsOptimized";
+        stream_tune << std::left << std::setw(mode_1_width) << "AggregationMode";
+        stream_tune << std::left << std::setw(mode_1_width) << "CommEnvelopeParam";
+        stream_tune << std::left << std::setw(mode_1_width) << "CommUnitParam";
+        stream_tune << std::left << std::setw(mode_1_width) << "CommAnalysisParam";
+        stream_tune << std::left << std::setw(mode_1_width) << "CompEnvelopeParam";
+        stream_tune << std::left << std::setw(mode_1_width) << "CompUnitParam";
+        stream_tune << std::left << std::setw(mode_1_width) << "CompAnalysisParam";
+        stream_tune << std::left << std::setw(mode_1_width) << "PatternCountLimit";
+        stream_tune << std::left << std::setw(mode_1_width) << "PatternTimeLimit";
+        stream_tune << std::left << std::setw(mode_1_width) << "PatternErrorLimit";
+        stream_tune << std::left << std::setw(mode_1_width) << "TuningTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedComm";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalComm";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSkipComm";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedBytes";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalBytes";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSkipBytes";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedCommTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalCommTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedComp";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalComp";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSkipComp";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedFlops";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalFlops";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSkipFlops";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedCompTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalCompTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedComm";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalComm";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSkipComm";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedBytes";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalBytes";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSkipBytes";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedCommTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalCommTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedComp";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalComp";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSkipComp";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedFlops";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalFlops";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSkipFlops";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedCompTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalCompTime";
+        stream_tune << std::left << std::setw(mode_1_width) << "CompOverhead";
+        stream_tune << std::left << std::setw(mode_1_width) << "CommOverhead1";
+        stream_tune << std::left << std::setw(mode_1_width) << "CommOverhead2";
+        stream_tune << std::endl;
+
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "ID";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "TestID";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "IsOptimized";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "AggregationMode";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "CommEnvelopeParam";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "CommUnitParam";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "CommAnalysisParam";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "CompEnvelopeParam";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "CompUnitParam";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "CompAnalysisParam";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "PatternCountLimit";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "PatternTimeLimit";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "PatternErrorLimit";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "ReconstructTime";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "EstET";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCompTime";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCompKTime";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCommKTime";
+        stream_reconstruct << std::endl;
+      }
+    }
+
+    // To simplify interface, 'update_analysis' is used to differentiate between printing tuning data and reconstruct data
+    if (save_statistical_data && update_analysis){
+      auto tuning_data = set_tuning_statistics(Stream,print_statistical_data,save_statistical_data);
+      if (world_rank == 0){ 
+        if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << variantID;
+        stream_tune << std::left << std::setw(mode_1_width) << autotuning_test_id;
+        stream_tune << std::left << std::setw(mode_1_width) << is_optimized;
+        stream_tune << std::left << std::setw(mode_1_width) << aggregation_mode;
+        stream_tune << std::left << std::setw(mode_1_width) << comm_envelope_param;
+        stream_tune << std::left << std::setw(mode_1_width) << comm_unit_param;
+        stream_tune << std::left << std::setw(mode_1_width) << comm_analysis_param;
+        stream_tune << std::left << std::setw(mode_1_width) << comp_envelope_param;
+        stream_tune << std::left << std::setw(mode_1_width) << comp_unit_param;
+        stream_tune << std::left << std::setw(mode_1_width) << comp_analysis_param;
+        stream_tune << std::left << std::setw(mode_1_width) << pattern_count_limit;
+        stream_tune << std::left << std::setw(mode_1_width) << pattern_time_limit;
+        stream_tune << std::left << std::setw(mode_1_width) << pattern_error_limit;
+        stream_tune << std::left << std::setw(mode_1_width) << _wall_time;
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[0];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[1];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[2];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[3];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[4];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[5];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[6];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[7];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[8];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[9];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[10];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[11];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[12];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[13];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[14];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[15];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[16];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[17];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[18];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[19];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[20];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[21];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[22];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[23];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[24];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[25];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[26];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[27];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[28];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[29];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[30];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[31];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[32];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[33];
+        stream_tune << std::left << std::setw(mode_1_width) << tuning_data[34];
+        stream_tune << std::endl;
+      }
+    }
+    if (save_statistical_data && !update_analysis){
+      if (world_rank == 0){
+        stream_reconstruct << std::left << std::setw(mode_1_width) << variantID;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << autotuning_test_id;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << is_optimized;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << aggregation_mode;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << comm_envelope_param;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << comm_unit_param;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << comm_analysis_param;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << comp_envelope_param;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << comp_unit_param;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << comp_analysis_param;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << pattern_count_limit;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << pattern_time_limit;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << pattern_error_limit;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << _wall_time;
+        stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
+        stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-2];
+        stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-3];
+        stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-4];
+        stream_reconstruct << std::endl;
+      }
+    }
+  }
+}
+
+void record::invoke(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data){}
 
 }
 }

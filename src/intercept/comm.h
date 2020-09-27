@@ -7,7 +7,7 @@ namespace critter{
 
 void start(bool schedule_kernels_override = true, bool force_steady_statistical_data_overide = false);
 void stop();
-void record(double* data = nullptr, bool print_statistical_data = false, bool save_statistical_data=false);
+void record(int variantID=-1, bool print_statistical_data = false, bool save_statistical_data=false);
 void clear();
 void reset_frequencies();
 

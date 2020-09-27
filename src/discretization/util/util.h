@@ -169,6 +169,7 @@ extern int is_optimized;
 extern int aggregation_mode;
 extern int schedule_kernels;
 extern int update_analysis;
+extern int autotuning_test_id;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
 extern MPI_Datatype pattern_type;
@@ -192,6 +193,7 @@ extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 extern std::map<comm_pattern_key,bool> p2p_global_state_override;
 extern std::map<int,aggregate_channel*> aggregate_channel_map;
+extern std::ofstream stream_overhead,stream_tune,stream_reconstruct;
 
 // ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key);

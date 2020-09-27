@@ -19,11 +19,13 @@ void start(bool schedule_kernels_override, bool force_steady_statistical_data_ov
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
-  internal::computation_timer=MPI_Wtime();
+  internal::computation_timer = MPI_Wtime();
+  internal::wall_timer = internal::computation_timer;
 }
 
 void stop(){
   volatile double last_time = MPI_Wtime();
+  internal::wall_timer = last_time - internal::wall_timer;
   internal::stack_id--; 
   if (internal::stack_id>0) { return; }
   PMPI_Barrier(MPI_COMM_WORLD);
@@ -32,13 +34,13 @@ void stop(){
   internal::final_accumulate(MPI_COMM_WORLD,last_time); 
   internal::propagate(MPI_COMM_WORLD);
   internal::collect(MPI_COMM_WORLD);
-
   //internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
 }
 
-void record(double* data, bool print_statistical_data, bool save_statistical_data){
-  internal::record(std::cout,data,print_statistical_data,save_statistical_data);
-  if (internal::flag) {internal::record(internal::stream,data,print_statistical_data,save_statistical_data);}
+void record(int variantID, bool print_statistical_data, bool save_statistical_data){
+  internal::record(std::cout,variantID,print_statistical_data,save_statistical_data);
+  if (internal::flag) {internal::record(internal::stream,variantID,print_statistical_data,save_statistical_data);}
+  internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
 }
 
 void clear(){
@@ -111,8 +113,8 @@ void _init(int* argc, char*** argv){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
   }
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
-    stream_name = std::getenv("CRITTER_VIZ_FILE");
-    stream_name += ".txt";
+    file_name = std::getenv("CRITTER_VIZ_FILE");
+    stream_name = file_name + ".txt";
     flag=1;
   }
   is_first_iter = true;

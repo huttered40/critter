@@ -52,29 +52,6 @@ void allocate(MPI_Comm comm){
   mode_2_width = 15;
   event_list_size = 0;
 
-/*
-  if (std::getenv("CRITTER_OPT") != NULL){
-    opt = atoi(std::getenv("CRITTER_OPT"));
-    delete_comm = 0;
-  } else{
-    opt = 0;
-  }
-  if (std::getenv("CRITTER_OPT_MAX_ITER") != NULL){
-    opt_max_iter = atoi(std::getenv("CRITTER_OPT_MAX_ITER"));
-  } else{
-    opt_max_iter = 5;
-  }
-  if (std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS") != NULL){
-    num_gradient_points = atoi(std::getenv("CRITTER_OPT_NUM_GRADIENT_POINTS"));
-  } else{
-    num_gradient_points = 10;
-  }
-  if (std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE") != NULL){
-    gradient_jump_size = atoi(std::getenv("CRITTER_OPT_GRADIENT_JUMP_SIZE"));
-  } else{
-    gradient_jump_size = 5;// signifies 5%
-  }
-*/
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
   } else{
@@ -89,11 +66,6 @@ void allocate(MPI_Comm comm){
     _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
   } else{
     _comm_path_select_ = "000000000";
-  }
-  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
-    flag = 1;
-    file_name = std::getenv("CRITTER_VIZ_FILE");
-    stream_name = file_name + ".txt";
   }
   if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
     max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));

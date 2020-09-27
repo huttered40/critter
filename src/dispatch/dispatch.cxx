@@ -242,24 +242,24 @@ void reset_frequencies(){
   }
 }
 
-void record(std::ofstream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
+void record(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data){
   switch (mechanism){
     case 0:
-      decomposition::record::invoke(Stream,data);
+      decomposition::record::invoke(Stream,variantID);
       break;
     case 1:
-      discretization::record::invoke(Stream,data,print_statistical_data,save_statistical_data);
+      discretization::record::invoke(Stream,variantID,print_statistical_data,save_statistical_data);
       break;
   }
 }
 
-void record(std::ostream& Stream, double* data, bool print_statistical_data, bool save_statistical_data){
+void record(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data){
   switch (mechanism){
     case 0:
-      decomposition::record::invoke(Stream);
+      decomposition::record::invoke(Stream,variantID);
       break;
     case 1:
-      discretization::record::invoke(Stream,data,print_statistical_data,save_statistical_data);
+      discretization::record::invoke(Stream,variantID,print_statistical_data,save_statistical_data);
       break;
   }
 }

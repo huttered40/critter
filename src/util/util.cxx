@@ -26,6 +26,7 @@ bool flag,is_first_iter,is_world_root,need_new_line,opt;
 size_t mechanism,mode,stack_id;
 std::ofstream stream;
 volatile double computation_timer;
+volatile double wall_timer;
 std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
 std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
 std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
