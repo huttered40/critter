@@ -9,8 +9,8 @@ namespace discretization{
 
 class record{
 public:
-  static void invoke(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data);
-  static void invoke(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data);
+  static void invoke(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time);
+  static void invoke(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time);
 
 private:
   static std::vector<double> set_tuning_statistics(std::ofstream& Stream, bool print_statistical_data, bool save_statistical_data);

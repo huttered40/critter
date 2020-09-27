@@ -43,7 +43,8 @@ std::string get_measure_title(size_t idx){
   measure_titles[6] = "comm time";
   measure_titles[7] = "synch time";
   measure_titles[8] = "comp time";
-  measure_titles[9] = "exec time";
+  measure_titles[9] = "comp kernel time";
+  measure_titles[10] = "exec time";
   if ((cost_models[0]=='0') && (cost_models[1]=='0')){ return measure_titles[idx+2*cost_model_size]; }
   if ((cost_models[0]=='0') && (cost_models[1]=='1')){ if (idx==0) return measure_titles[0]; if (idx==1) return measure_titles[2]; return measure_titles[2+idx];}
   if ((cost_models[0]=='1') && (cost_models[1]=='0')){ if (idx==0) return measure_titles[1]; if (idx==1) return measure_titles[3]; return measure_titles[2+idx];}
@@ -80,11 +81,11 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
     Stream << "Input";
   }
   print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tRunTime";// critical path
+  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// critical path
   print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tRunTime";// per-process
+  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tRunTime";// volume
+  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// volume
   for (auto i=0; i<num_tracker_critical_path_measures*comm_path_select_size+num_tracker_per_process_measures*comm_path_select_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
      Stream << "\t" << it.first;
@@ -92,10 +93,11 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
   }
 }
 
-void record::invoke(std::ofstream& Stream, int variantID){
+void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
   assert(internal_comm_info.size() == 0);
   if (mode==0){
     double _wall_time = wall_timer;
+    _wall_time -= overhead_time;
     PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
     if (is_world_root){
       if (is_first_iter){
@@ -153,17 +155,19 @@ void record::invoke(std::ofstream& Stream, int variantID){
             Stream << "\t" << it.second[j];
           }
         }
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-3];// comp cost
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];// comp time
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];// idle time
+        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-1];// comp kernel time
+        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-2];// comp time
+        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-3];// idle time
+        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-4];// comp cost
         breakdown_idx++;
       }
       breakdown_idx=0;
       for (auto i=0; i<comm_path_select.size(); i++){
         if (comm_path_select[i]=='0') continue;
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];// comp time
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];// idle time
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];// comp cost
+        Stream << "\t" << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];// comp kernel time
+        Stream << "\t" << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];// comp time
+        Stream << "\t" << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];// idle time
+        Stream << "\t" << critical_path_costs[critical_path_costs_size-4*comm_path_select_size+breakdown_idx];// comp cost
         breakdown_idx++;
       }
       breakdown_idx=0;
@@ -185,7 +189,7 @@ void record::invoke(std::ofstream& Stream, int variantID){
   }
 }
 
-void record::invoke(std::ostream& Stream, int variantID){
+void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
   assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   if (mode==0){
@@ -207,6 +211,7 @@ void record::invoke(std::ostream& Stream, int variantID){
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
       Stream << std::left << std::setw(mode_1_width) << "CompTime";
+      Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(mode_1_width) << "                  ";
@@ -226,6 +231,7 @@ void record::invoke(std::ostream& Stream, int variantID){
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
       Stream << std::left << std::setw(mode_1_width) << "CompTime";
+      Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(mode_1_width) << "                  ";
@@ -243,6 +249,7 @@ void record::invoke(std::ostream& Stream, int variantID){
       Stream << std::left << std::setw(mode_1_width) << "CommTime";
       Stream << std::left << std::setw(mode_1_width) << "SynchTime";
       Stream << std::left << std::setw(mode_1_width) << "CompTime";
+      Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
       Stream << std::left << std::setw(mode_1_width) << "RunTime";
       Stream << "\n";
       Stream << std::left << std::setw(mode_1_width) << "                  ";
@@ -273,9 +280,12 @@ void record::invoke(std::ostream& Stream, int variantID){
         } else if (i==7){
           Stream << std::left << std::setw(mode_1_width) << "CompTime max:";
         } else if (i==8){
+          Stream << std::left << std::setw(mode_1_width) << "CompKernelTime max:";
+        } else if (i==9){
           Stream << std::left << std::setw(mode_1_width) << "RunTime max:";
         }
         Stream << std::left << std::setw(mode_1_width) << "MeasureType";
+        Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
         Stream << std::left << std::setw(mode_1_width) << "CompTime";
         Stream << std::left << std::setw(mode_1_width) << "IdleTime";
         Stream << std::left << std::setw(mode_1_width) << "CompCost";
@@ -283,20 +293,27 @@ void record::invoke(std::ostream& Stream, int variantID){
         Stream << std::left << std::setw(mode_1_width) << "CommTime";
         Stream << std::left << std::setw(mode_1_width) << "SynchTime";
         Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationTime";
+        Stream << std::left << std::setw(mode_1_width) << "ComputationKernelTime";
         Stream << std::left << std::setw(mode_1_width) << "path";
         Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];
+        Stream << "\n";
+        Stream << std::left << std::setw(mode_1_width) << "ComputationTime";
+        Stream << std::left << std::setw(mode_1_width) << "path";
+        Stream << std::left << std::setw(mode_1_width) << 0.0;
+        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "IdleTime";
         Stream << std::left << std::setw(mode_1_width) << "path";
         Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];
+        Stream << std::left << std::setw(mode_1_width) << 0.0;
+        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "ComputationCost";
         Stream << std::left << std::setw(mode_1_width) << "path";
         Stream << std::left << std::setw(mode_1_width) << 0.0;
         Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];
+        Stream << std::left << std::setw(mode_1_width) << 0.0;
+        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-4*comm_path_select_size+breakdown_idx];
         for (int j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
         }
@@ -307,25 +324,33 @@ void record::invoke(std::ostream& Stream, int variantID){
           Stream << std::left << std::setw(mode_1_width) << 0.0;
           Stream << std::left << std::setw(mode_1_width) << 0.0;
           Stream << std::left << std::setw(mode_1_width) << 0.0;
+          Stream << std::left << std::setw(mode_1_width) << 0.0;
           for (size_t j=0; j<num_tracker_critical_path_measures; j++){
             Stream << std::left << std::setw(mode_1_width) << it.second[j];
           }
         }
         Stream << "\n";
+        Stream << std::left << std::setw(mode_1_width) << "ComputationKernelTime";
+        Stream << std::left << std::setw(mode_1_width) << "per-process";
+        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-1];
+        Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "ComputationTime";
         Stream << std::left << std::setw(mode_1_width) << "per-process";
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-2];
+        Stream << std::left << std::setw(mode_1_width) << 0.0;
+        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-2];
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "IdleTime";
         Stream << std::left << std::setw(mode_1_width) << "per-process";
         Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-1];
+        Stream << std::left << std::setw(mode_1_width) << 0.0;
+        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-3];
         Stream << "\n";
         Stream << std::left << std::setw(mode_1_width) << "ComputationCost";
         Stream << std::left << std::setw(mode_1_width) << "per-process";
         Stream << std::left << std::setw(mode_1_width) << 0.0;
         Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+2)-3];
+        Stream << std::left << std::setw(mode_1_width) << 0.0;
+        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-4];
         for (int j=0; j<list_size; j++){
           list[j]->set_per_process_costs(breakdown_idx);
         }
@@ -333,6 +358,7 @@ void record::invoke(std::ostream& Stream, int variantID){
           Stream << "\n";
           Stream << std::left << std::setw(mode_1_width) << it.first;
           Stream << std::left << std::setw(mode_1_width) << "per-process";
+          Stream << std::left << std::setw(mode_1_width) << 0.0;
           Stream << std::left << std::setw(mode_1_width) << 0.0;
           Stream << std::left << std::setw(mode_1_width) << 0.0;
           Stream << std::left << std::setw(mode_1_width) << 0.0;

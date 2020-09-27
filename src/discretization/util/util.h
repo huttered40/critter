@@ -267,7 +267,6 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide);
-void reset_frequencies();
 void clear();
 void finalize();
 

@@ -14,25 +14,25 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){}
 bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // accumulate computation time
   double save_comp_time = curtime - computation_timer;
-  critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
+  volume_costs[num_volume_measures-3]        += save_comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local runtime
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += save_comp_time; }// update each metric's critical path's computation time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += save_comp_time; }// update each metric's critical path's computation time
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     // Get the current symbol's execution-time since last communication routine or its inception.
     // Accumulate as both execution-time and computation time into both the execution-time critical path data structures and the per-process data structures.
     auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
     for (auto i=0; i<symbol_path_select_size; i++){
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-2] += last_symbol_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += last_symbol_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-2] += last_symbol_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += last_symbol_time;
     }
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += last_symbol_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += last_symbol_time;
   }
 
   bool schedule_decision = true;
@@ -49,28 +49,35 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     for (auto i=0; i<symbol_path_select_size; i++){
       // update all computation-related measures for the top symbol in stack
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-6] += flop_count;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-7] += flop_count;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += comp_time;
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-2] += comp_time;
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += comp_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-6] += flop_count;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-7] += flop_count;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += comp_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-2] += comp_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += comp_time;
     }
     // update all computation-related measures for the top symbol in stack
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-6] += flop_count;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-7] += flop_count;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += comp_time;
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += comp_time;
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += comp_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-6] += flop_count;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-7] += flop_count;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += comp_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += comp_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += comp_time;
   }
-  critical_path_costs[num_critical_path_measures-5] += flop_count;
+  critical_path_costs[num_critical_path_measures-6] += flop_count;//'6', not '7' because 'critical_path_costs' does not store idle time
+  critical_path_costs[num_critical_path_measures-3] += comp_time;
   critical_path_costs[num_critical_path_measures-2] += comp_time;
   critical_path_costs[num_critical_path_measures-1] += comp_time;
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += comp_time; }// update each metric's critical path's computation time
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-comm_path_select_size*2-i] += flop_count; }// update each metric's critical path's computation time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += comp_time; }// update each metric's critical path's computation kernel time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += comp_time; }// update each metric's critical path's computation time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-comm_path_select_size*3-i] += flop_count; }// update each metric's critical path's computation time
 
-  volume_costs[num_volume_measures-6] += flop_count;
+  volume_costs[num_volume_measures-7] += flop_count;
+  volume_costs[num_volume_measures-3] += comp_time;
   volume_costs[num_volume_measures-2] += comp_time;
   volume_costs[num_volume_measures-1] += comp_time;
 
@@ -285,28 +292,28 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       }
       tracker.barrier_time -= min_idle_time;
     }
-    for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.barrier_time; }
+    for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-2*comm_path_select_size] += tracker.barrier_time; }
   }
 
-  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
-  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
+  volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += tracker.comp_time; }// update each metric's critical path's computation time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.comp_time; }// update each metric's critical path's computation time
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     // Get the current symbol's execution-time since last communication routine or its inception.
     // Accumulate as both execution-time and computation time into both the execution-time critical path data structures and the per-process data structures.
     auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
     for (auto i=0; i<symbol_path_select_size; i++){
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-2] += last_symbol_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += last_symbol_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-2] += last_symbol_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += last_symbol_time;
     }
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += last_symbol_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += last_symbol_time;
   }
 
   // Save caller communication attributes into reference object for use in corresponding static method 'complete'
@@ -465,13 +472,13 @@ void path::complete_comm(blocking& tracker, int recv_source){
         }
         save++;
       }
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-5] += tracker.barrier_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-4] += comm_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += tracker.synch_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-6] += tracker.barrier_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-5] += comm_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-4] += tracker.synch_time;
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += comm_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-5] += tracker.barrier_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-4] += comm_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += tracker.synch_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-6] += tracker.barrier_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-5] += comm_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-4] += tracker.synch_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += comm_time;
     }
     // update all communication-related measures for the top symbol in stack
@@ -485,13 +492,13 @@ void path::complete_comm(blocking& tracker, int recv_source){
       }
       save++;
     }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] += tracker.barrier_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += tracker.synch_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-6] += tracker.barrier_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] += comm_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += tracker.synch_time;
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += (comm_time+tracker.barrier_time);
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-5] += tracker.barrier_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-4] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += tracker.synch_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-6] += tracker.barrier_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-5] += comm_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-4] += tracker.synch_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += (comm_time+tracker.barrier_time);
   }
 
@@ -506,13 +513,13 @@ void path::complete_comm(blocking& tracker, int recv_source){
       save++;
     }
   }
-  critical_path_costs[num_critical_path_measures-4] += comm_time;		// update critical path communication time (for what this process has seen thus far)
-  critical_path_costs[num_critical_path_measures-3] += tracker.synch_time;	// update critical path synchronization time
+  critical_path_costs[num_critical_path_measures-5] += comm_time;		// update critical path communication time (for what this process has seen thus far)
+  critical_path_costs[num_critical_path_measures-4] += tracker.synch_time;	// update critical path synchronization time
   critical_path_costs[num_critical_path_measures-1] += comm_time;		// update critical path runtime
 
-  volume_costs[num_volume_measures-5] += tracker.barrier_time;			// update local barrier/idle time
-  volume_costs[num_volume_measures-4] += comm_time;				// update local communication time (not volume until after the completion of the program)
-  volume_costs[num_volume_measures-3] += tracker.synch_time;			// update local synchronization time
+  volume_costs[num_volume_measures-6] += tracker.barrier_time;			// update local barrier/idle time
+  volume_costs[num_volume_measures-5] += comm_time;				// update local communication time (not volume until after the completion of the program)
+  volume_costs[num_volume_measures-4] += tracker.synch_time;			// update local synchronization time
   volume_costs[num_volume_measures-1] += (tracker.barrier_time+comm_time);	// update local runtime with idle time and comm time
 
   // Note that this block of code below is left in solely for blocking communication to avoid over-counting the idle time
@@ -525,11 +532,13 @@ void path::complete_comm(blocking& tracker, int recv_source){
     // Specifically, this interference is caused by not subtracting out the barrier time of the last process to enter the barrier (which ideally is 0).
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1]     -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-5]     -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-6]     -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
   }
 
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  volume_costs[num_volume_measures-5] = volume_costs[num_volume_measures-5] > critical_path_costs[num_critical_path_measures-5]
+                                          ? critical_path_costs[num_critical_path_measures-5] : volume_costs[num_volume_measures-5];
   volume_costs[num_volume_measures-4] = volume_costs[num_volume_measures-4] > critical_path_costs[num_critical_path_measures-4]
                                           ? critical_path_costs[num_critical_path_measures-4] : volume_costs[num_volume_measures-4];
   volume_costs[num_volume_measures-3] = volume_costs[num_volume_measures-3] > critical_path_costs[num_critical_path_measures-3]
@@ -561,25 +570,25 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   tracker.comp_time = curtime - computation_timer + itime;
-  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;		// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;		// update critical path runtime
-  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
+  volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += tracker.comp_time; }
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.comp_time; }
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     assert(symbol_stack.size()>0);
     assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
     double save_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top()+itime;
     for (auto i=0; i<symbol_path_select_size; i++){
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += save_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-2] += save_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += save_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += save_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-2] += save_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += save_time;
     }
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += save_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += save_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += save_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_volume_measures-1] += save_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_volume_measures-2] += save_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_volume_measures-3] += save_time;
   }
 
   int el_size,p;
@@ -605,7 +614,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
   // Save the communication pattern
   if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
     //TODO: we will assume both costs models are chosen.
-    std::vector<double> measurements = {0.,0.,0.,0.,0.,0.,0.,0.,tracker.comp_time,tracker.comp_time};
+    std::vector<double> measurements = {0.,0.,0.,0.,0.,0.,0.,0.,tracker.comp_time,0.,tracker.comp_time};
     if (eager_p2p){
       event_list.push_back(event(symbol_stack.top(),std::move(measurements),tracker.tag,comm,partner,is_sender,eager_p2p,event_list_size-1,true));
     } else{
@@ -654,17 +663,19 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
       save++;
     }
   }
-  critical_path_costs[num_critical_path_measures-4] += comm_time;			// update critical path communication time (for what this process has seen thus far)
-  critical_path_costs[num_critical_path_measures-3] += 0.;				// update critical path synchronization time
-  critical_path_costs[num_critical_path_measures-2] += comp_time;			// update critical path runtime
+  critical_path_costs[num_critical_path_measures-5] += comm_time;			// update critical path communication time (for what this process has seen thus far)
+  critical_path_costs[num_critical_path_measures-4] += 0.;				// update critical path synchronization time
+  critical_path_costs[num_critical_path_measures-3] += comp_time;			// update critical path runtime
   critical_path_costs[num_critical_path_measures-1] += comp_time+comm_time;		// update critical path runtime
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += comp_time; }
 
-  volume_costs[num_volume_measures-4] += comm_time;				// update local communication time (not volume until after the completion of the program)
-  volume_costs[num_volume_measures-3] += 0.;					// update local synchronization time
-  volume_costs[num_volume_measures-2] += comp_time;				// update local runtime
+  volume_costs[num_volume_measures-5] += comm_time;				// update local communication time (not volume until after the completion of the program)
+  volume_costs[num_volume_measures-4] += 0.;					// update local synchronization time
+  volume_costs[num_volume_measures-3] += comp_time;				// update local runtime
   volume_costs[num_volume_measures-1] += comp_time+comm_time;			// update local runtime
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  volume_costs[num_volume_measures-5] = volume_costs[num_volume_measures-5] > critical_path_costs[num_critical_path_measures-5]
+                                          ? critical_path_costs[num_critical_path_measures-5] : volume_costs[num_volume_measures-5];
   volume_costs[num_volume_measures-4] = volume_costs[num_volume_measures-4] > critical_path_costs[num_critical_path_measures-4]
                                           ? critical_path_costs[num_critical_path_measures-4] : volume_costs[num_volume_measures-4];
   volume_costs[num_volume_measures-3] = volume_costs[num_volume_measures-3] > critical_path_costs[num_critical_path_measures-3]
@@ -715,13 +726,13 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
         }
         save++;
       }
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-4] += comm_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += 0.;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-2] += comp_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-5] += comm_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-4] += 0.;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += comp_time;
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += (comp_time+comm_time);
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-4] += comm_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += 0.;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-2] += comp_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-5] += comm_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-4] += 0.;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += comp_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += (comp_time+comm_time);
     }
     // update all communication-related measures for the top symbol in stack
@@ -735,13 +746,13 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
       }
       save++;
     }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += 0.;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-5] += comm_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-4] += 0.;
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += comp_time;
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += (comp_time+comm_time);
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-4] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += 0.;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += comp_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-5] += comm_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-4] += 0.;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += comp_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += (comp_time+comm_time);
   }
 
@@ -756,14 +767,14 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
     if (eager_p2p){
       opt_req_match.push_back(comm_info_it->second.second);
-      opt_measure_match[num_per_process_measures-9] += costs[0].second;
-      opt_measure_match[num_per_process_measures-8] += costs[0].first;
-      opt_measure_match[num_per_process_measures-7] += costs[1].second;
-      opt_measure_match[num_per_process_measures-6] += costs[1].first;
-      opt_measure_match[num_per_process_measures-5] += 0.;
-      opt_measure_match[num_per_process_measures-4] += comm_time;
-      opt_measure_match[num_per_process_measures-3] += 0.;
-      opt_measure_match[num_per_process_measures-2] += comp_time;
+      opt_measure_match[num_per_process_measures-11] += costs[0].second;
+      opt_measure_match[num_per_process_measures-10] += costs[0].first;
+      opt_measure_match[num_per_process_measures-9] += costs[1].second;
+      opt_measure_match[num_per_process_measures-8] += costs[1].first;
+      opt_measure_match[num_per_process_measures-6] += 0.;
+      opt_measure_match[num_per_process_measures-5] += comm_time;
+      opt_measure_match[num_per_process_measures-4] += 0.;
+      opt_measure_match[num_per_process_measures-3] += comp_time;
       opt_measure_match[num_per_process_measures-1] += (comp_time+comm_time);
     }
     if (!eager_p2p){
@@ -771,14 +782,14 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
       std::vector<double> measurements(num_per_process_measures,0.);
       event_list.push_back(event(symbol_stack.top(),measurements,tracker.tag,tracker.comm,tracker.partner1,tracker.is_sender,eager_p2p,event_list_size++,true));
       opt_req_match.push_back(event_list_size-1);
-      opt_measure_match[num_per_process_measures-10] += costs[0].second;
-      opt_measure_match[num_per_process_measures-9] += costs[0].first;
-      opt_measure_match[num_per_process_measures-8] += costs[1].second;
-      opt_measure_match[num_per_process_measures-7] += costs[1].first;
-      opt_measure_match[num_per_process_measures-5] += 0.;
-      opt_measure_match[num_per_process_measures-4] += comm_time;
-      opt_measure_match[num_per_process_measures-3] += 0.;
-      opt_measure_match[num_per_process_measures-2] += comp_time;
+      opt_measure_match[num_per_process_measures-11] += costs[0].second;
+      opt_measure_match[num_per_process_measures-10] += costs[0].first;
+      opt_measure_match[num_per_process_measures-9] += costs[1].second;
+      opt_measure_match[num_per_process_measures-8] += costs[1].first;
+      opt_measure_match[num_per_process_measures-6] += 0.;
+      opt_measure_match[num_per_process_measures-5] += comm_time;
+      opt_measure_match[num_per_process_measures-4] += 0.;
+      opt_measure_match[num_per_process_measures-3] += comp_time;
       opt_measure_match[num_per_process_measures-1] += (comp_time+comm_time);
     }
   }

@@ -9,8 +9,8 @@ namespace decomposition{
 
 class record{
 public:
-  static void invoke(std::ofstream& Stream, int variantID);
-  static void invoke(std::ostream& Stream, int variantID);
+  static void invoke(std::ofstream& Stream, int variantID, double overhead_time);
+  static void invoke(std::ostream& Stream, int variantID, double overhead_time);
 };
 
 }

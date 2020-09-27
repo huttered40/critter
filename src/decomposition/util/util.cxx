@@ -60,12 +60,12 @@ void allocate(MPI_Comm comm){
   if (std::getenv("CRITTER_SYMBOL_PATH_SELECT") != NULL){
     _symbol_path_select_ = std::getenv("CRITTER_SYMBOL_PATH_SELECT");
   } else{
-    _symbol_path_select_ = "000000000";
+    _symbol_path_select_ = "0000000000";
   }
   if (std::getenv("CRITTER_COMM_PATH_SELECT") != NULL){
     _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
   } else{
-    _comm_path_select_ = "000000000";
+    _comm_path_select_ = "0000000000";
   }
   if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
     max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));
@@ -78,8 +78,8 @@ void allocate(MPI_Comm comm){
     max_timer_name_length = 25;
   }
   assert(_cost_models_.size()==2);
-  assert(_comm_path_select_.size()==9);
-  assert(_symbol_path_select_.size()==9);
+  assert(_comm_path_select_.size()==10);
+  assert(_symbol_path_select_.size()==10);
 
   cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
   //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
@@ -87,25 +87,25 @@ void allocate(MPI_Comm comm){
     if (_cost_models_[i] == '1'){ cost_model_size++; }
     cost_models.push_back(_cost_models_[i]);
   } 
-  for (auto i=0; i<9; i++){
+  for (auto i=0; i<10; i++){
     if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; symbol_path_select_index.push_back(i);}
     symbol_path_select.push_back(_symbol_path_select_[i]);
   } 
-  for (auto i=0; i<9; i++){
+  for (auto i=0; i<10; i++){
     if (_comm_path_select_[i] == '1'){ comm_path_select_size++; }
     comm_path_select.push_back(_comm_path_select_[i]);
   } 
 
-  num_critical_path_measures 		= 5+2*cost_model_size;// Reason for '5' instead of '6' is because we are not interested in the critical-path idle time.
-  num_per_process_measures 		= 6+2*cost_model_size;
-  num_volume_measures 			= 6+2*cost_model_size;
+  num_critical_path_measures 		= 6+2*cost_model_size;// Reason for '5' instead of '6' is because we are not interested in the critical-path idle time.
+  num_per_process_measures 		= 7+2*cost_model_size;
+  num_volume_measures 			= 7+2*cost_model_size;
   num_tracker_critical_path_measures 	= 2+2*cost_model_size;
   num_tracker_per_process_measures 	= 2+2*cost_model_size;
   num_tracker_volume_measures 		= 2+2*cost_model_size;
 
-  // The '3*comm_path_select_size' used below are used to track {computation cost, computation time, idle time} along each of the 'comm_path_select_size' paths.
-  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+3*comm_path_select_size;
-  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+3*comm_path_select_size;
+  // The '3*comm_path_select_size' used below are used to track {computation cost, computation time, computational kernel time, idle time} along each of the 'comm_path_select_size' paths.
+  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+4*comm_path_select_size;
+  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+4*comm_path_select_size;
   volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
 
   synch_pad_send.resize(_world_size);
@@ -191,12 +191,13 @@ void close_symbol(const char* symbol, double curtime){
 
 
 void final_accumulate(MPI_Comm comm, double last_time){
-  critical_path_costs[num_critical_path_measures-2]+=(last_time-computation_timer);	// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
-  volume_costs[num_volume_measures-2]+=(last_time-computation_timer);			// update computation time volume
+  volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update computation time volume
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
-  // update the computation time (i.e. time between last MPI synchronization point and this function invocation) along all paths decomposed by MPI communication routine
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (last_time-computation_timer); }
+  // update the computation time (i.e. time between last MPI synchronization point or comp kernel and this function invocation) along all paths decomposed by MPI communication routine
+  // TODO: Why don't I apply the same update to max_per_process_costs?
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
   // Save the communication pattern
   if (opt){
     //TODO: we will assume both costs models are chosen.

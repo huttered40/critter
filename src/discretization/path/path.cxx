@@ -142,9 +142,9 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   //   into both the execution-time critical path data structures and the per-process data structures.
   double save_comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
-  critical_path_costs[num_critical_path_measures-2] += save_comp_time;	// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
-  volume_costs[num_volume_measures-2]        += save_comp_time;		// update local computation time
+  volume_costs[num_volume_measures-3]        += save_comp_time;		// update local computation time
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
@@ -228,11 +228,11 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   }
 
   critical_path_costs[num_critical_path_measures-1] += comp_time;	// execution time
-  critical_path_costs[num_critical_path_measures-2] += comp_time;	// computation time
-  critical_path_costs[num_critical_path_measures-3] += comp_time;	// comp kernel time
+  critical_path_costs[num_critical_path_measures-2] += comp_time;	// computation kernel time
+  critical_path_costs[num_critical_path_measures-3] += comp_time;	// computational time
   volume_costs[num_volume_measures-1] += comp_time;			// execution time
-  volume_costs[num_volume_measures-2] += comp_time;			// computation time
-  volume_costs[num_volume_measures-3] += comp_time;			// comp kernel time
+  volume_costs[num_volume_measures-2] += comp_time;			// computation kernel time
+  volume_costs[num_volume_measures-3] += comp_time;			// computation time
 
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
   computation_timer = MPI_Wtime();
@@ -244,9 +244,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path execution time
-  critical_path_costs[num_critical_path_measures-2] += tracker.comp_time;	// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local execution time
-  volume_costs[num_volume_measures-2]        += tracker.comp_time;		// update local computation time
+  volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }

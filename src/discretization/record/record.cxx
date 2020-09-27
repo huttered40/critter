@@ -228,12 +228,13 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream, bool pr
   return tuning_stats;
 }
 
-void record::invoke(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data){
+void record::invoke(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
 
   if (autotuning_test_id==0){
     double _wall_time = wall_timer;
+    _wall_time -= overhead_time;
     PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
     if (world_rank==0){
       if (is_first_iter){
@@ -250,6 +251,7 @@ void record::invoke(std::ofstream& Stream, int variantID, bool print_statistical
   }
   else if (autotuning_test_id>=1){
     double _wall_time = wall_timer;
+    _wall_time -= overhead_time;
     PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 
     if (world_rank==0){
@@ -320,8 +322,8 @@ void record::invoke(std::ofstream& Stream, int variantID, bool print_statistical
         stream_reconstruct << std::left << std::setw(mode_1_width) << "PatternErrorLimit";
         stream_reconstruct << std::left << std::setw(mode_1_width) << "ReconstructTime";
         stream_reconstruct << std::left << std::setw(mode_1_width) << "EstET";
-        stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCompTime";
         stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCompKTime";
+        stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCompTime";
         stream_reconstruct << std::left << std::setw(mode_1_width) << "EstCommKTime";
         stream_reconstruct << std::endl;
       }
@@ -409,7 +411,7 @@ void record::invoke(std::ofstream& Stream, int variantID, bool print_statistical
   }
 }
 
-void record::invoke(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data){}
+void record::invoke(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time){}
 
 }
 }

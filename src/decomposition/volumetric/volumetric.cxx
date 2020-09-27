@@ -24,18 +24,19 @@ void volumetric::collect(MPI_Comm cm){
     size_t z = i<(2*cost_model_size) ? i : i+1;	// careful indexing to avoid idle time
     if (rank == buffer[z].second){
       for (size_t j=0; j<num_tracker_per_process_measures*list_size; j++){
-        max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)+j] = volume_costs[num_volume_measures+j];
+        max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+4)+j] = volume_costs[num_volume_measures+j];
       }
-      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-3] = volume_costs[num_volume_measures-6];
-      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-2] = volume_costs[num_volume_measures-2];
-      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+2)-1] = volume_costs[num_volume_measures-5];
+      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+4)-4] = volume_costs[num_volume_measures-7];
+      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+4)-3] = volume_costs[num_volume_measures-6];
+      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+4)-2] = volume_costs[num_volume_measures-3];
+      max_per_process_costs[num_per_process_measures+(save+1)*(num_tracker_per_process_measures*list_size+4)-1] = volume_costs[num_volume_measures-2];
     }
     else{
-      for (size_t j=0; j<num_tracker_per_process_measures*list_size+2; j++){
-        max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)+j] = 0.;
+      for (size_t j=0; j<num_tracker_per_process_measures*list_size+4; j++){
+        max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+4)+j] = 0.;
       }
     }
-    PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+2)], num_tracker_per_process_measures*list_size+2, MPI_DOUBLE, MPI_MAX, cm);
+    PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+4)], num_tracker_per_process_measures*list_size+4, MPI_DOUBLE, MPI_MAX, cm);
     save++;
   }
   // For now, buffer[num_per_process_measures-1].second holds the rank of the process with the max per-process runtime

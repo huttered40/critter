@@ -1438,10 +1438,6 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   }
 }
 
-void reset_frequencies(){
-  spf.clear_info();
-}
-
 void clear(){
   // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
   comm_batch_map.clear();

@@ -7,9 +7,9 @@ namespace critter{
 
 void start(bool schedule_kernels_override = true, bool force_steady_statistical_data_overide = false);
 void stop();
-void record(int variantID=-1, bool print_statistical_data = false, bool save_statistical_data=false);
+void record(int variantID=-1, bool print_statistical_data = false, bool save_statistical_data=false, double overhead_time=0.);
 void clear();
-void reset_frequencies();
+void set_mode(int input_mode=-1);
 
 namespace internal{
 

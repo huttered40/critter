@@ -56,21 +56,21 @@ void symbol_tracker::start(double save_time){
     auto last_symbol_time = save_time-symbol_timers[symbol_stack.top()].start_timer.top();
     for (auto i=0; i<symbol_path_select_size; i++){
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-2] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-2] += last_symbol_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += last_symbol_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += last_symbol_time;
       symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += last_symbol_time;
     }
     symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += last_symbol_time;
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += last_symbol_time;
 
     // Save the communication pattern
     if (opt){
       //TODO: we will assume both costs models are chosen.
       std::vector<double> measurements(num_per_process_measures,0.);
       measurements[num_per_process_measures-1]=last_symbol_time;
-      measurements[num_per_process_measures-2]=last_symbol_time;
+      measurements[num_per_process_measures-3]=last_symbol_time;
       event_list.push_back(event(symbol_stack.top(),std::move(measurements)));
     }
   }
@@ -79,16 +79,16 @@ void symbol_tracker::start(double save_time){
       //TODO: we will assume both costs models are chosen.
       std::vector<double> measurements(num_per_process_measures,0.);
       measurements[num_per_process_measures-1]=(save_time - computation_timer);
-      measurements[num_per_process_measures-2]=(save_time - computation_timer);
+      measurements[num_per_process_measures-3]=(save_time - computation_timer);
       event_list.push_back(event("",std::move(measurements)));
     }
   }
-  critical_path_costs[num_critical_path_measures-2] += (save_time - computation_timer);		// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += (save_time - computation_timer);		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
-  volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
+  volume_costs[num_volume_measures-3]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
   for (size_t i=0; i<comm_path_select_size; i++){
-    critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer);
+    critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (save_time - computation_timer);
   }
   symbol_stack.push(this->name);
   computation_timer = MPI_Wtime();
@@ -101,14 +101,14 @@ void symbol_tracker::stop(double save_time){
   auto last_symbol_time = save_time-this->start_timer.top();
   for (auto j=0; j<symbol_path_select_size; j++){
     this->cp_exclusive_measure[j][num_per_process_measures-1] += last_symbol_time;
-    this->cp_exclusive_measure[j][num_per_process_measures-2] += last_symbol_time;
+    this->cp_exclusive_measure[j][num_per_process_measures-3] += last_symbol_time;
     this->cp_excl_measure[j][num_per_process_measures-1] += last_symbol_time;
-    this->cp_excl_measure[j][num_per_process_measures-2] += last_symbol_time;
+    this->cp_excl_measure[j][num_per_process_measures-3] += last_symbol_time;
   }
   this->pp_exclusive_measure[num_per_process_measures-1] += last_symbol_time;
-  this->pp_exclusive_measure[num_per_process_measures-2] += last_symbol_time;
+  this->pp_exclusive_measure[num_per_process_measures-3] += last_symbol_time;
   this->pp_excl_measure[num_per_process_measures-1] += last_symbol_time;
-  this->pp_excl_measure[num_per_process_measures-2] += last_symbol_time;
+  this->pp_excl_measure[num_per_process_measures-3] += last_symbol_time;
   *this->pp_numcalls += 1.; *this->vol_numcalls += 1.;
   for (auto i=0; i<num_per_process_measures; i++){
     this->pp_exclusive_contributions[i] += this->pp_exclusive_measure[i];
@@ -163,11 +163,11 @@ void symbol_tracker::stop(double save_time){
     }
     memset(this->pp_exclusive_contributions,0,sizeof(double)*num_per_process_measures);
   }
-  critical_path_costs[num_critical_path_measures-2] += (save_time - computation_timer);		// update critical path computation time
+  critical_path_costs[num_critical_path_measures-3] += (save_time - computation_timer);		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime
-  volume_costs[num_volume_measures-2]        += (save_time - computation_timer);		// update local computation time
+  volume_costs[num_volume_measures-3]        += (save_time - computation_timer);		// update local computation time
   volume_costs[num_volume_measures-1]        += (save_time - computation_timer);		// update local runtime
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += (save_time - computation_timer); }
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (save_time - computation_timer); }
   computation_timer = MPI_Wtime();
   if (symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }

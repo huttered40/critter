@@ -37,9 +37,9 @@ void stop(){
   //internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
 }
 
-void record(int variantID, bool print_statistical_data, bool save_statistical_data){
-  internal::record(std::cout,variantID,print_statistical_data,save_statistical_data);
-  if (internal::flag) {internal::record(internal::stream,variantID,print_statistical_data,save_statistical_data);}
+void record(int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time){
+  internal::record(std::cout,variantID,print_statistical_data,save_statistical_data,overhead_time);
+  if (internal::flag) {internal::record(internal::stream,variantID,print_statistical_data,save_statistical_data,overhead_time);}
   internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
 }
 
@@ -48,8 +48,15 @@ void clear(){
   internal::clear();
 }
 
-void reset_frequencies(){
-  internal::reset_frequencies();
+void set_mode(int input_mode){
+  if (input_mode != -1) { internal::mode = input_mode; }
+  else{
+    if (std::getenv("CRITTER_MODE") != NULL){
+      internal::mode = atoi(std::getenv("CRITTER_MODE"));
+    } else{
+      internal::mode = 1;
+    }
+  }
 }
 
 namespace internal{
