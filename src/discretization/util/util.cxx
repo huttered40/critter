@@ -659,6 +659,7 @@ void sample_propagation_forest::delete_tree(solo_channel*& tree_root){
 }
 sample_propagation_forest::sample_propagation_forest(){}
 sample_propagation_forest::~sample_propagation_forest(){
+  if (this->tree == nullptr) return;
   this->delete_tree(this->tree->root);
   free(this->tree);
 }
@@ -1218,7 +1219,7 @@ void allocate(MPI_Comm comm){
     auto str2 = aggregate_channel::generate_hash_history(agg_node);
     std::cout << "Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
   }
-  
+
   comp_pattern_key ex_1;
   MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
   int comp_pattern_key_internal_type_block_len[2] = { 7,1 };

@@ -9,6 +9,14 @@ namespace internal{
 namespace discretization{
 
 void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
+  // Save and accumulate the computation time between last communication routine as both execution-time and computation time
+  //   into both the execution-time critical path data structures and the per-process data structures.
+  double save_comp_time = MPI_Wtime() - computation_timer;
+  critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
+  critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
+  volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
+  volume_costs[num_volume_measures-3]        += save_comp_time;		// update local computation time
+
   int world_comm_size; MPI_Comm_size(MPI_COMM_WORLD,&world_comm_size);
   int old_comm_size; MPI_Comm_size(oldcomm,&old_comm_size);
   int new_comm_size; MPI_Comm_size(newcomm,&new_comm_size);
