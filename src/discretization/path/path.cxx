@@ -159,13 +159,14 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   volatile double overhead_start_time = MPI_Wtime();
 
   bool schedule_decision = true;
-  comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-  // Below, the idea is that key doesn't exist in comp_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
-  //   create an entry in comp_pattern_key, although it will be empty.
-  if (comp_pattern_map.find(key) != comp_pattern_map.end()){
-    schedule_decision = should_schedule(comp_pattern_map[key])==1;
+  if (!(tuning_delta==0 || tuning_delta==2 || tuning_delta==3)){// these tuning_deltas (0, 2, 3) signify unconditional scheduling of computation kernels
+    comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+    // Below, the idea is that key doesn't exist in comp_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
+    //   create an entry in comp_pattern_key, although it will be empty.
+    if (comp_pattern_map.find(key) != comp_pattern_map.end()){
+      schedule_decision = should_schedule(comp_pattern_map[key])==1;
+    }
   }
-
   comp_intercept_overhead += MPI_Wtime() - overhead_start_time;
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
@@ -179,60 +180,62 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   if (schedule_kernels==0){ return; }
   volatile double overhead_start_time = MPI_Wtime();
 
-  comp_pattern_key key(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
-  // Below, the idea is that key doesn't exist in comp_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
-  //   create an entry in comp_pattern_key, although it will be empty.
-  if (comp_pattern_map.find(key) == comp_pattern_map.end()){
-    active_comp_pattern_keys.push_back(key);
-    active_patterns.emplace_back();
-    comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
-  }
-  if ((aggregation_mode==0) || (should_schedule(comp_pattern_map[key]) == 0)){
-    // Because of the second case in the branch, this will be called even if in aggregation_mode>=1 as long as the kernel is no longer being scheduled (i.e. is in steady state)
-    update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
-  }
-  else if (aggregation_mode >= 1){
-    // Its assumed that this branch is entered iff the kernel was scheduled and comm_time is reliable
-    if (comp_batch_map.find(key) == comp_batch_map.end()){
-      comp_batch_map[key].emplace_back();// initialize an empty pattern_batch
+  if (!(tuning_delta==0 || tuning_delta==2 || tuning_delta==3)){// these deltas (0, 2, 3) signify unconditional scheduling of computation kernels
+    comp_pattern_key key(active_patterns.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_patterns.size()' argument is arbitrary, does not influence overloaded operators
+    // Below, the idea is that key doesn't exist in comp_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
+    //   create an entry in comp_pattern_key, although it will be empty.
+    if (comp_pattern_map.find(key) == comp_pattern_map.end()){
+      active_comp_pattern_keys.push_back(key);
+      active_patterns.emplace_back();
+      comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
     }
-
-    bool found_batch=false;
-    auto& batch_list = comp_batch_map[key];
-    int index=0;
-    while (index < batch_list.size()){
-      // Look for the first inactive batch and aggregate new sample with it
-      if (batch_list[index].hash_id==0){// inactive state
-        found_batch=true;
-        break;
-      } else{
-        index++;
+    if ((aggregation_mode==0) || (should_schedule(comp_pattern_map[key]) == 0)){
+      // Because of the second case in the branch, this will be called even if in aggregation_mode>=1 as long as the kernel is no longer being scheduled (i.e. is in steady state)
+      update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
+    }
+    else if (aggregation_mode >= 1){
+      // Its assumed that this branch is entered iff the kernel was scheduled and comm_time is reliable
+      if (comp_batch_map.find(key) == comp_batch_map.end()){
+        comp_batch_map[key].emplace_back();// initialize an empty pattern_batch
       }
+
+      bool found_batch=false;
+      auto& batch_list = comp_batch_map[key];
+      int index=0;
+      while (index < batch_list.size()){
+        // Look for the first inactive batch and aggregate new sample with it
+        if (batch_list[index].hash_id==0){// inactive state
+          found_batch=true;
+          break;
+        } else{
+          index++;
+        }
+      }
+      if (!found_batch){
+        batch_list.emplace_back();
+        index = batch_list.size()-1;
+      }
+      update_kernel_stats(batch_list[index],comp_analysis_param,comp_time,flop_count);
     }
-    if (!found_batch){
-      batch_list.emplace_back();
-      index = batch_list.size()-1;
+    // Note: 'get_estimate' must be called before setting the updated kernel state. If kernel was not scheduled, comp_time set below overwrites 'comp_time'
+    if (should_schedule(comp_pattern_map[key]) == 0){
+      assert(comp_batch_map[key].size() == 0);
+      comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
+    } else{
+      // Both non-optimized and optimized variants can update the local kernel state and the global kernel state (no chance of deadlock)
+      bool is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
+      set_kernel_state(comp_pattern_map[key],!is_steady);
+      set_kernel_state_global(comp_pattern_map[key],!is_steady);
+      // If steady, and aggregation_mode>=1, then liquidate all batch states into the pathset and clear the corresponding batch entry in map.
+      //   Only need to perform this once. Note that this is allowed, whereas it is not allowed in 'complete_comm', because
+      //   a processor's kernel may be steady, yet its not globally steady.
+      if (is_steady && (aggregation_mode >= 1)){
+        auto stats = intermediate_stats(comp_pattern_map[key],comp_batch_map[key]);
+        update_kernel_stats(comp_pattern_map[key],stats);
+        comp_batch_map[key].clear();
+      }
+      if (is_steady) { flush_pattern(key); }
     }
-    update_kernel_stats(batch_list[index],comp_analysis_param,comp_time,flop_count);
-  }
-  // Note: 'get_estimate' must be called before setting the updated kernel state. If kernel was not scheduled, comp_time set below overwrites 'comp_time'
-  if (should_schedule(comp_pattern_map[key]) == 0){
-    assert(comp_batch_map[key].size() == 0);
-    comp_time = get_estimate(comp_pattern_map[key],comp_analysis_param,flop_count);
-  } else{
-    // Both non-optimized and optimized variants can update the local kernel state and the global kernel state (no chance of deadlock)
-    bool is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
-    set_kernel_state(comp_pattern_map[key],!is_steady);
-    set_kernel_state_global(comp_pattern_map[key],!is_steady);
-    // If steady, and aggregation_mode>=1, then liquidate all batch states into the pathset and clear the corresponding batch entry in map.
-    //   Only need to perform this once. Note that this is allowed, whereas it is not allowed in 'complete_comm', because
-    //   a processor's kernel may be steady, yet its not globally steady.
-    if (is_steady && (aggregation_mode >= 1)){
-      auto stats = intermediate_stats(comp_pattern_map[key],comp_batch_map[key]);
-      update_kernel_stats(comp_pattern_map[key],stats);
-      comp_batch_map[key].clear();
-    }
-    if (is_steady) { flush_pattern(key); }
   }
 
   critical_path_costs[num_critical_path_measures-1] += comp_time;	// execution time
@@ -286,7 +289,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   //     critical path root is decided based on a reduction using 'critical_path_costs'. Therefore, no explicit barriers are invoked, instead relying on Allreduce
   bool post_barrier = true; bool schedule_decision = true;
   double reduced_info[5] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
-                            critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],0};
+                            critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],1};// set last to 1 by default (indicates unconditional scheduling)
   double reduced_info_foreign[5] = {0,0,0,0,0};
 
   // Assume that the communicator of either collective/p2p is registered via comm_split, and that its described using a max of 3 dimension tuples.
@@ -299,25 +302,27 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_pattern_key, although it will be empty.
   comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-  auto world_key = key; int world_rank;
-  if (tracker.partner1 != -1){
-    world_rank = channel::translate_rank(tracker.comm,tracker.partner1); 
-    world_key.partner_offset = tracker.partner1;//world_rank;
+  if (tuning_delta > 1){// tuning_delta of 1 signifies that communication kernel scheduling is to be unconditional
+    auto world_key = key; int world_rank;
+    if (tracker.partner1 != -1){
+      world_rank = channel::translate_rank(tracker.comm,tracker.partner1); 
+      world_key.partner_offset = tracker.partner1;//world_rank;
 /*
-    if (p2p_global_state_override.find(world_key) == p2p_global_state_override.end()){
-      p2p_global_state_override[world_key] = true;// not in global steady state
-    }
-*/
-  }
-  if (comm_pattern_map.find(key) != comm_pattern_map.end()){
-    if (is_optimized){
-      post_barrier = should_schedule_global(comm_pattern_map[key])==1;
-      if (tracker.partner1 != -1){
-        //post_barrier = post_barrier || p2p_global_state_override[world_key];
+      if (p2p_global_state_override.find(world_key) == p2p_global_state_override.end()){
+        p2p_global_state_override[world_key] = true;// not in global steady state
       }
+*/
     }
-    schedule_decision = should_schedule(comm_pattern_map[key])==1;
-    reduced_info[4] = (double)schedule_decision;
+    if (comm_pattern_map.find(key) != comm_pattern_map.end()){
+      if (tuning_delta==3 || tuning_delta==5){
+        post_barrier = should_schedule_global(comm_pattern_map[key])==1;
+        if (tracker.partner1 != -1){
+          //post_barrier = post_barrier || p2p_global_state_override[world_key];
+        }
+      }
+      schedule_decision = should_schedule(comm_pattern_map[key])==1;
+      reduced_info[4] = (double)schedule_decision;
+    }
   }
   // Register the p2p channel
   if (aggregation_mode >= 1){
@@ -381,6 +386,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
     if (partner1 == -1){
       PMPI_Allreduce(MPI_IN_PLACE, &reduced_info[0], 5, MPI_DOUBLE, MPI_MAX, tracker.comm);
+      tracker.barrier_time = reduced_info[3] - critical_path_costs[num_critical_path_measures-1];
+      for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = reduced_info[i]; }
       schedule_decision = reduced_info[4] > 0;
     }
     else{
@@ -399,25 +406,28 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       else if (!true_eager_p2p){
         PMPI_Sendrecv(&reduced_info[0], 5, MPI_DOUBLE, tracker.partner1, internal_tag2, &reduced_info_foreign[0], 5,
                       MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-        for (auto i=0; i<4; i++){ reduced_info[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
+        tracker.barrier_time = std::max(reduced_info[3],reduced_info_foreign[3]) - critical_path_costs[num_critical_path_measures-1];
+        for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
         schedule_decision = (reduced_info[4] > 0) || (reduced_info_foreign[4]>0);
         if (tracker.partner2 != tracker.partner1){
           // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
+          for (auto i=0; i<num_critical_path_measures; i++){ reduced_info[i] = critical_path_costs[i]; }
           PMPI_Sendrecv(&reduced_info[0], 5, MPI_DOUBLE, tracker.partner2, internal_tag2, &reduced_info_foreign[0], 5,
                         MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          for (auto i=0; i<4; i++){ reduced_info[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
+          tracker.barrier_time = std::max(reduced_info[3],reduced_info_foreign[3]) - critical_path_costs[num_critical_path_measures-1];
+          for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
           schedule_decision = schedule_decision || (reduced_info[4] > 0) || (reduced_info_foreign[4]>0);
         }
       }
     }
-    tracker.barrier_time = reduced_info[3] - critical_path_costs[num_critical_path_measures-1];
 
     // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
     //   create an entry in comm_pattern_key, although it will be empty.
+    // Note: unconditional communication kernel scheduling (delta 1) can proceed here, it just won't pass the next if statement
     if (comm_pattern_map.find(key) != comm_pattern_map.end()){
       // If local steady_state has been reached, and we find out the other processes have reached the same, then we can set global_steady_state=1
       //   and never have to use another internal collective to check again.
-      if (is_optimized){
+      if (tuning_delta==3 || tuning_delta==5){
         // Do not update kernel state after its been set to steady. This situation can occur with use of 'p2p_global_state_override' to prevent deadlock
         // That also means we won't update our statistics with the scheduled comm_time, for better or for worse.
         //if (should_schedule_global(comm_pattern_map[key])==1){
@@ -445,10 +455,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         }
       }
     }
-    // If kernel is about to be scheduled, post one more barrier for safety if collective,
-    //   because the AllReduce posted above may allow ranks to leave early, thus corrupting the sample measurement.
-    if (schedule_decision && tracker.partner1 == -1){ PMPI_Barrier(tracker.comm); }
-    //TODO: Might consider a sendrecv here if tracker.partner1 != -1
   }
   else{
     if (comm_pattern_map.find(key) != comm_pattern_map.end()){
@@ -456,6 +462,15 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         assert(comm_batch_map[key].size()==0);
       }
     }
+  }
+
+  // If kernel is about to be scheduled, post one more barrier for safety if collective,
+  //   because the AllReduce posted above may allow ranks to leave early, thus corrupting the sample measurement.
+  if (schedule_decision && tracker.partner1 == -1) PMPI_Barrier(tracker.comm);
+  else if (schedule_decision){
+    char ch1='H',ch2='H';
+    PMPI_Sendrecv(&ch1, 1, MPI_CHAR, tracker.partner1, internal_tag2, &ch2, 1,
+                      MPI_CHAR, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
   }
 
   comm_intercept_overhead_stage1 += MPI_Wtime() - overhead_start_time;
@@ -482,80 +497,93 @@ void path::complete_comm(blocking& tracker, int recv_source){
   }
 
   bool should_propagate = true;
-  int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
-  for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
-    comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
-    comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
-  }
-  // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
-  //   create an entry in comm_pattern_key, although it will be empty.
-  comm_pattern_key key(rank,active_patterns.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-  //if (world_rank == 8) std::cout << "******" << key.tag << " " << key.dim_sizes[0] << " " << key.dim_strides[0] << " " << key.msg_size << " " << key.partner_offset << ")\n";
-  if (comm_pattern_map.find(key) == comm_pattern_map.end()){
-    active_comm_pattern_keys.push_back(key);
-    active_patterns.emplace_back();
-    comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
-  }
-  int comm_hash_tag;
-  if (should_schedule_global(comm_pattern_map[key]) == 0) assert(should_schedule(comm_pattern_map[key])==0);
-  if ((aggregation_mode==0) || (should_schedule(comm_pattern_map[key]) == 0)){
-    update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
-  }
-  else if (aggregation_mode >= 1){
-    assert(should_schedule_global(comm_pattern_map[key]) == 1);
-    // Note: its common for a key's entry into the batch_map to be deleted many times (especially aggregation strategy #1)
-    if (comm_batch_map.find(key) == comm_batch_map.end()){
-      // Register the channel's batches
-      if (tracker.partner1 != -1){
-        auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
-        assert(p2p_channel_map.find(world_partner_rank) != p2p_channel_map.end());
-        comm_batch_map[key].emplace_back(p2p_channel_map[world_partner_rank]);
-      } else{
-        assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
-        comm_batch_map[key].emplace_back(comm_channel_map[tracker.comm]);
-      }
+
+  if (tuning_delta > 1){// tuning_delta of 1 signifies that communication kernel scheduling is to be unconditional
+    int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
+    for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
+      comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
+      comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
     }
-    bool found_batch=false;
-    auto& batch_list = comm_batch_map[key];
-    int index=0;
-    while (index < batch_list.size()){
-      // Look for the first inactive batch and aggregate new sample with it
-      if (batch_list[index].channel_count == 0){// inactive state
-        found_batch=true;
-        break;
-      } else{
-        index++;
-      }
+    // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
+    //   create an entry in comm_pattern_key, although it will be empty.
+    comm_pattern_key key(rank,active_patterns.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+    //if (world_rank == 8) std::cout << "******" << key.tag << " " << key.dim_sizes[0] << " " << key.dim_strides[0] << " " << key.msg_size << " " << key.partner_offset << ")\n";
+    if (comm_pattern_map.find(key) == comm_pattern_map.end()){
+      active_comm_pattern_keys.push_back(key);
+      active_patterns.emplace_back();
+      comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
     }
-    if (!found_batch){
-      if (tracker.partner1 != -1){
-        auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
-        batch_list.push_back(pattern_batch(p2p_channel_map[world_partner_rank]));
-      } else{
-        batch_list.push_back(pattern_batch(comm_channel_map[tracker.comm]));
-      }
-      index = batch_list.size()-1;
+    int comm_hash_tag;
+    if (should_schedule_global(comm_pattern_map[key]) == 0) assert(should_schedule(comm_pattern_map[key])==0);
+    if ((aggregation_mode==0) || (should_schedule(comm_pattern_map[key]) == 0)){
+      update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
     }
-    update_kernel_stats(batch_list[index],comm_analysis_param,comm_time,tracker.nbytes);
-  }
-  if (should_schedule(comm_pattern_map[key])==0){
-    // Note if this is true, the corresponding entry in the batch map must be cleared. However, I think I delete the entire map in aggregation mode 1, so asserting
-    //   on this is difficult.
-    // Note: I think branching on aggregation mode is not needed. The pathset should contain all batch samples and the batch should be cleared.
-    comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
-    assert(comm_batch_map[key].size() == 0);
-    if (is_optimized==1){ should_propagate = false; }
-  } else{
-    assert(should_schedule_global(comm_pattern_map[key]) == 1);
-    bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
-    set_kernel_state(comm_pattern_map[key],!is_steady);
+    else if (aggregation_mode >= 1){
+      assert(should_schedule_global(comm_pattern_map[key]) == 1);
+      // Note: its common for a key's entry into the batch_map to be deleted many times (especially aggregation strategy #1)
+      if (comm_batch_map.find(key) == comm_batch_map.end()){
+        // Register the channel's batches
+        if (tracker.partner1 != -1){
+          auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
+          assert(p2p_channel_map.find(world_partner_rank) != p2p_channel_map.end());
+          comm_batch_map[key].emplace_back(p2p_channel_map[world_partner_rank]);
+        } else{
+          assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
+          comm_batch_map[key].emplace_back(comm_channel_map[tracker.comm]);
+        }
+      }
+      bool found_batch=false;
+      auto& batch_list = comm_batch_map[key];
+      int index=0;
+      while (index < batch_list.size()){
+        // Look for the first inactive batch and aggregate new sample with it
+        if (batch_list[index].channel_count == 0){// inactive state
+          found_batch=true;
+          break;
+        } else{
+          index++;
+        }
+      }
+      if (!found_batch){
+        if (tracker.partner1 != -1){
+          auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
+          batch_list.push_back(pattern_batch(p2p_channel_map[world_partner_rank]));
+        } else{
+          batch_list.push_back(pattern_batch(comm_channel_map[tracker.comm]));
+        }
+        index = batch_list.size()-1;
+      }
+      update_kernel_stats(batch_list[index],comm_analysis_param,comm_time,tracker.nbytes);
+    }
+    if (should_schedule(comm_pattern_map[key])==0){
+      // Note if this is true, the corresponding entry in the batch map must be cleared. However, I think I delete the entire map in aggregation mode 1, so asserting
+      //   on this is difficult.
+      // Note: I think branching on aggregation mode is not needed. The pathset should contain all batch samples and the batch should be cleared.
+      comm_time = get_estimate(comm_pattern_map[key],comm_analysis_param,tracker.nbytes);
+      assert(comm_batch_map[key].size() == 0);
+      if (tuning_delta==3 || tuning_delta==5){ should_propagate = false; }
+    } else{
+      assert(should_schedule_global(comm_pattern_map[key]) == 1);
+      bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
+      set_kernel_state(comm_pattern_map[key],!is_steady);
+    }
   }
 
-  critical_path_costs[num_critical_path_measures-1] += (comm_time + tracker.barrier_time);
-  critical_path_costs[num_critical_path_measures-4] += (comm_time + tracker.barrier_time);
+  critical_path_costs[num_critical_path_measures-1] += comm_time;
+  critical_path_costs[num_critical_path_measures-4] += comm_time;
   volume_costs[num_volume_measures-1] += (comm_time + tracker.barrier_time);
-  volume_costs[num_volume_measures-4] += (comm_time + tracker.barrier_time);
+  volume_costs[num_volume_measures-4] += comm_time;
 
+  //volume_costs[num_volume_measures-4] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  volume_costs[num_volume_measures-4] = volume_costs[num_volume_measures-4] > critical_path_costs[num_critical_path_measures-4]
+                                          ? critical_path_costs[num_critical_path_measures-4] : volume_costs[num_volume_measures-4];
+  volume_costs[num_volume_measures-3] = volume_costs[num_volume_measures-3] > critical_path_costs[num_critical_path_measures-3]
+                                          ? critical_path_costs[num_critical_path_measures-3] : volume_costs[num_volume_measures-3];
+  volume_costs[num_volume_measures-2] = volume_costs[num_volume_measures-2] > critical_path_costs[num_critical_path_measures-2]
+                                          ? critical_path_costs[num_critical_path_measures-2] : volume_costs[num_volume_measures-2];
+  volume_costs[num_volume_measures-1] = volume_costs[num_volume_measures-1] > critical_path_costs[num_critical_path_measures-1]
+                                          ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   if (should_propagate){
     bool is_world_communication = (tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1);
@@ -563,12 +591,14 @@ void path::complete_comm(blocking& tracker, int recv_source){
     else{
       if (aggregation_mode==0){
         // Note: in optimized version, exchange_patterns and flush_patterns would never need to be called
+/* NOTE: I don't think it makes senes to use this version anymore
         if (is_optimized==0){
           if (is_world_communication && !is_key_skipable(key)){//Note: for practical reasons, we force more constraints on when profile exchanges take place
             exchange_patterns_per_process(tracker);
             flush_patterns();
           }
         }
+*/
       }
       else if (aggregation_mode >= 1){
         // TODO: Note: I expect to update each kernel's state (not global state though, and only if kernel's state is active, as specified in the complete_pathset)
@@ -628,7 +658,6 @@ void path::flush_pattern(comm_pattern_key key){
   //      but as in per-process/volumetric analysis the global state can change in 'initiate_comm', this routine serves as a way to
   //        achieve that.
   assert(comm_pattern_map[key].is_active);
-  assert(is_optimized);
   assert(active_patterns[comm_pattern_map[key].val_index].steady_state==1);
   assert(active_patterns[comm_pattern_map[key].val_index].global_steady_state==1);
   if (active_comp_pattern_keys.size()>0){

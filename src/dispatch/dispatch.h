@@ -28,8 +28,8 @@ void final_accumulate(MPI_Comm comm, double last_time);
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 
-void record(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time);
-void record(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time);
+void record(std::ofstream& Stream, int variantID, int print_mode, double overhead_time);
+void record(std::ostream& Stream, int variantID, int print_mode, double overhead_time);
 
 void clear();
 void _finalize();

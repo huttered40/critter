@@ -81,7 +81,7 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
     Stream << "Input";
   }
   print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// critical path
+  Stream << "\tCompCost\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// critical path
   print_cost_model_header_file(Stream);
   Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// per-process
   print_cost_model_header_file(Stream);
@@ -95,8 +95,12 @@ void print_header(std::ofstream& Stream, size_t num_inputs){
 
 void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
   assert(internal_comm_info.size() == 0);
-  if (mode==0){
-    double _wall_time = wall_timer;
+  int temp_mode=1;
+  if (std::getenv("CRITTER_MODE") != NULL){
+    temp_mode = atoi(std::getenv("CRITTER_MODE"));
+  }
+  if (temp_mode==0){
+    double _wall_time = wall_timer[wall_timer.size()-1];
     _wall_time -= overhead_time;
     PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
     if (is_world_root){
@@ -112,7 +116,7 @@ void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
       Stream << "\n";
     }
   }
-  else if (mode){
+  else if (temp_mode){
     auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
     if (is_world_root){
       auto inputs = parse_file_string();
@@ -192,7 +196,11 @@ void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
 void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
   assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-  if (mode==0){
+  int temp_mode=1;
+  if (std::getenv("CRITTER_MODE") != NULL){
+    temp_mode = atoi(std::getenv("CRITTER_MODE"));
+  }
+  if (temp_mode==0){
     if (is_world_root){
       Stream << std::left << std::setw(mode_1_width) << "Execution time:";
       Stream << "\n";
@@ -201,7 +209,7 @@ void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
       Stream << "\n\n";
     }
   }
-  if (mode){
+  if (temp_mode){
     if (is_world_root){
       Stream << "\n\n";
       Stream << std::left << std::setw(mode_1_width) << "Critical path:";
@@ -386,7 +394,7 @@ void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
       Stream << "\n";
     }
   }
-  if ((mode) && (symbol_path_select_size>0) && (symbol_timers.size()>0)){
+  if ((temp_mode) && (symbol_path_select_size>0) && (symbol_timers.size()>0)){
     if (is_world_root){
       for (auto z=0; z<symbol_path_select_size; z++){
         Stream << "***********************************************************************************************************************";

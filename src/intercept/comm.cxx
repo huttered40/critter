@@ -12,7 +12,7 @@ void start(bool schedule_kernels_override, bool force_steady_statistical_data_ov
     internal::mode = 1;
   }
   internal::stack_id++;
-  if (internal::stack_id>1) { return; }
+  //if (internal::stack_id>1) { return; }
   assert(internal::internal_comm_info.size() == 0);
   internal::wait_id=true;
   internal::reset(schedule_kernels_override,force_steady_statistical_data_overide);
@@ -20,31 +20,34 @@ void start(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
   internal::computation_timer = MPI_Wtime();
-  internal::wall_timer = internal::computation_timer;
+  internal::wall_timer.push_back((double)internal::computation_timer);
 }
 
 void stop(){
   volatile double last_time = MPI_Wtime();
-  internal::wall_timer = last_time - internal::wall_timer;
+  assert(internal::wall_timer.size()>0);
+  internal::wall_timer[internal::wall_timer.size()-1] = last_time - internal::wall_timer[internal::wall_timer.size()-1];
   internal::stack_id--; 
-  if (internal::stack_id>0) { return; }
+  //if (internal::stack_id>0) { return; }
   PMPI_Barrier(MPI_COMM_WORLD);
 
   assert(internal::internal_comm_info.size() == 0);
   internal::final_accumulate(MPI_COMM_WORLD,last_time); 
   internal::propagate(MPI_COMM_WORLD);
   internal::collect(MPI_COMM_WORLD);
-  //internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
+  internal::mode = 0; internal::wait_id=false;
 }
 
-void record(int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time){
-  internal::record(std::cout,variantID,print_statistical_data,save_statistical_data,overhead_time);
-  if (internal::flag) {internal::record(internal::stream,variantID,print_statistical_data,save_statistical_data,overhead_time);}
-  internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
+void record(int variantID, int print_mode, double overhead_time){
+  internal::record(std::cout,variantID,print_mode,overhead_time);
+  if (internal::flag) {internal::record(internal::stream,variantID,print_mode,overhead_time);}
+  internal::is_first_iter = false;
+  assert(internal::wall_timer.size()>0);
+  internal::wall_timer.pop_back();
 }
 
 void clear(){
-  internal::mode = 0; internal::wait_id=false; internal::is_first_iter = false;
+  internal::mode = 0; internal::wait_id=false;
   internal::clear();
 }
 
@@ -130,7 +133,7 @@ void _init(int* argc, char*** argv){
   if (world_rank == 0){ is_world_root = true; }
   else                 { is_world_root = false; }
   if (flag == 1){
-    if (world_rank==0){
+    if (is_world_root){
       stream.open(stream_name.c_str(),std::ofstream::app);
     }
   }

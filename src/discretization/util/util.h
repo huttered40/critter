@@ -165,7 +165,7 @@ struct intermediate_stats{
 };
 
 // ****************************************************************************************************************************************************
-extern int is_optimized;
+extern int tuning_delta;
 extern int aggregation_mode;
 extern int schedule_kernels;
 extern int update_analysis;
@@ -193,7 +193,7 @@ extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 extern std::map<comm_pattern_key,bool> p2p_global_state_override;
 extern std::map<int,aggregate_channel*> aggregate_channel_map;
-extern std::ofstream stream_overhead,stream_tune,stream_reconstruct;
+extern std::ofstream stream_tune,stream_reconstruct;
 
 // ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key);

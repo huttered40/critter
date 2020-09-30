@@ -232,24 +232,24 @@ void _finalize(){
   }
 }
 
-void record(std::ofstream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time){
+void record(std::ofstream& Stream, int variantID, int print_mode, double overhead_time){
   switch (mechanism){
     case 0:
       decomposition::record::invoke(Stream,variantID,overhead_time);
       break;
     case 1:
-      discretization::record::invoke(Stream,variantID,print_statistical_data,save_statistical_data,overhead_time);
+      discretization::record::invoke(Stream,variantID,print_mode,overhead_time);
       break;
   }
 }
 
-void record(std::ostream& Stream, int variantID, bool print_statistical_data, bool save_statistical_data, double overhead_time){
+void record(std::ostream& Stream, int variantID, int print_mode, double overhead_time){
   switch (mechanism){
     case 0:
       decomposition::record::invoke(Stream,variantID,overhead_time);
       break;
     case 1:
-      discretization::record::invoke(Stream,variantID,print_statistical_data,save_statistical_data,overhead_time);
+      discretization::record::invoke(Stream,variantID,print_mode,overhead_time);
       break;
   }
 }

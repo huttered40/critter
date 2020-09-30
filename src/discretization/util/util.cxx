@@ -8,7 +8,7 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-int is_optimized;
+int tuning_delta;
 int aggregation_mode;
 int schedule_kernels;
 int update_analysis;
@@ -36,7 +36,7 @@ std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 std::map<comm_pattern_key,bool> p2p_global_state_override;
 std::map<int,aggregate_channel*> aggregate_channel_map;
-std::ofstream stream_overhead,stream_tune,stream_reconstruct;
+std::ofstream stream_tune,stream_reconstruct;
 
 // ****************************************************************************************************************************************************
 static int gcd(int a, int b){
@@ -1272,33 +1272,20 @@ void allocate(MPI_Comm comm){
     assert(autotuning_test_id>=0 && autotuning_test_id<=2);
     if (flag == 1){
       if (_world_rank==0){
-        if (autotuning_test_id == 0){
-          std::string stream_overhead_name = std::getenv("CRITTER_VIZ_FILE");
-          stream_overhead_name += "_overhead.txt";
-          stream_overhead.open(stream_overhead_name.c_str(),std::ofstream::app);
-        } else if (autotuning_test_id == 1){
-          std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
-          std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
-          stream_tune_name += "_tune.txt";
-          stream_reconstruct_name += "_reconstruct.txt";
-          stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
-          stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
-        } else if (autotuning_test_id == 2){
-          std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
-          std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
-          stream_tune_name += "_tune.txt";
-          stream_reconstruct_name += "_reconstruct.txt";
-          stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
-          stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
-        }
+        std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
+        std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
+        stream_tune_name += "_tune.txt";
+        stream_reconstruct_name += "_reconstruct.txt";
+        stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
+        stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
       } 
     }
   } else assert(0);
-  if (std::getenv("CRITTER_AUTOTUNING_OPTIMIZE") != NULL){
-    is_optimized = atoi(std::getenv("CRITTER_AUTOTUNING_OPTIMIZE"));
-    assert(is_optimized>=0 && is_optimized<=1);
+  if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){
+    tuning_delta = atoi(std::getenv("CRITTER_AUTOTUNING_DELTA"));
+    assert(tuning_delta>=0 && tuning_delta<=5);// tuning_delta==0 requires decomposition mechanism
   } else{
-    is_optimized = 0;
+    tuning_delta = 0;
   }
   if (std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE") != NULL){
     aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE"));
@@ -1371,7 +1358,9 @@ void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
-  volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
+  critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
+  volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
+  volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update per-process execution time
 
   // Complete any active and incomplete batches. Liquidate them into the pathset.
   if (aggregation_mode >= 1){
@@ -1382,8 +1371,6 @@ void final_accumulate(MPI_Comm comm, double last_time){
       update_kernel_stats(comp_pattern_map[it.first],stats);
       comp_batch_map[it.first].clear();
     }
-    // debug
-    int rank; MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     for (auto& it : comm_pattern_map){
       // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
       //if (comm_batch_map[it.first].size() == 0) continue;
@@ -1393,19 +1380,21 @@ void final_accumulate(MPI_Comm comm, double last_time){
     }
   }
 
-  PMPI_Allreduce(MPI_IN_PLACE,&critical_path_costs[0],critical_path_costs.size(),MPI_DOUBLE,MPI_MAX,comm);
-  PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_MAX,comm);
-  // Find the max per-process overhead
-  double intercept_overhead[3] = {comm_intercept_overhead_stage1,comm_intercept_overhead_stage2,
-                                  comp_intercept_overhead};
-  PMPI_Allreduce(MPI_IN_PLACE,&intercept_overhead,3,MPI_DOUBLE,MPI_MAX,comm);
-  comm_intercept_overhead_stage1 = intercept_overhead[0];
-  comm_intercept_overhead_stage2 = intercept_overhead[1];
-  comp_intercept_overhead = intercept_overhead[2];
+  double temp_costs[11];
+  for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];
+  for (auto i=0; i<volume_costs.size(); i++) temp_costs[critical_path_costs.size()+i] = volume_costs[i];
+  temp_costs[critical_path_costs.size()+volume_costs.size()] = comm_intercept_overhead_stage1;
+  temp_costs[critical_path_costs.size()+volume_costs.size()+1] = comm_intercept_overhead_stage2;
+  temp_costs[critical_path_costs.size()+volume_costs.size()+2] = comp_intercept_overhead;
+  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],11,MPI_DOUBLE,MPI_MAX,comm);
+  for (auto i=0; i<critical_path_costs.size(); i++) critical_path_costs[i] = temp_costs[i];
+  for (auto i=0; i<volume_costs.size(); i++) volume_costs[i] = temp_costs[critical_path_costs.size()+i];
+  comm_intercept_overhead_stage1 = temp_costs[critical_path_costs.size()+volume_costs.size()];
+  comm_intercept_overhead_stage2 = temp_costs[critical_path_costs.size()+volume_costs.size()+1];
+  comp_intercept_overhead = temp_costs[critical_path_costs.size()+volume_costs.size()+2];
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
-  for (auto i=0; i<list_size; i++){ list[i]->init(); }
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
@@ -1462,15 +1451,8 @@ void finalize(){
   // 'spf' deletion should occur automatically at program shutdown
   if (is_world_root){
     if (flag == 1){
-      if (autotuning_test_id == 0){
-        stream_overhead.close();
-      } else if (autotuning_test_id == 1){
-        stream_tune.close();
-        stream_reconstruct.close();
-      } else if (autotuning_test_id == 2){
-        stream_tune.close();
-        stream_reconstruct.close();
-      }
+      stream_tune.close();
+      stream_reconstruct.close();
     }
   }
 }
