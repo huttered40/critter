@@ -164,7 +164,7 @@ void reset(){
 void open_symbol(const char* symbol, double curtime){
   if (symbol_timers.find(symbol) == symbol_timers.end()){
     symbol_timers[symbol] = symbol_tracker(symbol);
-    symbol_order[symbol_timers.size()-1] = symbol;
+    if (symbol_timers.size() < max_num_symbols) symbol_order[symbol_timers.size()-1] = std::string(symbol);
     symbol_timers[symbol].start(curtime);
   }
   else{
@@ -173,9 +173,7 @@ void open_symbol(const char* symbol, double curtime){
 }
 
 void close_symbol(const char* symbol, double curtime){
-  if (symbol_timers.find(symbol) == symbol_timers.end()){
-    assert(0);
-  }
+  if (symbol_timers.find(symbol) == symbol_timers.end()){ assert(0); }
   else{
     symbol_timers[symbol].stop(curtime);
   }
