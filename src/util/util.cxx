@@ -20,7 +20,7 @@ size_t critical_path_costs_size;
 size_t per_process_costs_size;
 size_t volume_costs_size;
 std::string stream_name,file_name;
-bool flag,is_first_iter,is_world_root,need_new_line,opt;
+bool flag,is_first_iter,is_world_root,need_new_line;
 size_t mechanism,mode,stack_id;
 std::ofstream stream;
 volatile double computation_timer;

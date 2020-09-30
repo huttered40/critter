@@ -1,6 +1,5 @@
 #include "path.h"
 #include "../container/symbol_tracker.h"
-#include "../../replay/path/path.h"
 #include "../../discretization/util/util.h"
 #include "../../util/util.h"
 

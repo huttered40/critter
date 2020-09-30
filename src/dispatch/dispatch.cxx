@@ -9,7 +9,6 @@
 #include "../discretization/volumetric/volumetric.h"
 #include "../discretization/path/path.h"
 #include "../discretization/record/record.h"
-#include "../replay/path/path.h"
 
 namespace critter{
 namespace internal{

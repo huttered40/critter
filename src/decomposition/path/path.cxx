@@ -551,13 +551,6 @@ void path::complete_comm(blocking& tracker, int recv_source){
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   propagate(tracker);
 
-  // Save the communication pattern
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    //TODO: we will assume both costs models are chosen.
-    std::vector<double> measurements = {costs[0].second,costs[0].first,costs[1].second,costs[1].first,tracker.barrier_time,comm_time,tracker.synch_time,tracker.comp_time,tracker.comp_time+comm_time};
-    event_list.push_back(event(symbol_stack.top(),std::move(measurements),tracker.tag,tracker.comm,tracker.partner1,tracker.partner2,tracker.is_sender,eager_p2p));
-  }
-
   // Prepare to leave interception and re-enter user code by restarting computation timers.
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
@@ -596,7 +589,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
   int64_t nbytes = el_size * nelem;
   MPI_Comm_size(comm, &p);
 
-  internal_comm_info[*request] = std::make_pair(is_sender,event_list_size++);
+  internal_comm_info[*request] = std::make_pair(is_sender,0/*event_list_size++*/);
   internal_comm_comm[*request] = std::make_pair(comm,partner);// Note 'partner' might be MPI_ANY_SOURCE
   internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
   internal_comm_track[*request] = &tracker;
@@ -609,17 +602,6 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
     tracker.comm_size = p;
     tracker.nbytes = nbytes;
     propagate(tracker);
-  }
-
-  // Save the communication pattern
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    //TODO: we will assume both costs models are chosen.
-    std::vector<double> measurements = {0.,0.,0.,0.,0.,0.,0.,0.,tracker.comp_time,0.,tracker.comp_time};
-    if (eager_p2p){
-      event_list.push_back(event(symbol_stack.top(),std::move(measurements),tracker.tag,comm,partner,is_sender,eager_p2p,event_list_size-1,true));
-    } else{
-      event_list.push_back(event(symbol_stack.top(),std::move(measurements)));
-    }
   }
 
   tracker.start_time = MPI_Wtime();
@@ -763,37 +745,6 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   internal_comm_data.erase(*request);
   internal_comm_track.erase(*request);
 
-  // Save the match to the array
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    if (eager_p2p){
-      opt_req_match.push_back(comm_info_it->second.second);
-      opt_measure_match[num_per_process_measures-11] += costs[0].second;
-      opt_measure_match[num_per_process_measures-10] += costs[0].first;
-      opt_measure_match[num_per_process_measures-9] += costs[1].second;
-      opt_measure_match[num_per_process_measures-8] += costs[1].first;
-      opt_measure_match[num_per_process_measures-6] += 0.;
-      opt_measure_match[num_per_process_measures-5] += comm_time;
-      opt_measure_match[num_per_process_measures-4] += 0.;
-      opt_measure_match[num_per_process_measures-3] += comp_time;
-      opt_measure_match[num_per_process_measures-1] += (comp_time+comm_time);
-    }
-    if (!eager_p2p){
-      //TODO: we will assume both costs models are chosen.
-      std::vector<double> measurements(num_per_process_measures,0.);
-      event_list.push_back(event(symbol_stack.top(),measurements,tracker.tag,tracker.comm,tracker.partner1,tracker.is_sender,eager_p2p,event_list_size++,true));
-      opt_req_match.push_back(event_list_size-1);
-      opt_measure_match[num_per_process_measures-11] += costs[0].second;
-      opt_measure_match[num_per_process_measures-10] += costs[0].first;
-      opt_measure_match[num_per_process_measures-9] += costs[1].second;
-      opt_measure_match[num_per_process_measures-8] += costs[1].first;
-      opt_measure_match[num_per_process_measures-6] += 0.;
-      opt_measure_match[num_per_process_measures-5] += comm_time;
-      opt_measure_match[num_per_process_measures-4] += 0.;
-      opt_measure_match[num_per_process_measures-3] += comp_time;
-      opt_measure_match[num_per_process_measures-1] += (comp_time+comm_time);
-    }
-  }
-
   tracker.start_time = MPI_Wtime();
 }
 
@@ -824,14 +775,8 @@ void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* statu
   double save_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
   if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
-  opt_measure_match.resize(num_per_process_measures,0.);
   complete_comm(*comm_track_it->second, &save_request, comp_time, save_comm_time);
   if (eager_p2p==0) { complete_path_update(); }
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    event_list.push_back(event(symbol_stack.top(),opt_measure_match,opt_req_match));
-    opt_req_match.clear();
-    opt_measure_match.clear();
-  }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -858,14 +803,8 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   auto comm_comm_it = internal_comm_comm.find(request);
   assert(comm_track_it != internal_comm_track.end());
   if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
-  opt_measure_match.resize(num_per_process_measures,0.);
   complete_comm(*comm_track_it->second, &request, waitany_comp_time, waitany_comm_time);
   if (eager_p2p==0) { complete_path_update(); }
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    event_list.push_back(event(symbol_stack.top(),opt_measure_match,opt_req_match));
-    opt_req_match.clear();
-    opt_measure_match.clear();
-  }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -883,7 +822,6 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
   PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   double waitsome_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
-  opt_measure_match.resize(num_per_process_measures,0.);
   for (int i=0; i<*outcount; i++){
     MPI_Request request = pt[(array_of_indices)[i]];
     auto comm_track_it = internal_comm_track.find(request);
@@ -896,11 +834,6 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
     if (i==0){wait_id=false;}
   }
   if (eager_p2p==0) { complete_path_update(); }
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    event_list.push_back(event(symbol_stack.top(),opt_measure_match,opt_req_match));
-    opt_req_match.clear();
-    opt_measure_match.clear();
-  }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -957,7 +890,6 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   PMPI_Waitall(count,array_of_requests,array_of_statuses);
   double waitall_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
-  opt_measure_match.resize(num_per_process_measures,0.);
   for (int i=0; i<count; i++){
     MPI_Request request = pt[i];
     auto comm_track_it = internal_comm_track.find(request);
@@ -972,11 +904,6 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   }
   wait_id=true;
   if (eager_p2p==0) { complete_path_update(); }
-  if (opt && symbol_path_select_size>0 && symbol_stack.size()>0){
-    event_list.push_back(event(symbol_stack.top(),opt_measure_match,opt_req_match));
-    opt_req_match.clear();
-    opt_measure_match.clear();
-  }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
@@ -1452,11 +1379,6 @@ void path::propagate(blocking& tracker){
     // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
     //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
     MPI_Buffer_detach(&temp_buf,&temp_size);
-  }
-  if (opt && tracker.tag==0 && tracker.comm==MPI_COMM_WORLD){
-    // Note: This will get triggered at phase-end or critter::stop via dispatch::propagate
-    // Should do nothing if symbol_path_select_size==0, but we could check for that here.
-//    critter::internal::replay::invoke();
   }
 }
 

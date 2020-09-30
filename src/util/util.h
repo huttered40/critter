@@ -83,7 +83,7 @@ extern size_t critical_path_costs_size;
 extern size_t per_process_costs_size;
 extern size_t volume_costs_size;
 extern std::string stream_name,file_name;
-extern bool flag,is_first_iter,is_world_root,need_new_line,opt;
+extern bool flag,is_first_iter,is_world_root,need_new_line;
 extern size_t mechanism,mode,stack_id;
 extern std::ofstream stream;
 extern volatile double computation_timer;

@@ -659,9 +659,11 @@ void sample_propagation_forest::delete_tree(solo_channel*& tree_root){
 }
 sample_propagation_forest::sample_propagation_forest(){ this->tree=nullptr; }
 sample_propagation_forest::~sample_propagation_forest(){
+/*
   if (this->tree == nullptr) return;
   this->delete_tree(this->tree->root);
   free(this->tree); this->tree = nullptr;
+*/
 }
 void sample_propagation_forest::clear_info(){
   this->clear_tree_info(this->tree->root);

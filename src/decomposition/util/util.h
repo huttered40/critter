@@ -35,13 +35,6 @@ extern std::vector<double> symbol_timer_pad_global_vol;
 extern std::stack<std::string> symbol_stack;
 extern std::vector<std::string> symbol_order;
 extern std::vector<int> symbol_path_select_index;
-extern std::vector<event> event_list;
-extern std::vector<int> opt_req_match;
-extern std::vector<double> opt_measure_match;
-extern size_t event_list_size;
-extern size_t opt_max_iter;
-extern size_t gradient_jump_size;
-extern size_t num_gradient_points;
 
 void allocate(MPI_Comm comm);
 void reset();

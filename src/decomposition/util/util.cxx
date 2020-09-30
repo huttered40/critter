@@ -34,13 +34,6 @@ std::vector<double> symbol_timer_pad_global_vol;
 std::stack<std::string> symbol_stack;
 std::vector<std::string> symbol_order;
 std::vector<int> symbol_path_select_index;
-std::vector<event> event_list;
-std::vector<int> opt_req_match;
-std::vector<double> opt_measure_match;
-size_t event_list_size;
-size_t opt_max_iter;
-size_t gradient_jump_size;
-size_t num_gradient_points;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -50,7 +43,6 @@ void allocate(MPI_Comm comm){
   vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
   mode_1_width = 25;
   mode_2_width = 15;
-  event_list_size = 0;
 
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
@@ -198,14 +190,6 @@ void final_accumulate(MPI_Comm comm, double last_time){
   // update the computation time (i.e. time between last MPI synchronization point or comp kernel and this function invocation) along all paths decomposed by MPI communication routine
   // TODO: Why don't I apply the same update to max_per_process_costs?
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
-  // Save the communication pattern
-  if (opt){
-    //TODO: we will assume both costs models are chosen.
-    std::vector<double> measurements(num_per_process_measures,0.);
-    measurements[num_per_process_measures-1]=(last_time-computation_timer);
-    measurements[num_per_process_measures-2]=(last_time-computation_timer);
-    event_list.push_back(event("",std::move(measurements)));
-  }
 }
 
 
