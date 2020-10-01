@@ -8,13 +8,14 @@ namespace internal{
 namespace decomposition{
 
 std::vector<std::string> parse_file_string(){
+  std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
   std::vector<std::string> inputs;
   auto prev=0;
   auto First=false;
-  for (auto i=0; i<file_name.size(); i++){
-    if (file_name[i]=='+'){
+  for (auto i=0; i<stream_name.size(); i++){
+    if (stream_name[i]=='+'){
       if (First){
-        inputs.emplace_back(file_name.substr(prev,i-prev));
+        inputs.emplace_back(stream_name.substr(prev,i-prev));
       }
       else{
         First=true;
@@ -25,10 +26,10 @@ std::vector<std::string> parse_file_string(){
   return inputs;
 }
 
-void print_inputs(std::ofstream& Stream, int np, std::vector<std::string>& inputs){
-  Stream << np;
+void print_inputs(int np, std::vector<std::string>& inputs){
+  stream << np;
   for (auto input_str : inputs){
-    Stream << "\t" << input_str;
+    stream << "\t" << input_str;
   }
 }
 
@@ -51,49 +52,49 @@ std::string get_measure_title(size_t idx){
   if ((cost_models[0]=='1') && (cost_models[1]=='1')){ return measure_titles[idx]; }
 }
 
-void print_cost_model_header(std::ostream& Stream){
+void print_cost_model_header(){
   if (cost_models[0]=='1'){
-    Stream << std::left << std::setw(mode_1_width) << "BSPCommCost";
-    Stream << std::left << std::setw(mode_1_width) << "BSPSynchCost";
+    std::cout << std::left << std::setw(mode_1_width) << "BSPCommCost";
+    std::cout << std::left << std::setw(mode_1_width) << "BSPSynchCost";
   }
   if (cost_models[1]=='1'){
-    Stream << std::left << std::setw(mode_1_width) << "ABCommCost";
-    Stream << std::left << std::setw(mode_1_width) << "ABSynchCost";
+    std::cout << std::left << std::setw(mode_1_width) << "ABCommCost";
+    std::cout << std::left << std::setw(mode_1_width) << "ABSynchCost";
   }
 }
 
-void print_cost_model_header_file(std::ofstream& Stream){
+void print_cost_model_header_file(){
   if (cost_models[0]=='1'){
-    Stream << "\tBSPCommCost";
-    Stream << "\tBSPSynchCost";
+    stream << "\tBSPCommCost";
+    stream << "\tBSPSynchCost";
   }
   if (cost_models[1]=='1'){
-    Stream << "\tABCommCost";
-    Stream << "\tABSynchCost";
+    stream << "\tABCommCost";
+    stream << "\tABSynchCost";
   }
 }
 
-void print_header(std::ofstream& Stream, size_t num_inputs){
+void print_header(size_t num_inputs){
   for (size_t idx = 0; idx < (num_inputs+1); idx++){
     if (idx != 0){
-      Stream << "\t";
+      stream << "\t";
     }
-    Stream << "Input";
+    stream << "Input";
   }
-  print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// critical path
-  print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// per-process
-  print_cost_model_header_file(Stream);
-  Stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// volume
+  print_cost_model_header_file();
+  stream << "\tCompCost\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// critical path
+  print_cost_model_header_file();
+  stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// per-process
+  print_cost_model_header_file();
+  stream << "\tCompCost\tIdleTime\tCommunicationTime\tSynchronizationTime\tComputationTime\tComputationalKernelTime\tRunTime";// volume
   for (auto i=0; i<num_tracker_critical_path_measures*comm_path_select_size+num_tracker_per_process_measures*comm_path_select_size+num_tracker_volume_measures;i++){
     for (auto& it : save_info){
-     Stream << "\t" << it.first;
+     stream << "\t" << it.first;
     }
   }
 }
 
-void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
+void record::write_file(int variantID, double overhead_time){
   assert(internal_comm_info.size() == 0);
   int temp_mode=1;
   if (std::getenv("CRITTER_MODE") != NULL){
@@ -105,15 +106,15 @@ void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
     PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
     if (is_world_root){
       if (is_first_iter){
-        Stream << std::left << std::setw(mode_1_width) << "ID";
-        Stream << std::left << std::setw(mode_1_width) << "Execution time";
-        Stream << std::left << std::setw(mode_1_width) << "Wall time";
-        Stream << "\n";
+        stream << std::left << std::setw(mode_1_width) << "ID";
+        stream << std::left << std::setw(mode_1_width) << "Execution time";
+        stream << std::left << std::setw(mode_1_width) << "Wall time";
+        stream << "\n";
       }
-      Stream << std::left << std::setw(mode_1_width) << variantID;
-      Stream << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
-      Stream << std::left << std::setw(mode_1_width) << _wall_time;
-      Stream << "\n";
+      stream << std::left << std::setw(mode_1_width) << variantID;
+      stream << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
+      stream << std::left << std::setw(mode_1_width) << _wall_time;
+      stream << "\n";
     }
   }
   else if (temp_mode){
@@ -124,27 +125,27 @@ void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
         list[i]->set_header();
       }
       if (is_first_iter){
-        if (variantID != -1) Stream << "ID\t";
-        print_header(Stream,inputs.size());
-        Stream << "\n";
+        if (variantID != -1) stream << "ID\t";
+        print_header(inputs.size());
+        stream << "\n";
       }
-      if (variantID != -1) Stream << variantID << "\t";
-      print_inputs(Stream,np,inputs);
+      if (variantID != -1) stream << variantID << "\t";
+      print_inputs(np,inputs);
       for (size_t i=0; i<num_critical_path_measures; i++){
-        Stream << "\t" << critical_path_costs[i];
+        stream << "\t" << critical_path_costs[i];
       }
       for (size_t i=0; i<num_per_process_measures; i++){
-        Stream << "\t" << max_per_process_costs[i];
+        stream << "\t" << max_per_process_costs[i];
       }
       for (size_t i=0; i<num_volume_measures; i++){
-        Stream << "\t" << volume_costs[i];
+        stream << "\t" << volume_costs[i];
       }
       for (int i=0; i<list_size; i++){
         list[i]->set_volume_costs();
       }
       for (size_t j=0; j<num_tracker_volume_measures; j++){
         for (auto& it : save_info){
-          Stream << "\t" << it.second[j];
+          stream << "\t" << it.second[j];
         }
       }
       size_t breakdown_idx=0;
@@ -156,22 +157,22 @@ void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
         }
         for (size_t j=0; j<num_tracker_per_process_measures; j++){
           for (auto& it : save_info){
-            Stream << "\t" << it.second[j];
+            stream << "\t" << it.second[j];
           }
         }
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-1];// comp kernel time
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-2];// comp time
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-3];// idle time
-        Stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-4];// comp cost
+        stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-1];// comp kernel time
+        stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-2];// comp time
+        stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-3];// idle time
+        stream << "\t" << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-4];// comp cost
         breakdown_idx++;
       }
       breakdown_idx=0;
       for (auto i=0; i<comm_path_select.size(); i++){
         if (comm_path_select[i]=='0') continue;
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];// comp kernel time
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];// comp time
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];// idle time
-        Stream << "\t" << critical_path_costs[critical_path_costs_size-4*comm_path_select_size+breakdown_idx];// comp cost
+        stream << "\t" << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];// comp kernel time
+        stream << "\t" << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];// comp time
+        stream << "\t" << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];// idle time
+        stream << "\t" << critical_path_costs[critical_path_costs_size-4*comm_path_select_size+breakdown_idx];// comp cost
         breakdown_idx++;
       }
       breakdown_idx=0;
@@ -183,17 +184,18 @@ void record::invoke(std::ofstream& Stream, int variantID, double overhead_time){
         }
         for (size_t j=0; j<num_tracker_critical_path_measures; j++){
           for (auto& it : save_info){
-            Stream << "\t" << it.second[j];
+            stream << "\t" << it.second[j];
           }
         }
         breakdown_idx++;
       }
-      Stream << "\n";
+      stream << "\n";
     }
   }
+  is_first_iter = false;// set here only beause this routine is called directly after 'invoke' on std::ostream
 }
 
-void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
+void record::print(int variantID, double overhead_time){
   assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   int temp_mode=1;
@@ -202,202 +204,202 @@ void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
   }
   if (temp_mode==0){
     if (is_world_root){
-      Stream << std::left << std::setw(mode_1_width) << "Execution time:";
-      Stream << "\n";
-      Stream << std::left << std::setw(mode_1_width) << "                  ";
-      Stream << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
-      Stream << "\n\n";
+      std::cout << std::left << std::setw(mode_1_width) << "Execution time:";
+      std::cout << "\n";
+      std::cout << std::left << std::setw(mode_1_width) << "                  ";
+      std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
+      std::cout << "\n\n";
     }
   }
   if (temp_mode){
     if (is_world_root){
-      Stream << "\n\n";
-      Stream << std::left << std::setw(mode_1_width) << "Critical path:";
-      print_cost_model_header(Stream);
-      Stream << std::left << std::setw(mode_1_width) << "CompCost";
-      Stream << std::left << std::setw(mode_1_width) << "IdleTime";
-      Stream << std::left << std::setw(mode_1_width) << "CommTime";
-      Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "CompTime";
-      Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
-      Stream << std::left << std::setw(mode_1_width) << "RunTime";
-      Stream << "\n";
-      Stream << std::left << std::setw(mode_1_width) << "                  ";
+      std::cout << "\n\n";
+      std::cout << std::left << std::setw(mode_1_width) << "Critical path:";
+      print_cost_model_header();
+      std::cout << std::left << std::setw(mode_1_width) << "CompCost";
+      std::cout << std::left << std::setw(mode_1_width) << "IdleTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CommTime";
+      std::cout << std::left << std::setw(mode_1_width) << "SynchTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CompTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CompKernelTime";
+      std::cout << std::left << std::setw(mode_1_width) << "RunTime";
+      std::cout << "\n";
+      std::cout << std::left << std::setw(mode_1_width) << "                  ";
       for (size_t i=0; i<num_critical_path_measures+1; i++){//+1 for idle time (which is not present in 'num_critical_path_measures'
-        if (i==(2*cost_model_size+1)) Stream << std::left << std::setw(mode_1_width) << "0";
-        else if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(mode_1_width) << critical_path_costs[i/2];
-        else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(mode_1_width) << critical_path_costs[(i-1)/2+cost_model_size];
-        else if (i==(2*cost_model_size)) Stream << std::left << std::setw(mode_1_width) << critical_path_costs[i];
-        else Stream << std::left << std::setw(mode_1_width) << critical_path_costs[i-1];
+        if (i==(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_1_width) << "0";
+        else if ((i<(2*cost_model_size)) && (i%2==0)) std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[i/2];
+        else if ((i<(2*cost_model_size)) && (i%2==1)) std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[(i-1)/2+cost_model_size];
+        else if (i==(2*cost_model_size)) std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[i];
+        else std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[i-1];
       }
-      Stream << "\n\n";
+      std::cout << "\n\n";
 
-      Stream << std::left << std::setw(mode_1_width) << "Per-process max:";
-      print_cost_model_header(Stream);
-      Stream << std::left << std::setw(mode_1_width) << "CompCost";
-      Stream << std::left << std::setw(mode_1_width) << "IdleTime";
-      Stream << std::left << std::setw(mode_1_width) << "CommTime";
-      Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "CompTime";
-      Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
-      Stream << std::left << std::setw(mode_1_width) << "RunTime";
-      Stream << "\n";
-      Stream << std::left << std::setw(mode_1_width) << "                  ";
+      std::cout << std::left << std::setw(mode_1_width) << "Per-process max:";
+      print_cost_model_header();
+      std::cout << std::left << std::setw(mode_1_width) << "CompCost";
+      std::cout << std::left << std::setw(mode_1_width) << "IdleTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CommTime";
+      std::cout << std::left << std::setw(mode_1_width) << "SynchTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CompTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CompKernelTime";
+      std::cout << std::left << std::setw(mode_1_width) << "RunTime";
+      std::cout << "\n";
+      std::cout << std::left << std::setw(mode_1_width) << "                  ";
       for (size_t i=0; i<num_volume_measures; i++){
-        if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[i/2];
-        else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[(i-1)/2+cost_model_size];
-        else Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[i];
+        if ((i<(2*cost_model_size)) && (i%2==0)) std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[i/2];
+        else if ((i<(2*cost_model_size)) && (i%2==1)) std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[(i-1)/2+cost_model_size];
+        else std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[i];
       }
-      Stream << "\n\n";
+      std::cout << "\n\n";
 
-      Stream << std::left << std::setw(mode_1_width) << "Volumetric avg:";
-      print_cost_model_header(Stream);
-      Stream << std::left << std::setw(mode_1_width) << "CompCost";
-      Stream << std::left << std::setw(mode_1_width) << "IdleTime";
-      Stream << std::left << std::setw(mode_1_width) << "CommTime";
-      Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-      Stream << std::left << std::setw(mode_1_width) << "CompTime";
-      Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
-      Stream << std::left << std::setw(mode_1_width) << "RunTime";
-      Stream << "\n";
-      Stream << std::left << std::setw(mode_1_width) << "                  ";
+      std::cout << std::left << std::setw(mode_1_width) << "Volumetric avg:";
+      print_cost_model_header();
+      std::cout << std::left << std::setw(mode_1_width) << "CompCost";
+      std::cout << std::left << std::setw(mode_1_width) << "IdleTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CommTime";
+      std::cout << std::left << std::setw(mode_1_width) << "SynchTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CompTime";
+      std::cout << std::left << std::setw(mode_1_width) << "CompKernelTime";
+      std::cout << std::left << std::setw(mode_1_width) << "RunTime";
+      std::cout << "\n";
+      std::cout << std::left << std::setw(mode_1_width) << "                  ";
       for (size_t i=0; i<num_volume_measures; i++){
-        if ((i<(2*cost_model_size)) && (i%2==0)) Stream << std::left << std::setw(mode_1_width) << volume_costs[i/2];
-        else if ((i<(2*cost_model_size)) && (i%2==1)) Stream << std::left << std::setw(mode_1_width) << volume_costs[(i-1)/2+cost_model_size];
-        else Stream << std::left << std::setw(mode_1_width) << volume_costs[i];
+        if ((i<(2*cost_model_size)) && (i%2==0)) std::cout << std::left << std::setw(mode_1_width) << volume_costs[i/2];
+        else if ((i<(2*cost_model_size)) && (i%2==1)) std::cout << std::left << std::setw(mode_1_width) << volume_costs[(i-1)/2+cost_model_size];
+        else std::cout << std::left << std::setw(mode_1_width) << volume_costs[i];
       }
-      Stream << "\n\n";
+      std::cout << "\n\n";
 
       size_t breakdown_idx=0;
       for (auto i=0; i<comm_path_select.size(); i++){
         if (comm_path_select[i]=='0') continue;
         if (i==0){
-          Stream << std::left << std::setw(mode_1_width) << "BSPCommCost max:";
+          std::cout << std::left << std::setw(mode_1_width) << "BSPCommCost max:";
         } else if (i==1){
-          Stream << std::left << std::setw(mode_1_width) << "ABCommCost max:";
+          std::cout << std::left << std::setw(mode_1_width) << "ABCommCost max:";
         } else if (i==2){
-          Stream << std::left << std::setw(mode_1_width) << "BSPSynchCost max:";
+          std::cout << std::left << std::setw(mode_1_width) << "BSPSynchCost max:";
         } else if (i==3){
-          Stream << std::left << std::setw(mode_1_width) << "ABSynchCost max:";
+          std::cout << std::left << std::setw(mode_1_width) << "ABSynchCost max:";
         } else if (i==4){
-          Stream << std::left << std::setw(mode_1_width) << "CompCost max:";
+          std::cout << std::left << std::setw(mode_1_width) << "CompCost max:";
         } else if (i==5){
-          Stream << std::left << std::setw(mode_1_width) << "CommTime max:";
+          std::cout << std::left << std::setw(mode_1_width) << "CommTime max:";
         } else if (i==6){
-          Stream << std::left << std::setw(mode_1_width) << "SynchTime max:";
+          std::cout << std::left << std::setw(mode_1_width) << "SynchTime max:";
         } else if (i==7){
-          Stream << std::left << std::setw(mode_1_width) << "CompTime max:";
+          std::cout << std::left << std::setw(mode_1_width) << "CompTime max:";
         } else if (i==8){
-          Stream << std::left << std::setw(mode_1_width) << "CompKernelTime max:";
+          std::cout << std::left << std::setw(mode_1_width) << "CompKernelTime max:";
         } else if (i==9){
-          Stream << std::left << std::setw(mode_1_width) << "RunTime max:";
+          std::cout << std::left << std::setw(mode_1_width) << "RunTime max:";
         }
-        Stream << std::left << std::setw(mode_1_width) << "MeasureType";
-        Stream << std::left << std::setw(mode_1_width) << "CompKernelTime";
-        Stream << std::left << std::setw(mode_1_width) << "CompTime";
-        Stream << std::left << std::setw(mode_1_width) << "IdleTime";
-        Stream << std::left << std::setw(mode_1_width) << "CompCost";
-        print_cost_model_header(Stream);
-        Stream << std::left << std::setw(mode_1_width) << "CommTime";
-        Stream << std::left << std::setw(mode_1_width) << "SynchTime";
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationKernelTime";
-        Stream << std::left << std::setw(mode_1_width) << "path";
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationTime";
-        Stream << std::left << std::setw(mode_1_width) << "path";
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "IdleTime";
-        Stream << std::left << std::setw(mode_1_width) << "path";
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationCost";
-        Stream << std::left << std::setw(mode_1_width) << "path";
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-4*comm_path_select_size+breakdown_idx];
+        std::cout << std::left << std::setw(mode_1_width) << "MeasureType";
+        std::cout << std::left << std::setw(mode_1_width) << "CompKernelTime";
+        std::cout << std::left << std::setw(mode_1_width) << "CompTime";
+        std::cout << std::left << std::setw(mode_1_width) << "IdleTime";
+        std::cout << std::left << std::setw(mode_1_width) << "CompCost";
+        print_cost_model_header();
+        std::cout << std::left << std::setw(mode_1_width) << "CommTime";
+        std::cout << std::left << std::setw(mode_1_width) << "SynchTime";
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "ComputationKernelTime";
+        std::cout << std::left << std::setw(mode_1_width) << "path";
+        std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-comm_path_select_size+breakdown_idx];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "ComputationTime";
+        std::cout << std::left << std::setw(mode_1_width) << "path";
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-2*comm_path_select_size+breakdown_idx];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "IdleTime";
+        std::cout << std::left << std::setw(mode_1_width) << "path";
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-3*comm_path_select_size+breakdown_idx];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "ComputationCost";
+        std::cout << std::left << std::setw(mode_1_width) << "path";
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << critical_path_costs[critical_path_costs_size-4*comm_path_select_size+breakdown_idx];
         for (int j=0; j<list_size; j++){
           list[j]->set_critical_path_costs(breakdown_idx);
         }
         for (auto& it : save_info){
-          Stream << "\n";
-          Stream << std::left << std::setw(mode_1_width) << it.first;
-          Stream << std::left << std::setw(mode_1_width) << "path";
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << "\n";
+          std::cout << std::left << std::setw(mode_1_width) << it.first;
+          std::cout << std::left << std::setw(mode_1_width) << "path";
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
           for (size_t j=0; j<num_tracker_critical_path_measures; j++){
-            Stream << std::left << std::setw(mode_1_width) << it.second[j];
+            std::cout << std::left << std::setw(mode_1_width) << it.second[j];
           }
         }
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationKernelTime";
-        Stream << std::left << std::setw(mode_1_width) << "per-process";
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-1];
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationTime";
-        Stream << std::left << std::setw(mode_1_width) << "per-process";
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-2];
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "IdleTime";
-        Stream << std::left << std::setw(mode_1_width) << "per-process";
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-3];
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << "ComputationCost";
-        Stream << std::left << std::setw(mode_1_width) << "per-process";
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << 0.0;
-        Stream << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-4];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "ComputationKernelTime";
+        std::cout << std::left << std::setw(mode_1_width) << "per-process";
+        std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-1];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "ComputationTime";
+        std::cout << std::left << std::setw(mode_1_width) << "per-process";
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-2];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "IdleTime";
+        std::cout << std::left << std::setw(mode_1_width) << "per-process";
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-3];
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << "ComputationCost";
+        std::cout << std::left << std::setw(mode_1_width) << "per-process";
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << 0.0;
+        std::cout << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures+(breakdown_idx+1)*(num_tracker_per_process_measures*list_size+4)-4];
         for (int j=0; j<list_size; j++){
           list[j]->set_per_process_costs(breakdown_idx);
         }
         for (auto& it : save_info){
-          Stream << "\n";
-          Stream << std::left << std::setw(mode_1_width) << it.first;
-          Stream << std::left << std::setw(mode_1_width) << "per-process";
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
-          Stream << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << "\n";
+          std::cout << std::left << std::setw(mode_1_width) << it.first;
+          std::cout << std::left << std::setw(mode_1_width) << "per-process";
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
+          std::cout << std::left << std::setw(mode_1_width) << 0.0;
           for (size_t j=0; j<num_tracker_per_process_measures; j++){
-            Stream << std::left << std::setw(mode_1_width) << it.second[j];
+            std::cout << std::left << std::setw(mode_1_width) << it.second[j];
           }
         }
         breakdown_idx++;
-        Stream << "\n\n";
+        std::cout << "\n\n";
       }
       for (int i=0; i<list_size; i++){
         list[i]->set_volume_costs();
       }
-      Stream << std::left << std::setw(mode_1_width) << "Volumetric avg:";
-      print_cost_model_header(Stream);
-      Stream << std::left << std::setw(mode_1_width) << "CommTime";
-      Stream << std::left << std::setw(mode_1_width) << "SynchTime";
+      std::cout << std::left << std::setw(mode_1_width) << "Volumetric avg:";
+      print_cost_model_header();
+      std::cout << std::left << std::setw(mode_1_width) << "CommTime";
+      std::cout << std::left << std::setw(mode_1_width) << "SynchTime";
       for (auto& it : save_info){
-        Stream << "\n";
-        Stream << std::left << std::setw(mode_1_width) << it.first;
+        std::cout << "\n";
+        std::cout << std::left << std::setw(mode_1_width) << it.first;
         for (size_t j=0; j<num_tracker_volume_measures; j++){
-          Stream << std::left << std::setw(mode_1_width) << it.second[j];
+          std::cout << std::left << std::setw(mode_1_width) << it.second[j];
         }
       }
-      Stream << "\n";
+      std::cout << "\n";
     }
   }
   if ((temp_mode) && (symbol_path_select_size>0) && (symbol_timers.size()>0)){
     if (is_world_root){
       for (auto z=0; z<symbol_path_select_size; z++){
-        Stream << "***********************************************************************************************************************";
+        std::cout << "***********************************************************************************************************************";
         std::vector<std::pair<std::string,std::array<double,6>>> sort_info(symbol_timers.size());
         for (int i=symbol_path_select.size(); i>=0; i--){// We just iterate over all measures regardless of whether they are set or not.
           sort_info.clear(); sort_info.resize(symbol_timers.size());
@@ -421,48 +423,48 @@ void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
           if (cp_ref==0.) cp_ref=1.; if (pp_ref==0.) pp_ref=1.; if (vol_ref==0.) vol_ref=1.;
 
           // Exclusive
-          Stream << "\n\n\n\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
-          Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
-          Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
-          Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
-          if (i>=(2*cost_model_size+1)) Stream << std::left << std::setw(mode_2_width) << "cp-excl (s)";
-          else Stream << std::left << std::setw(mode_2_width) << "cp-excl";
-          if (i>=(2*cost_model_size+1)) Stream << std::left << std::setw(mode_2_width) << "pp-excl (s)";
-          else Stream << std::left << std::setw(mode_2_width) << "pp-excl";
-          if (i>=(2*cost_model_size+1)) Stream << std::left << std::setw(mode_2_width) << "vol-excl (s)";
-          else Stream << std::left << std::setw(mode_2_width) << "vol-excl";
-          Stream << std::left << std::setw(mode_2_width) << "cp-excl (%)";
-          Stream << std::left << std::setw(mode_2_width) << "pp-excl (%)";
-          Stream << std::left << std::setw(mode_2_width) << "vol-excl (%)";
+          std::cout << "\n\n\n\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
+          std::cout << std::left << std::setw(mode_2_width) << "cp-#calls";
+          std::cout << std::left << std::setw(mode_2_width) << "pp-#calls";
+          std::cout << std::left << std::setw(mode_2_width) << "vol-#calls";
+          if (i>=(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_2_width) << "cp-excl (s)";
+          else std::cout << std::left << std::setw(mode_2_width) << "cp-excl";
+          if (i>=(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_2_width) << "pp-excl (s)";
+          else std::cout << std::left << std::setw(mode_2_width) << "pp-excl";
+          if (i>=(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_2_width) << "vol-excl (s)";
+          else std::cout << std::left << std::setw(mode_2_width) << "vol-excl";
+          std::cout << std::left << std::setw(mode_2_width) << "cp-excl (%)";
+          std::cout << std::left << std::setw(mode_2_width) << "pp-excl (%)";
+          std::cout << std::left << std::setw(mode_2_width) << "vol-excl (%)";
           double cp_total_exclusive = 0.;
           double pp_total_exclusive = 0.;
           double vol_total_exclusive = 0.;
           for (auto& it : sort_info){
-            Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
-            Stream << std::left << std::setw(mode_2_width) << it.second[0];
-            Stream << std::left << std::setw(mode_2_width) << it.second[2];
-            Stream << std::left << std::setw(mode_2_width) << it.second[4];
-            Stream << std::left << std::setw(mode_2_width) << it.second[1];
-            Stream << std::left << std::setw(mode_2_width) << it.second[3];
-            Stream << std::left << std::setw(mode_2_width) << it.second[5];
-            Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
-            Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
-            Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
+            std::cout << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
+            std::cout << std::left << std::setw(mode_2_width) << it.second[0];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[2];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[4];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[1];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[3];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[5];
+            std::cout << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
+            std::cout << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
+            std::cout << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
             cp_total_exclusive += it.second[1];
             pp_total_exclusive += it.second[3];
             vol_total_exclusive += it.second[5];
           }
-          Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
-          Stream << std::left << std::setw(mode_2_width) << "";
-          Stream << std::left << std::setw(mode_2_width) << "";
-          Stream << std::left << std::setw(mode_2_width) << "";
-          Stream << std::left << std::setw(mode_2_width) << cp_total_exclusive;
-          Stream << std::left << std::setw(mode_2_width) << pp_total_exclusive;
-          Stream << std::left << std::setw(mode_2_width) << vol_total_exclusive;
-          Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_exclusive/cp_ref;
-          Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_exclusive/pp_ref;
-          Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_exclusive/vol_ref;
-          Stream << "\n";
+          std::cout << "\n" << std::left << std::setw(max_timer_name_length) << "total";
+          std::cout << std::left << std::setw(mode_2_width) << "";
+          std::cout << std::left << std::setw(mode_2_width) << "";
+          std::cout << std::left << std::setw(mode_2_width) << "";
+          std::cout << std::left << std::setw(mode_2_width) << cp_total_exclusive;
+          std::cout << std::left << std::setw(mode_2_width) << pp_total_exclusive;
+          std::cout << std::left << std::setw(mode_2_width) << vol_total_exclusive;
+          std::cout << std::left << std::setw(mode_2_width) << 100.*cp_total_exclusive/cp_ref;
+          std::cout << std::left << std::setw(mode_2_width) << 100.*pp_total_exclusive/pp_ref;
+          std::cout << std::left << std::setw(mode_2_width) << 100.*vol_total_exclusive/vol_ref;
+          std::cout << "\n";
 
           // Reset symbol timers and sort
           sort_info.clear(); sort_info.resize(symbol_timers.size());
@@ -484,48 +486,48 @@ void record::invoke(std::ostream& Stream, int variantID, double overhead_time){
           if (cp_ref==0.) cp_ref=1.; if (pp_ref==0.) pp_ref=1.; if (vol_ref==0.) vol_ref=1.;
 
           // Inclusive
-          Stream << "\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
-          Stream << std::left << std::setw(mode_2_width) << "cp-#calls";
-          Stream << std::left << std::setw(mode_2_width) << "pp-#calls";
-          Stream << std::left << std::setw(mode_2_width) << "vol-#calls";
-          if (i>=(2*cost_model_size+1)) Stream << std::left << std::setw(mode_2_width) << "cp-incl (s)";
-          else Stream << std::left << std::setw(mode_2_width) << "cp-incl";
-          if (i>=(2*cost_model_size+1)) Stream << std::left << std::setw(mode_2_width) << "pp-incl (s)";
-          else Stream << std::left << std::setw(mode_2_width) << "pp-incl";
-          if (i>=(2*cost_model_size+1)) Stream << std::left << std::setw(mode_2_width) << "vol-incl (s)";
-          else Stream << std::left << std::setw(mode_2_width) << "vol-incl";
-          Stream << std::left << std::setw(mode_2_width) << "cp-incl (%)";
-          Stream << std::left << std::setw(mode_2_width) << "pp-incl (%)";
-          Stream << std::left << std::setw(mode_2_width) << "vol-incl (%)";
+          std::cout << "\n" << std::left << std::setw(max_timer_name_length) << get_measure_title(i);
+          std::cout << std::left << std::setw(mode_2_width) << "cp-#calls";
+          std::cout << std::left << std::setw(mode_2_width) << "pp-#calls";
+          std::cout << std::left << std::setw(mode_2_width) << "vol-#calls";
+          if (i>=(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_2_width) << "cp-incl (s)";
+          else std::cout << std::left << std::setw(mode_2_width) << "cp-incl";
+          if (i>=(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_2_width) << "pp-incl (s)";
+          else std::cout << std::left << std::setw(mode_2_width) << "pp-incl";
+          if (i>=(2*cost_model_size+1)) std::cout << std::left << std::setw(mode_2_width) << "vol-incl (s)";
+          else std::cout << std::left << std::setw(mode_2_width) << "vol-incl";
+          std::cout << std::left << std::setw(mode_2_width) << "cp-incl (%)";
+          std::cout << std::left << std::setw(mode_2_width) << "pp-incl (%)";
+          std::cout << std::left << std::setw(mode_2_width) << "vol-incl (%)";
           double cp_total_inclusive = 0.;
           double pp_total_inclusive = 0.;
           double vol_total_inclusive = 0.;
           for (auto& it : sort_info){
-            Stream << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
-            Stream << std::left << std::setw(mode_2_width) << it.second[0];
-            Stream << std::left << std::setw(mode_2_width) << it.second[2];
-            Stream << std::left << std::setw(mode_2_width) << it.second[4];
-            Stream << std::left << std::setw(mode_2_width) << it.second[1];
-            Stream << std::left << std::setw(mode_2_width) << it.second[3];
-            Stream << std::left << std::setw(mode_2_width) << it.second[5];
-            Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
-            Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
-            Stream << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
+            std::cout << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
+            std::cout << std::left << std::setw(mode_2_width) << it.second[0];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[2];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[4];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[1];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[3];
+            std::cout << std::left << std::setw(mode_2_width) << it.second[5];
+            std::cout << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
+            std::cout << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
+            std::cout << std::left << std::setw(mode_2_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
             cp_total_inclusive = std::max(it.second[1],cp_total_inclusive);
             pp_total_inclusive = std::max(it.second[3],pp_total_inclusive);
             vol_total_inclusive = std::max(it.second[5],vol_total_inclusive);
           }
-          Stream << "\n" << std::left << std::setw(max_timer_name_length) << "total";
-          Stream << std::left << std::setw(mode_2_width) << "";
-          Stream << std::left << std::setw(mode_2_width) << "";
-          Stream << std::left << std::setw(mode_2_width) << "";
-          Stream << std::left << std::setw(mode_2_width) << cp_total_inclusive;
-          Stream << std::left << std::setw(mode_2_width) << pp_total_inclusive;
-          Stream << std::left << std::setw(mode_2_width) << vol_total_inclusive;
-          Stream << std::left << std::setw(mode_2_width) << 100.*cp_total_inclusive/cp_ref;
-          Stream << std::left << std::setw(mode_2_width) << 100.*pp_total_inclusive/pp_ref;
-          Stream << std::left << std::setw(mode_2_width) << 100.*vol_total_inclusive/vol_ref;
-          Stream << "\n";
+          std::cout << "\n" << std::left << std::setw(max_timer_name_length) << "total";
+          std::cout << std::left << std::setw(mode_2_width) << "";
+          std::cout << std::left << std::setw(mode_2_width) << "";
+          std::cout << std::left << std::setw(mode_2_width) << "";
+          std::cout << std::left << std::setw(mode_2_width) << cp_total_inclusive;
+          std::cout << std::left << std::setw(mode_2_width) << pp_total_inclusive;
+          std::cout << std::left << std::setw(mode_2_width) << vol_total_inclusive;
+          std::cout << std::left << std::setw(mode_2_width) << 100.*cp_total_inclusive/cp_ref;
+          std::cout << std::left << std::setw(mode_2_width) << 100.*pp_total_inclusive/pp_ref;
+          std::cout << std::left << std::setw(mode_2_width) << 100.*vol_total_inclusive/vol_ref;
+          std::cout << "\n";
         }
       }
     }

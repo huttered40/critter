@@ -36,7 +36,48 @@ std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 std::map<comm_pattern_key,bool> p2p_global_state_override;
 std::map<int,aggregate_channel*> aggregate_channel_map;
-std::ofstream stream_tune,stream_reconstruct;
+std::ofstream stream,stream_tune,stream_reconstruct;
+volatile double comm_intercept_overhead_stage1;
+volatile double comm_intercept_overhead_stage2;
+volatile double comp_intercept_overhead;
+size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
+size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
+size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
+size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
+size_t critical_path_costs_size;
+size_t per_process_costs_size;
+size_t volume_costs_size;
+std::vector<double> critical_path_costs;
+std::vector<double> max_per_process_costs;
+std::vector<double> volume_costs;
+std::vector<double_int> info_sender;
+std::vector<double_int> info_receiver;
+std::vector<char> eager_pad;
+double comp_start_time;
+std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
+std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
+std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
+std::vector<std::pair<double*,int>> internal_comm_prop;
+std::vector<MPI_Request> internal_comm_prop_req;
+std::vector<int*> internal_timer_prop_int;
+std::vector<double*> internal_timer_prop_double;
+std::vector<double_int*> internal_timer_prop_double_int;
+std::vector<char*> internal_timer_prop_char;
+std::vector<MPI_Request> internal_timer_prop_req;
+std::vector<bool> decisions;
+std::map<std::string,std::vector<double>> save_info;
+std::vector<double> new_cs;
+size_t mode_1_width;
+size_t mode_2_width;
+int internal_tag;
+int internal_tag1;
+int internal_tag2;
+int internal_tag3;
+int internal_tag4;
+int internal_tag5;
+bool is_first_iter;
 
 // ****************************************************************************************************************************************************
 static int gcd(int a, int b){
@@ -1194,6 +1235,13 @@ void allocate(MPI_Comm comm){
   mode_1_width = 25;
   mode_2_width = 15;
   communicator_count=INT_MIN;// to avoid conflict with p2p, which could range from (-p,p)
+  internal_tag = 31133;
+  internal_tag1 = internal_tag+1;
+  internal_tag2 = internal_tag+2;
+  internal_tag3 = internal_tag+3;
+  internal_tag4 = internal_tag+4;
+  internal_tag5 = internal_tag+5;
+  is_first_iter = true;
 
   solo_channel* world_node = new solo_channel();
   world_node->tag = communicator_count++;
@@ -1267,19 +1315,22 @@ void allocate(MPI_Comm comm){
   info_receiver.resize(num_critical_path_measures);
 
   // Reset these global variables, as some are updated by function arguments for convenience
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
+    std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
+    std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
+    stream_name += "_discretization.txt";
+    stream_tune_name += "_discretization_tune.txt";
+    stream_reconstruct_name += "_discretization_reconstruct.txt";
+    if (is_world_root){
+      stream.open(stream_name.c_str(),std::ofstream::app);
+      stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
+      stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
+    }
+  }
   if (std::getenv("CRITTER_AUTOTUNING_TEST") != NULL){
     autotuning_test_id = atoi(std::getenv("CRITTER_AUTOTUNING_TEST"));
     assert(autotuning_test_id>=0 && autotuning_test_id<=2);
-    if (flag == 1){
-      if (_world_rank==0){
-        std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
-        std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
-        stream_tune_name += "_tune.txt";
-        stream_reconstruct_name += "_reconstruct.txt";
-        stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
-        stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
-      } 
-    }
   } else assert(0);
   if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){
     tuning_delta = atoi(std::getenv("CRITTER_AUTOTUNING_DELTA"));
@@ -1357,6 +1408,7 @@ void open_symbol(const char* symbol, double curtime){}
 void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
+  assert(internal_comm_info.size() == 0);
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
@@ -1395,10 +1447,16 @@ void final_accumulate(MPI_Comm comm, double last_time){
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
+  assert(internal_comm_info.size() == 0);
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
 
+  if (std::getenv("CRITTER_MODE") != NULL){
+    internal::mode = atoi(std::getenv("CRITTER_MODE"));
+  } else{
+    internal::mode = 1;
+  }
   if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
     schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
   } else{
@@ -1452,8 +1510,9 @@ void finalize(){
   for (auto it : aggregate_channel_map){
     free(it.second);
   }
-  if (is_world_root){
-    if (flag == 1){
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    if (is_world_root){
+      stream.close();
       stream_tune.close();
       stream_reconstruct.close();
     }

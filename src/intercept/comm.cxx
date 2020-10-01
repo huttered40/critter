@@ -6,15 +6,8 @@
 namespace critter{
 
 void start(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
-  if (std::getenv("CRITTER_MODE") != NULL){
-    internal::mode = atoi(std::getenv("CRITTER_MODE"));
-  } else{
-    internal::mode = 1;
-  }
   internal::stack_id++;
   //if (internal::stack_id>1) { return; }
-  assert(internal::internal_comm_info.size() == 0);
-  internal::wait_id=true;
   internal::reset(schedule_kernels_override,force_steady_statistical_data_overide);
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
@@ -31,23 +24,20 @@ void stop(){
   //if (internal::stack_id>0) { return; }
   PMPI_Barrier(MPI_COMM_WORLD);
 
-  assert(internal::internal_comm_info.size() == 0);
   internal::final_accumulate(MPI_COMM_WORLD,last_time); 
   internal::propagate(MPI_COMM_WORLD);
   internal::collect(MPI_COMM_WORLD);
-  internal::mode = 0; internal::wait_id=false;
+  internal::mode = 0;
 }
 
 void record(int variantID, int print_mode, double overhead_time){
-  internal::record(std::cout,variantID,print_mode,overhead_time);
-  if (internal::flag) {internal::record(internal::stream,variantID,print_mode,overhead_time);}
-  internal::is_first_iter = false;
+  internal::print(variantID,print_mode,overhead_time);
+  internal::write_file(variantID,print_mode,overhead_time);
   assert(internal::wall_timer.size()>0);
   internal::wall_timer.pop_back();
 }
 
 void clear(){
-  internal::mode = 0; internal::wait_id=false;
   internal::clear();
 }
 
@@ -62,23 +52,28 @@ void set_mode(int input_mode){
   }
 }
 
+void set_mechanism(int input_mechanism){
+  if (input_mechanism != -1) { internal::mechanism = input_mechanism; }
+  else{
+    if (std::getenv("CRITTER_MECHANISM") != NULL){
+      internal::mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
+    } else{
+      internal::mechanism = 1;
+    }
+  }
+}
+
 namespace internal{
 
 // These routines aim to achieve agnosticity to mechanism.
 
 void _init(int* argc, char*** argv){
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  is_world_root = false;
+  if (world_rank == 0){ is_world_root = true; }
   mode=0;
   stack_id=0;
-  internal_tag = 31133;
-  internal_tag1 = internal_tag+1;
-  internal_tag2 = internal_tag+2;
-  internal_tag3 = internal_tag+3;
-  internal_tag4 = internal_tag+4;
-  internal_tag5 = internal_tag+5;
   delete_comm = 1;
-  flag = 0;
-  file_name="";
-  stream_name="";
   if (std::getenv("CRITTER_MECHANISM") != NULL){
     mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
   } else{
@@ -121,21 +116,6 @@ void _init(int* argc, char*** argv){
   }
   if (std::getenv("CRITTER_DELETE_COMM") != NULL){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
-  }
-  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
-    file_name = std::getenv("CRITTER_VIZ_FILE");
-    stream_name = file_name + ".txt";
-    flag=1;
-  }
-  is_first_iter = true;
-  int world_rank;
-  MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (world_rank == 0){ is_world_root = true; }
-  else                 { is_world_root = false; }
-  if (flag == 1){
-    if (is_world_root){
-      stream.open(stream_name.c_str(),std::ofstream::app);
-    }
   }
 
   _MPI_Barrier__id = 0;
@@ -413,7 +393,7 @@ void sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int des
               MPI_Datatype recvtype, int source, int recvtag, MPI_Comm comm, MPI_Status* status){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(sendtag != internal_tag); assert(recvtag != internal_tag);
+    //assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Sendrecv__id,curtime, std::max(sendcount,recvcount), sendtype, comm, true, dest, source);
     if (schedule_decision) PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
     complete_comm(_MPI_Sendrecv__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
@@ -427,7 +407,7 @@ void sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int
                       MPI_Comm comm, MPI_Status* status){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(sendtag != internal_tag); assert(recvtag != internal_tag);
+    //assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Sendrecv_replace__id,curtime, count, datatype, comm, true, dest, source);
     if (schedule_decision) PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
     complete_comm(_MPI_Sendrecv_replace__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
@@ -440,7 +420,7 @@ void sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int
 void ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(tag != internal_tag);
+    //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Ssend__id,curtime, count, datatype, comm, true, dest);
     if (schedule_decision) PMPI_Ssend(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Ssend__id);
@@ -453,7 +433,7 @@ void ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
 void bsend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(tag != internal_tag);
+    //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Bsend__id,curtime, count, datatype, comm, true, dest);
     if (schedule_decision) PMPI_Bsend(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Bsend__id);
@@ -466,7 +446,7 @@ void bsend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
 void send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(tag != internal_tag);
+    //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Send__id,curtime, count, datatype, comm, true, dest);
     if (schedule_decision) PMPI_Send(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Send__id);
@@ -479,7 +459,7 @@ void send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, 
 void recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status* status){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(tag != internal_tag);
+    //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Recv__id,curtime, count, datatype, comm, false, source);
     if (schedule_decision) PMPI_Recv(buf, count, datatype, source, tag, comm, status);
     complete_comm(_MPI_Recv__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
@@ -492,7 +472,7 @@ void recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_
 void isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* request){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(tag != internal_tag);
+    //assert(tag != internal_tag);
     volatile double itime = MPI_Wtime();
     PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
     itime = MPI_Wtime()-itime;
@@ -506,7 +486,7 @@ void isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
 void irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Request* request){
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    assert(tag != internal_tag);
+    //assert(tag != internal_tag);
     volatile double itime = MPI_Wtime();
     PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
     itime = MPI_Wtime()-itime;
@@ -744,11 +724,6 @@ void waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_sta
 
 void finalize(){
   if (auto_capture) stop();
-  if (is_world_root){
-    if (flag == 1){
-      stream.close();
-    }
-  }
   internal::_finalize();
   PMPI_Finalize();
 }

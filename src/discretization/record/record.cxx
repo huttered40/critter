@@ -7,7 +7,7 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
+std::vector<double> record::set_tuning_statistics(){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   // Lets iterate over the map to create two counters, then reduce them to get a global idea:
@@ -63,7 +63,7 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
   PMPI_Allreduce(MPI_IN_PLACE,&vol_units[0],6,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
   PMPI_Allreduce(MPI_IN_PLACE,&vol_exec_times[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 
-    if (world_rank==0) { Stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
+    if (world_rank==0) { stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
 
     double total_scheduled_comm_time=0;
     double total_scheduled_comp_time=0;
@@ -71,14 +71,14 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
       auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
       auto& key_list = it.second.is_active == true ? active_comm_pattern_keys : steady_state_comm_pattern_keys;
       if (world_rank==0) {
-        Stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
+        stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << "," << key_list[it.second.key_index].dim_sizes[2] << ")"
                << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << "," << key_list[it.second.key_index].dim_strides[2] << ")"
                << "," << key_list[it.second.key_index].msg_size
                << "," << key_list[it.second.key_index].partner_offset
                << ") - with byte-count " << key_list[it.second.key_index].msg_size
                << std::endl;
-        Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+        stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
                << "\tLocalScheduledTime - " << pattern_list[it.second.val_index].total_local_exec_time
                << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
                << ", NumLocalSchedules - " << pattern_list[it.second.val_index].num_local_schedules
@@ -89,7 +89,7 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
                << ", M1 - " << pattern_list[it.second.val_index].M1
                << ", M2 - " << pattern_list[it.second.val_index].M2
                << std::endl;
-        Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_analysis_param)
+        stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_analysis_param)
                << ", StdDev - " << discretization::get_std_dev(it.second,comm_analysis_param)
                << ", StdError - " << discretization::get_std_error(it.second,comm_analysis_param)
                << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comm_analysis_param)
@@ -98,12 +98,12 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
       }
       total_scheduled_comm_time += pattern_list[it.second.val_index].total_local_exec_time;
     }
-    if (world_rank==0) { Stream << std::endl << std::endl; }
+    if (world_rank==0) { stream << std::endl << std::endl; }
     for (auto& it : comp_pattern_map){
       auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
       auto& key_list = it.second.is_active == true ? active_comp_pattern_keys : steady_state_comp_pattern_keys;
       if (world_rank==0) {
-         Stream << "Rank 0 Computation pattern (" << it.first.tag
+         stream << "Rank 0 Computation pattern (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
                 << "," << key_list[it.second.key_index].param2
                 << "," << key_list[it.second.key_index].param3
@@ -112,7 +112,7 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
                 << ") - with flop-count "
                 << it.first.flops
                 << std::endl;
-         Stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
+         stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
                 << "\tLocalScheduledTime - " << pattern_list[it.second.val_index].total_local_exec_time
                 << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
                 << ", NumLocalSchedules - " << pattern_list[it.second.val_index].num_local_schedules
@@ -123,7 +123,7 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
                 << ", M1 - " << pattern_list[it.second.val_index].M1
                 << ", M2 - " << pattern_list[it.second.val_index].M2
                 << std::endl;
-         Stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_analysis_param,comp_analysis_param)
+         stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_analysis_param,comp_analysis_param)
                 << ", StdDev - " << discretization::get_std_dev(it.second,comp_analysis_param)
                 << ", StdError - " << discretization::get_std_error(it.second,comp_analysis_param)
                 << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.second,comp_analysis_param)
@@ -139,50 +139,50 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
     PMPI_Gather(&total_scheduled_comp_time,1,MPI_DOUBLE,&total_schedled_comp_time_gather[0],1,MPI_DOUBLE,0,MPI_COMM_WORLD);
 */
     if (world_rank==0){
-      Stream << std::endl;
-      Stream << "Max -- communication\n";
-      Stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled max_patterns - " << max_patterns[1] << std::endl;
-      Stream << "\t\tNum total max_patterns - " << max_patterns[1]+max_patterns[2] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[1] * 1. / (max_patterns[1]+max_patterns[2])) << std::endl;
-      Stream << "\t\tNum scheduled bytes - " << max_units[1] << std::endl;
-      Stream << "\t\tNum total bytes - " << max_units[1]+max_units[2] << std::endl;
-      Stream << "\t\tCommunication byte hit ratio - " << 1. - (max_units[1] * 1. / (max_units[1]+max_units[2])) << std::endl;
-      Stream << "Max -- computation\n";
-      Stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled max_patterns - " << max_patterns[4] << std::endl;
-      Stream << "\t\tNum total max_patterns - " << max_patterns[4]+max_patterns[5] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[4] * 1. / (max_patterns[4]+max_patterns[5])) << std::endl;
-      Stream << "\t\tNum scheduled flops - " << max_units[4] << std::endl;
-      Stream << "\t\tNum total flops - " << max_units[4]+max_units[5] << std::endl;
-      Stream << "\t\tComputation flop hit ratio - " << 1. - (max_units[4] * 1. / (max_units[4]+max_units[5])) << std::endl;
-      Stream << "Vol -- communication\n";
-      Stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[1] << std::endl;
-      Stream << "\t\tNum total vol_patterns - " << vol_patterns[1]+vol_patterns[2] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[1] * 1. / (vol_patterns[1]+vol_patterns[2])) << std::endl;
-      Stream << "\t\tNum scheduled bytes - " << vol_units[1] << std::endl;
-      Stream << "\t\tNum total bytes - " << vol_units[1]+vol_units[2] << std::endl;
-      Stream << "\t\tCommunication byte hit ratio - " << 1. - (vol_units[1] * 1. / (vol_units[1]+vol_units[2])) << std::endl;
-      Stream << "Vol -- computation\n";
-      Stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
-      Stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[4] << std::endl;
-      Stream << "\t\tNum total vol_patterns - " << vol_patterns[4]+vol_patterns[5] << std::endl;
-      Stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[4] * 1. / (vol_patterns[4]+vol_patterns[5])) << std::endl;
-      Stream << "\t\tNum scheduled flops - " << vol_units[4] << std::endl;
-      Stream << "\t\tNum total flops - " << vol_units[4]+vol_units[5] << std::endl;
-      Stream << "\t\tComputation flop hit ratio - " << 1. - (vol_units[4] * 1. / (vol_units[4]+vol_units[5])) << std::endl;
-      Stream << "Critter computational overheads:\n";
-      Stream << "\tMax per-process: " << comp_intercept_overhead << std::endl;
-      Stream << "Critter communication overheads:\n";
-      Stream << "\tStage1, Max per-process: " << comm_intercept_overhead_stage1 << std::endl;
-      Stream << "\tStage2, Max per-process: " << comm_intercept_overhead_stage2 << std::endl;
+      stream << std::endl;
+      stream << "Max -- communication\n";
+      stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
+      stream << "\t\tNum scheduled max_patterns - " << max_patterns[1] << std::endl;
+      stream << "\t\tNum total max_patterns - " << max_patterns[1]+max_patterns[2] << std::endl;
+      stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[1] * 1. / (max_patterns[1]+max_patterns[2])) << std::endl;
+      stream << "\t\tNum scheduled bytes - " << max_units[1] << std::endl;
+      stream << "\t\tNum total bytes - " << max_units[1]+max_units[2] << std::endl;
+      stream << "\t\tCommunication byte hit ratio - " << 1. - (max_units[1] * 1. / (max_units[1]+max_units[2])) << std::endl;
+      stream << "Max -- computation\n";
+      stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
+      stream << "\t\tNum scheduled max_patterns - " << max_patterns[4] << std::endl;
+      stream << "\t\tNum total max_patterns - " << max_patterns[4]+max_patterns[5] << std::endl;
+      stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[4] * 1. / (max_patterns[4]+max_patterns[5])) << std::endl;
+      stream << "\t\tNum scheduled flops - " << max_units[4] << std::endl;
+      stream << "\t\tNum total flops - " << max_units[4]+max_units[5] << std::endl;
+      stream << "\t\tComputation flop hit ratio - " << 1. - (max_units[4] * 1. / (max_units[4]+max_units[5])) << std::endl;
+      stream << "Vol -- communication\n";
+      stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
+      stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[1] << std::endl;
+      stream << "\t\tNum total vol_patterns - " << vol_patterns[1]+vol_patterns[2] << std::endl;
+      stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[1] * 1. / (vol_patterns[1]+vol_patterns[2])) << std::endl;
+      stream << "\t\tNum scheduled bytes - " << vol_units[1] << std::endl;
+      stream << "\t\tNum total bytes - " << vol_units[1]+vol_units[2] << std::endl;
+      stream << "\t\tCommunication byte hit ratio - " << 1. - (vol_units[1] * 1. / (vol_units[1]+vol_units[2])) << std::endl;
+      stream << "Vol -- computation\n";
+      stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
+      stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[4] << std::endl;
+      stream << "\t\tNum total vol_patterns - " << vol_patterns[4]+vol_patterns[5] << std::endl;
+      stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[4] * 1. / (vol_patterns[4]+vol_patterns[5])) << std::endl;
+      stream << "\t\tNum scheduled flops - " << vol_units[4] << std::endl;
+      stream << "\t\tNum total flops - " << vol_units[4]+vol_units[5] << std::endl;
+      stream << "\t\tComputation flop hit ratio - " << 1. - (vol_units[4] * 1. / (vol_units[4]+vol_units[5])) << std::endl;
+      stream << "Critter computational overheads:\n";
+      stream << "\tMax per-process: " << comp_intercept_overhead << std::endl;
+      stream << "Critter communication overheads:\n";
+      stream << "\tStage1, Max per-process: " << comm_intercept_overhead_stage1 << std::endl;
+      stream << "\tStage2, Max per-process: " << comm_intercept_overhead_stage2 << std::endl;
 /*
       for (auto i=0; i< total_schedled_comm_time_gather.size(); i++){
-        Stream << "\tScheduled communication time on world_rank " << i << ": " << total_schedled_comm_time_gather[i] << std::endl;
+        stream << "\tScheduled communication time on world_rank " << i << ": " << total_schedled_comm_time_gather[i] << std::endl;
       }
       for (auto i=0; i< total_schedled_comp_time_gather.size(); i++){
-        Stream << "\tScheduled computation time on world_rank " << i << ": " << total_schedled_comp_time_gather[i] << std::endl;
+        stream << "\tScheduled computation time on world_rank " << i << ": " << total_schedled_comp_time_gather[i] << std::endl;
       }
 */
     }
@@ -226,7 +226,7 @@ std::vector<double> record::set_tuning_statistics(std::ofstream& Stream){
   return tuning_stats;
 }
 
-void record::invoke(std::ofstream& Stream, int variantID, int print_mode, double overhead_time){
+void record::write_file(int variantID, int print_mode, double overhead_time){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
 
@@ -316,7 +316,7 @@ void record::invoke(std::ofstream& Stream, int variantID, int print_mode, double
 
   // To simplify interface, 'update_analysis' is used to differentiate between printing tuning data and reconstruct data
   if (print_mode==0){
-    auto tuning_data = set_tuning_statistics(Stream);
+    auto tuning_data = set_tuning_statistics();
     if (world_rank == 0){ 
       if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << variantID;
       stream_tune << std::left << std::setw(mode_1_width) << autotuning_test_id;
@@ -397,9 +397,10 @@ void record::invoke(std::ofstream& Stream, int variantID, int print_mode, double
       stream_reconstruct << std::endl;
     }
   }
+  is_first_iter = false;// set here only beause this routine is called directly after 'invoke' on std::ostream
 }
 
-void record::invoke(std::ostream& Stream, int variantID, int print_mode, double overhead_time){}
+void record::print(int variantID, int print_mode, double overhead_time){}
 
 }
 }

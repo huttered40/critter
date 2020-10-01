@@ -66,58 +66,12 @@ struct event{
 };
 
 // ****************************************************************************************************************************************************
-extern volatile double comm_intercept_overhead_stage1;
-extern volatile double comm_intercept_overhead_stage2;
-extern volatile double comp_intercept_overhead;
-extern double comp_start_time;
-extern size_t mode_1_width;
-extern size_t mode_2_width;
-extern size_t auto_capture;
-extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
-extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-extern size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-extern size_t num_tracker_per_process_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
-extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
-extern size_t critical_path_costs_size;
-extern size_t per_process_costs_size;
-extern size_t volume_costs_size;
-extern std::string stream_name,file_name;
-extern bool flag,is_first_iter,is_world_root,need_new_line;
-extern size_t mechanism,mode,stack_id;
-extern std::ofstream stream;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
-extern std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
-extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
-extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
-extern std::vector<std::pair<double*,int>> internal_comm_prop;
-extern std::vector<MPI_Request> internal_comm_prop_req;
-extern std::vector<int*> internal_timer_prop_int;
-extern std::vector<double*> internal_timer_prop_double;
-extern std::vector<double_int*> internal_timer_prop_double_int;
-extern std::vector<char*> internal_timer_prop_char;
-extern std::vector<MPI_Request> internal_timer_prop_req;
-extern std::vector<bool> decisions;
-extern std::vector<double> critical_path_costs;
-extern std::vector<double> max_per_process_costs;
-extern std::vector<double> volume_costs;
-extern std::map<std::string,std::vector<double>> save_info;
-extern std::vector<double> new_cs;
+extern size_t auto_capture;
+extern bool is_world_root;
+extern size_t mechanism,mode,stack_id;
 extern double scratch_pad;
-extern std::vector<char> synch_pad_send;
-extern std::vector<char> synch_pad_recv;
-extern std::vector<char> barrier_pad_send;
-extern std::vector<char> barrier_pad_recv;
-extern std::vector<double_int> info_sender;
-extern std::vector<double_int> info_receiver;
-extern bool wait_id;
-extern int internal_tag;
-extern int internal_tag1;
-extern int internal_tag2;
-extern int internal_tag3;
-extern int internal_tag4;
-extern int internal_tag5;
 extern size_t track_blas;
 extern size_t track_lapack;
 extern size_t track_collective;
@@ -125,7 +79,6 @@ extern size_t track_p2p;
 extern size_t track_p2p_idle;
 extern size_t eager_p2p;
 extern size_t delete_comm;
-extern std::vector<char> eager_pad;
 extern size_t
          _MPI_Send__id,
          _MPI_Ssend__id,

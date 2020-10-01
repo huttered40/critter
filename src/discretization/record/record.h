@@ -9,11 +9,11 @@ namespace discretization{
 
 class record{
 public:
-  static void invoke(std::ofstream& Stream, int variantID, int print_mode, double overhead_time);
-  static void invoke(std::ostream& Stream, int variantID, int print_mode, double overhead_time);
+  static void write_file(int variantID, int print_mode, double overhead_time);
+  static void print(int variantID, int print_mode, double overhead_time);
 
 private:
-  static std::vector<double> set_tuning_statistics(std::ofstream& Stream);
+  static std::vector<double> set_tuning_statistics();
 };
 
 }

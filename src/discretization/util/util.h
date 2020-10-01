@@ -165,6 +165,7 @@ struct intermediate_stats{
 };
 
 // ****************************************************************************************************************************************************
+extern std::ofstream stream;
 extern int tuning_delta;
 extern int aggregation_mode;
 extern int schedule_kernels;
@@ -194,6 +195,47 @@ extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
 extern std::map<comm_pattern_key,bool> p2p_global_state_override;
 extern std::map<int,aggregate_channel*> aggregate_channel_map;
 extern std::ofstream stream_tune,stream_reconstruct;
+extern volatile double comm_intercept_overhead_stage1;
+extern volatile double comm_intercept_overhead_stage2;
+extern volatile double comp_intercept_overhead;
+extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
+extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+extern size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
+extern size_t num_tracker_per_process_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
+extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
+extern size_t critical_path_costs_size;
+extern size_t per_process_costs_size;
+extern size_t volume_costs_size;
+extern std::vector<double> critical_path_costs;
+extern std::vector<double> max_per_process_costs;
+extern std::vector<double> volume_costs;
+extern std::vector<double_int> info_sender;
+extern std::vector<double_int> info_receiver;
+extern std::vector<char> eager_pad;
+extern double comp_start_time;
+extern std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
+extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
+extern std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
+extern std::vector<std::pair<double*,int>> internal_comm_prop;
+extern std::vector<MPI_Request> internal_comm_prop_req;
+extern std::vector<int*> internal_timer_prop_int;
+extern std::vector<double*> internal_timer_prop_double;
+extern std::vector<double_int*> internal_timer_prop_double_int;
+extern std::vector<char*> internal_timer_prop_char;
+extern std::vector<MPI_Request> internal_timer_prop_req;
+extern std::vector<bool> decisions;
+extern std::map<std::string,std::vector<double>> save_info;
+extern std::vector<double> new_cs;
+extern size_t mode_1_width;
+extern size_t mode_2_width;
+extern int internal_tag;
+extern int internal_tag1;
+extern int internal_tag2;
+extern int internal_tag3;
+extern int internal_tag4;
+extern int internal_tag5;
+extern bool is_first_iter;
 
 // ****************************************************************************************************************************************************
 bool is_key_skipable(const comm_pattern_key& key);

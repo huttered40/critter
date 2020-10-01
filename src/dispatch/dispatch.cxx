@@ -231,24 +231,25 @@ void _finalize(){
   }
 }
 
-void record(std::ofstream& Stream, int variantID, int print_mode, double overhead_time){
+void write_file(int variantID, int print_mode, double overhead_time){
+  if (std::getenv("CRITTER_VIZ_FILE") == NULL) return;
   switch (mechanism){
     case 0:
-      decomposition::record::invoke(Stream,variantID,overhead_time);
+      decomposition::record::write_file(variantID,overhead_time);
       break;
     case 1:
-      discretization::record::invoke(Stream,variantID,print_mode,overhead_time);
+      discretization::record::write_file(variantID,print_mode,overhead_time);
       break;
   }
 }
 
-void record(std::ostream& Stream, int variantID, int print_mode, double overhead_time){
+void print(int variantID, int print_mode, double overhead_time){
   switch (mechanism){
     case 0:
-      decomposition::record::invoke(Stream,variantID,overhead_time);
+      decomposition::record::print(variantID,overhead_time);
       break;
     case 1:
-      discretization::record::invoke(Stream,variantID,print_mode,overhead_time);
+      discretization::record::print(variantID,print_mode,overhead_time);
       break;
   }
 }

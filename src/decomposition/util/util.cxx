@@ -6,6 +6,17 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
+std::ofstream stream;
+bool wait_id;
+int internal_tag;
+int internal_tag1;
+int internal_tag2;
+int internal_tag3;
+int internal_tag4;
+int internal_tag5;
+size_t mode_1_width;
+size_t mode_2_width;
+bool is_first_iter;
 size_t cp_symbol_class_count;
 size_t pp_symbol_class_count;
 size_t vol_symbol_class_count;
@@ -34,6 +45,42 @@ std::vector<double> symbol_timer_pad_global_vol;
 std::stack<std::string> symbol_stack;
 std::vector<std::string> symbol_order;
 std::vector<int> symbol_path_select_index;
+volatile double comm_intercept_overhead_stage1;
+volatile double comm_intercept_overhead_stage2;
+volatile double comp_intercept_overhead;
+size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
+size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
+size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
+size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
+size_t critical_path_costs_size;
+size_t per_process_costs_size;
+size_t volume_costs_size;
+std::vector<double> critical_path_costs;
+std::vector<double> max_per_process_costs;
+std::vector<double> volume_costs;
+std::vector<char> synch_pad_send;
+std::vector<char> synch_pad_recv;
+std::vector<char> barrier_pad_send;
+std::vector<char> barrier_pad_recv;
+std::vector<double_int> info_sender;
+std::vector<double_int> info_receiver;
+std::vector<char> eager_pad;
+double comp_start_time;
+std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
+std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
+std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
+std::vector<std::pair<double*,int>> internal_comm_prop;
+std::vector<MPI_Request> internal_comm_prop_req;
+std::vector<int*> internal_timer_prop_int;
+std::vector<double*> internal_timer_prop_double;
+std::vector<double_int*> internal_timer_prop_double_int;
+std::vector<char*> internal_timer_prop_char;
+std::vector<MPI_Request> internal_timer_prop_req;
+std::vector<bool> decisions;
+std::map<std::string,std::vector<double>> save_info;
+std::vector<double> new_cs;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -43,6 +90,13 @@ void allocate(MPI_Comm comm){
   vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
   mode_1_width = 25;
   mode_2_width = 15;
+  internal_tag = 31133;
+  internal_tag1 = internal_tag+1;
+  internal_tag2 = internal_tag+2;
+  internal_tag3 = internal_tag+3;
+  internal_tag4 = internal_tag+4;
+  internal_tag5 = internal_tag+5;
+  is_first_iter = true;
 
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
@@ -68,6 +122,13 @@ void allocate(MPI_Comm comm){
     max_timer_name_length = atoi(std::getenv("CRITTER_MAX_SYMBOL_LENGTH"));
   } else{
     max_timer_name_length = 25;
+  }
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
+    stream_name += "_decomposition.txt";
+    if (is_world_root){
+      stream.open(stream_name.c_str(),std::ofstream::app);
+    }
   }
   assert(_cost_models_.size()==2);
   assert(_comm_path_select_.size()==10);
@@ -148,6 +209,13 @@ void allocate(MPI_Comm comm){
 }
 
 void reset(){
+  assert(internal_comm_info.size() == 0);
+  if (std::getenv("CRITTER_MODE") != NULL){
+    internal::mode = atoi(std::getenv("CRITTER_MODE"));
+  } else{
+    internal::mode = 1;
+  }
+
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
@@ -156,6 +224,7 @@ void reset(){
   memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
 
+  wait_id=true;
   comm_intercept_overhead_stage1=0;
   comm_intercept_overhead_stage2=0;
   comp_intercept_overhead=0;
@@ -181,6 +250,7 @@ void close_symbol(const char* symbol, double curtime){
 
 
 void final_accumulate(MPI_Comm comm, double last_time){
+  assert(internal_comm_info.size() == 0);
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update computation time volume
@@ -188,6 +258,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
   // update the computation time (i.e. time between last MPI synchronization point or comp kernel and this function invocation) along all paths decomposed by MPI communication routine
   // TODO: Why don't I apply the same update to max_per_process_costs?
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
+  wait_id=false;
 }
 
 
@@ -195,7 +266,13 @@ void clear(){
   symbol_timers.clear();
 }
 
-void finalize(){}
+void finalize(){
+  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
+    if (is_world_root){
+      stream.close();
+    }
+  }
+}
 
 }
 }

@@ -9,6 +9,8 @@ void start(bool schedule_kernels_override = true, bool force_steady_statistical_
 void stop();
 void record(int variantID=-1, int print_mode=1, double overhead_time=0.);
 void clear();
+
+void set_mechanism(int input_mechanism=-1);
 void set_mode(int input_mode=-1);
 
 namespace internal{
