@@ -74,11 +74,6 @@ void _init(int* argc, char*** argv){
   mode=0;
   stack_id=0;
   delete_comm = 1;
-  if (std::getenv("CRITTER_MECHANISM") != NULL){
-    mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
-  } else{
-    mechanism = 0;
-  }
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
   } else{
@@ -170,7 +165,15 @@ void _init(int* argc, char*** argv){
   _LAPACK_tpqrt__id = 107;
   _LAPACK_tpmqrt__id = 108;
 
+  mechanism=0;
   allocate(MPI_COMM_WORLD);
+  mechanism=1;
+  allocate(MPI_COMM_WORLD);
+  if (std::getenv("CRITTER_MECHANISM") != NULL){
+    mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
+  } else{
+    mechanism = 0;
+  }
   if (auto_capture) start();
 }
 

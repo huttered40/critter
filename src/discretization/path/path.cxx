@@ -446,7 +446,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       }
       // Note: once a kernel is steady, we want to liquidate batch information into the static pathset. Only need to do this once
       if ((!schedule_decision) && (aggregation_mode >= 1)){
-        assert(comm_batch_map.find(key) != comm_batch_map.end());
+        //assert(comm_batch_map.find(key) != comm_batch_map.end());
         if (comm_batch_map[key].size() > 0){
           auto stats = intermediate_stats(comm_pattern_map[key],comm_batch_map[key]);
           update_kernel_stats(comm_pattern_map[key],stats);
