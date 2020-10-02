@@ -48,9 +48,9 @@ std::vector<int> symbol_path_select_index;
 volatile double comm_intercept_overhead_stage1;
 volatile double comm_intercept_overhead_stage2;
 volatile double comp_intercept_overhead;
-size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
-size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
+size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, CompKernelTime, RunTime
+size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
+size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
 size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
 size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime

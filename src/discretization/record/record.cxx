@@ -1,5 +1,6 @@
 #include "record.h"
 #include "../util/util.h"
+#include "../../decomposition/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
 
@@ -310,6 +311,14 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppEstCompKTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppEstCompTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppEstCommKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "cpET";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "cpCompKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "cpCompTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "cpCommKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "ppET";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "ppCompKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "ppCompTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "ppCommKTime";
       stream_reconstruct << std::endl;
     }
   }
@@ -394,6 +403,14 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-2];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-3];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-5];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-5];
       stream_reconstruct << std::endl;
     }
   }
