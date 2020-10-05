@@ -75,6 +75,8 @@ private:
 };
 
 // ****************************************************************************************************************************************************
+// Note: 'pattern_batch' is to be used for volumetric sampling modes only.
+// Note: batches will never exist across variants, as they will be liquidated into the pathset during a variant, or else in 'final_accumulate'
 struct pattern_batch{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
@@ -96,6 +98,7 @@ struct pattern_batch{
 };
 
 // ****************************************************************************************************************************************************
+// Note: 'pattern_batch_propagate' is to be used for volumetric sampling modes only.
 struct pattern_batch_propagate{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
@@ -122,12 +125,15 @@ struct pattern{
   pattern(const pattern_batch& _copy);
   pattern(const pattern& _copy);
   pattern& operator=(const pattern& _copy);
+  void reset();
+  void clear();
 
   int steady_state;
   int global_steady_state;
   int num_schedules;
   int num_non_schedules;
   int num_local_schedules;
+  int num_constraint_schedules;
   double num_scheduled_units;
   double num_non_scheduled_units;
   double num_local_scheduled_units;
@@ -157,6 +163,7 @@ struct intermediate_stats{
 
   int num_schedules;
   int num_local_schedules;
+  int num_constraint_schedules;
   double M1,M2;
   double num_scheduled_units;
   double num_local_scheduled_units;
@@ -167,7 +174,9 @@ struct intermediate_stats{
 // ****************************************************************************************************************************************************
 extern std::ofstream stream;
 extern int tuning_delta;
-extern int aggregation_mode;
+extern int sample_aggregation_mode;
+extern int sample_constraint_mode;
+extern int sample_reset_mode;
 extern int schedule_kernels;
 extern int update_analysis;
 extern int autotuning_test_id;

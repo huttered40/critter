@@ -241,7 +241,8 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << "ID";
       stream_tune << std::left << std::setw(mode_1_width) << "TestID";
       stream_tune << std::left << std::setw(mode_1_width) << "IsOptimized";
-      stream_tune << std::left << std::setw(mode_1_width) << "AggregationMode";
+      stream_tune << std::left << std::setw(mode_1_width) << "SampleAggMode";
+      stream_tune << std::left << std::setw(mode_1_width) << "SampleConstraintMode";
       stream_tune << std::left << std::setw(mode_1_width) << "CommEnvelopeParam";
       stream_tune << std::left << std::setw(mode_1_width) << "CommUnitParam";
       stream_tune << std::left << std::setw(mode_1_width) << "CommAnalysisParam";
@@ -292,7 +293,8 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ID";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "TestID";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "Delta";
-      stream_reconstruct << std::left << std::setw(mode_1_width) << "AggregationMode";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "SampleAggMode";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "SampleConstraintMode";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CommEnvelopeParam";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CommUnitParam";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CommAnalysisParam";
@@ -311,6 +313,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppEstCompKTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppEstCompTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppEstCommKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volEstET";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volEstCompKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volEstCompTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volEstCommKTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "cpET";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "cpCompKTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "cpCompTime";
@@ -319,6 +325,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppCompKTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppCompTime";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ppCommKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volET";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volCompKTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volCompTime";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "volCommKTime";
       stream_reconstruct << std::endl;
     }
   }
@@ -330,7 +340,8 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << variantID;
       stream_tune << std::left << std::setw(mode_1_width) << autotuning_test_id;
       stream_tune << std::left << std::setw(mode_1_width) << tuning_delta;
-      stream_tune << std::left << std::setw(mode_1_width) << aggregation_mode;
+      stream_tune << std::left << std::setw(mode_1_width) << sample_aggregation_mode;
+      stream_tune << std::left << std::setw(mode_1_width) << sample_constraint_mode;
       stream_tune << std::left << std::setw(mode_1_width) << comm_envelope_param;
       stream_tune << std::left << std::setw(mode_1_width) << comm_unit_param;
       stream_tune << std::left << std::setw(mode_1_width) << comm_analysis_param;
@@ -384,7 +395,8 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << variantID;
       stream_reconstruct << std::left << std::setw(mode_1_width) << autotuning_test_id;
       stream_reconstruct << std::left << std::setw(mode_1_width) << tuning_delta;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << aggregation_mode;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << sample_aggregation_mode;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << sample_constraint_mode;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_envelope_param;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_unit_param;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_analysis_param;
@@ -399,6 +411,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-2];
       stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-3];
       stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-4];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-1];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-2];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-3];
@@ -407,10 +423,14 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-2];
       stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-3];
       stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-5];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_volume_measures-5];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-5];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-5];
       stream_reconstruct << std::endl;
     }
   }

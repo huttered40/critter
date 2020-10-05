@@ -9,7 +9,9 @@ namespace internal{
 namespace discretization{
 
 int tuning_delta;
-int aggregation_mode;
+int sample_aggregation_mode;
+int sample_constraint_mode;
+int sample_reset_mode;
 int schedule_kernels;
 int update_analysis;
 int autotuning_test_id;
@@ -101,6 +103,7 @@ pattern::pattern(){
   this->num_local_scheduled_units = 0;
   this->num_non_scheduled_units = 0;
   this->num_local_schedules=0;
+  this->num_constraint_schedules=0;
   this->M1=0; this->M2=0;
 }
 pattern::pattern(const pattern_batch& _copy){
@@ -114,6 +117,7 @@ pattern::pattern(const pattern_batch& _copy){
   this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->num_non_scheduled_units = 0;
   this->num_local_schedules=_copy.num_local_schedules;
+  this->num_constraint_schedules=_copy.num_schedules;
   this->M1=_copy.M1;
   this->M2=_copy.M2;
 }
@@ -128,10 +132,10 @@ pattern::pattern(const pattern& _copy){
   this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
   this->num_local_schedules=_copy.num_local_schedules;
+  this->num_constraint_schedules=_copy.num_constraint_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
 }
-
 pattern& pattern::operator=(const pattern& _copy){
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -143,9 +147,33 @@ pattern& pattern::operator=(const pattern& _copy){
   this->num_local_scheduled_units = _copy.num_local_scheduled_units;
   this->num_non_scheduled_units = _copy.num_non_scheduled_units;
   this->num_local_schedules=_copy.num_local_schedules;
+  this->num_constraint_schedules=_copy.num_constraint_schedules;
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
   return *this;
+}
+void pattern::reset(){
+  if (sample_reset_mode>=1){
+    this->num_constraint_schedules=1;
+    this->steady_state=0;
+    this->global_steady_state=0;
+  }
+}
+void pattern::clear(){
+  if (sample_reset_mode==2){
+    //this->total_exec_time = 0;
+    //this->total_local_exec_time = 0;
+    this->steady_state=0;
+    this->global_steady_state=0;
+    this->num_schedules = 0;
+    //this->num_non_schedules = 0;
+    this->num_scheduled_units = 0;
+    this->num_local_scheduled_units = 0;
+    //this->num_non_scheduled_units = 0;
+    this->num_local_schedules=0;
+    this->num_constraint_schedules=0;
+    this->M1=0; this->M2=0;
+  }
 }
 
 // ****************************************************************************************************************************************************
@@ -791,10 +819,12 @@ void sample_propagation_forest::insert_node(solo_channel* node){
 
 // ****************************************************************************************************************************************************
 void intermediate_stats::generate(const pattern& p, const std::vector<pattern_batch>& active_batches){
+  assert(sample_aggregation_mode >= 1);
   this->M1 = p.M1;
   this->M2 = p.M2;
   this->num_schedules = p.num_schedules;
   this->num_local_schedules = p.num_local_schedules;
+  this->num_constraint_schedules = p.num_constraint_schedules;
   this->num_scheduled_units = p.num_scheduled_units;
   this->num_local_scheduled_units = p.num_local_scheduled_units;
   this->total_exec_time = p.total_exec_time;
@@ -809,6 +839,7 @@ void intermediate_stats::generate(const pattern& p, const std::vector<pattern_ba
     this->M2 = this->M2 + M2_2 + delta/(this->num_schedules+n2)*delta*(this->num_schedules*n2);
     this->num_schedules += n2;
     this->num_local_schedules += active_batches[i].num_local_schedules;
+    this->num_constraint_schedules += n2;
     this->num_scheduled_units += active_batches[i].num_scheduled_units;
     this->num_local_scheduled_units += active_batches[i].num_local_scheduled_units;
     this->total_exec_time += active_batches[i].total_exec_time;
@@ -934,18 +965,18 @@ double get_std_dev(const intermediate_stats& p, int analysis_param){
 
 double get_std_error(const pattern& p, int analysis_param){
   // returns standard error
-  size_t n = p.num_schedules;
+  size_t n = (sample_constraint_mode==0 ? 1 : p.num_constraint_schedules);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 double get_std_error(const pattern_key_id& index, int analysis_param){
   // returns standard error
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  size_t n = pattern_list[index.val_index].num_schedules;
+  size_t n = (sample_constraint_mode==0 ? 1 : pattern_list[index.val_index].num_constraint_schedules);
   return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
 }
 double get_std_error(const intermediate_stats& p, int analysis_param){
   // returns standard error
-  size_t n = p.num_schedules;
+  size_t n = (sample_constraint_mode==0 ? 1 : p.num_constraint_schedules);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 
@@ -989,13 +1020,13 @@ bool is_steady(const intermediate_stats& p, int analysis_param){
 }
 
 double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
-  assert(aggregation_mode >= 1);
+  assert(sample_aggregation_mode >= 1);
   auto& active_batches = comm_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
   return get_confidence_interval(stats,analysis_param) / (2.*get_estimate(stats,analysis_param));
 }
 double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
-  assert(aggregation_mode >= 1);
+  assert(sample_aggregation_mode >= 1);
   auto& active_batches = comp_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
   return get_confidence_interval(stats,analysis_param) / (2.*get_estimate(stats,analysis_param));
@@ -1007,8 +1038,8 @@ bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){ return is_steady(index,analysis_param); }
-  else if (aggregation_mode >= 1){
+  if (sample_aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){ return is_steady(index,analysis_param); }
+  else if (sample_aggregation_mode >= 1){
     auto& active_batches = comm_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
     return is_steady(stats,analysis_param);
@@ -1020,8 +1051,8 @@ bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){ return is_steady(index,analysis_param); }
-  else if (aggregation_mode >= 1){
+  if (sample_aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){ return is_steady(index,analysis_param); }
+  else if (sample_aggregation_mode >= 1){
     auto& active_batches = comp_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
     return is_steady(stats,analysis_param);
@@ -1034,6 +1065,7 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
   if (p.steady_state == 0){
     p.num_schedules++;
     p.num_local_schedules++;
+    p.num_constraint_schedules++;
     p.num_scheduled_units += unit_count;
     p.num_local_scheduled_units += unit_count;
     p.total_exec_time += exec_time;
@@ -1063,6 +1095,7 @@ void update_kernel_stats(const pattern_key_id& index, int analysis_param, volati
   if (pattern_list[index.val_index].steady_state == 0){
     pattern_list[index.val_index].num_schedules++;
     pattern_list[index.val_index].num_local_schedules++;
+    pattern_list[index.val_index].num_constraint_schedules++;
     pattern_list[index.val_index].num_scheduled_units += unit_count;
     pattern_list[index.val_index].num_local_scheduled_units += unit_count;
     pattern_list[index.val_index].total_exec_time += exec_time;
@@ -1096,6 +1129,7 @@ void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
   dest.num_local_schedules += src.num_local_schedules;
+  dest.num_constraint_schedules += src.num_constraint_schedules;
   dest.num_scheduled_units += src.num_scheduled_units;
   dest.num_local_scheduled_units += src.num_local_scheduled_units;
   dest.num_non_schedules += src.num_non_schedules;
@@ -1144,6 +1178,7 @@ void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_p
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
   dest.num_local_schedules += src.num_local_schedules;
+  dest.num_constraint_schedules += src.num_schedules;
   dest.num_scheduled_units += src.num_scheduled_units;
   dest.num_local_scheduled_units += src.num_local_scheduled_units;
   dest.total_exec_time += src.total_exec_time;
@@ -1169,6 +1204,7 @@ void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& 
 
   pattern_list[index.val_index].num_schedules = stats.num_schedules;
   pattern_list[index.val_index].num_local_schedules = stats.num_local_schedules;
+  pattern_list[index.val_index].num_constraint_schedules = stats.num_schedules;
   pattern_list[index.val_index].num_scheduled_units = stats.num_scheduled_units;
   pattern_list[index.val_index].num_local_scheduled_units = stats.num_local_scheduled_units;
   pattern_list[index.val_index].total_exec_time = stats.total_exec_time;
@@ -1293,7 +1329,7 @@ void allocate(MPI_Comm comm){
 
   pattern ex_3;
   MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int pattern_internal_block_len[2] = { 5,7 };
+  int pattern_internal_block_len[2] = { 6,7 };
   MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.steady_state-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
   PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
   PMPI_Type_commit(&pattern_type);
@@ -1347,11 +1383,23 @@ void allocate(MPI_Comm comm){
   } else{
     tuning_delta = 0;
   }
-  if (std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE") != NULL){
-    aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_AGGREGATION_MODE"));
-    assert(aggregation_mode>=0 && aggregation_mode<=2);
+  if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_AGGREGATION_MODE") != NULL){
+    sample_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_AGGREGATION_MODE"));
+    assert(sample_aggregation_mode>=0 && sample_aggregation_mode<=2);
   } else{
-    aggregation_mode = 0;
+    sample_aggregation_mode = 0;
+  }
+  if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE") != NULL){
+    sample_constraint_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE"));
+    assert(sample_constraint_mode>=0 && sample_constraint_mode<=1);
+  } else{
+    sample_constraint_mode = 0;
+  }
+  if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_RESET_MODE") != NULL){
+    sample_reset_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_RESET_MODE"));
+    assert(sample_reset_mode>=0 && sample_reset_mode<=2);
+  } else{
+    sample_reset_mode = 0;
   }
   if (std::getenv("CRITTER_COMM_ENVELOPE_PARAM") != NULL){
     comm_envelope_param = atoi(std::getenv("CRITTER_COMM_ENVELOPE_PARAM"));
@@ -1423,36 +1471,41 @@ void final_accumulate(MPI_Comm comm, double last_time){
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
   volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update per-process execution time
 
-  // Complete any active and incomplete batches. Liquidate them into the pathset.
-  if (aggregation_mode >= 1){
-    for (auto& it : comp_pattern_map){
-      // Invalid assert-> this case is possible assert(comp_batch_map.find(it.first) != comp_batch_map.end());
-      //if (comp_batch_map[it.first].size() == 0) continue;
+  for (auto& it : comp_pattern_map){
+    // Invalid assert-> this case is possible assert(comp_batch_map.find(it.first) != comp_batch_map.end());
+    // if (comp_batch_map[it.first].size() == 0) continue;
+    // Complete any active and incomplete batches. Liquidate them into the pathset.
+    if (sample_aggregation_mode >= 1){
       auto stats = intermediate_stats(it.second,comp_batch_map[it.first]);
       update_kernel_stats(comp_pattern_map[it.first],stats);
       comp_batch_map[it.first].clear();
     }
-    for (auto& it : comm_pattern_map){
-      // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
-      //if (comm_batch_map[it.first].size() == 0) continue;
+  }
+  for (auto& it : comm_pattern_map){
+    // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
+    //if (comm_batch_map[it.first].size() == 0) continue;
+    // Complete any active and incomplete batches. Liquidate them into the pathset.
+    if (sample_aggregation_mode >= 1){
       auto stats = intermediate_stats(it.second,comm_batch_map[it.first]);
       update_kernel_stats(comm_pattern_map[it.first],stats);
       comm_batch_map[it.first].clear();
     }
   }
 
+  max_per_process_costs = volume_costs;// copy over the per-process measurements that exist in volume_costs
   double temp_costs[11];
   for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];
-  for (auto i=0; i<volume_costs.size(); i++) temp_costs[critical_path_costs.size()+i] = volume_costs[i];
-  temp_costs[critical_path_costs.size()+volume_costs.size()] = comm_intercept_overhead_stage1;
-  temp_costs[critical_path_costs.size()+volume_costs.size()+1] = comm_intercept_overhead_stage2;
-  temp_costs[critical_path_costs.size()+volume_costs.size()+2] = comp_intercept_overhead;
+  for (auto i=0; i<max_per_process_costs.size(); i++) temp_costs[critical_path_costs.size()+i] = max_per_process_costs[i];
+  temp_costs[critical_path_costs.size()+max_per_process_costs.size()] = comm_intercept_overhead_stage1;
+  temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1] = comm_intercept_overhead_stage2;
+  temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2] = comp_intercept_overhead;
   PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],11,MPI_DOUBLE,MPI_MAX,comm);
   for (auto i=0; i<critical_path_costs.size(); i++) critical_path_costs[i] = temp_costs[i];
-  for (auto i=0; i<volume_costs.size(); i++) volume_costs[i] = temp_costs[critical_path_costs.size()+i];
-  comm_intercept_overhead_stage1 = temp_costs[critical_path_costs.size()+volume_costs.size()];
-  comm_intercept_overhead_stage2 = temp_costs[critical_path_costs.size()+volume_costs.size()+1];
-  comp_intercept_overhead = temp_costs[critical_path_costs.size()+volume_costs.size()+2];
+  for (auto i=0; i<max_per_process_costs.size(); i++) max_per_process_costs[i] = temp_costs[critical_path_costs.size()+i];
+  comm_intercept_overhead_stage1 = temp_costs[critical_path_costs.size()+max_per_process_costs.size()];
+  comm_intercept_overhead_stage2 = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1];
+  comp_intercept_overhead = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2];
+  PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
@@ -1460,6 +1513,16 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
+
+  // If any entries exist, its valid to reset 'num_constraint_schedules' to 1 (rather than 0)
+  for (auto& it : comp_pattern_map){
+    auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+    pattern_list[it.second.val_index].reset();
+  }
+  for (auto& it : comm_pattern_map){
+    auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+    pattern_list[it.second.val_index].reset();
+  }
 
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
@@ -1497,6 +1560,11 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
 
 void clear(){
   // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
+  // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
+  // The pattern keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
+  //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets,
+  //   which is already handled via a switch (sample_reset_mode).
+/*
   comm_batch_map.clear();
   comp_batch_map.clear();
   comm_pattern_map.clear();
@@ -1507,11 +1575,22 @@ void clear(){
   active_comp_pattern_keys.clear();
   steady_state_patterns.clear();
   active_patterns.clear();
+*/
+  // If any entries exist, its valid to reset 'num_constraint_schedules' to 1 (rather than 0)
+  for (auto& it : comp_pattern_map){
+    auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+    pattern_list[it.second.val_index].clear();
+  }
+  for (auto& it : comm_pattern_map){
+    auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
+    pattern_list[it.second.val_index].clear();
+  }
+/*
   comm_intercept_overhead_stage1=0;
   comm_intercept_overhead_stage2=0;
   comp_intercept_overhead=0;
-
   spf.clear_info();
+*/
 }
 
 void finalize(){

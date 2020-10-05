@@ -188,11 +188,11 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       active_patterns.emplace_back();
       comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
     }
-    if ((aggregation_mode==0) || (should_schedule(comp_pattern_map[key]) == 0)){
-      // Because of the second case in the branch, this will be called even if in aggregation_mode>=1 as long as the kernel is no longer being scheduled (i.e. is in steady state)
+    if ((sample_aggregation_mode==0) || (should_schedule(comp_pattern_map[key]) == 0)){
+      // Because of the second case in the branch, this will be called even if in sample_aggregation_mode>=1 as long as the kernel is no longer being scheduled (i.e. is in steady state)
       update_kernel_stats(comp_pattern_map[key],comp_analysis_param,comp_time,flop_count);
     }
-    else if (aggregation_mode >= 1){
+    else if (sample_aggregation_mode >= 1){
       // Its assumed that this branch is entered iff the kernel was scheduled and comm_time is reliable
       if (comp_batch_map.find(key) == comp_batch_map.end()){
         comp_batch_map[key].emplace_back();// initialize an empty pattern_batch
@@ -225,10 +225,10 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
       bool is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
       set_kernel_state(comp_pattern_map[key],!is_steady);
       set_kernel_state_global(comp_pattern_map[key],!is_steady);
-      // If steady, and aggregation_mode>=1, then liquidate all batch states into the pathset and clear the corresponding batch entry in map.
+      // If steady, and sample_aggregation_mode>=1, then liquidate all batch states into the pathset and clear the corresponding batch entry in map.
       //   Only need to perform this once. Note that this is allowed, whereas it is not allowed in 'complete_comm', because
       //   a processor's kernel may be steady, yet its not globally steady.
-      if (is_steady && (aggregation_mode >= 1)){
+      if (is_steady && (sample_aggregation_mode >= 1)){
         auto stats = intermediate_stats(comp_pattern_map[key],comp_batch_map[key]);
         update_kernel_stats(comp_pattern_map[key],stats);
         comp_batch_map[key].clear();
@@ -324,7 +324,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
   }
   // Register the p2p channel
-  if (aggregation_mode >= 1){
+  if (sample_aggregation_mode >= 1){
     if (tracker.partner1 != -1){// p2p
       int my_world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_world_rank);
       auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
@@ -445,7 +445,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         set_kernel_state(comm_pattern_map[key],schedule_decision);
       }
       // Note: once a kernel is steady, we want to liquidate batch information into the static pathset. Only need to do this once
-      if ((!schedule_decision) && (aggregation_mode >= 1)){
+      if ((!schedule_decision) && (sample_aggregation_mode >= 1)){
         //assert(comm_batch_map.find(key) != comm_batch_map.end());
         if (comm_batch_map[key].size() > 0){
           auto stats = intermediate_stats(comm_pattern_map[key],comm_batch_map[key]);
@@ -514,10 +514,10 @@ void path::complete_comm(blocking& tracker, int recv_source){
     }
     int comm_hash_tag;
     if (should_schedule_global(comm_pattern_map[key]) == 0) assert(should_schedule(comm_pattern_map[key])==0);
-    if ((aggregation_mode==0) || (should_schedule(comm_pattern_map[key]) == 0)){
+    if ((sample_aggregation_mode==0) || (should_schedule(comm_pattern_map[key]) == 0)){
       update_kernel_stats(comm_pattern_map[key],comm_analysis_param,comm_time,tracker.nbytes);
     }
-    else if (aggregation_mode >= 1){
+    else if (sample_aggregation_mode >= 1){
       assert(should_schedule_global(comm_pattern_map[key]) == 1);
       // Note: its common for a key's entry into the batch_map to be deleted many times (especially aggregation strategy #1)
       if (comm_batch_map.find(key) == comm_batch_map.end()){
@@ -588,7 +588,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     bool is_world_communication = (tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1);
     if ((rank == tracker.partner1) && (rank == tracker.partner2)) { ; }
     else{
-      if (aggregation_mode==0){
+      if (sample_aggregation_mode==0){
         // Note: in optimized version, exchange_patterns and flush_patterns would never need to be called
 /* NOTE: I don't think it makes senes to use this version anymore
         if (is_optimized==0){
@@ -599,7 +599,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
         }
 */
       }
-      else if (aggregation_mode >= 1){
+      else if (sample_aggregation_mode >= 1){
         // TODO: Note: I expect to update each kernel's state (not global state though, and only if kernel's state is active, as specified in the complete_pathset)
         //         in comm_pattern_map and comp_pattern_map. Remember, the state specified in the complete_pathset does not entirely reflect the data set in the complete_pathset,
         //           as it takes into account data still in active batches.
@@ -607,9 +607,9 @@ void path::complete_comm(blocking& tracker, int recv_source){
         //         Then figure out whether to update its values to indicate no samples, or remove it altogether. After thinking about it,
         //           its probably safest to swap with the last pattern_batch, and then pop_back.
         if (tracker.partner1 == -1){
-          if (aggregation_mode==1){
+          if (sample_aggregation_mode==1){
             single_stage_sample_aggregation(tracker);
-          } else if (aggregation_mode==2){
+          } else if (sample_aggregation_mode==2){
             multi_stage_sample_aggregation(tracker);
           } else { assert(0); }
         }
