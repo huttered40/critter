@@ -921,7 +921,7 @@ double get_harmonic_mean(const intermediate_stats& p){
 double get_variance(const pattern& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
-  if (n<=1) return 1000.;
+  if (n<=1) return 1000000.;
   if (analysis_param == 0){
     return p.M2 / (n-1.);
   } else{
@@ -932,7 +932,7 @@ double get_variance(const pattern_key_id& index, int analysis_param){
   // returns variance
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
   size_t n = pattern_list[index.val_index].num_schedules;
-  if (n<=1) return 1000.;
+  if (n<=1) return 1000000.;
   if (analysis_param == 0){
     return pattern_list[index.val_index].M2 / (n-1.);
   } else{
@@ -942,7 +942,7 @@ double get_variance(const pattern_key_id& index, int analysis_param){
 double get_variance(const intermediate_stats& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
-  if (n<=1) return 1000.;
+  if (n<=1) return 1000000.;
   if (analysis_param == 0){
     return p.M2 / (n-1.);
   } else{
@@ -999,7 +999,8 @@ bool is_steady(const pattern& p, int analysis_param){
           (p.num_schedules >= pattern_count_limit) &&
           (p.total_exec_time >= pattern_time_limit);
 */
-  return ((get_confidence_interval(p,analysis_param) / (2.*get_estimate(p,analysis_param))) < pattern_error_limit);
+  if (sample_constraint_mode==2) return true;
+  return ((get_confidence_interval(p,analysis_param) / (get_estimate(p,analysis_param))) < pattern_error_limit);
 }
 bool is_steady(const pattern_key_id& index, int analysis_param){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
@@ -1008,7 +1009,8 @@ bool is_steady(const pattern_key_id& index, int analysis_param){
           (pattern_list[index.val_index].num_schedules >= pattern_count_limit) &&
           (pattern_list[index.val_index].total_exec_time >= pattern_time_limit);
 */
-  return ((get_confidence_interval(index,analysis_param) / (2.*get_estimate(index,analysis_param))) < pattern_error_limit);
+  if (sample_constraint_mode==2) return true;
+  return ((get_confidence_interval(index,analysis_param) / (get_estimate(index,analysis_param))) < pattern_error_limit);
 }
 bool is_steady(const intermediate_stats& p, int analysis_param){
 /*
@@ -1016,20 +1018,21 @@ bool is_steady(const intermediate_stats& p, int analysis_param){
           (p.num_schedules >= pattern_count_limit) &&
           (p.total_exec_time >= pattern_time_limit);
 */
-  return ((get_confidence_interval(p,analysis_param) / (2.*get_estimate(p,analysis_param))) < pattern_error_limit);
+  if (sample_constraint_mode==2) return true;
+  return ((get_confidence_interval(p,analysis_param) / (get_estimate(p,analysis_param))) < pattern_error_limit);
 }
 
 double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
   assert(sample_aggregation_mode >= 1);
   auto& active_batches = comm_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
-  return get_confidence_interval(stats,analysis_param) / (2.*get_estimate(stats,analysis_param));
+  return get_confidence_interval(stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
 double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
   assert(sample_aggregation_mode >= 1);
   auto& active_batches = comp_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
-  return get_confidence_interval(stats,analysis_param) / (2.*get_estimate(stats,analysis_param));
+  return get_confidence_interval(stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
 
 bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param){
@@ -1391,7 +1394,7 @@ void allocate(MPI_Comm comm){
   }
   if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE") != NULL){
     sample_constraint_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE"));
-    assert(sample_constraint_mode>=0 && sample_constraint_mode<=1);
+    assert(sample_constraint_mode>=0 && sample_constraint_mode<=2);
   } else{
     sample_constraint_mode = 0;
   }
@@ -1564,18 +1567,6 @@ void clear(){
   // The pattern keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
   //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets,
   //   which is already handled via a switch (sample_reset_mode).
-/*
-  comm_batch_map.clear();
-  comp_batch_map.clear();
-  comm_pattern_map.clear();
-  comp_pattern_map.clear();
-  steady_state_comm_pattern_keys.clear();
-  active_comm_pattern_keys.clear();
-  steady_state_comp_pattern_keys.clear();
-  active_comp_pattern_keys.clear();
-  steady_state_patterns.clear();
-  active_patterns.clear();
-*/
   // If any entries exist, its valid to reset 'num_constraint_schedules' to 1 (rather than 0)
   for (auto& it : comp_pattern_map){
     auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
@@ -1585,12 +1576,6 @@ void clear(){
     auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
     pattern_list[it.second.val_index].clear();
   }
-/*
-  comm_intercept_overhead_stage1=0;
-  comm_intercept_overhead_stage2=0;
-  comp_intercept_overhead=0;
-  spf.clear_info();
-*/
 }
 
 void finalize(){
