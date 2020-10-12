@@ -66,6 +66,7 @@ struct event{
 };
 
 // ****************************************************************************************************************************************************
+extern int bsp_counter;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
 extern size_t auto_capture;

@@ -3,6 +3,7 @@
 namespace critter{
 namespace internal{
 
+int bsp_counter;
 volatile double computation_timer;
 std::vector<double> wall_timer;
 size_t auto_capture;

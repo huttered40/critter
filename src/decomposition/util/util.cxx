@@ -223,6 +223,7 @@ void reset(){
   memset(&symbol_timer_pad_local_cp[0],0,sizeof(double)*symbol_timer_pad_local_cp.size());
   memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
+  internal::bsp_counter=0;
 
   wait_id=true;
   comm_intercept_overhead_stage1=0;

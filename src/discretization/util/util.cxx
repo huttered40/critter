@@ -965,18 +965,60 @@ double get_std_dev(const intermediate_stats& p, int analysis_param){
 
 double get_std_error(const pattern& p, int analysis_param){
   // returns standard error
-  size_t n = (sample_constraint_mode==0 ? 1 : p.num_constraint_schedules);
+  size_t n = 1;
+  switch (sample_constraint_mode){
+    case 0:
+      n=1;
+      break;
+    case 1:
+      n = p.num_local_schedules;
+      break;
+    case 2:
+      n = 1;// Doesn't matter what I set here
+      break;
+    case 3:
+      n = p.num_schedules;
+      break;
+  }
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 double get_std_error(const pattern_key_id& index, int analysis_param){
   // returns standard error
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-  size_t n = (sample_constraint_mode==0 ? 1 : pattern_list[index.val_index].num_constraint_schedules);
+  size_t n = 1;
+  switch (sample_constraint_mode){
+    case 0:
+      n=1;
+      break;
+    case 1:
+      n = pattern_list[index.val_index].num_local_schedules;
+      break;
+    case 2:
+      n = 1;// Doesn't matter what I set here
+      break;
+    case 3:
+      n = pattern_list[index.val_index].num_schedules;
+      break;
+  }
   return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
 }
 double get_std_error(const intermediate_stats& p, int analysis_param){
   // returns standard error
-  size_t n = (sample_constraint_mode==0 ? 1 : p.num_constraint_schedules);
+  size_t n = 1;
+  switch (sample_constraint_mode){
+    case 0:
+      n=1;
+      break;
+    case 1:
+      n = p.num_local_schedules;
+      break;
+    case 2:
+      n = 1;// Doesn't matter what I set here
+      break;
+    case 3:
+      n = p.num_schedules;
+      break;
+  }
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 
@@ -994,32 +1036,23 @@ double get_confidence_interval(const intermediate_stats& p, int analysis_param, 
 }
 
 bool is_steady(const pattern& p, int analysis_param){
-/*
-  return ((get_confidence_interval(p,analysis_param) / (2.*get_estimate(p,analysis_param))) < pattern_error_limit) &&
+  if (sample_constraint_mode==2) return true;
+  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < pattern_error_limit) &&
           (p.num_schedules >= pattern_count_limit) &&
           (p.total_exec_time >= pattern_time_limit);
-*/
-  if (sample_constraint_mode==2) return true;
-  return ((get_confidence_interval(p,analysis_param) / (get_estimate(p,analysis_param))) < pattern_error_limit);
 }
 bool is_steady(const pattern_key_id& index, int analysis_param){
   auto& pattern_list = index.is_active == true ? active_patterns : steady_state_patterns;
-/*
-  return ((get_confidence_interval(index,analysis_param) / (2.*get_estimate(index,analysis_param))) < pattern_error_limit) &&
+  if (sample_constraint_mode==2) return true;
+  return ((get_confidence_interval(index,analysis_param) / get_estimate(index,analysis_param)) < pattern_error_limit) &&
           (pattern_list[index.val_index].num_schedules >= pattern_count_limit) &&
           (pattern_list[index.val_index].total_exec_time >= pattern_time_limit);
-*/
-  if (sample_constraint_mode==2) return true;
-  return ((get_confidence_interval(index,analysis_param) / (get_estimate(index,analysis_param))) < pattern_error_limit);
 }
 bool is_steady(const intermediate_stats& p, int analysis_param){
-/*
-  return ((get_confidence_interval(p,analysis_param) / (2.*get_estimate(p,analysis_param))) < pattern_error_limit) &&
+  if (sample_constraint_mode==2) return true;
+  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < pattern_error_limit) &&
           (p.num_schedules >= pattern_count_limit) &&
           (p.total_exec_time >= pattern_time_limit);
-*/
-  if (sample_constraint_mode==2) return true;
-  return ((get_confidence_interval(p,analysis_param) / (get_estimate(p,analysis_param))) < pattern_error_limit);
 }
 
 double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
@@ -1394,7 +1427,7 @@ void allocate(MPI_Comm comm){
   }
   if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE") != NULL){
     sample_constraint_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE"));
-    assert(sample_constraint_mode>=0 && sample_constraint_mode<=2);
+    assert(sample_constraint_mode>=0 && sample_constraint_mode<=3);
   } else{
     sample_constraint_mode = 0;
   }
@@ -1437,7 +1470,7 @@ void allocate(MPI_Comm comm){
   if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
     pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
   } else{
-    pattern_count_limit = 2;
+    pattern_count_limit = 5;
   }
   if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
     pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
@@ -1516,6 +1549,7 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
+  internal::bsp_counter=0;
 
   // If any entries exist, its valid to reset 'num_constraint_schedules' to 1 (rather than 0)
   for (auto& it : comp_pattern_map){
