@@ -11,66 +11,13 @@ namespace discretization{
 std::vector<double> record::set_tuning_statistics(){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  // Lets iterate over the map to create two counters, then reduce them to get a global idea:
-  //   Another idea is to cache this list over the critical path, but that might be too much.
-  int max_patterns[6] = {0,0,0,0,0,0};
-  double max_units[6] = {0,0,0,0,0,0};
-  double max_exec_times[4] = {0,0,0,0};
-  int vol_patterns[6] = {0,0,0,0,0,0};
-  double vol_units[6] = {0,0,0,0,0,0};
-  double vol_exec_times[4] = {0,0,0,0};
-  for (auto& it : comm_pattern_map){
-    auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-    max_patterns[0] += pattern_list[it.second.val_index].num_schedules;
-    max_patterns[1] += pattern_list[it.second.val_index].num_local_schedules;
-    max_patterns[2] += pattern_list[it.second.val_index].num_non_schedules;
-    max_units[0] += pattern_list[it.second.val_index].num_scheduled_units;
-    max_units[1] += pattern_list[it.second.val_index].num_local_scheduled_units;
-    max_units[2] += pattern_list[it.second.val_index].num_non_scheduled_units;
-    max_exec_times[0] += pattern_list[it.second.val_index].total_exec_time;
-    max_exec_times[1] += pattern_list[it.second.val_index].total_local_exec_time;
-    vol_patterns[0] += pattern_list[it.second.val_index].num_schedules;
-    vol_patterns[1] += pattern_list[it.second.val_index].num_local_schedules;
-    vol_patterns[2] += pattern_list[it.second.val_index].num_non_schedules;
-    vol_units[0] += pattern_list[it.second.val_index].num_scheduled_units;
-    vol_units[1] += pattern_list[it.second.val_index].num_local_scheduled_units;
-    vol_units[2] += pattern_list[it.second.val_index].num_non_scheduled_units;
-    vol_exec_times[0] += pattern_list[it.second.val_index].total_exec_time;
-    vol_exec_times[1] += pattern_list[it.second.val_index].total_local_exec_time;
-  }
-  for (auto& it : comp_pattern_map){
-    auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-    max_patterns[3] += pattern_list[it.second.val_index].num_schedules;
-    max_patterns[4] += pattern_list[it.second.val_index].num_local_schedules;
-    max_patterns[5] += pattern_list[it.second.val_index].num_non_schedules;
-    max_units[3] += pattern_list[it.second.val_index].num_scheduled_units;
-    max_units[4] += pattern_list[it.second.val_index].num_local_scheduled_units;
-    max_units[5] += pattern_list[it.second.val_index].num_non_scheduled_units;
-    max_exec_times[2] += pattern_list[it.second.val_index].total_exec_time;
-    max_exec_times[3] += pattern_list[it.second.val_index].total_local_exec_time;
-    vol_patterns[3] += pattern_list[it.second.val_index].num_schedules;
-    vol_patterns[4] += pattern_list[it.second.val_index].num_local_schedules;
-    vol_patterns[5] += pattern_list[it.second.val_index].num_non_schedules;
-    vol_units[3] += pattern_list[it.second.val_index].num_scheduled_units;
-    vol_units[4] += pattern_list[it.second.val_index].num_local_scheduled_units;
-    vol_units[5] += pattern_list[it.second.val_index].num_non_scheduled_units;
-    vol_exec_times[2] += pattern_list[it.second.val_index].total_exec_time;
-    vol_exec_times[3] += pattern_list[it.second.val_index].total_local_exec_time;
-  }
-  PMPI_Allreduce(MPI_IN_PLACE,&max_patterns[0],6,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&max_units[0],6,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&max_exec_times[0],4,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_patterns[0],6,MPI_INT,MPI_SUM,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_units[0],6,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-  PMPI_Allreduce(MPI_IN_PLACE,&vol_exec_times[0],4,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-
-    if (world_rank==0) { stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
-
+  if (world_rank==0) { stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
+  {
     double total_scheduled_comm_time=0;
     double total_scheduled_comp_time=0;
     for (auto& it : comm_pattern_map){
-      auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-      auto& key_list = it.second.is_active == true ? active_comm_pattern_keys : steady_state_comm_pattern_keys;
+      auto& pattern_list = active_patterns;
+      auto& key_list = active_comm_pattern_keys;
       if (world_rank==0) {
         stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << "," << key_list[it.second.key_index].dim_sizes[2] << ")"
@@ -101,8 +48,8 @@ std::vector<double> record::set_tuning_statistics(){
     }
     if (world_rank==0) { stream << std::endl << std::endl; }
     for (auto& it : comp_pattern_map){
-      auto& pattern_list = it.second.is_active == true ? active_patterns : steady_state_patterns;
-      auto& key_list = it.second.is_active == true ? active_comp_pattern_keys : steady_state_comp_pattern_keys;
+      auto& pattern_list = active_patterns;
+      auto& key_list = active_comp_pattern_keys;
       if (world_rank==0) {
          stream << "Rank 0 Computation pattern (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
@@ -133,14 +80,9 @@ std::vector<double> record::set_tuning_statistics(){
        }
       total_scheduled_comp_time += pattern_list[it.second.val_index].total_local_exec_time;
     }
-/*
-    std::vector<double> total_schedled_comm_time_gather(world_size);
-    std::vector<double> total_schedled_comp_time_gather(world_size);
-    PMPI_Gather(&total_scheduled_comm_time,1,MPI_DOUBLE,&total_schedled_comm_time_gather[0],1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-    PMPI_Gather(&total_scheduled_comp_time,1,MPI_DOUBLE,&total_schedled_comp_time_gather[0],1,MPI_DOUBLE,0,MPI_COMM_WORLD);
-*/
     if (world_rank==0){
       stream << std::endl;
+/*
       stream << "Max -- communication\n";
       stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
       stream << "\t\tNum scheduled max_patterns - " << max_patterns[1] << std::endl;
@@ -157,73 +99,35 @@ std::vector<double> record::set_tuning_statistics(){
       stream << "\t\tNum scheduled flops - " << max_units[4] << std::endl;
       stream << "\t\tNum total flops - " << max_units[4]+max_units[5] << std::endl;
       stream << "\t\tComputation flop hit ratio - " << 1. - (max_units[4] * 1. / (max_units[4]+max_units[5])) << std::endl;
-      stream << "Vol -- communication\n";
-      stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
-      stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[1] << std::endl;
-      stream << "\t\tNum total vol_patterns - " << vol_patterns[1]+vol_patterns[2] << std::endl;
-      stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[1] * 1. / (vol_patterns[1]+vol_patterns[2])) << std::endl;
-      stream << "\t\tNum scheduled bytes - " << vol_units[1] << std::endl;
-      stream << "\t\tNum total bytes - " << vol_units[1]+vol_units[2] << std::endl;
-      stream << "\t\tCommunication byte hit ratio - " << 1. - (vol_units[1] * 1. / (vol_units[1]+vol_units[2])) << std::endl;
-      stream << "Vol -- computation\n";
-      stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
-      stream << "\t\tNum scheduled vol_patterns - " << vol_patterns[4] << std::endl;
-      stream << "\t\tNum total vol_patterns - " << vol_patterns[4]+vol_patterns[5] << std::endl;
-      stream << "\t\tPattern hit ratio - " << 1.-(vol_patterns[4] * 1. / (vol_patterns[4]+vol_patterns[5])) << std::endl;
-      stream << "\t\tNum scheduled flops - " << vol_units[4] << std::endl;
-      stream << "\t\tNum total flops - " << vol_units[4]+vol_units[5] << std::endl;
-      stream << "\t\tComputation flop hit ratio - " << 1. - (vol_units[4] * 1. / (vol_units[4]+vol_units[5])) << std::endl;
-      stream << "Critter computational overheads:\n";
-      stream << "\tMax per-process: " << comp_intercept_overhead << std::endl;
-      stream << "Critter communication overheads:\n";
-      stream << "\tStage1, Max per-process: " << comm_intercept_overhead_stage1 << std::endl;
-      stream << "\tStage2, Max per-process: " << comm_intercept_overhead_stage2 << std::endl;
-/*
-      for (auto i=0; i< total_schedled_comm_time_gather.size(); i++){
-        stream << "\tScheduled communication time on world_rank " << i << ": " << total_schedled_comm_time_gather[i] << std::endl;
-      }
-      for (auto i=0; i< total_schedled_comp_time_gather.size(); i++){
-        stream << "\tScheduled computation time on world_rank " << i << ": " << total_schedled_comp_time_gather[i] << std::endl;
-      }
 */
+      stream << "Critter computational overheads:\n";
+      stream << "\tMax per-process: " << global_intercept_overhead[0] << std::endl;
+      stream << "Critter communication overheads:\n";
+      stream << "\tStage1, Max per-process: " << global_intercept_overhead[1] << std::endl;
+      stream << "\tStage2, Max per-process: " << global_intercept_overhead[2] << std::endl;
     }
+  }
 
-  std::vector<double> tuning_stats(35);
-  tuning_stats[0] = max_patterns[0];
-  tuning_stats[1] = max_patterns[1];
-  tuning_stats[2] = max_patterns[2];
-  tuning_stats[3] = max_units[0];
-  tuning_stats[4] = max_units[1];
-  tuning_stats[5] = max_units[2];
-  tuning_stats[6] = max_exec_times[0];
-  tuning_stats[7] = max_exec_times[1];
-  tuning_stats[8] = max_patterns[3];
-  tuning_stats[9] = max_patterns[4];
-  tuning_stats[10] = max_patterns[5];
-  tuning_stats[11] = max_units[3];
-  tuning_stats[12] = max_units[4];
-  tuning_stats[13] = max_units[5];
-  tuning_stats[14] = max_exec_times[2];
-  tuning_stats[15] = max_exec_times[3];
-  tuning_stats[16] = vol_patterns[0];
-  tuning_stats[17] = vol_patterns[1];
-  tuning_stats[18] = vol_patterns[2];
-  tuning_stats[19] = vol_units[0];
-  tuning_stats[20] = vol_units[1];
-  tuning_stats[21] = vol_units[2];
-  tuning_stats[22] = vol_exec_times[0];
-  tuning_stats[23] = vol_exec_times[1];
-  tuning_stats[24] = vol_patterns[3];
-  tuning_stats[25] = vol_patterns[4];
-  tuning_stats[26] = vol_patterns[5];
-  tuning_stats[27] = vol_units[3];
-  tuning_stats[28] = vol_units[4];
-  tuning_stats[29] = vol_units[5];
-  tuning_stats[30] = vol_exec_times[2];
-  tuning_stats[31] = vol_exec_times[3];
-  tuning_stats[32] = comp_intercept_overhead;
-  tuning_stats[33] = comm_intercept_overhead_stage1;
-  tuning_stats[34] = comm_intercept_overhead_stage2;
+  std::vector<double> tuning_stats(19);
+  tuning_stats[0] = global_comm_kernel_stats[0];
+  tuning_stats[1] = global_comm_kernel_stats[1];
+  tuning_stats[2] = global_comm_kernel_stats[2];
+  tuning_stats[3] = global_comm_kernel_stats[3];
+  tuning_stats[4] = global_comm_kernel_stats[4];
+  tuning_stats[5] = global_comm_kernel_stats[5];
+  tuning_stats[6] = global_comm_kernel_stats[6];
+  tuning_stats[7] = global_comm_kernel_stats[7];
+  tuning_stats[8] = global_comp_kernel_stats[0];
+  tuning_stats[9] = global_comp_kernel_stats[1];
+  tuning_stats[10] = global_comp_kernel_stats[2];
+  tuning_stats[11] = global_comp_kernel_stats[3];
+  tuning_stats[12] = global_comp_kernel_stats[4];
+  tuning_stats[13] = global_comp_kernel_stats[5];
+  tuning_stats[14] = global_comp_kernel_stats[6];
+  tuning_stats[15] = global_comp_kernel_stats[7];
+  tuning_stats[16] = global_intercept_overhead[0];
+  tuning_stats[17] = global_intercept_overhead[1];
+  tuning_stats[18] = global_intercept_overhead[2];
   return tuning_stats;
 }
 
@@ -241,7 +145,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << "ID";
       stream_tune << std::left << std::setw(mode_1_width) << "TestID";
       stream_tune << std::left << std::setw(mode_1_width) << "IsOptimized";
-      stream_tune << std::left << std::setw(mode_1_width) << "SampleAggMode";
+      stream_tune << std::left << std::setw(mode_1_width) << "CompSampleAggMode";
+      stream_tune << std::left << std::setw(mode_1_width) << "CompStateAggMode";
+      stream_tune << std::left << std::setw(mode_1_width) << "CommSampleAggMode";
+      stream_tune << std::left << std::setw(mode_1_width) << "CommStateAggMode";
       stream_tune << std::left << std::setw(mode_1_width) << "SampleConstraintMode";
       stream_tune << std::left << std::setw(mode_1_width) << "CommEnvelopeParam";
       stream_tune << std::left << std::setw(mode_1_width) << "CommUnitParam";
@@ -269,22 +176,6 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_tune << std::left << std::setw(mode_1_width) << "MaxSkipFlops";
       stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedCompTime";
       stream_tune << std::left << std::setw(mode_1_width) << "MaxSchedLocalCompTime";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedComm";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalComm";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSkipComm";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedBytes";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalBytes";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSkipBytes";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedCommTime";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalCommTime";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedComp";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalComp";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSkipComp";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedFlops";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalFlops";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSkipFlops";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedCompTime";
-      stream_tune << std::left << std::setw(mode_1_width) << "VolSchedLocalCompTime";
       stream_tune << std::left << std::setw(mode_1_width) << "CompOverhead";
       stream_tune << std::left << std::setw(mode_1_width) << "CommOverhead1";
       stream_tune << std::left << std::setw(mode_1_width) << "CommOverhead2";
@@ -293,7 +184,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ID";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "TestID";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "Delta";
-      stream_reconstruct << std::left << std::setw(mode_1_width) << "SampleAggMode";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "CompSampleAggMode";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "CompStateAggMode";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "CommSampleAggMode";
+      stream_reconstruct << std::left << std::setw(mode_1_width) << "CommStateAggMode";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "SampleConstraintMode";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CommEnvelopeParam";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CommUnitParam";
@@ -340,7 +234,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       if (autotuning_test_id==2) stream_tune << std::left << std::setw(mode_1_width) << variantID;
       stream_tune << std::left << std::setw(mode_1_width) << autotuning_test_id;
       stream_tune << std::left << std::setw(mode_1_width) << tuning_delta;
-      stream_tune << std::left << std::setw(mode_1_width) << sample_aggregation_mode;
+      stream_tune << std::left << std::setw(mode_1_width) << comp_sample_aggregation_mode;
+      stream_tune << std::left << std::setw(mode_1_width) << comp_state_aggregation_mode;
+      stream_tune << std::left << std::setw(mode_1_width) << comm_sample_aggregation_mode;
+      stream_tune << std::left << std::setw(mode_1_width) << comm_state_aggregation_mode;
       stream_tune << std::left << std::setw(mode_1_width) << sample_constraint_mode;
       stream_tune << std::left << std::setw(mode_1_width) << comm_envelope_param;
       stream_tune << std::left << std::setw(mode_1_width) << comm_unit_param;
@@ -371,22 +268,6 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[16];
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[17];
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[18];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[19];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[20];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[21];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[22];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[23];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[24];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[25];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[26];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[27];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[28];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[29];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[30];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[31];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[32];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[33];
-      stream_tune << std::left << std::setw(mode_1_width) << tuning_data[34];
       stream_tune << std::endl;
     }
   }
@@ -395,7 +276,10 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << variantID;
       stream_reconstruct << std::left << std::setw(mode_1_width) << autotuning_test_id;
       stream_reconstruct << std::left << std::setw(mode_1_width) << tuning_delta;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << sample_aggregation_mode;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << comp_sample_aggregation_mode;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << comp_state_aggregation_mode;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << comm_sample_aggregation_mode;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << comm_state_aggregation_mode;
       stream_reconstruct << std::left << std::setw(mode_1_width) << sample_constraint_mode;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_envelope_param;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_unit_param;

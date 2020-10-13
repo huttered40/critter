@@ -8,6 +8,7 @@ namespace internal{
 namespace discretization{
 
 struct pattern_batch;
+struct pattern_propagate;
 
 // ****************************************************************************************************************************************************
 struct channel{
@@ -121,40 +122,50 @@ struct pattern{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  pattern();
+  pattern(channel* node = nullptr);
   pattern(const pattern_batch& _copy);
   pattern(const pattern& _copy);
   pattern& operator=(const pattern& _copy);
+  pattern(const pattern_propagate& _copy);
+  pattern& operator=(const pattern_propagate& _copy);
   void reset();
-  void clear();
+  void clear_distribution();
 
+  int hash_id;
   int steady_state;
   int global_steady_state;
   int num_schedules;
   int num_non_schedules;
   int num_local_schedules;
-  int num_constraint_schedules;
   double num_scheduled_units;
   double num_non_scheduled_units;
   double num_local_scheduled_units;
   double M1,M2;
   double total_exec_time;
   double total_local_exec_time;
+  std::set<channel*> registered_channels;
 };
 
 // ****************************************************************************************************************************************************
-struct pattern_key_id{
+struct pattern_propagate{
+  // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
+  //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
+  //     to handle that.
+  pattern_propagate(){};
+  pattern_propagate(const pattern& _copy);
+  pattern_propagate(const pattern_propagate& _copy);
+  pattern_propagate& operator=(const pattern_propagate& _copy);
 
-  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false);
-  pattern_key_id(const pattern_key_id& _copy);
-  pattern_key_id& operator=(const pattern_key_id& _copy);
-
-  // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
-  bool is_active;
-  bool is_updated;
-  int key_index;
-  int val_index;
+  int hash_id;
+  int num_schedules;
+  int num_local_schedules;
+  double num_scheduled_units;
+  double num_local_scheduled_units;
+  double M1,M2;
+  double total_exec_time;
+  double total_local_exec_time;
 };
+
 
 // ****************************************************************************************************************************************************
 struct intermediate_stats{
@@ -163,7 +174,6 @@ struct intermediate_stats{
 
   int num_schedules;
   int num_local_schedules;
-  int num_constraint_schedules;
   double M1,M2;
   double num_scheduled_units;
   double num_local_scheduled_units;
@@ -174,12 +184,16 @@ struct intermediate_stats{
 // ****************************************************************************************************************************************************
 extern std::ofstream stream;
 extern int tuning_delta;
-extern int sample_aggregation_mode;
+extern int comm_sample_aggregation_mode;
+extern int comm_state_aggregation_mode;
+extern int comp_sample_aggregation_mode;
+extern int comp_state_aggregation_mode;
 extern int sample_constraint_mode;
-extern int sample_reset_mode;
+//extern int sample_reset_mode;
 extern int schedule_kernels;
 extern int update_analysis;
 extern int autotuning_test_id;
+extern std::string autotuning_schedule_tag;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
 extern MPI_Datatype pattern_type;
@@ -190,23 +204,20 @@ extern double pattern_error_limit;
 extern int communicator_count;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
-extern std::vector<comm_pattern_key> steady_state_comm_pattern_keys;
 extern std::vector<comm_pattern_key> active_comm_pattern_keys;
-extern std::vector<comp_pattern_key> steady_state_comp_pattern_keys;
 extern std::vector<comp_pattern_key> active_comp_pattern_keys;
-extern std::vector<pattern> steady_state_patterns;
 extern std::vector<pattern> active_patterns;
 extern sample_propagation_forest spf;
 extern std::map<MPI_Comm,solo_channel*> comm_channel_map;
 extern std::map<int,solo_channel*> p2p_channel_map;
 extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
-extern std::map<comm_pattern_key,bool> p2p_global_state_override;
 extern std::map<int,aggregate_channel*> aggregate_channel_map;
 extern std::ofstream stream_tune,stream_reconstruct;
-extern volatile double comm_intercept_overhead_stage1;
-extern volatile double comm_intercept_overhead_stage2;
-extern volatile double comp_intercept_overhead;
+extern std::vector<double> intercept_overhead;
+extern std::vector<double> global_intercept_overhead;
+extern std::vector<double> global_comp_kernel_stats;
+extern std::vector<double> global_comm_kernel_stats;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -251,31 +262,38 @@ bool is_key_skipable(const comm_pattern_key& key);
 bool is_key_skipable(const comp_pattern_key& key);
 
 double get_estimate(const pattern& p, int analysis_param, double unit_count=1.);
+double get_estimate(const pattern_propagate& p, int analysis_param, double unit_count=1.);
 double get_estimate(const pattern_key_id& index, int analysis_param, double unit_count=1.);
 double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count);
 double get_estimate(const intermediate_stats& p, int analysis_param, double unit_count=1.);
 
 double get_arithmetic_mean(const pattern& p);
+double get_arithmetic_mean(const pattern_propagate& p);
 double get_arithmetic_mean(const pattern_key_id& index);
 double get_arithmetic_mean(const intermediate_stats& p);
 
 double get_harmonic_mean(const pattern& p);
+double get_harmonic_mean(const pattern_propagate& p);
 double get_harmonic_mean(const pattern_key_id& index);
 double get_harmonic_mean(const intermediate_stats& p);
 
 double get_variance(const pattern& p, int analysis_param);
+double get_variance(const pattern_propagate& p, int analysis_param);
 double get_variance(const pattern_key_id& index, int analysis_param);
 double get_variance(const intermediate_stats& p, int analysis_param);
 
 double get_std_dev(const pattern& p, int analysis_param);
+double get_std_dev(const pattern_propagate& p, int analysis_param);
 double get_std_dev(const pattern_key_id& index, int analysis_param);
 double get_std_dev(const intermediate_stats& p, int analysis_param);
 
 double get_std_error(const pattern& p, int analysis_param);
+double get_std_error(const pattern_propagate& p, int analysis_param);
 double get_std_error(const pattern_key_id& index, int analysis_param);
 double get_std_error(const intermediate_stats& p, int analysis_param);
 
 double get_confidence_interval(const pattern& p, int analysis_param, double level = .95);
+double get_confidence_interval(const pattern_propagate& p, int analysis_param, double level = .95);
 double get_confidence_interval(const pattern_key_id& index, int analysis_param, double level = .95);
 double get_confidence_interval(const intermediate_stats& p, int analysis_param, double level = .95);
 
@@ -285,6 +303,7 @@ bool is_steady(const intermediate_stats& p, int analysis_param);
 
 double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);
 double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param);
+double get_error_estimate(const pattern_propagate& p, int analysis_param);
 
 bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param);
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);
@@ -301,9 +320,6 @@ void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& 
 
 int should_schedule(const pattern& p);
 int should_schedule(const pattern_key_id& index);
-
-int should_schedule_global(const pattern& p);
-int should_schedule_global(const pattern_key_id& index);
 
 void set_kernel_state(pattern& p, bool schedule_decision);
 void set_kernel_state(const pattern_key_id& index, bool schedule_decision);

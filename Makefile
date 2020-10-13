@@ -15,22 +15,42 @@ lib/libcritter.a:\
 		obj/decomposition_container_symbol_tracker.o\
 		obj/decomposition_volumetric_volumetric.o\
 		obj/decomposition_path_path.o\
-		obj/discretization_parameterization_parameterization.o\
 		obj/discretization_util_util.o\
 		obj/discretization_record_record.o\
 		obj/discretization_container_comm_tracker.o\
 		obj/discretization_container_symbol_tracker.o\
 		obj/discretization_volumetric_volumetric.o\
 		obj/discretization_path_path.o\
+		obj/skeletonization_util_util.o\
+		obj/skeletonization_record_record.o\
+		obj/skeletonization_container_comm_tracker.o\
+		obj/skeletonization_container_symbol_tracker.o\
+		obj/skeletonization_volumetric_volumetric.o\
+		obj/skeletonization_path_path.o\
 		obj/dispatch_dispatch.o
-	ar -crs lib/libcritter.a obj/util_util.o obj/intercept_comp.o obj/intercept_comm.o obj/intercept_symbol.o\
-					obj/decomposition_util_util.o obj/decomposition_record_record.o\
-					obj/decomposition_container_comm_tracker.o obj/decomposition_container_symbol_tracker.o\
-					obj/decomposition_volumetric_volumetric.o  obj/decomposition_path_path.o\
-					obj/discretization_util_util.o obj/discretization_parameterization_parameterization.o\
-					obj/discretization_record_record.o obj/discretization_container_comm_tracker.o\
-					obj/discretization_container_symbol_tracker.o obj/discretization_volumetric_volumetric.o\
-					obj/discretization_path_path.o obj/dispatch_dispatch.o
+	ar -crs lib/libcritter.a obj/util_util.o\
+					obj/intercept_comp.o\
+					obj/intercept_comm.o\
+					obj/intercept_symbol.o\
+					obj/decomposition_util_util.o\
+					obj/decomposition_record_record.o\
+					obj/decomposition_container_comm_tracker.o\
+					obj/decomposition_container_symbol_tracker.o\
+					obj/decomposition_volumetric_volumetric.o\
+					obj/decomposition_path_path.o\
+					obj/discretization_util_util.o\
+					obj/discretization_record_record.o\
+					obj/discretization_container_comm_tracker.o\
+					obj/discretization_container_symbol_tracker.o\
+					obj/discretization_volumetric_volumetric.o\
+					obj/discretization_path_path.o\
+					obj/skeletonization_util_util.o\
+					obj/skeletonization_record_record.o\
+					obj/skeletonization_container_comm_tracker.o\
+					obj/skeletonization_container_symbol_tracker.o\
+					obj/skeletonization_volumetric_volumetric.o\
+					obj/skeletonization_path_path.o\
+					obj/dispatch_dispatch.o
 
 lib/libcritter.so: obj/critter.o
 	gcc -shared -o lib/libcritter.so obj util.o obj/critter.o
@@ -68,9 +88,6 @@ obj/decomposition_path_path.o: src/decomposition/path/path.cxx
 obj/discretization_util_util.o: src/discretization/util/util.cxx
 	$(CXX) src/discretization/util/util.cxx -c -o obj/discretization_util_util.o $(CXXFLAGS)
 
-obj/discretization_parameterization_parameterization.o: src/discretization/parameterization/parameterization.cxx
-	$(CXX) src/discretization/parameterization/parameterization.cxx -c -o obj/discretization_parameterization_parameterization.o $(CXXFLAGS)
-
 obj/discretization_record_record.o: src/discretization/record/record.cxx
 	$(CXX) src/discretization/record/record.cxx -c -o obj/discretization_record_record.o $(CXXFLAGS)
 
@@ -85,6 +102,24 @@ obj/discretization_volumetric_volumetric.o: src/discretization/volumetric/volume
 
 obj/discretization_path_path.o: src/discretization/path/path.cxx
 	$(CXX) src/discretization/path/path.cxx -c -o obj/discretization_path_path.o $(CXXFLAGS)
+
+obj/skeletonization_util_util.o: src/skeletonization/util/util.cxx
+	$(CXX) src/skeletonization/util/util.cxx -c -o obj/skeletonization_util_util.o $(CXXFLAGS)
+
+obj/skeletonization_record_record.o: src/skeletonization/record/record.cxx
+	$(CXX) src/skeletonization/record/record.cxx -c -o obj/skeletonization_record_record.o $(CXXFLAGS)
+
+obj/skeletonization_container_comm_tracker.o: src/skeletonization/container/comm_tracker.cxx
+	$(CXX) src/skeletonization/container/comm_tracker.cxx -c -o obj/skeletonization_container_comm_tracker.o $(CXXFLAGS)
+
+obj/skeletonization_container_symbol_tracker.o: src/skeletonization/container/symbol_tracker.cxx
+	$(CXX) src/skeletonization/container/symbol_tracker.cxx -c -o obj/skeletonization_container_symbol_tracker.o $(CXXFLAGS)
+
+obj/skeletonization_volumetric_volumetric.o: src/skeletonization/volumetric/volumetric.cxx
+	$(CXX) src/skeletonization/volumetric/volumetric.cxx -c -o obj/skeletonization_volumetric_volumetric.o $(CXXFLAGS)
+
+obj/skeletonization_path_path.o: src/skeletonization/path/path.cxx
+	$(CXX) src/skeletonization/path/path.cxx -c -o obj/skeletonization_path_path.o $(CXXFLAGS)
 
 obj/dispatch_dispatch.o: src/dispatch/dispatch.cxx
 	$(CXX) src/dispatch/dispatch.cxx -c -o obj/dispatch_dispatch.o $(CXXFLAGS)

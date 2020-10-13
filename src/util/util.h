@@ -19,10 +19,54 @@
 #include <cmath>
 #include <assert.h>
 
-#include "../discretization/parameterization/parameterization.h"
-
 namespace critter{
 namespace internal{
+
+// ****************************************************************************************************************************************************
+extern int comm_envelope_param;
+extern int comp_envelope_param;
+extern int comm_unit_param;
+extern int comp_unit_param;
+extern int comm_analysis_param;
+extern int comp_analysis_param;
+
+// ****************************************************************************************************************************************************
+struct pattern_key{};
+
+// ****************************************************************************************************************************************************
+struct comm_pattern_key : public pattern_key{
+
+  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _dim_sizes[2]=nullptr, int _dim_strides[2]=nullptr, double _msg_size=-1, int _partner=-1);
+  comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset);
+  comm_pattern_key(const comm_pattern_key& _copy);
+  comm_pattern_key& operator=(const comm_pattern_key& _copy);
+  friend bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
+  friend bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
+
+  int tag;
+  int dim_sizes[2];// Allow up to 2 dimensions
+  int dim_strides[2];// Allow up to 2 dimensions
+  int partner_offset;
+  int pattern_index;
+  double msg_size;
+};
+
+
+// ****************************************************************************************************************************************************
+struct comp_pattern_key : public pattern_key{
+
+  comp_pattern_key(int _pattern_index=-1, int _tag=-1, double _flops=-1, int =-1, int _param2=-1, int _param3=-1, int _param4=-1, int _param5=-1);
+  comp_pattern_key(const comp_pattern_key& _copy);
+  comp_pattern_key& operator=(const comp_pattern_key& _copy);
+  friend bool operator==(const comp_pattern_key& ref1, const comp_pattern_key& ref2);
+  friend bool operator<(const comp_pattern_key& ref1, const comp_pattern_key& ref2);
+
+  int tag;
+  int param1,param2,param3,param4,param5;
+  int pattern_index;
+  double flops;
+};
+
 
 // ****************************************************************************************************************************************************
 struct double_int{
@@ -37,32 +81,17 @@ struct int_int_double{
 };
 
 // ****************************************************************************************************************************************************
-struct event{
-  event(std::string _kernel, std::vector<double> _measurements){
-    tag = -1; measurements = _measurements;
-    kernel = _kernel;
-  }
-  event(std::string _kernel, std::vector<double> _measurements, int _tag, MPI_Comm _comm, int _partner1, int _partner2, bool _is_sender, bool _is_eager){
-    measurements = _measurements;
-    tag = _tag; comm = _comm; partner1 = _partner1; partner2 = _partner2; is_sender = _is_sender; is_eager = _is_eager;
-    kernel = _kernel;
-  }
-  event(std::string _kernel, std::vector<double> _measurements, int _tag, MPI_Comm _comm, int _partner1, bool _is_sender, bool _is_eager, int _match_id, bool blah){
-    measurements = _measurements;
-    tag = _tag; comm = _comm; partner1 = _partner1; is_sender = _is_sender; is_eager = _is_eager; match_id = _match_id; is_close = false;;
-    kernel = _kernel;
-  }
-  event(std::string _kernel,std::vector<double> _measurements, std::vector<int> _match_vec){
-    measurements = _measurements;
-    tag=18; match_vec = _match_vec; match_size = _match_vec.size(); is_close = true;
-    kernel = _kernel;
-  }
-  MPI_Comm comm;
-  int tag,partner1,partner2,match_size,match_id;
-  bool is_sender,is_eager,is_close;
-  std::vector<int> match_vec;
-  std::vector<double> measurements;
-  std::string kernel;
+struct pattern_key_id{
+
+  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false);
+  pattern_key_id(const pattern_key_id& _copy);
+  pattern_key_id& operator=(const pattern_key_id& _copy);
+
+  // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
+  bool is_active;
+  bool is_updated;
+  int key_index;
+  int val_index;
 };
 
 // ****************************************************************************************************************************************************

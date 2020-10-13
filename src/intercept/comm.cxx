@@ -169,6 +169,8 @@ void _init(int* argc, char*** argv){
   allocate(MPI_COMM_WORLD);
   mechanism=1;
   allocate(MPI_COMM_WORLD);
+  mechanism=2;
+  allocate(MPI_COMM_WORLD);
   if (std::getenv("CRITTER_MECHANISM") != NULL){
     mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
   } else{

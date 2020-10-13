@@ -1,11 +1,11 @@
-#ifndef CRITTER__DISCRETIZATION__PATH__PATH_H_
-#define CRITTER__DISCRETIZATION__PATH__PATH_H_
+#ifndef CRITTER__SKELETONIZATION__PATH__PATH_H_
+#define CRITTER__SKELETONIZATION__PATH__PATH_H_
 
 #include "../container/comm_tracker.h"
 
 namespace critter{
 namespace internal{
-namespace discretization{
+namespace skeletonization{
 
 class path{
 public:
@@ -24,13 +24,11 @@ public:
 
 private:
   static void complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time);
-  static void state_aggregation(blocking& tracker);
-  static void single_stage_sample_aggregation(blocking& tracker);
-  static void multi_stage_sample_aggregation(blocking& tracker);
+  //static void propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int rank);
 };
 
 }
 }
 }
 
-#endif /*CRITTER__DISCRETIZATION__PATH__PATH_H_*/
+#endif /*CRITTER__SKELETONIZATION__PATH__PATH_H_*/

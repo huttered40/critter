@@ -1,11 +1,11 @@
-#ifndef CRITTER__DISCRETIZATION__CONTAINER__COMM_TRACKER_H_
-#define CRITTER__DISCRETIZATION__CONTAINER__COMM_TRACKER_H_
+#ifndef CRITTER__SKELETONIZATION__CONTAINER__COMM_TRACKER_H_
+#define CRITTER__SKELETONIZATION__CONTAINER__COMM_TRACKER_H_
 
 #include "../../util/util.h"
 
 namespace critter{
 namespace internal{
-namespace discretization{
+namespace skeletonization{
 
 /* \brief encapsulation of the state of a MPI routine */
 class comm_tracker{
@@ -38,11 +38,6 @@ class comm_tracker{
     int comm_size;
     /* \brief is_sender bool with which start() was last called */
     bool is_sender;
-    bool should_propagate;
-    bool aggregate_comp_patterns;
-    bool aggregate_comm_patterns;
-    std::vector<comm_pattern_key> save_comm_key;
-    std::vector<comp_pattern_key> save_comp_key;
     /** \brief initialization of state called by construtors */
     void init();
     /** */
@@ -130,4 +125,4 @@ extern std::map<MPI_Request,nonblocking*> internal_comm_track;
 }
 }
 
-#endif /*CRITTER__DISCRETIZATION__CONTAINER__COMM_TRACKER_H_*/
+#endif /*CRITTER__SKELETONIZATION__CONTAINER__COMM_TRACKER_H_*/
