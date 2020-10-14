@@ -9,6 +9,7 @@ void start(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   internal::stack_id++;
   //if (internal::stack_id>1) { return; }
   internal::reset(schedule_kernels_override,force_steady_statistical_data_overide);
+  internal::reset_counter++;
 
   // Barrier used to make as certain as possible that 'computation_timer' starts in synch.
   PMPI_Barrier(MPI_COMM_WORLD);
@@ -38,6 +39,7 @@ void record(int variantID, int print_mode, double overhead_time){
 }
 
 void clear(){
+  internal::clear_counter++;
   internal::clear();
 }
 
@@ -166,6 +168,9 @@ void _init(int* argc, char*** argv){
   _LAPACK_tpmqrt__id = 108;
 
   _CAPITAL_blktocyc__id = 200;
+
+  reset_counter++;
+  clear_counter++;
 
   mechanism=0;
   allocate(MPI_COMM_WORLD);

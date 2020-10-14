@@ -238,6 +238,8 @@ pattern_key_id& pattern_key_id::operator=(const pattern_key_id& _copy){
 
 
 int bsp_counter;
+int reset_counter;
+int clear_counter;
 volatile double computation_timer;
 std::vector<double> wall_timer;
 size_t auto_capture;

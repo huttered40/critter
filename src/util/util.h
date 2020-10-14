@@ -96,6 +96,8 @@ struct pattern_key_id{
 
 // ****************************************************************************************************************************************************
 extern int bsp_counter;
+extern int reset_counter;
+extern int clear_counter;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
 extern size_t auto_capture;

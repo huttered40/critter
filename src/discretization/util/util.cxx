@@ -1573,7 +1573,7 @@ void allocate(MPI_Comm comm){
   assert(comp_state_aggregation_mode >= comp_sample_aggregation_mode);
   if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE") != NULL){
     sample_constraint_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE"));
-    assert(sample_constraint_mode>=0 && sample_constraint_mode<=3);
+    assert(sample_constraint_mode>=-1 && sample_constraint_mode<=3);
   } else{
     sample_constraint_mode = 0;
   }
@@ -1791,6 +1791,11 @@ void clear(){
       active_patterns[it.second.val_index].clear_distribution();
     }
     else if (autotuning_schedule_tag=="cholinv"){
+      if (clear_counter == 10){
+        if (it.first.tag == 200){
+          active_patterns[it.second.val_index].clear_distribution();
+        }
+      }
       //No-op (for now, unless necessary)
     }
     else if (autotuning_schedule_tag=="caqr_level1pipe"){
@@ -1804,8 +1809,10 @@ void clear(){
     else if (autotuning_schedule_tag=="cholinv"){
       // Note that I would like to check the reset count before clearing the Allgather, but I only need to do this once anyways.
       assert(world_size==512);// change the below to fit other process counts later
-      if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 64) && (it.first.dim_strides[0]==8) && (it.first.partner_offset == INT_MIN)){
-        active_patterns[it.second.val_index].clear_distribution();
+      if (clear_counter == 10){
+        if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 64) && (it.first.dim_strides[0]==8) && (it.first.partner_offset == INT_MIN)){
+          active_patterns[it.second.val_index].clear_distribution();
+        }
       }
     }
     else if (autotuning_schedule_tag=="caqr_level1pipe"){
