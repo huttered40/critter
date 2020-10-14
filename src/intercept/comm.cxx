@@ -165,6 +165,8 @@ void _init(int* argc, char*** argv){
   _LAPACK_tpqrt__id = 107;
   _LAPACK_tpmqrt__id = 108;
 
+  _CAPITAL_blktocyc__id = 200;
+
   mechanism=0;
   allocate(MPI_COMM_WORLD);
   mechanism=1;

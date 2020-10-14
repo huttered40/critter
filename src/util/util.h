@@ -161,6 +161,8 @@ extern size_t
 	_LAPACK_getri__id,
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
+extern size_t
+	_CAPITAL_blktocyc__id;
 //extern std::map<std::pair<std::string,size_t>,bool> schedule_map;
 
 }

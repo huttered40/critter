@@ -409,4 +409,10 @@
     critter::internal::_dorgqr_(a,b,c,d,e,f,g);\
   } while (0);
 */
+
+#define blk_to_cyc_rect(blocked,cyclic,num_rows_local,num_columns_local,sliceDim)\
+  do{\
+    critter::internal::_blk_to_cyc_rect_(blocked,cyclic,num_rows_local,num_columns_local,sliceDim);\
+  } while (0);
+
 #endif /*CRITTER_H_*/

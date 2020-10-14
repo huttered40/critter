@@ -73,6 +73,7 @@ void _stpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
 void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int k , int l , int nb , const double * v ,
                int ldv , const double * t , int ldt , double * a , int lda , double * b , int ldb);
 
+void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int num_columns_local, int sliceDim);
 }
 }
 

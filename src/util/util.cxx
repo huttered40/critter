@@ -303,6 +303,8 @@ size_t
 	_LAPACK_getri__id,
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
+size_t
+	_CAPITAL_blktocyc__id;
 //std::map<std::pair<std::string,size_t>,bool> schedule_map;
 }
 }
