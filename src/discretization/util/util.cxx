@@ -26,6 +26,8 @@ MPI_Datatype batch_type;
 size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
+int comm_kernel_transfer_id;
+int comp_kernel_buffer_id;
 int communicator_count;
 std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
@@ -1627,6 +1629,16 @@ void allocate(MPI_Comm comm){
     pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
   } else{
     pattern_error_limit = .5;
+  }
+  if (std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID") != NULL){
+    comm_kernel_transfer_id = atof(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID"));
+  } else{
+    comm_kernel_transfer_id = 0;
+  }
+  if (std::getenv("CRITTER_COMP_KERNEL_BUFFER_ID") != NULL){
+    comp_kernel_buffer_id = atof(std::getenv("CRITTER_COMP_KERNEL_BUFFER_ID"));
+  } else{
+    comp_kernel_buffer_id = 0;
   }
 
 

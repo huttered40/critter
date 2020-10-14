@@ -142,44 +142,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   if (local_sibling_size==0){// Only if 'node' exists as the smallest trivial aggregate should it be considered final. Think of 'node==world' of the very first registered channel
     aggregate_channel_map[node->local_hash_tag]->is_final=true;
   } else{
-/*
-    // Prevent any aggregate channels that can be formed from 'previous_channels' from being 'final'
-    std::vector<int> previous_channels;
-    for (auto it : previous_channels_set){
-      previous_channels.push_back(it);
-    }
-    int search_size = 1<<previous_channels.size();
-    // Try all subsets
-    for (int ii=0; ii<search_size; ii++){
-      // check the bits in ii by iterating
-      int hash_scratch=0;
-      for (int jj=0; jj<previous_channels.size(); jj++){
-        if ((1<<jj)&ii){
-          hash_scratch ^= previous_channels[jj];// these will be solo aggregates (equivalent to solo channels)
-        }
-      }
-      if (aggregate_channel_map.find(hash_scratch) != aggregate_channel_map.end()){
-        if (world_comm_rank == 8){
-          std::cout << "Process " << world_comm_rank << " has aggregate with hashes (" << aggregate_channel_map[hash_scratch]->local_hash_tag << " " << aggregate_channel_map[hash_scratch]->global_hash_tag << "), num_channels - " << aggregate_channel_map[hash_scratch]->num_channels << " and is_final - " << aggregate_channel_map[hash_scratch]->is_final << std::endl;
-        }
-        if (aggregate_channel_map[hash_scratch]->is_final){
-          if (world_comm_rank == 8){
-            std::cout << "Process " << world_comm_rank << " shut down aggregate with hashes (" << aggregate_channel_map[hash_scratch]->local_hash_tag << " " << aggregate_channel_map[hash_scratch]->global_hash_tag << "), num_channels - " << aggregate_channel_map[hash_scratch]->num_channels << std::endl;
-          }
-          aggregate_channel_map[hash_scratch]->is_final=false;
-        }
-      }
-    }
-*/
   }
-/*
-  // debug
-  for (auto it : aggregate_channel_map){
-    if (world_comm_rank == 8){
-      std::cout << "AFTER ****Aggregate with hashes (" << it.second->local_hash_tag << " " << it.second->global_hash_tag << "), num_channels - " << it.second->num_channels << " has state - " << it.second->is_final << std::endl;
-    }
-  }
-*/
   PMPI_Barrier(oldcomm);
   computation_timer = MPI_Wtime();
 }
@@ -209,6 +172,9 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   intercept_overhead[0] += MPI_Wtime() - overhead_start_time;
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
+  // debug
+  if (pattern_error_limit==0.0) assert(schedule_decision);
+  if (tuning_delta==2) assert(schedule_decision);
   return schedule_decision;
 }
 
@@ -440,58 +406,21 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     if (comm_pattern_map.find(key) != comm_pattern_map.end()){
       if (!schedule_decision){
         if (should_schedule(comm_pattern_map[key])){
-/*
-          // Enter here if a process's local comm kernel is not globally steady, yet its found that at least one of the processors in its communicator is.
-          // Completely swap out its pattern statistics for the elements reduced. Note that I am avoiding an extra broadcast, thus the reduced members might
-          //   each be from different processors. Likely though, just one is globally steady.
-          active_patterns[comm_pattern_map[key].val_index].hash_id = reduced_info[7];
-          active_patterns[comm_pattern_map[key].val_index].num_schedules = reduced_info[8];
-          active_patterns[comm_pattern_map[key].val_index].num_local_schedules = reduced_info[9];
-          active_patterns[comm_pattern_map[key].val_index].num_scheduled_units = reduced_info[10];
-          active_patterns[comm_pattern_map[key].val_index].num_local_scheduled_units = reduced_info[11];
-          active_patterns[comm_pattern_map[key].val_index].M1 = reduced_info[12];
-          active_patterns[comm_pattern_map[key].val_index].M2 = reduced_info[13];
-          active_patterns[comm_pattern_map[key].val_index].total_exec_time = reduced_info[14];
-          active_patterns[comm_pattern_map[key].val_index].total_local_exec_time  = reduced_info[15];
-*/
+          if (comm_kernel_transfer_id == 1){
+            // Enter here if a process's local comm kernel is not globally steady, yet its found that at least one of the processors in its communicator is.
+            // Completely swap out its pattern statistics for the elements reduced. Note that I am avoiding an extra broadcast, thus the reduced members might
+            //   each be from different processors. Likely though, just one is globally steady.
+            active_patterns[comm_pattern_map[key].val_index].hash_id = reduced_info[7];
+            active_patterns[comm_pattern_map[key].val_index].num_schedules = reduced_info[8];
+            active_patterns[comm_pattern_map[key].val_index].num_local_schedules = reduced_info[9];
+            active_patterns[comm_pattern_map[key].val_index].num_scheduled_units = reduced_info[10];
+            active_patterns[comm_pattern_map[key].val_index].num_local_scheduled_units = reduced_info[11];
+            active_patterns[comm_pattern_map[key].val_index].M1 = reduced_info[12];
+            active_patterns[comm_pattern_map[key].val_index].M2 = reduced_info[13];
+            active_patterns[comm_pattern_map[key].val_index].total_exec_time = reduced_info[14];
+            active_patterns[comm_pattern_map[key].val_index].total_local_exec_time  = reduced_info[15];
+          }
         }
-/*
-        // Special debug
-          //std::cout << "****** Rank " << world_rank << " has shut off key (" << key.tag << " " << key.dim_sizes[0] << " " << key.dim_strides[0] << " " << key.msg_size << ") after " << active_patterns[comm_pattern_map[key].val_index].num_schedules << " at bsp step " << bsp_counter << std::endl;
-        if (key.tag==1 && key.dim_sizes[0]==8 && key.dim_strides[0]==8){
-//          std::cout << "rank " << world_rank << ": bcast along rows with msg size " << key.msg_size << " at bsp step " << bsp_counter
-//                    << " with hash_id - " << active_patterns[comm_pattern_map[key].val_index].hash_id << " across " << active_patterns[comm_pattern_map[key].val_index].registered_channels.size() << " and decision " << should_schedule(comm_pattern_map[key]) <<  std::endl;
-          int temp1; int temp2; int temp3; int temp4;
-          PMPI_Allreduce(&reduced_info[4],&temp3,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-          PMPI_Allreduce(&reduced_info[4],&temp4,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
-          PMPI_Allreduce(&bsp_counter,&temp1,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-          PMPI_Allreduce(&bsp_counter,&temp2,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
-          if (temp1 != temp2) assert(0);
-          if (temp3 != temp4) assert(0);
-        }
-        if (key.tag==1 && key.dim_sizes[0]==8 && key.dim_strides[0]==64){
-//          std::cout << "rank " << world_rank << ": bcast along cols with msg size " << key.msg_size << " at bsp step " << bsp_counter
-//                    << " with hash_id - " << active_patterns[comm_pattern_map[key].val_index].hash_id << " across " << active_patterns[comm_pattern_map[key].val_index].registered_channels.size() << " and decision " << should_schedule(comm_pattern_map[key]) << std::endl;
-          int temp1; int temp2; int temp3; int temp4;
-          PMPI_Allreduce(&reduced_info[4],&temp3,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-          PMPI_Allreduce(&reduced_info[4],&temp4,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
-          PMPI_Allreduce(&bsp_counter,&temp1,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-          PMPI_Allreduce(&bsp_counter,&temp2,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
-          if (temp1 != temp2) assert(0);
-          if (temp3 != temp4) assert(0);
-        }
-        if (key.tag==3 && key.dim_sizes[0]==8 && key.dim_strides[0]==1){
-//          std::cout << "rank " << world_rank << ": reduce along depth with msg size " << key.msg_size << " at bsp step " << bsp_counter
-//                    << " with hash_id - " << active_patterns[comm_pattern_map[key].val_index].hash_id << " across " << active_patterns[comm_pattern_map[key].val_index].registered_channels.size() << " and decision " << should_schedule(comm_pattern_map[key]) << std::endl;
-          int temp1; int temp2; int temp3; int temp4;
-          PMPI_Allreduce(&reduced_info[4],&temp3,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-          PMPI_Allreduce(&reduced_info[4],&temp4,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
-          PMPI_Allreduce(&bsp_counter,&temp1,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD);
-          PMPI_Allreduce(&bsp_counter,&temp2,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD);
-          if (temp1 != temp2) assert(0);
-          if (temp3 != temp4) assert(0);
-        }
-*/
         set_kernel_state(comm_pattern_map[key],false);
         set_kernel_state_global(comm_pattern_map[key],false);
       }
@@ -512,7 +441,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       if (comm_pattern_map.find(key) != comm_pattern_map.end()){
         if (!schedule_decision){
           if (should_schedule(comm_pattern_map[key])){
-/*
             // Enter here if a process's local comm kernel is not globally steady, yet its found that at least one of the processors in its communicator is.
             // Completely swap out its pattern statistics for the elements reduced. Note that I am avoiding an extra broadcast, thus the reduced members might
             //   each be from different processors. Likely though, just one is globally steady.
@@ -525,7 +453,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
             active_patterns[comm_pattern_map[key].val_index].M2 = reduced_info_foreign[13];
             active_patterns[comm_pattern_map[key].val_index].total_exec_time = reduced_info_foreign[14];
             active_patterns[comm_pattern_map[key].val_index].total_local_exec_time  = reduced_info_foreign[15];
-*/
           }
           set_kernel_state(comm_pattern_map[key],false);
           set_kernel_state_global(comm_pattern_map[key],false);
@@ -556,6 +483,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   intercept_overhead[1] += MPI_Wtime() - overhead_start_time;
+  // debug
+  if (pattern_error_limit==0.0) assert(schedule_decision);
+  if (tuning_delta==1) assert(schedule_decision);
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
   return schedule_decision;
@@ -804,7 +734,12 @@ void path::state_aggregation(blocking& tracker){
   for (auto i=0; i<tracker.save_comm_key.size(); i++){
     auto& key = tracker.save_comm_key[i];
     if (comm_pattern_map.find(key) != comm_pattern_map.end()){
-      active_patterns[comm_pattern_map[key].val_index].hash_id = foreign_active_patterns[i].hash_id;
+      if (comm_kernel_transfer_id==0){
+        active_patterns[comm_pattern_map[key].val_index].hash_id = foreign_active_patterns[i].hash_id;
+      }
+      else if (comm_kernel_transfer_id==1){
+        active_patterns[comm_pattern_map[key].val_index] = foreign_active_patterns[i];
+      }
     } else{
       // Add new entry.
       active_comm_pattern_keys.push_back(key);

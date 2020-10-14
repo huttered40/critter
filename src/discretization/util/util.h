@@ -201,6 +201,8 @@ extern MPI_Datatype batch_type;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
+extern int comm_kernel_transfer_id;
+extern int comp_kernel_buffer_id;
 extern int communicator_count;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
