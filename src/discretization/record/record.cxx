@@ -136,7 +136,6 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
 
   double _wall_time = wall_timer[wall_timer.size()-1];
-  //if (print_mode==1){ _wall_time = MPI_Wtime() - _wall_time; }
   _wall_time -= overhead_time;
   PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 

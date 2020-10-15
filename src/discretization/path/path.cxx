@@ -580,6 +580,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     } else{
       bool is_steady = steady_test(key,comm_pattern_map[key],comm_analysis_param);
       set_kernel_state(comm_pattern_map[key],!is_steady);
+      if (sample_constraint_mode == -1) set_kernel_state_global(comm_pattern_map[key],!is_steady);// Force global state to steady.
       // The line below will force p2ps to change from unsteady to globally steady immediately, thus preventing need to aggregate.
       // We can allow this temporarily, but cannot allow this for collectives.
       if (tracker.partner1 != -1) set_kernel_state_global(comm_pattern_map[key],!is_steady);

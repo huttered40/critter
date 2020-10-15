@@ -912,8 +912,6 @@ intermediate_stats::intermediate_stats(const pattern_key_id& index, const std::v
 }
 
 bool is_key_skipable(const comm_pattern_key& key){
-  // For now, only barriers cannot be skipped
-  if (key.tag == 0){ return false; }
   return true;
 }
 bool is_key_skipable(const comp_pattern_key& key){
@@ -1168,19 +1166,19 @@ double get_confidence_interval(const intermediate_stats& p, int analysis_param, 
 }
 
 bool is_steady(const pattern& p, int analysis_param){
-  if (sample_constraint_mode==-1) return true;
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
   return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < pattern_error_limit) &&
           (p.num_schedules >= pattern_count_limit) &&
           (p.total_exec_time >= pattern_time_limit);
 }
 bool is_steady(const pattern_key_id& index, int analysis_param){
-  if (sample_constraint_mode==-1) return true;
+  if (sample_constraint_mode==-1) { assert(active_patterns[index.val_index].num_schedules < 2); return true; }
   return ((get_confidence_interval(index,analysis_param) / get_estimate(index,analysis_param)) < pattern_error_limit) &&
           (active_patterns[index.val_index].num_schedules >= pattern_count_limit) &&
           (active_patterns[index.val_index].total_exec_time >= pattern_time_limit);
 }
 bool is_steady(const intermediate_stats& p, int analysis_param){
-  if (sample_constraint_mode==-1) return true;
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
   return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < pattern_error_limit) &&
           (p.num_schedules >= pattern_count_limit) &&
           (p.total_exec_time >= pattern_time_limit);
@@ -1206,7 +1204,9 @@ bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (comm_sample_aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){ return is_steady(index,analysis_param); }
+  if (comm_sample_aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){
+    return is_steady(index,analysis_param);
+  }
   else if (comm_sample_aggregation_mode == 1){
     //TODO: We may not want to allow this
     auto& active_batches = comm_batch_map[key];
@@ -1220,7 +1220,9 @@ bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_par
 }
 bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (comp_sample_aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){ return is_steady(index,analysis_param); }
+  if (comp_sample_aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){
+    return is_steady(index,analysis_param);
+  }
   else if (comp_sample_aggregation_mode == 1){
     //TODO: We may not want to allow this
     auto& active_batches = comp_batch_map[key];
@@ -1309,13 +1311,6 @@ void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile doub
   if (exec_time == 0) { exec_time=1.e-9; }
   batch.num_schedules++;
   batch.num_local_schedules++;
-/*
-  // debug
-  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (world_rank == 0 && batch.num_local_schedules > 1){
-    std::cout << "Rank 0 is registering a local batch size of " << batch.num_local_schedules << std::endl;
-  }
-*/
   batch.num_scheduled_units += unit_count;
   batch.num_local_scheduled_units += unit_count;
   batch.total_exec_time += exec_time;
@@ -1384,23 +1379,23 @@ int should_schedule(const pattern_key_id& index){
 
 void set_kernel_state(pattern& p, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (p.steady_state) return;// Don't allow a kernel to go from steady back to unsteady
+  if (p.steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
   p.steady_state = (schedule_decision==true ? 0 : 1);
 }
 void set_kernel_state(const pattern_key_id& index, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (active_patterns[index.val_index].steady_state) return;// Don't allow a kernel to go from steady back to unsteady
+  if (active_patterns[index.val_index].steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
   active_patterns[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
 }
 
 void set_kernel_state_global(pattern& p, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (p.global_steady_state) return;// Don't allow a kernel to go from steady back to unsteady
+  if (p.global_steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
   p.global_steady_state = (schedule_decision==true ? 0 : 1);
 }
 void set_kernel_state_global(const pattern_key_id& index, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (active_patterns[index.val_index].global_steady_state) return;// Don't allow a kernel to go from steady back to unsteady
+  if (active_patterns[index.val_index].global_steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
   active_patterns[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
 }
 
