@@ -207,12 +207,6 @@ void pattern::reset(){
   // No reason to reset distribution members ('M1','M2','steady_state','global_steady_state')
   // Do not reset the schedule_count members because those are needed to determine sample variance,
   //   which builds across schedules.
-  if (this->steady_state && !this->global_steady_state){
-    // If a kernel was locally steady, but did not complete to global steady, must reset,
-    //   because the std_error will change as the number of schedules must be reset for each new
-    //     execution path.
-    this->steady_state=false;
-  }
   this->total_exec_time = 0;
   this->total_local_exec_time = 0;
   this->num_scheduled_units = 0;
@@ -221,6 +215,8 @@ void pattern::reset(){
 }
 void pattern::clear_distribution(){
   // All other members would have already been reset (via 'reset' above)
+  this->steady_state = false;
+  this->global_steady_state = false;
   this->num_schedules = 0;
   this->num_local_schedules=0;
   this->num_non_schedules = 0;
@@ -1423,6 +1419,7 @@ void merge_batches(std::vector<pattern_batch>& batches, int analysis_param){
   }
 }
 
+
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
@@ -1661,10 +1658,18 @@ void final_accumulate(MPI_Comm comm, double last_time){
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
   volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update per-process execution time
 
-  double temp_costs[4+4+3+8+8];
-  for (int i=0; i<16; i++){ temp_costs[11+i]=0; }
+  double temp_costs[4+4+3+8+8+2];
+  for (int i=0; i<18; i++){ temp_costs[11+i]=0; }
 
+  discretization::_MPI_Barrier.comm = MPI_COMM_WORLD;
+  discretization::_MPI_Barrier.save_comp_key.clear();
+  discretization::_MPI_Barrier.save_comm_key.clear();
   for (auto& it : comp_pattern_map){
+    if ((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
+      discretization::_MPI_Barrier.save_comp_key.push_back(it.first);
+      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]++;
+    }
+
     temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3] += active_patterns[it.second.val_index].num_schedules;
     temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4] += active_patterns[it.second.val_index].num_local_schedules;
     temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5] += active_patterns[it.second.val_index].num_non_schedules;
@@ -1683,6 +1688,11 @@ void final_accumulate(MPI_Comm comm, double last_time){
     }
   }
   for (auto& it : comm_pattern_map){
+    if ((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
+      discretization::_MPI_Barrier.save_comm_key.push_back(it.first);
+      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]++;
+    }
+
     temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11] += active_patterns[it.second.val_index].num_schedules;
     temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12] += active_patterns[it.second.val_index].num_local_schedules;
     temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13] += active_patterns[it.second.val_index].num_non_schedules;
@@ -1707,7 +1717,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()] = intercept_overhead[0];
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1] = intercept_overhead[1];
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2] = intercept_overhead[2];
-  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],4+4+3+8+8,MPI_DOUBLE,MPI_MAX,comm);
+  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],4+4+3+8+8+2,MPI_DOUBLE,MPI_MAX,comm);
   for (auto i=0; i<critical_path_costs.size(); i++) critical_path_costs[i] = temp_costs[i];
   for (auto i=0; i<max_per_process_costs.size(); i++) max_per_process_costs[i] = temp_costs[critical_path_costs.size()+i];
   global_intercept_overhead[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()];
@@ -1730,6 +1740,9 @@ void final_accumulate(MPI_Comm comm, double last_time){
   global_comm_kernel_stats[6] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17];
   global_comm_kernel_stats[7] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18];
   PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
+  discretization::_MPI_Barrier.aggregate_comp_patterns = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]>0;
+  discretization::_MPI_Barrier.aggregate_comm_patterns = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]>0;
+  discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_patterns>0 || discretization::_MPI_Barrier.aggregate_comm_patterns>0;
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
@@ -1786,7 +1799,7 @@ void clear(){
       active_patterns[it.second.val_index].clear_distribution();
     }
     else if (autotuning_schedule_tag=="cholinv"){
-      if (clear_counter == 10){
+      if (clear_counter %5 == 0){
         if (it.first.tag == 200){
           active_patterns[it.second.val_index].clear_distribution();
         }

@@ -374,21 +374,34 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   if ((tracker.partner1 == -1) && (comp_state_aggregation_mode>0)){
     for (auto& it : comp_pattern_map){
       if (!((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1))) continue;
-      if (active_patterns[it.second.val_index].registered_channels.find(comm_channel_map[tracker.comm]) != active_patterns[it.second.val_index].registered_channels.end()) continue;
-      // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
-      if (aggregate_channel_map.find(active_patterns[it.second.val_index].hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
-      tracker.save_comp_key.push_back(it.first);
-      reduced_info[5]++;
+      // Any global communicator can fast-track a communication kernel to being in global steady state. No need to match up hashes (that would only be necessary for sample aggregation)
+      if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
+        tracker.save_comp_key.push_back(it.first);
+        reduced_info[5]++;
+      }
+      else{
+        if (active_patterns[it.second.val_index].registered_channels.find(comm_channel_map[tracker.comm]) != active_patterns[it.second.val_index].registered_channels.end()) continue;
+        // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
+        if (aggregate_channel_map.find(active_patterns[it.second.val_index].hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
+        tracker.save_comp_key.push_back(it.first);
+        reduced_info[5]++;
+      }
     }
   }
   if ((tracker.partner1 == -1) && (comm_state_aggregation_mode>0)){
     for (auto& it : comm_pattern_map){
       if (!((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1))) continue;
-      if (active_patterns[it.second.val_index].registered_channels.find(comm_channel_map[tracker.comm]) != active_patterns[it.second.val_index].registered_channels.end()) continue;
-      // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
-      if (aggregate_channel_map.find(active_patterns[it.second.val_index].hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
-      tracker.save_comm_key.push_back(it.first);
-      reduced_info[6]++;
+      if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
+        tracker.save_comm_key.push_back(it.first);
+        reduced_info[6]++;
+      }
+      else{
+        if (active_patterns[it.second.val_index].registered_channels.find(comm_channel_map[tracker.comm]) != active_patterns[it.second.val_index].registered_channels.end()) continue;
+        // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
+        if (aggregate_channel_map.find(active_patterns[it.second.val_index].hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
+        tracker.save_comm_key.push_back(it.first);
+        reduced_info[6]++;
+      }
     }
   }
 
@@ -626,6 +639,9 @@ void path::complete_comm(blocking& tracker, int recv_source){
     MPI_Buffer_detach(&temp_buf,&temp_size);
   }
 
+  tracker.should_propagate = false;
+  tracker.aggregate_comp_patterns = false;
+  tracker.aggregate_comm_patterns = false;
   bsp_counter++;
   intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
   // Prepare to leave interception and re-enter user code by restarting computation timers.
@@ -751,11 +767,20 @@ void path::state_aggregation(blocking& tracker){
     if (comm_state_aggregation_mode==1){
       set_kernel_state_global(comm_pattern_map[key],false);
     } else if (comm_state_aggregation_mode==2){
-      active_patterns[comm_pattern_map[key].val_index].hash_id ^= aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
-      active_patterns[comm_pattern_map[key].val_index].registered_channels.insert(comm_channel_map[tracker.comm]);// Add the solo channel, not the aggregate
-      assert(aggregate_channel_map.find(active_patterns[comm_pattern_map[key].val_index].hash_id) != aggregate_channel_map.end());
-      if (aggregate_channel_map[active_patterns[comm_pattern_map[key].val_index].hash_id]->is_final){
+      if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
+        active_patterns[comm_pattern_map[key].val_index].hash_id = aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
+        active_patterns[comm_pattern_map[key].val_index].registered_channels.clear();
+        active_patterns[comm_pattern_map[key].val_index].registered_channels.insert(comm_channel_map[tracker.comm]);// Add the solo channel, not the aggregate
+        assert(aggregate_channel_map.find(active_patterns[comm_pattern_map[key].val_index].hash_id) != aggregate_channel_map.end());
         set_kernel_state_global(comm_pattern_map[key],false);
+      }
+      else{
+        active_patterns[comm_pattern_map[key].val_index].hash_id ^= aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
+        active_patterns[comm_pattern_map[key].val_index].registered_channels.insert(comm_channel_map[tracker.comm]);// Add the solo channel, not the aggregate
+        assert(aggregate_channel_map.find(active_patterns[comm_pattern_map[key].val_index].hash_id) != aggregate_channel_map.end());
+        if (aggregate_channel_map[active_patterns[comm_pattern_map[key].val_index].hash_id]->is_final){
+          set_kernel_state_global(comm_pattern_map[key],false);
+        }
       }
     }
   }

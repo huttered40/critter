@@ -22,9 +22,10 @@ public:
   static void complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
   static void complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
 
+  static void state_aggregation(blocking& tracker);
+
 private:
   static void complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time);
-  static void state_aggregation(blocking& tracker);
   static void single_stage_sample_aggregation(blocking& tracker);
   static void multi_stage_sample_aggregation(blocking& tracker);
 };
