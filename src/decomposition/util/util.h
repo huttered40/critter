@@ -46,9 +46,8 @@ extern std::vector<double> symbol_timer_pad_global_vol;
 extern std::stack<std::string> symbol_stack;
 extern std::vector<std::string> symbol_order;
 extern std::vector<int> symbol_path_select_index;
-extern volatile double comm_intercept_overhead_stage1;
-extern volatile double comm_intercept_overhead_stage2;
-extern volatile double comp_intercept_overhead;
+extern std::vector<double> intercept_overhead;
+extern std::vector<double> global_intercept_overhead;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime

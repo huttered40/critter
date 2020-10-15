@@ -45,9 +45,8 @@ std::vector<double> symbol_timer_pad_global_vol;
 std::stack<std::string> symbol_stack;
 std::vector<std::string> symbol_order;
 std::vector<int> symbol_path_select_index;
-volatile double comm_intercept_overhead_stage1;
-volatile double comm_intercept_overhead_stage2;
-volatile double comp_intercept_overhead;
+std::vector<double> intercept_overhead;
+std::vector<double> global_intercept_overhead;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
@@ -169,6 +168,9 @@ void allocate(MPI_Comm comm){
   decisions.resize(comm_path_select_size);
   critical_path_costs.resize(critical_path_costs_size);
 
+  intercept_overhead.resize(3,0);
+  global_intercept_overhead.resize(3,0);
+
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
   new_cs.resize(critical_path_costs_size);
@@ -217,18 +219,17 @@ void reset(){
   }
 
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
+  save_info.clear();
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
   memset(&symbol_timer_pad_local_cp[0],0,sizeof(double)*symbol_timer_pad_local_cp.size());
   memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
+  memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
   internal::bsp_counter=0;
 
   wait_id=true;
-  comm_intercept_overhead_stage1=0;
-  comm_intercept_overhead_stage2=0;
-  comp_intercept_overhead=0;
 }
 
 void open_symbol(const char* symbol, double curtime){
