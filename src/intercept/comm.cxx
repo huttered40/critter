@@ -76,6 +76,10 @@ void _init(int* argc, char*** argv){
   mode=0;
   stack_id=0;
   delete_comm = 1;
+  schedule_tag="";
+  if (std::getenv("CRITTER_SCHEDULE_TAG") != NULL){
+    schedule_tag = std::getenv("CRITTER_SCHEDULE_TAG");
+  }
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
   } else{
@@ -169,8 +173,8 @@ void _init(int* argc, char*** argv){
 
   _CAPITAL_blktocyc__id = 200;
 
-  reset_counter++;
-  clear_counter++;
+  reset_counter = 0;
+  clear_counter = 0;
 
   mechanism=0;
   allocate(MPI_COMM_WORLD);

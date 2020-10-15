@@ -98,6 +98,8 @@ struct pattern_key_id{
 extern int bsp_counter;
 extern int reset_counter;
 extern int clear_counter;
+extern int communicator_count;
+extern std::string schedule_tag;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
 extern size_t auto_capture;
@@ -165,7 +167,50 @@ extern size_t
 	_LAPACK_tpmqrt__id;
 extern size_t
 	_CAPITAL_blktocyc__id;
-//extern std::map<std::pair<std::string,size_t>,bool> schedule_map;
+
+// ****************************************************************************************************************************************************
+struct channel{
+  channel();
+  static std::vector<std::pair<int,int>> generate_tuple(std::vector<int>& ranks, int new_comm_size);
+  static void contract_tuple(std::vector<std::pair<int,int>>& tuple_list);
+  static int enumerate_tuple(channel* node, std::vector<int>& process_list);
+  static int duplicate_process_count(std::vector<int>& process_list);
+  static int translate_rank(MPI_Comm comm, int rank);
+  static bool verify_ancestor_relation(channel* comm1, channel* comm2);
+  static bool verify_sibling_relation(channel* comm1, channel* comm2);
+  static int span(std::pair<int,int>& id);
+  static std::string generate_tuple_string(channel* comm);
+ 
+  int offset;
+  int local_hash_tag;
+  int global_hash_tag;
+  std::vector<std::pair<int,int>> id;
+};
+
+struct aggregate_channel : public channel{
+  aggregate_channel(std::vector<std::pair<int,int>>& tuple_list, int local_hash, int global_hash, int offset, int channel_size);
+  static std::string generate_hash_history(aggregate_channel* comm);
+
+  bool is_final;
+  int num_channels;
+  std::set<int> channels;
+};
+
+struct solo_channel : public channel{
+  solo_channel();
+  static bool verify_sibling_relation(solo_channel* node, int subtree_idx, std::vector<int>& skip_indices);
+
+  int tag;
+  int frequency;
+  solo_channel* parent;
+  std::vector<std::vector<solo_channel*>> children;
+};
+
+extern std::map<MPI_Comm,solo_channel*> comm_channel_map;
+extern std::map<int,solo_channel*> p2p_channel_map;
+extern std::map<int,aggregate_channel*> aggregate_channel_map;
+
+void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm);
 
 }
 }

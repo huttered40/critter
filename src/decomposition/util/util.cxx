@@ -1,3 +1,5 @@
+#include <limits.h>
+
 #include "util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
@@ -6,6 +8,12 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
+int replace_comp;
+int replace_comm;
+std::map<comp_pattern_key,std::pair<int,double>> replace_comp_map_local;
+std::map<comm_pattern_key,std::pair<int,double>> replace_comm_map_local;
+std::map<comp_pattern_key,std::pair<int,double>> replace_comp_map_global;
+std::map<comm_pattern_key,std::pair<int,double>> replace_comm_map_global;
 std::ofstream stream;
 bool wait_id;
 int internal_tag;
@@ -97,6 +105,16 @@ void allocate(MPI_Comm comm){
   internal_tag5 = internal_tag+5;
   is_first_iter = true;
 
+  if (std::getenv("CRITTER_DECOMPOSITION_COMP_REPLACE") != NULL){
+    replace_comp = atoi(std::getenv("CRITTER_DECOMPOSITION_COMP_REPLACE"));
+  } else{
+    replace_comp = 0;
+  }
+  if (std::getenv("CRITTER_DECOMPOSITION_COMM_REPLACE") != NULL){
+    replace_comm = atoi(std::getenv("CRITTER_DECOMPOSITION_COMM_REPLACE"));
+  } else{
+    replace_comm = 0;
+  }
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
   } else{
@@ -171,6 +189,9 @@ void allocate(MPI_Comm comm){
   intercept_overhead.resize(3,0);
   global_intercept_overhead.resize(3,0);
 
+  replace_comp_map_global.clear();
+  replace_comm_map_global.clear();
+
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
   new_cs.resize(critical_path_costs_size);
@@ -212,6 +233,7 @@ void allocate(MPI_Comm comm){
 
 void reset(){
   assert(internal_comm_info.size() == 0);
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{
@@ -228,6 +250,60 @@ void reset(){
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
   internal::bsp_counter=0;
+  replace_comp_map_local.clear();
+  replace_comm_map_local.clear();
+
+  for (auto it = replace_comp_map_global.begin(); it != replace_comp_map_global.end();){
+    if (schedule_tag==""){
+      it = replace_comp_map_global.erase(it);
+    }
+    else if (schedule_tag=="cholinv"){
+      bool is_match = false;
+      if (clear_counter % 5 == 0){
+        if (it->first.tag == 101){// potrf
+          it = replace_comp_map_global.erase(it);
+          is_match = true;
+        }
+        else if (it->first.tag == 102){// trtri
+          it = replace_comp_map_global.erase(it);
+          is_match = true;
+        }
+        else if (it->first.tag == 200){// blk-to-cyc
+          it = replace_comp_map_global.erase(it);
+          is_match = true;
+        }
+      }
+      if (!is_match) it++;
+    }
+    else if (schedule_tag=="caqr_level1pipe"){
+      //No-op (for now, unless necessary)
+    }
+    else{
+      it++;
+    }
+  }
+  for (auto it = replace_comm_map_global.begin(); it != replace_comm_map_global.end();){
+    if (schedule_tag==""){
+      it = replace_comm_map_global.erase(it);
+    }
+    else if (schedule_tag=="cholinv"){
+      bool is_match = false;
+      assert(world_size==512);// change the below to fit other process counts later
+      if (clear_counter == 10){
+        if ((it->first.tag == 5) && (it->first.dim_sizes[0] == 64) && (it->first.dim_strides[0]==8) && (it->first.partner_offset == INT_MIN)){
+          it = replace_comm_map_global.erase(it);
+          is_match = true;
+        }
+      }
+      if (!is_match) it++;
+    }
+    else if (schedule_tag=="caqr_level1pipe"){
+      //No-op (for now, unless necessary)
+    }
+    else{
+      it++;
+    }
+  }
 
   wait_id=true;
 }
@@ -261,6 +337,15 @@ void final_accumulate(MPI_Comm comm, double last_time){
   // TODO: Why don't I apply the same update to max_per_process_costs?
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
   wait_id=false;
+
+  for (auto it : replace_comp_map_local){
+    replace_comp_map_global[it.first] = it.second;
+    replace_comp_map_global[it.first].second /= replace_comp_map_global[it.first].first;
+  }
+  for (auto it : replace_comm_map_local){
+    replace_comm_map_global[it.first] = it.second;
+    replace_comm_map_global[it.first].second /= replace_comm_map_global[it.first].first;
+  }
 }
 
 

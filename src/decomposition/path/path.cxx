@@ -9,7 +9,19 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
-void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){}
+void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
+  // Save and accumulate the computation time between last communication routine as both execution-time and computation time
+  //   into both the execution-time critical path data structures and the per-process data structures.
+  double save_comp_time = MPI_Wtime() - computation_timer;
+  critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
+  critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
+  volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
+  volume_costs[num_volume_measures-3]        += save_comp_time;		// update local computation time
+
+  generate_aggregate_channels(oldcomm,newcomm);
+  PMPI_Barrier(oldcomm);
+  computation_timer = MPI_Wtime();
+}
 
 bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // accumulate computation time
@@ -44,6 +56,21 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 
 void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
+
+  if (replace_comp == 1){
+    comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+    if (replace_comp_map_global.find(key) == replace_comp_map_global.end()){
+      if (replace_comp_map_local.find(key) == replace_comp_map_local.end()){
+        replace_comp_map_local[key] = std::make_pair(1,comp_time);
+      } else{
+        replace_comp_map_local[key].first++;
+        replace_comp_map_local[key].second += comp_time;
+      }
+    }
+    else{
+      comp_time = replace_comp_map_global[key].second;
+    }
+  }
 
   // Decompose measurements along multiple paths by symbol
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
@@ -415,6 +442,29 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 // Used only for p2p communication. All blocking collectives use sychronous protocol
 void path::complete_comm(blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
+  int rank; MPI_Comm_rank(tracker.comm, &rank);
+
+  if (replace_comm == 1){
+    assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
+    int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
+    for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
+      comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
+      comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
+    }
+    comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+    if (replace_comm_map_global.find(key) == replace_comm_map_global.end()){
+      if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
+        replace_comm_map_local[key] = std::make_pair(1,comm_time);
+      } else{
+        replace_comm_map_local[key].first++;
+        replace_comm_map_local[key].second += comm_time;
+      }
+    }
+    else{
+      comm_time = replace_comm_map_global[key].second;
+    }
+  }
+
   std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
   std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
   std::vector<std::pair<double,double>> costs = {cost_bsp,cost_alphabeta};

@@ -10,43 +10,6 @@ namespace discretization{
 struct pattern_batch;
 struct pattern_propagate;
 
-// ****************************************************************************************************************************************************
-struct channel{
-  channel();
-  static std::vector<std::pair<int,int>> generate_tuple(std::vector<int>& ranks, int new_comm_size);
-  static void contract_tuple(std::vector<std::pair<int,int>>& tuple_list);
-  static int enumerate_tuple(channel* node, std::vector<int>& process_list);
-  static int duplicate_process_count(std::vector<int>& process_list);
-  static int translate_rank(MPI_Comm comm, int rank);
-  static bool verify_ancestor_relation(channel* comm1, channel* comm2);
-  static bool verify_sibling_relation(channel* comm1, channel* comm2);
-  static int span(std::pair<int,int>& id);
-  static std::string generate_tuple_string(channel* comm);
- 
-  int offset;
-  int local_hash_tag;
-  int global_hash_tag;
-  std::vector<std::pair<int,int>> id;
-};
-
-struct aggregate_channel : public channel{
-  aggregate_channel(std::vector<std::pair<int,int>>& tuple_list, int local_hash, int global_hash, int offset, int channel_size);
-  static std::string generate_hash_history(aggregate_channel* comm);
-
-  bool is_final;
-  int num_channels;
-  std::set<int> channels;
-};
-
-struct solo_channel : public channel{
-  solo_channel();
-  static bool verify_sibling_relation(solo_channel* node, int subtree_idx, std::vector<int>& skip_indices);
-
-  int tag;
-  int frequency;
-  solo_channel* parent;
-  std::vector<std::vector<solo_channel*>> children;
-};
 
 struct sample_propagation_tree{
  solo_channel* root;
@@ -193,7 +156,6 @@ extern int sample_constraint_mode;
 extern int schedule_kernels;
 extern int update_analysis;
 extern int autotuning_test_id;
-extern std::string autotuning_schedule_tag;
 extern MPI_Datatype comm_pattern_key_type;
 extern MPI_Datatype comp_pattern_key_type;
 extern MPI_Datatype pattern_type;
@@ -203,18 +165,14 @@ extern double pattern_time_limit;
 extern double pattern_error_limit;
 extern int comm_kernel_transfer_id;
 extern int comp_kernel_buffer_id;
-extern int communicator_count;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
 extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
 extern std::vector<comm_pattern_key> active_comm_pattern_keys;
 extern std::vector<comp_pattern_key> active_comp_pattern_keys;
 extern std::vector<pattern> active_patterns;
 extern sample_propagation_forest spf;
-extern std::map<MPI_Comm,solo_channel*> comm_channel_map;
-extern std::map<int,solo_channel*> p2p_channel_map;
 extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
-extern std::map<int,aggregate_channel*> aggregate_channel_map;
 extern std::ofstream stream_tune,stream_reconstruct;
 extern std::vector<double> intercept_overhead;
 extern std::vector<double> global_intercept_overhead;

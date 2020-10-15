@@ -7,6 +7,12 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
+extern int replace_comp;
+extern int replace_comm;
+extern std::map<comp_pattern_key,std::pair<int,double>> replace_comp_map_local;
+extern std::map<comm_pattern_key,std::pair<int,double>> replace_comm_map_local;
+extern std::map<comp_pattern_key,std::pair<int,double>> replace_comp_map_global;
+extern std::map<comm_pattern_key,std::pair<int,double>> replace_comm_map_global;
 extern std::ofstream stream;
 extern bool wait_id;
 extern size_t mode_1_width;
