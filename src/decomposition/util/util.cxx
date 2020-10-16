@@ -303,6 +303,7 @@ void reset(){
     }
     else if (schedule_tag=="caqr_level1pipe"){
       //No-op (for now, unless necessary)
+      it++;
     }
     else{
       it++;
@@ -325,6 +326,7 @@ void reset(){
     }
     else if (schedule_tag=="caqr_level1pipe"){
       //No-op (for now, unless necessary)
+      it++;
     }
     else{
       it++;

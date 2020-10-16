@@ -208,7 +208,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
         std::string global_channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
         node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);
         node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);
-        spf.insert_node(node);
+        //spf.insert_node(node);
         p2p_channel_map[world_partner_rank] = node;
         // Build up aggregates: DO NOT ADD THE P2P CHANNEL ALONE
         // This channel is basically going to be defunct: lots of logic is pulled out because, for now at least, an aggregate with a p2p channel embedded
