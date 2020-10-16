@@ -1,6 +1,7 @@
 #include <limits.h>
 
 #include "util.h"
+#include "../../discretization/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
 
@@ -250,8 +251,33 @@ void reset(){
   memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
   internal::bsp_counter=0;
-  replace_comp_map_local.clear();
-  replace_comm_map_local.clear();
+
+  for (auto it = replace_comp_map_local.begin(); it != replace_comp_map_local.end();){
+    // Check if the corresponding key in discretization mechanism has reached steady state
+    bool is_match = false;
+    if (discretization::comp_pattern_map.find(it->first) != discretization::comp_pattern_map.end()){
+      if (discretization::active_patterns[discretization::comp_pattern_map[it->first].val_index].global_steady_state == 1){
+        replace_comp_map_global[it->first] = it->second;
+        replace_comp_map_global[it->first].second /= replace_comp_map_global[it->first].first;
+        it = replace_comp_map_local.erase(it);
+        is_match = true;
+      }
+    }
+    if (!is_match) it++;
+  }
+  for (auto it = replace_comm_map_local.begin(); it != replace_comm_map_local.end();){
+    // Check if the corresponding key in discretization mechanism has reached steady state
+    bool is_match = false;
+    if (discretization::comm_pattern_map.find(it->first) != discretization::comm_pattern_map.end()){
+      if (discretization::active_patterns[discretization::comm_pattern_map[it->first].val_index].global_steady_state == 1){
+        replace_comm_map_global[it->first] = it->second;
+        replace_comm_map_global[it->first].second /= replace_comm_map_global[it->first].first;
+        it = replace_comm_map_local.erase(it);
+        is_match = true;
+      }
+    }
+    if (!is_match) it++;
+  }
 
   for (auto it = replace_comp_map_global.begin(); it != replace_comp_map_global.end();){
     if (schedule_tag==""){
@@ -337,15 +363,6 @@ void final_accumulate(MPI_Comm comm, double last_time){
   // TODO: Why don't I apply the same update to max_per_process_costs?
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
   wait_id=false;
-
-  for (auto it : replace_comp_map_local){
-    replace_comp_map_global[it.first] = it.second;
-    replace_comp_map_global[it.first].second /= replace_comp_map_global[it.first].first;
-  }
-  for (auto it : replace_comm_map_local){
-    replace_comm_map_global[it.first] = it.second;
-    replace_comm_map_global[it.first].second /= replace_comm_map_global[it.first].first;
-  }
 }
 
 
