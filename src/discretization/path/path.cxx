@@ -204,49 +204,47 @@ bool path::initiate_comm(std::vector<intptr_t>& user_msg, blocking& tracker, vol
     }
   }
   // Register the p2p channel
-  if (comm_state_aggregation_mode >= 1){
-    if (tracker.partner1 != -1){// p2p
-      int my_world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_world_rank);
-      auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
-      if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
-        solo_channel* node = new solo_channel();
-        node->tag = world_partner_rank;//key.partner_offset;
-        node->offset = std::min(my_world_rank,world_partner_rank);
-        node->id.push_back(std::make_pair(2,abs(my_world_rank-world_partner_rank)));
-        std::string local_channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
-        std::string global_channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
-        node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);
-        node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);
-        //spf.insert_node(node);
-        p2p_channel_map[world_partner_rank] = node;
-        // Build up aggregates: DO NOT ADD THE P2P CHANNEL ALONE
-        // This channel is basically going to be defunct: lots of logic is pulled out because, for now at least, an aggregate with a p2p channel embedded
-        //   cannot add another p2p channel. This holds for single-stage aggregation, but not sure if it does for multi-stage aggregation
-        // Check if 'node' is a sibling of all existing aggregates already formed. Note that we do not include p2p aggregates, nor p2p+comm aggregates.
-        // Note this loop assumes that the local_hash_tags of each aggregate across new_comm are in the same sorted order (hence the assert below)
-        for (auto& it : aggregate_channel_map){
-          if (it.second->offset == -1) continue; // For now at least, p2p channels cannot form aggregates with aggregates already built with a p2p channel on top.
-          // 0. Check that each process in newcomm is processing the same aggregate -------> SKIP
-          // 1. Check if 'node' is a child of 'aggregate'
-          bool is_child_1 = channel::verify_ancestor_relation(it.second,node);
-          // 2. Check if 'aggregate' is a child of 'node'
-          bool is_child_2 = channel::verify_ancestor_relation(node,it.second);
-          // 3. Check if 'node'+'aggregate' form a sibling
-          bool is_sibling = channel::verify_sibling_relation(it.second,node);
-          if (is_sibling && !is_child_1 && !is_child_2){
-            // DO NOT RESET If current aggregate forms a larger one with 'node', as we did when registering communicators
-            // it.second->is_final = false;
-            int new_local_hash_tag = it.second->local_hash_tag ^ node->local_hash_tag;
-            int new_global_hash_tag = it.second->global_hash_tag ^ node->global_hash_tag;
-            auto new_aggregate_channel = new aggregate_channel(it.second->id,new_local_hash_tag,new_global_hash_tag,0,it.second->num_channels+1);// '0' gets updated below
-            // Set the hashes of each communicator.
-            new_aggregate_channel->channels.insert(node->local_hash_tag);
-            for (auto it_2 : it.second->channels){
-              new_aggregate_channel->channels.insert(it_2);
-            }
-            // Do not communicate to attain the minimum offset of all process in newcomm's aggregate channel -> simply set offset to -1 to recognize an aggregate that is not to be built on top of.
-            new_aggregate_channel->offset = -1;
+  if (tracker.partner1 != -1){// p2p
+    int my_world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&my_world_rank);
+    auto world_partner_rank = channel::translate_rank(tracker.comm,tracker.partner1);
+    if (p2p_channel_map.find(world_partner_rank) == p2p_channel_map.end()){
+      solo_channel* node = new solo_channel();
+      node->tag = world_partner_rank;//key.partner_offset;
+      node->offset = std::min(my_world_rank,world_partner_rank);
+      node->id.push_back(std::make_pair(2,abs(my_world_rank-world_partner_rank)));
+      std::string local_channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
+      std::string global_channel_hash_str = ".." + std::to_string(node->id[0].first) + "." + std::to_string(node->id[0].second);
+      node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);
+      node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);
+      //spf.insert_node(node);
+      p2p_channel_map[world_partner_rank] = node;
+      // Build up aggregates: DO NOT ADD THE P2P CHANNEL ALONE
+      // This channel is basically going to be defunct: lots of logic is pulled out because, for now at least, an aggregate with a p2p channel embedded
+      //   cannot add another p2p channel. This holds for single-stage aggregation, but not sure if it does for multi-stage aggregation
+      // Check if 'node' is a sibling of all existing aggregates already formed. Note that we do not include p2p aggregates, nor p2p+comm aggregates.
+      // Note this loop assumes that the local_hash_tags of each aggregate across new_comm are in the same sorted order (hence the assert below)
+      for (auto& it : aggregate_channel_map){
+        if (it.second->offset == -1) continue; // For now at least, p2p channels cannot form aggregates with aggregates already built with a p2p channel on top.
+        // 0. Check that each process in newcomm is processing the same aggregate -------> SKIP
+        // 1. Check if 'node' is a child of 'aggregate'
+        bool is_child_1 = channel::verify_ancestor_relation(it.second,node);
+        // 2. Check if 'aggregate' is a child of 'node'
+        bool is_child_2 = channel::verify_ancestor_relation(node,it.second);
+        // 3. Check if 'node'+'aggregate' form a sibling
+        bool is_sibling = channel::verify_sibling_relation(it.second,node);
+        if (is_sibling && !is_child_1 && !is_child_2){
+          // DO NOT RESET If current aggregate forms a larger one with 'node', as we did when registering communicators
+          // it.second->is_final = false;
+          int new_local_hash_tag = it.second->local_hash_tag ^ node->local_hash_tag;
+          int new_global_hash_tag = it.second->global_hash_tag ^ node->global_hash_tag;
+          auto new_aggregate_channel = new aggregate_channel(it.second->id,new_local_hash_tag,new_global_hash_tag,0,it.second->num_channels+1);// '0' gets updated below
+          // Set the hashes of each communicator.
+          new_aggregate_channel->channels.insert(node->local_hash_tag);
+          for (auto it_2 : it.second->channels){
+            new_aggregate_channel->channels.insert(it_2);
           }
+          // Do not communicate to attain the minimum offset of all process in newcomm's aggregate channel -> simply set offset to -1 to recognize an aggregate that is not to be built on top of.
+          new_aggregate_channel->offset = -1;
         }
       }
     }
@@ -481,7 +479,7 @@ void path::complete_comm(std::vector<intptr_t>& user_msg, blocking& tracker, int
       if (sample_constraint_mode == -1) set_kernel_state_global(comm_pattern_map[key],!is_steady);// Force global state to steady.
       // The line below will force p2ps to change from unsteady to globally steady immediately, thus preventing need to aggregate.
       // We can allow this temporarily, but cannot allow this for collectives.
-      if (tracker.partner1 != -1) set_kernel_state_global(comm_pattern_map[key],!is_steady);
+      if ((tracker.partner1 != -1) || (comm_state_aggregation_mode == 0)) { set_kernel_state_global(comm_pattern_map[key],!is_steady); }
     }
   }
 
