@@ -25,6 +25,7 @@ MPI_Datatype batch_type;
 size_t pattern_count_limit;
 double pattern_time_limit;
 double pattern_error_limit;
+int comp_kernel_transfer_id;
 int comm_kernel_transfer_id;
 int comp_kernel_buffer_id;
 std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
@@ -35,6 +36,8 @@ std::vector<pattern> active_patterns;
 sample_propagation_forest spf;
 std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
+std::set<intptr_t> skip_ptr_set;
+
 std::ofstream stream,stream_tune,stream_reconstruct;
 std::vector<double> intercept_overhead;
 std::vector<double> global_intercept_overhead;
@@ -740,6 +743,7 @@ double get_std_dev(const intermediate_stats& p, int analysis_param){
   return pow(get_variance(p,analysis_param),1./2.);
 }
 
+// Standard error calculation takes into account execution path analysis
 double get_std_error(const pattern& p, int analysis_param){
   // returns standard error
   size_t n = 1;
@@ -756,7 +760,7 @@ double get_std_error(const pattern& p, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = p.num_schedules;
+      n = pow(p.num_local_schedules*1.,3./2.);
       break;
     case 2:
       n = p.num_schedules;
@@ -781,7 +785,7 @@ double get_std_error(const pattern_propagate& p, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = p.num_schedules;
+      n = pow(p.num_local_schedules*1.,3./2.);
       break;
     case 2:
       n = p.num_schedules;
@@ -806,7 +810,7 @@ double get_std_error(const pattern_key_id& index, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = active_patterns[index.val_index].num_schedules;
+      n = pow(active_patterns[index.val_index].num_local_schedules,3./2.);
       break;
     case 2:
       n = active_patterns[index.val_index].num_schedules;
@@ -831,7 +835,7 @@ double get_std_error(const intermediate_stats& p, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = p.num_schedules;
+      n = pow(p.num_local_schedules*1.,3./2.);
       break;
     case 2:
       n = p.num_schedules;
@@ -1240,7 +1244,7 @@ void allocate(MPI_Comm comm){
     comm_state_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMM_STATE_AGGREGATION_MODE"));
     assert(comm_state_aggregation_mode>=0 && comm_state_aggregation_mode<=2);
   } else{
-    comm_state_aggregation_mode = 2;
+    comm_state_aggregation_mode = 0;
   }
   if (std::getenv("CRITTER_AUTOTUNING_COMP_SAMPLE_AGGREGATION_MODE") != NULL){
     comp_sample_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMP_SAMPLE_AGGREGATION_MODE"));
@@ -1303,17 +1307,22 @@ void allocate(MPI_Comm comm){
   if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
     pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
   } else{
-    pattern_count_limit = 5;
+    pattern_count_limit = 2;
   }
   if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
     pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
   } else{
-    pattern_time_limit = .00000001;
+    pattern_time_limit = 0;
   }
   if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
     pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
   } else{
     pattern_error_limit = .5;
+  }
+  if (std::getenv("CRITTER_COMP_KERNEL_TRANSFER_ID") != NULL){
+    comp_kernel_transfer_id = atof(std::getenv("CRITTER_COMP_KERNEL_TRANSFER_ID"));
+  } else{
+    comp_kernel_transfer_id = 0;
   }
   if (std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID") != NULL){
     comm_kernel_transfer_id = atof(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID"));
@@ -1358,6 +1367,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
   discretization::_MPI_Barrier.save_comp_key.clear();
   discretization::_MPI_Barrier.save_comm_key.clear();
   for (auto& it : comp_pattern_map){
+    // reset the local schedule count
+    active_patterns[it.second.val_index].num_local_schedules=0;
     if ((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comp_key.push_back(it.first);
       temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]++;
@@ -1381,6 +1392,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
     }
   }
   for (auto& it : comm_pattern_map){
+    // reset the local schedule count
+    active_patterns[it.second.val_index].num_local_schedules=0;
     if ((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comm_key.push_back(it.first);
       temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]++;
@@ -1445,6 +1458,7 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
   internal::bsp_counter=0;
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
+  skip_ptr_set.clear();
 
   // This reset will no longer reset the kernel state, but will reset the schedule counters
   for (auto& it : comp_pattern_map){

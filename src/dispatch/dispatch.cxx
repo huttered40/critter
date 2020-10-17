@@ -60,14 +60,14 @@ void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   }
 }
 
-bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+bool initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   bool schedule_decision;
   switch (mechanism){
     case 0:
       schedule_decision = decomposition::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 1:
-      schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = discretization::path::initiate_comp(user_array,id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
       schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
@@ -76,13 +76,13 @@ bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int p
   return schedule_decision;
 }
 
-void complete_comp(size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+void complete_comp(std::vector<intptr_t>& user_array, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comp(id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 1:
-      discretization::path::complete_comp(id,flop_count,param1,param2,param3,param4,param5);
+      discretization::path::complete_comp(user_array,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
       skeletonization::path::complete_comp(id,flop_count,param1,param2,param3,param4,param5);
@@ -90,7 +90,7 @@ void complete_comp(size_t id, double flop_count,  int param1, int param2, int pa
   }
 }
 
-bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+bool initiate_comm(std::vector<intptr_t>& user_msg, size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender, int partner1, int partner2){
   bool schedule_decision;
   switch (mechanism){
@@ -98,7 +98,7 @@ bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Dataty
       schedule_decision = decomposition::path::initiate_comm(*(decomposition::blocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
     case 1:
-      schedule_decision = discretization::path::initiate_comm(*(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      schedule_decision = discretization::path::initiate_comm(user_msg, *(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
     case 2:
       schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
@@ -124,13 +124,13 @@ bool initiate_comm(size_t id, volatile double curtime, volatile double itime, in
   return schedule_decision;
 }
 
-void complete_comm(size_t id, int recv_source){
+void complete_comm(std::vector<intptr_t>& user_msg, size_t id, int recv_source){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comm(*(decomposition::blocking*)decomposition::list[id],recv_source);
       break;
     case 1:
-      discretization::path::complete_comm(*(discretization::blocking*)discretization::list[id],recv_source);
+      discretization::path::complete_comm(user_msg,*(discretization::blocking*)discretization::list[id],recv_source);
       break;
     case 2:
       skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id],recv_source);
@@ -230,8 +230,11 @@ void final_accumulate(MPI_Comm comm, double last_time){
       break;
     case 1:
       discretization::final_accumulate(comm,last_time);
-      if (discretization::_MPI_Barrier.should_propagate){
-        discretization::path::state_aggregation(discretization::_MPI_Barrier);
+      if (discretization::_MPI_Barrier.aggregate_comp_patterns){
+        discretization::path::comp_state_aggregation(discretization::_MPI_Barrier);
+      }
+      if (discretization::_MPI_Barrier.aggregate_comm_patterns){
+        discretization::path::comm_state_aggregation(discretization::_MPI_Barrier);
       }
       break;
     case 2:

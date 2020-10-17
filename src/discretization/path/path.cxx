@@ -21,7 +21,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   computation_timer = MPI_Wtime();
 }
 
-bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
+bool path::initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   double save_comp_time = curtime - computation_timer;
@@ -42,17 +42,26 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     if (comp_pattern_map.find(key) != comp_pattern_map.end()){
       schedule_decision = should_schedule(comp_pattern_map[key])==1;
     }
+    if (schedule_decision && comp_kernel_buffer_id){
+      for (auto it : user_array){
+        if (comp_pattern_map.find(key) != comp_pattern_map.end()){// Note I could also put an assert here
+          if (skip_ptr_set.find(it) != skip_ptr_set.end()){
+            schedule_decision = false;
+            set_kernel_state(comp_pattern_map[key],false);
+            if (comp_state_aggregation_mode==0) set_kernel_state_global(comp_pattern_map[key],false);
+            skip_ptr_set.erase(it);
+          }
+        }
+      }
+    }
   }
   intercept_overhead[0] += MPI_Wtime() - overhead_start_time;
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
-  // debug
-  if (pattern_error_limit==0.0) assert(schedule_decision);
-  if (tuning_delta==2) assert(schedule_decision);
   return schedule_decision;
 }
 
-void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
+void path::complete_comp(std::vector<intptr_t>& user_array, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime( ) - comp_start_time;	// complete computation time
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
@@ -119,7 +128,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   computation_timer = MPI_Wtime();
 }
 
-bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+bool path::initiate_comm(std::vector<intptr_t>& user_msg, blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                          bool is_sender, int partner1, int partner2){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
@@ -370,16 +379,18 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   intercept_overhead[1] += MPI_Wtime() - overhead_start_time;
-  // debug
-  if (pattern_error_limit==0.0) assert(schedule_decision);
-  if (tuning_delta==1) assert(schedule_decision);
+  if (!schedule_decision){
+    for (auto it : user_msg){
+      skip_ptr_set.insert(it);
+    }
+  }
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
   return schedule_decision;
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
-void path::complete_comm(blocking& tracker, int recv_source){
+void path::complete_comm(std::vector<intptr_t>& user_msg, blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
@@ -502,7 +513,8 @@ void path::complete_comm(blocking& tracker, int recv_source){
         }
       }
       else{
-        state_aggregation(tracker);
+        if (tracker.aggregate_comm_patterns) comm_state_aggregation(tracker);
+        if (tracker.aggregate_comp_patterns) comp_state_aggregation(tracker);
       }
     }
   }
@@ -540,8 +552,127 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
 
 void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
 
-void path::state_aggregation(blocking& tracker){
-  assert(!tracker.aggregate_comp_patterns);
+void path::comp_state_aggregation(blocking& tracker){
+  int size; MPI_Comm_size(tracker.comm,&size);
+  int rank; MPI_Comm_rank(tracker.comm,&rank);
+  std::vector<pattern_propagate> foreign_active_patterns;
+  std::map<comp_pattern_key,pattern_propagate> save_comp_kernels;
+
+  // First save the kernels we want to contribute to the aggregation (because they are steady)
+  for (auto& it : tracker.save_comp_key){
+    save_comp_kernels[it] = active_patterns[comp_pattern_map[it].val_index];
+  }
+
+  size_t active_size = size;
+  size_t active_rank = rank;
+  size_t active_mult = 1;
+  while (active_size>1){
+    if (active_rank % 2 == 1){
+      // Fill-in the associated comp pattern
+      tracker.save_comp_key.clear();
+      foreign_active_patterns.clear();
+      for (auto& it : save_comp_kernels){
+        tracker.save_comp_key.push_back(it.first);
+        foreign_active_patterns.push_back(it.second);
+      }
+
+      int partner = (active_rank-1)*active_mult;
+      int size_array[2] = {tracker.save_comp_key.size(),tracker.save_comp_key.size()};
+      // Send sizes before true message so that receiver can be aware of the array sizes for subsequent communication
+      PMPI_Send(&size_array[0],2,MPI_INT,partner,internal_tag,tracker.comm);
+      // Send active patterns with keys
+      PMPI_Send(&tracker.save_comp_key[0],size_array[0],comp_pattern_key_type,partner,internal_tag2,tracker.comm);
+      PMPI_Send(&foreign_active_patterns[0],size_array[1],pattern_type,partner,internal_tag2,tracker.comm);
+      break;// Incredibely important. Senders must not update {active_size,active_rank,active_mult}
+    }
+    else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+      int partner = (active_rank+1)*active_mult;
+      int size_array[2] = {0,0};
+      // Recv sizes of arrays to create buffers for subsequent communication
+      PMPI_Recv(&size_array[0],2,MPI_INT,partner,internal_tag,tracker.comm,MPI_STATUS_IGNORE);
+      // Recv partner's active patterns with keys
+      tracker.save_comp_key.resize(size_array[0]);
+      foreign_active_patterns.resize(size_array[1]);
+      PMPI_Recv(&tracker.save_comp_key[0],size_array[0],comp_pattern_key_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&foreign_active_patterns[0],size_array[1],pattern_type,partner,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      // Iterate over all active patterns and simply perform an AND operation on whether a pattern is in steady state.
+      //   If just one is active across the world communicator, the kernel must remain active.
+      //   If kernel does not exist among the sent patterns, it does not count as active. The logical operation is a trivial (AND 1)
+      for (auto i=0; i<tracker.save_comp_key.size(); i++){
+        auto& key = tracker.save_comp_key[i];
+        if (save_comp_kernels.find(key) != save_comp_kernels.end()){
+          double ci_local = get_error_estimate(save_comp_kernels[key],comp_analysis_param);
+          double ci_foreign = get_error_estimate(foreign_active_patterns[i],comp_analysis_param);
+          if (ci_foreign < ci_local){
+            save_comp_kernels[key] = foreign_active_patterns[i];
+          }
+        } else{
+          save_comp_kernels[key] = foreign_active_patterns[i];
+        }
+      }
+    }
+    active_size = active_size/2 + active_size%2;
+    active_rank /= 2;
+    active_mult *= 2;
+  }
+  // Broadcast final exchanged kernel statistics
+  if (rank==0){
+    tracker.save_comp_key.clear();
+    foreign_active_patterns.clear();
+    for (auto& it : save_comp_kernels){
+      tracker.save_comp_key.push_back(it.first);
+      foreign_active_patterns.push_back(it.second);
+    }
+  }
+  int size_array[2] = {rank==0 ? tracker.save_comp_key.size() : 0,
+                       rank==0 ? tracker.save_comp_key.size() : 0};
+  PMPI_Bcast(&size_array[0],2,MPI_INT,0,tracker.comm);
+  if (rank != 0){
+    tracker.save_comp_key.resize(size_array[0]);
+    foreign_active_patterns.resize(size_array[1]);
+  }
+  PMPI_Bcast(&tracker.save_comp_key[0],size_array[0],comp_pattern_key_type,0,tracker.comm);
+  PMPI_Bcast(&foreign_active_patterns[0],size_array[1],pattern_type,0,tracker.comm);
+  for (auto i=0; i<tracker.save_comp_key.size(); i++){
+    auto& key = tracker.save_comp_key[i];
+    if (comp_pattern_map.find(key) != comp_pattern_map.end()){
+      if (comp_kernel_transfer_id==0){
+        active_patterns[comp_pattern_map[key].val_index].hash_id = foreign_active_patterns[i].hash_id;
+      }
+      else if (comp_kernel_transfer_id==1){
+        active_patterns[comp_pattern_map[key].val_index] = foreign_active_patterns[i];
+      }
+    } else{
+      // Add new entry.
+      active_comp_pattern_keys.push_back(key);
+      active_patterns.emplace_back(foreign_active_patterns[i]);
+      comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
+    }
+    set_kernel_state(comp_pattern_map[key],false);
+    if (comp_state_aggregation_mode==1){
+      set_kernel_state_global(comp_pattern_map[key],false);
+    } else if (comp_state_aggregation_mode==2){
+      if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
+        active_patterns[comp_pattern_map[key].val_index].hash_id = aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
+        active_patterns[comp_pattern_map[key].val_index].registered_channels.clear();
+        active_patterns[comp_pattern_map[key].val_index].registered_channels.insert(comm_channel_map[tracker.comm]);// Add the solo channel, not the aggregate
+        assert(aggregate_channel_map.find(active_patterns[comp_pattern_map[key].val_index].hash_id) != aggregate_channel_map.end());
+        set_kernel_state_global(comp_pattern_map[key],false);
+      }
+      else{
+        active_patterns[comp_pattern_map[key].val_index].hash_id ^= aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
+        active_patterns[comp_pattern_map[key].val_index].registered_channels.insert(comm_channel_map[tracker.comm]);// Add the solo channel, not the aggregate
+        assert(aggregate_channel_map.find(active_patterns[comp_pattern_map[key].val_index].hash_id) != aggregate_channel_map.end());
+        if (aggregate_channel_map[active_patterns[comp_pattern_map[key].val_index].hash_id]->is_final){
+          set_kernel_state_global(comp_pattern_map[key],false);
+        }
+      }
+    }
+  }
+  tracker.save_comp_key.clear();
+}
+
+void path::comm_state_aggregation(blocking& tracker){
   int size; MPI_Comm_size(tracker.comm,&size);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   std::vector<pattern_propagate> foreign_active_patterns;

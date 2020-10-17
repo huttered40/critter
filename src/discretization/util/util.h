@@ -163,6 +163,7 @@ extern MPI_Datatype batch_type;
 extern size_t pattern_count_limit;
 extern double pattern_time_limit;
 extern double pattern_error_limit;
+extern int comp_kernel_transfer_id;
 extern int comm_kernel_transfer_id;
 extern int comp_kernel_buffer_id;
 extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
@@ -173,6 +174,8 @@ extern std::vector<pattern> active_patterns;
 extern sample_propagation_forest spf;
 extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
 extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
+extern std::set<intptr_t> skip_ptr_set;
+
 extern std::ofstream stream_tune,stream_reconstruct;
 extern std::vector<double> intercept_overhead;
 extern std::vector<double> global_intercept_overhead;
