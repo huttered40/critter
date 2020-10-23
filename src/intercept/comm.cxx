@@ -28,14 +28,14 @@ void stop(){
   internal::final_accumulate(MPI_COMM_WORLD,last_time); 
   internal::propagate(MPI_COMM_WORLD);
   internal::collect(MPI_COMM_WORLD);
+  assert(internal::wall_timer.size()>0);
+  internal::wall_timer.pop_back();
   internal::mode = 0;
 }
 
 void record(int variantID, int print_mode, double overhead_time){
   internal::print(variantID,print_mode,overhead_time);
   internal::write_file(variantID,print_mode,overhead_time);
-  assert(internal::wall_timer.size()>0);
-  internal::wall_timer.pop_back();
 }
 
 void clear(){

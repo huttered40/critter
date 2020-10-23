@@ -135,7 +135,6 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
 
-  double _wall_time = wall_timer[wall_timer.size()-1];
   _wall_time -= overhead_time;
   PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
 
@@ -316,6 +315,9 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-5];
       stream_reconstruct << std::endl;
     }
+  }
+  else if (print_mode==2){
+    set_tuning_statistics();
   }
   is_first_iter = false;// set here only beause this routine is called directly after 'invoke' on std::ostream
 }
