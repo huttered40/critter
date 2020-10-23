@@ -760,7 +760,7 @@ double get_std_error(const pattern& p, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = pow(p.num_local_schedules*1.,3./2.);
+      n = p.num_local_schedules;
       break;
     case 2:
       n = p.num_schedules;
@@ -785,7 +785,7 @@ double get_std_error(const pattern_propagate& p, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = pow(p.num_local_schedules*1.,3./2.);
+      n = p.num_local_schedules;
       break;
     case 2:
       n = p.num_schedules;
@@ -810,7 +810,7 @@ double get_std_error(const pattern_key_id& index, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = pow(active_patterns[index.val_index].num_local_schedules,3./2.);
+      n = active_patterns[index.val_index].num_local_schedules;
       break;
     case 2:
       n = active_patterns[index.val_index].num_schedules;
@@ -835,7 +835,7 @@ double get_std_error(const intermediate_stats& p, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = pow(p.num_local_schedules*1.,3./2.);
+      n = p.num_local_schedules;
       break;
     case 2:
       n = p.num_schedules;
@@ -1360,6 +1360,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
   volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update per-process execution time
 
+  _wall_time = wall_timer[wall_timer.size()-1];
+
   double temp_costs[4+4+3+8+8+2];
   for (int i=0; i<18; i++){ temp_costs[11+i]=0; }
 
@@ -1519,6 +1521,12 @@ void clear(){
       }
       //No-op (for now, unless necessary)
     }
+    else if (schedule_tag=="cacqr"){
+      //No-op (for now, unless necessary)
+    }
+    else if (schedule_tag=="caqr_level1"){
+      //No-op (for now, unless necessary)
+    }
     else if (schedule_tag=="caqr_level1pipe"){
       //No-op (for now, unless necessary)
     }
@@ -1535,6 +1543,12 @@ void clear(){
           active_patterns[it.second.val_index].clear_distribution();
         }
       }
+    }
+    else if (schedule_tag=="cacqr"){
+      //No-op (for now, unless necessary)
+    }
+    else if (schedule_tag=="caqr_level1"){
+      //No-op (for now, unless necessary)
     }
     else if (schedule_tag=="caqr_level1pipe"){
       //No-op (for now, unless necessary)
