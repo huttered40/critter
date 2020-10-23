@@ -254,6 +254,7 @@ int communicator_count;
 std::string schedule_tag;
 volatile double computation_timer;
 std::vector<double> wall_timer;
+double _wall_time;
 size_t auto_capture;
 bool is_world_root;
 size_t mechanism,mode,stack_id;
@@ -718,12 +719,14 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
       new_aggregate_channels[i]->is_final=true;
       index_window++;
     }
-    assert(aggregate_channel_map.find(new_aggregate_channels[i]->local_hash_tag) == aggregate_channel_map.end());
-    aggregate_channel_map[new_aggregate_channels[i]->local_hash_tag] = new_aggregate_channels[i];
-    if (world_comm_rank == 8){
-      auto str1 = channel::generate_tuple_string(new_aggregate_channels[i]);
-      auto str2 = aggregate_channel::generate_hash_history(new_aggregate_channels[i]);
-      std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << new_aggregate_channels[i]->local_hash_tag << " " << new_aggregate_channels[i]->global_hash_tag << "), num_channels - " << new_aggregate_channels[i]->num_channels << std::endl;
+    // assert(aggregate_channel_map.find(new_aggregate_channels[i]->local_hash_tag) == aggregate_channel_map.end());
+    if (aggregate_channel_map.find(new_aggregate_channels[i]->local_hash_tag) == aggregate_channel_map.end()){
+      aggregate_channel_map[new_aggregate_channels[i]->local_hash_tag] = new_aggregate_channels[i];
+      if (world_comm_rank == 8){
+        auto str1 = channel::generate_tuple_string(new_aggregate_channels[i]);
+        auto str2 = aggregate_channel::generate_hash_history(new_aggregate_channels[i]);
+        std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << new_aggregate_channels[i]->local_hash_tag << " " << new_aggregate_channels[i]->global_hash_tag << "), num_channels - " << new_aggregate_channels[i]->num_channels << std::endl;
+      }
     }
   }
 
@@ -732,17 +735,18 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
   // Always treat 1-communicator channels as trivial aggregate channels.
   aggregate_channel* agg_node = new aggregate_channel(node->id,node->local_hash_tag,node->global_hash_tag,node->offset,1);
   agg_node->channels.insert(node->local_hash_tag);
-  assert(aggregate_channel_map.find(node->local_hash_tag) == aggregate_channel_map.end());
-  aggregate_channel_map[node->local_hash_tag] = agg_node;
-  if (world_comm_rank == 8){
-    auto str1 = channel::generate_tuple_string(agg_node);
-    auto str2 = aggregate_channel::generate_hash_history(agg_node);
-    std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
-  }
-  
-  if (local_sibling_size==0){// Only if 'node' exists as the smallest trivial aggregate should it be considered final. Think of 'node==world' of the very first registered channel
-    aggregate_channel_map[node->local_hash_tag]->is_final=true;
-  } else{
+  // assert(aggregate_channel_map.find(node->local_hash_tag) == aggregate_channel_map.end());
+  if (aggregate_channel_map.find(node->local_hash_tag) == aggregate_channel_map.end()){
+    aggregate_channel_map[node->local_hash_tag] = agg_node;
+    if (world_comm_rank == 8){
+      auto str1 = channel::generate_tuple_string(agg_node);
+      auto str2 = aggregate_channel::generate_hash_history(agg_node);
+      std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
+    }
+    if (local_sibling_size==0){// Only if 'node' exists as the smallest trivial aggregate should it be considered final. Think of 'node==world' of the very first registered channel
+      aggregate_channel_map[node->local_hash_tag]->is_final=true;
+    } else{
+    }
   }
 }
 

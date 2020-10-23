@@ -103,6 +103,7 @@ extern int communicator_count;
 extern std::string schedule_tag;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
+extern double _wall_time;
 extern size_t auto_capture;
 extern bool is_world_root;
 extern size_t mechanism,mode,stack_id;
