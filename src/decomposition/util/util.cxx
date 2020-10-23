@@ -11,10 +11,10 @@ namespace decomposition{
 
 int replace_comp;
 int replace_comm;
-std::map<comp_pattern_key,std::pair<int,double>> replace_comp_map_local;
-std::map<comm_pattern_key,std::pair<int,double>> replace_comm_map_local;
-std::map<comp_pattern_key,std::pair<int,double>> replace_comp_map_global;
-std::map<comm_pattern_key,std::pair<int,double>> replace_comm_map_global;
+std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_local;
+std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_local;
+std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_global;
+std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_global;
 std::ofstream stream;
 bool wait_id;
 int internal_tag;
@@ -255,8 +255,8 @@ void reset(){
   for (auto it = replace_comp_map_local.begin(); it != replace_comp_map_local.end();){
     // Check if the corresponding key in discretization mechanism has reached steady state
     bool is_match = false;
-    if (discretization::comp_pattern_map.find(it->first) != discretization::comp_pattern_map.end()){
-      if (discretization::active_patterns[discretization::comp_pattern_map[it->first].val_index].global_steady_state == 1){
+    if (discretization::comp_kernel_map.find(it->first) != discretization::comp_kernel_map.end()){
+      if (discretization::active_kernels[discretization::comp_kernel_map[it->first].val_index].global_steady_state == 1){
         replace_comp_map_global[it->first] = it->second;
         replace_comp_map_global[it->first].second /= replace_comp_map_global[it->first].first;
         it = replace_comp_map_local.erase(it);
@@ -268,8 +268,8 @@ void reset(){
   for (auto it = replace_comm_map_local.begin(); it != replace_comm_map_local.end();){
     // Check if the corresponding key in discretization mechanism has reached steady state
     bool is_match = false;
-    if (discretization::comm_pattern_map.find(it->first) != discretization::comm_pattern_map.end()){
-      if (discretization::active_patterns[discretization::comm_pattern_map[it->first].val_index].global_steady_state == 1){
+    if (discretization::comm_kernel_map.find(it->first) != discretization::comm_kernel_map.end()){
+      if (discretization::active_kernels[discretization::comm_kernel_map[it->first].val_index].global_steady_state == 1){
         replace_comm_map_global[it->first] = it->second;
         replace_comm_map_global[it->first].second /= replace_comm_map_global[it->first].first;
         it = replace_comm_map_local.erase(it);
@@ -315,11 +315,17 @@ void reset(){
     }
     else if (schedule_tag=="cholinv"){
       bool is_match = false;
-      assert(world_size==512);// change the below to fit other process counts later
       if (clear_counter == 10){
-        if ((it->first.tag == 5) && (it->first.dim_sizes[0] == 64) && (it->first.dim_strides[0]==8) && (it->first.partner_offset == INT_MIN)){
-          it = replace_comm_map_global.erase(it);
-          is_match = true;
+        if (world_size == 64){
+          if ((it->first.tag == 5) && (it->first.dim_sizes[0] == 16) && (it->first.dim_strides[0]==4) && (it->first.partner_offset == INT_MIN)){
+            it = replace_comm_map_global.erase(it);
+            is_match = true;
+          }
+        } else if (world_size == 512){
+          if ((it->first.tag == 5) && (it->first.dim_sizes[0] == 64) && (it->first.dim_strides[0]==8) && (it->first.partner_offset == INT_MIN)){
+            it = replace_comm_map_global.erase(it);
+            is_match = true;
+          }
         }
       }
       if (!is_match) it++;

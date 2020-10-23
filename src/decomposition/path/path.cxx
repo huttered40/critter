@@ -58,7 +58,7 @@ void path::complete_comp(size_t id, double flop_count, int param1, int param2, i
   volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
 
   if (replace_comp == 1){
-    comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+    comp_kernel_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
     if (replace_comp_map_global.find(key) == replace_comp_map_global.end()){
       if (replace_comp_map_local.find(key) == replace_comp_map_local.end()){
         replace_comp_map_local[key] = std::make_pair(1,comp_time);
@@ -451,7 +451,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
       comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
       comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
     }
-    comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+    comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
     if (replace_comm_map_global.find(key) == replace_comm_map_global.end()){
       if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
         replace_comm_map_local[key] = std::make_pair(1,comm_time);

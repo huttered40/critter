@@ -18,24 +18,24 @@ int sample_constraint_mode;
 int schedule_kernels;
 int update_analysis;
 int autotuning_test_id;
-MPI_Datatype comm_pattern_key_type;
-MPI_Datatype comp_pattern_key_type;
-MPI_Datatype pattern_type;
+MPI_Datatype comm_kernel_key_type;
+MPI_Datatype comp_kernel_key_type;
+MPI_Datatype kernel_type;
 MPI_Datatype batch_type;
-size_t pattern_count_limit;
-double pattern_time_limit;
-double pattern_error_limit;
+size_t kernel_count_limit;
+double kernel_time_limit;
+double kernel_error_limit;
 int comp_kernel_transfer_id;
 int comm_kernel_transfer_id;
 int comp_kernel_buffer_id;
-std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
-std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
-std::vector<comm_pattern_key> active_comm_pattern_keys;
-std::vector<comp_pattern_key> active_comp_pattern_keys;
-std::vector<pattern> active_patterns;
+std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
+std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+std::vector<comm_kernel_key> active_comm_kernel_keys;
+std::vector<comp_kernel_key> active_comp_kernel_keys;
+std::vector<kernel> active_kernels;
 sample_propagation_forest spf;
-std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
-std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
+std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
+std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
 std::set<intptr_t> skip_ptr_set;
 
 std::ofstream stream,stream_tune,stream_reconstruct;
@@ -83,7 +83,7 @@ int internal_tag5;
 bool is_first_iter;
 
 // ****************************************************************************************************************************************************
-pattern::pattern(channel* node){
+kernel::kernel(channel* node){
   this->hash_id = 0;
   this->total_exec_time = 0;
   this->total_local_exec_time = 0;
@@ -101,7 +101,7 @@ pattern::pattern(channel* node){
     this->registered_channels.insert(node);
   }
 }
-pattern::pattern(const pattern_batch& _copy){
+kernel::kernel(const kernel_batch& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -117,7 +117,7 @@ pattern::pattern(const pattern_batch& _copy){
   this->M2=_copy.M2;
   this->registered_channels = _copy.registered_channels;
 }
-pattern::pattern(const pattern& _copy){
+kernel::kernel(const kernel& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -133,7 +133,7 @@ pattern::pattern(const pattern& _copy){
   this->M2 = _copy.M2;
   this->registered_channels = _copy.registered_channels;
 }
-pattern& pattern::operator=(const pattern& _copy){
+kernel& kernel::operator=(const kernel& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -150,7 +150,7 @@ pattern& pattern::operator=(const pattern& _copy){
   this->registered_channels = _copy.registered_channels;
   return *this;
 }
-pattern::pattern(const pattern_propagate& _copy){
+kernel::kernel(const kernel_propagate& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -170,7 +170,7 @@ pattern::pattern(const pattern_propagate& _copy){
     }
   }
 }
-pattern& pattern::operator=(const pattern_propagate& _copy){
+kernel& kernel::operator=(const kernel_propagate& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -191,7 +191,7 @@ pattern& pattern::operator=(const pattern_propagate& _copy){
   }
   return *this;
 }
-void pattern::reset(){
+void kernel::reset(){
   // No reason to reset distribution members ('M1','M2','steady_state','global_steady_state')
   // Do not reset the schedule_count members because those are needed to determine sample variance,
   //   which builds across schedules.
@@ -201,7 +201,7 @@ void pattern::reset(){
   this->num_local_scheduled_units = 0;
   this->num_non_scheduled_units = 0;
 }
-void pattern::clear_distribution(){
+void kernel::clear_distribution(){
   // All other members would have already been reset (via 'reset' above)
   this->steady_state = false;
   this->global_steady_state = false;
@@ -212,7 +212,7 @@ void pattern::clear_distribution(){
 }
 
 // ****************************************************************************************************************************************************
-pattern_propagate::pattern_propagate(const pattern& _copy){
+kernel_propagate::kernel_propagate(const kernel& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -223,7 +223,7 @@ pattern_propagate::pattern_propagate(const pattern& _copy){
   this->M1=_copy.M1;
   this->M2=_copy.M2;
 }
-pattern_propagate::pattern_propagate(const pattern_propagate& _copy){
+kernel_propagate::kernel_propagate(const kernel_propagate& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -234,7 +234,7 @@ pattern_propagate::pattern_propagate(const pattern_propagate& _copy){
   this->M1 = _copy.M1;
   this->M2 = _copy.M2;
 }
-pattern_propagate& pattern_propagate::operator=(const pattern_propagate& _copy){
+kernel_propagate& kernel_propagate::operator=(const kernel_propagate& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -248,7 +248,7 @@ pattern_propagate& pattern_propagate::operator=(const pattern_propagate& _copy){
 }
 
 // ****************************************************************************************************************************************************
-pattern_batch::pattern_batch(channel* node){
+kernel_batch::kernel_batch(channel* node){
   this->hash_id = 0;
   this->total_exec_time = 0;
   this->total_local_exec_time = 0;
@@ -264,7 +264,7 @@ pattern_batch::pattern_batch(channel* node){
   }
 }
 
-pattern_batch::pattern_batch(const pattern_batch& _copy){
+kernel_batch::kernel_batch(const kernel_batch& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -278,7 +278,7 @@ pattern_batch::pattern_batch(const pattern_batch& _copy){
   this->registered_channels = _copy.registered_channels;
 }
 
-pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
+kernel_batch& kernel_batch::operator=(const kernel_batch& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->total_local_exec_time = _copy.total_local_exec_time;
@@ -294,7 +294,7 @@ pattern_batch& pattern_batch::operator=(const pattern_batch& _copy){
 }
 
 // ****************************************************************************************************************************************************
-pattern_batch_propagate::pattern_batch_propagate(const pattern_batch& _copy){
+kernel_batch_propagate::kernel_batch_propagate(const kernel_batch& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
@@ -304,7 +304,7 @@ pattern_batch_propagate::pattern_batch_propagate(const pattern_batch& _copy){
   this->M2=_copy.M2;
 }
 
-pattern_batch_propagate::pattern_batch_propagate(const pattern_batch_propagate& _copy){
+kernel_batch_propagate::kernel_batch_propagate(const kernel_batch_propagate& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
@@ -314,7 +314,7 @@ pattern_batch_propagate::pattern_batch_propagate(const pattern_batch_propagate& 
   this->M2 = _copy.M2;
 }
 
-pattern_batch_propagate& pattern_batch_propagate::operator=(const pattern_batch_propagate& _copy){
+kernel_batch_propagate& kernel_batch_propagate::operator=(const kernel_batch_propagate& _copy){
   this->hash_id = _copy.hash_id;
   this->total_exec_time = _copy.total_exec_time;
   this->num_scheduled_units = _copy.num_scheduled_units;
@@ -447,14 +447,14 @@ void sample_propagation_forest::find_parent(solo_channel* tree_root, solo_channe
   }
   return;
 }
-void sample_propagation_forest::fill_ancestors(solo_channel* node, pattern_batch& batch){
+void sample_propagation_forest::fill_ancestors(solo_channel* node, kernel_batch& batch){
 /*
   if (node==nullptr) return;
   batch.closed_channels.insert(node);
   this->fill_ancestors(node->parent,batch);
 */
 }
-void sample_propagation_forest::fill_descendants(solo_channel* node, pattern_batch& batch){
+void sample_propagation_forest::fill_descendants(solo_channel* node, kernel_batch& batch){
 /*
   if (node==nullptr) return;
   batch.closed_channels.insert(node);
@@ -578,7 +578,7 @@ void sample_propagation_forest::insert_node(solo_channel* node){
 
 
 // ****************************************************************************************************************************************************
-void intermediate_stats::generate(const pattern& p, const std::vector<pattern_batch>& active_batches){
+void intermediate_stats::generate(const kernel& p, const std::vector<kernel_batch>& active_batches){
   this->M1 = p.M1;
   this->M2 = p.M2;
   this->num_schedules = p.num_schedules;
@@ -603,39 +603,39 @@ void intermediate_stats::generate(const pattern& p, const std::vector<pattern_ba
     this->total_local_exec_time += active_batches[i].total_local_exec_time;
   }
 }
-intermediate_stats::intermediate_stats(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches){
-  this->generate(active_patterns[index.val_index],active_batches);
+intermediate_stats::intermediate_stats(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches){
+  this->generate(active_kernels[index.val_index],active_batches);
 }
 
-bool is_key_skipable(const comm_pattern_key& key){
+bool is_key_skipable(const comm_kernel_key& key){
   return true;
 }
-bool is_key_skipable(const comp_pattern_key& key){
+bool is_key_skipable(const comp_kernel_key& key){
   return true;
 }
 
-double get_estimate(const pattern& p, int analysis_param, double unit_count){
+double get_estimate(const kernel& p, int analysis_param, double unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(p);
   } else{
     return unit_count*get_harmonic_mean(p);
   }
 }
-double get_estimate(const pattern_propagate& p, int analysis_param, double unit_count){
+double get_estimate(const kernel_propagate& p, int analysis_param, double unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(p);
   } else{
     return unit_count*get_harmonic_mean(p);
   }
 }
-double get_estimate(const pattern_key_id& index, int analysis_param, double unit_count){
+double get_estimate(const kernel_key_id& index, int analysis_param, double unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(index);
   } else{
     return unit_count*get_harmonic_mean(index);
   }
 }
-double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count){
+double get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches, int analysis_param, double unit_count){
   auto stats = intermediate_stats(index,active_batches);
   if (analysis_param == 0){// arithmetic mean
     return stats.M1;
@@ -651,41 +651,41 @@ double get_estimate(const intermediate_stats& p, int analysis_param, double unit
   }
 }
 
-double get_arithmetic_mean(const pattern& p){
+double get_arithmetic_mean(const kernel& p){
   // returns arithmetic mean
   return p.M1;
 }
-double get_arithmetic_mean(const pattern_propagate& p){
+double get_arithmetic_mean(const kernel_propagate& p){
   // returns arithmetic mean
   return p.M1;
 }
-double get_arithmetic_mean(const pattern_key_id& index){
+double get_arithmetic_mean(const kernel_key_id& index){
   // returns arithmetic mean
-  return active_patterns[index.val_index].M1;
+  return active_kernels[index.val_index].M1;
 }
 double get_arithmetic_mean(const intermediate_stats& p){
   // returns arithmetic mean
   return p.M1;
 }
 
-double get_harmonic_mean(const pattern& p){
+double get_harmonic_mean(const kernel& p){
   // returns arithmetic mean
   return 1./p.M1;
 }
-double get_harmonic_mean(const pattern_propagate& p){
+double get_harmonic_mean(const kernel_propagate& p){
   // returns arithmetic mean
   return 1./p.M1;
 }
-double get_harmonic_mean(const pattern_key_id& index){
+double get_harmonic_mean(const kernel_key_id& index){
   // returns arithmetic mean
-  return 1./active_patterns[index.val_index].M1;
+  return 1./active_kernels[index.val_index].M1;
 }
 double get_harmonic_mean(const intermediate_stats& p){
   // returns arithmetic mean
   return 1./p.M1;
 }
 
-double get_variance(const pattern& p, int analysis_param){
+double get_variance(const kernel& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
   if (n<=1) return 1000000.;
@@ -695,7 +695,7 @@ double get_variance(const pattern& p, int analysis_param){
     return 1./p.M2 / (n-1.);
   }
 }
-double get_variance(const pattern_propagate& p, int analysis_param){
+double get_variance(const kernel_propagate& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
   if (n<=1) return 1000000.;
@@ -705,14 +705,14 @@ double get_variance(const pattern_propagate& p, int analysis_param){
     return 1./p.M2 / (n-1.);
   }
 }
-double get_variance(const pattern_key_id& index, int analysis_param){
+double get_variance(const kernel_key_id& index, int analysis_param){
   // returns variance
-  size_t n = active_patterns[index.val_index].num_schedules;
+  size_t n = active_kernels[index.val_index].num_schedules;
   if (n<=1) return 1000000.;
   if (analysis_param == 0){
-    return active_patterns[index.val_index].M2 / (n-1.);
+    return active_kernels[index.val_index].M2 / (n-1.);
   } else{
-    return 1./active_patterns[index.val_index].M2 / (n-1.);
+    return 1./active_kernels[index.val_index].M2 / (n-1.);
   }
 }
 double get_variance(const intermediate_stats& p, int analysis_param){
@@ -726,15 +726,15 @@ double get_variance(const intermediate_stats& p, int analysis_param){
   }
 }
 
-double get_std_dev(const pattern& p, int analysis_param){
+double get_std_dev(const kernel& p, int analysis_param){
   // returns variance
   return pow(get_variance(p,analysis_param),1./2.);
 }
-double get_std_dev(const pattern_propagate& p, int analysis_param){
+double get_std_dev(const kernel_propagate& p, int analysis_param){
   // returns variance
   return pow(get_variance(p,analysis_param),1./2.);
 }
-double get_std_dev(const pattern_key_id& index, int analysis_param){
+double get_std_dev(const kernel_key_id& index, int analysis_param){
   // returns variance
   return pow(get_variance(index,analysis_param),1./2.);
 }
@@ -744,7 +744,7 @@ double get_std_dev(const intermediate_stats& p, int analysis_param){
 }
 
 // Standard error calculation takes into account execution path analysis
-double get_std_error(const pattern& p, int analysis_param){
+double get_std_error(const kernel& p, int analysis_param){
   // returns standard error
   size_t n = 1;
   switch (sample_constraint_mode){
@@ -769,7 +769,7 @@ double get_std_error(const pattern& p, int analysis_param){
   assert(n>0);// Can change to max(1,n) once Im sure the assert won't get hit
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const pattern_propagate& p, int analysis_param){
+double get_std_error(const kernel_propagate& p, int analysis_param){
   // returns standard error
   int n = 1;
   switch (sample_constraint_mode){
@@ -794,7 +794,7 @@ double get_std_error(const pattern_propagate& p, int analysis_param){
   n = std::max(1,n);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const pattern_key_id& index, int analysis_param){
+double get_std_error(const kernel_key_id& index, int analysis_param){
   // returns standard error
   int n = 1;
   switch (sample_constraint_mode){
@@ -810,10 +810,10 @@ double get_std_error(const pattern_key_id& index, int analysis_param){
       .. verify that entry is not 0. If it is, then set n=1
       n = p.num_schedules;
 */
-      n = active_patterns[index.val_index].num_local_schedules;
+      n = active_kernels[index.val_index].num_local_schedules;
       break;
     case 2:
-      n = active_patterns[index.val_index].num_schedules;
+      n = active_kernels[index.val_index].num_schedules;
       break;
   }
   n = std::max(1,n);
@@ -845,15 +845,15 @@ double get_std_error(const intermediate_stats& p, int analysis_param){
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 
-double get_confidence_interval(const pattern& p, int analysis_param, double level){
+double get_confidence_interval(const kernel& p, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(p,analysis_param);
 }
-double get_confidence_interval(const pattern_propagate& p, int analysis_param, double level){
+double get_confidence_interval(const kernel_propagate& p, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(p,analysis_param);
 }
-double get_confidence_interval(const pattern_key_id& index, int analysis_param, double level){
+double get_confidence_interval(const kernel_key_id& index, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(index,analysis_param);
 }
@@ -862,44 +862,44 @@ double get_confidence_interval(const intermediate_stats& p, int analysis_param, 
   return 1.96*get_std_error(p,analysis_param);
 }
 
-bool is_steady(const pattern& p, int analysis_param){
+bool is_steady(const kernel& p, int analysis_param){
   if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < pattern_error_limit) &&
-          (p.num_schedules >= pattern_count_limit) &&
-          (p.total_exec_time >= pattern_time_limit);
+  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+          (p.num_schedules >= kernel_count_limit) &&
+          (p.total_exec_time >= kernel_time_limit);
 }
-bool is_steady(const pattern_key_id& index, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(active_patterns[index.val_index].num_schedules < 2); return true; }
-  return ((get_confidence_interval(index,analysis_param) / get_estimate(index,analysis_param)) < pattern_error_limit) &&
-          (active_patterns[index.val_index].num_schedules >= pattern_count_limit) &&
-          (active_patterns[index.val_index].total_exec_time >= pattern_time_limit);
+bool is_steady(const kernel_key_id& index, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
+  return ((get_confidence_interval(index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
+          (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
+          (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
 }
 bool is_steady(const intermediate_stats& p, int analysis_param){
   if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < pattern_error_limit) &&
-          (p.num_schedules >= pattern_count_limit) &&
-          (p.total_exec_time >= pattern_time_limit);
+  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+          (p.num_schedules >= kernel_count_limit) &&
+          (p.total_exec_time >= kernel_time_limit);
 }
 
-double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
+double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   auto& active_batches = comm_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
   return get_confidence_interval(stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
-double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
+double get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   auto& active_batches = comp_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
   return get_confidence_interval(stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
-double get_error_estimate(const pattern_propagate& p, int analysis_param){
+double get_error_estimate(const kernel_propagate& p, int analysis_param){
   return get_confidence_interval(p,analysis_param) / (get_estimate(p,analysis_param));
 }
 
-bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param){
+bool steady_test(const comm_kernel_key& key, const kernel& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
   return is_steady(p,analysis_param);
 }
-bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param){
+bool steady_test(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
   if (comm_sample_aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){
     return is_steady(index,analysis_param);
@@ -911,11 +911,11 @@ bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int a
     return is_steady(stats,analysis_param);
   }
 }
-bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_param){
+bool steady_test(const comp_kernel_key& key, const kernel& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
   return is_steady(p,analysis_param);
 }
-bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param){
+bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
   if (comp_sample_aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){
     return is_steady(index,analysis_param);
@@ -928,7 +928,7 @@ bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int a
   }
 }
 
-void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_time, double unit_count){
+void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
   if (p.steady_state == 0){
@@ -956,35 +956,35 @@ void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_ti
     p.num_non_scheduled_units += unit_count;
   }
 }
-void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count){
+void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
-  if (active_patterns[index.val_index].steady_state == 0){
-    active_patterns[index.val_index].num_schedules++;
-    active_patterns[index.val_index].num_local_schedules++;
-    active_patterns[index.val_index].num_scheduled_units += unit_count;
-    active_patterns[index.val_index].num_local_scheduled_units += unit_count;
-    active_patterns[index.val_index].total_exec_time += exec_time;
-    active_patterns[index.val_index].total_local_exec_time += exec_time;
+  if (active_kernels[index.val_index].steady_state == 0){
+    active_kernels[index.val_index].num_schedules++;
+    active_kernels[index.val_index].num_local_schedules++;
+    active_kernels[index.val_index].num_scheduled_units += unit_count;
+    active_kernels[index.val_index].num_local_scheduled_units += unit_count;
+    active_kernels[index.val_index].total_exec_time += exec_time;
+    active_kernels[index.val_index].total_local_exec_time += exec_time;
     // Online computation of up to 4th-order central moments using compunication time samples
-    size_t n1 = active_patterns[index.val_index].num_schedules-1;
-    size_t n = active_patterns[index.val_index].num_schedules;
+    size_t n1 = active_kernels[index.val_index].num_schedules-1;
+    size_t n = active_kernels[index.val_index].num_schedules;
     double x;
     if (analysis_param == 0){x = exec_time; }	// prep for arithmetic mean
     else                   {x = (unit_count>0 ? unit_count : 1.)/exec_time; }	// prep for harmonic mean
-    double delta = x - active_patterns[index.val_index].M1;
+    double delta = x - active_kernels[index.val_index].M1;
     double delta_n = delta / n;
     double delta_n2 = delta_n*delta_n;
     double term1 = delta*delta_n*n1;
-    active_patterns[index.val_index].M1 += delta_n;
-    active_patterns[index.val_index].M2 += term1;
+    active_kernels[index.val_index].M1 += delta_n;
+    active_kernels[index.val_index].M2 += term1;
   }
   else{
-    active_patterns[index.val_index].num_non_schedules++;
-    active_patterns[index.val_index].num_non_scheduled_units += unit_count;
+    active_kernels[index.val_index].num_non_schedules++;
+    active_kernels[index.val_index].num_non_scheduled_units += unit_count;
   }
 }
-void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
+void update_kernel_stats(kernel& dest, const kernel& src, int analysis_param){
   // This function will implement the parallel algorithm computing the mean and variance of two partitions
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   // Online computation of up to 4th-order central moments using compunication time samples
@@ -1003,7 +1003,7 @@ void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param){
   dest.total_local_exec_time += src.total_local_exec_time;
 }
 
-void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count){
+void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
   batch.num_schedules++;
@@ -1025,7 +1025,7 @@ void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile doub
   batch.M1 += delta_n;
   batch.M2 += term1;
 }
-void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_param){
+void update_kernel_stats(kernel& dest, const kernel_batch& src, int analysis_param){
   // This function will implement the parallel algorithm computing the mean and variance of two partitions
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   // Online computation of up to 4th-order central moments using compunication time samples
@@ -1041,7 +1041,7 @@ void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_p
   dest.total_exec_time += src.total_exec_time;
   dest.total_local_exec_time += src.total_local_exec_time;
 }
-void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param){
+void update_kernel_stats(kernel_batch& dest, const kernel_batch& src, int analysis_param){
   // This function will implement the parallel algorithm computing the mean and variance of two partitions
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   // Online computation of up to 4th-order central moments using compunication time samples
@@ -1055,53 +1055,53 @@ void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int anal
   dest.total_exec_time += src.total_exec_time;
  // Don't update the three 'local' members
 }
-void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats){
+void update_kernel_stats(const kernel_key_id& index, const intermediate_stats& stats){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  active_patterns[index.val_index].num_schedules = stats.num_schedules;
-  active_patterns[index.val_index].num_local_schedules = stats.num_local_schedules;
-  active_patterns[index.val_index].num_scheduled_units = stats.num_scheduled_units;
-  active_patterns[index.val_index].num_local_scheduled_units = stats.num_local_scheduled_units;
-  active_patterns[index.val_index].total_exec_time = stats.total_exec_time;
-  active_patterns[index.val_index].total_local_exec_time = stats.total_local_exec_time;
-  active_patterns[index.val_index].M1 = stats.M1;
-  active_patterns[index.val_index].M2 = stats.M2;
+  active_kernels[index.val_index].num_schedules = stats.num_schedules;
+  active_kernels[index.val_index].num_local_schedules = stats.num_local_schedules;
+  active_kernels[index.val_index].num_scheduled_units = stats.num_scheduled_units;
+  active_kernels[index.val_index].num_local_scheduled_units = stats.num_local_scheduled_units;
+  active_kernels[index.val_index].total_exec_time = stats.total_exec_time;
+  active_kernels[index.val_index].total_local_exec_time = stats.total_local_exec_time;
+  active_kernels[index.val_index].M1 = stats.M1;
+  active_kernels[index.val_index].M2 = stats.M2;
 }
 
-int should_schedule(const pattern& p){
+int should_schedule(const kernel& p){
   return (p.global_steady_state==1 ? 0 : 1);
 }
-int should_schedule(const pattern_key_id& index){
-  return (active_patterns[index.val_index].global_steady_state==1 ? 0 : 1);
+int should_schedule(const kernel_key_id& index){
+  return (active_kernels[index.val_index].global_steady_state==1 ? 0 : 1);
 }
 
-void set_kernel_state(pattern& p, bool schedule_decision){
+void set_kernel_state(kernel& p, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (p.steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
   p.steady_state = (schedule_decision==true ? 0 : 1);
 }
-void set_kernel_state(const pattern_key_id& index, bool schedule_decision){
+void set_kernel_state(const kernel_key_id& index, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (active_patterns[index.val_index].steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
-  active_patterns[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
+  if (active_kernels[index.val_index].steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
+  active_kernels[index.val_index].steady_state = (schedule_decision==true ? 0 : 1);
 }
 
-void set_kernel_state_global(pattern& p, bool schedule_decision){
+void set_kernel_state_global(kernel& p, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (p.global_steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
   p.global_steady_state = (schedule_decision==true ? 0 : 1);
 }
-void set_kernel_state_global(const pattern_key_id& index, bool schedule_decision){
+void set_kernel_state_global(const kernel_key_id& index, bool schedule_decision){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
-  if (active_patterns[index.val_index].global_steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
-  active_patterns[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
+  if (active_kernels[index.val_index].global_steady_state == 1) return;// Don't allow a kernel to go from steady back to unsteady
+  active_kernels[index.val_index].global_steady_state = (schedule_decision==true ? 0 : 1);
 }
 
-void merge_batches(std::vector<pattern_batch>& batches, int analysis_param){
+void merge_batches(std::vector<kernel_batch>& batches, int analysis_param){
   if (batches.size() == 0) return;
   // At first, I wanted to leverage the 'is_final' info from the aggregate (which can be obtained from a batch's hash_id
   //   However, I think I don't need to do this. I can just keep that state within the batch and accumulate in there.
   // Iterate over the entires to merge any two batches with the same state.
-  std::sort(batches.begin(),batches.end(),[](const pattern_batch& p1, const pattern_batch& p2){return p1.hash_id < p2.hash_id;});
+  std::sort(batches.begin(),batches.end(),[](const kernel_batch& p1, const kernel_batch& p2){return p1.hash_id < p2.hash_id;});
    // Assumption: no more than 2 batches can have the same state.
   int start_index = 0;
   for (auto i=1; i<batches.size(); i++){
@@ -1164,28 +1164,28 @@ void allocate(MPI_Comm comm){
     std::cout << "Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
   }
 
-  comp_pattern_key ex_1;
-  MPI_Datatype comp_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comp_pattern_key_internal_type_block_len[2] = { 7,1 };
-  MPI_Aint comp_pattern_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
-  PMPI_Type_create_struct(2,comp_pattern_key_internal_type_block_len,comp_pattern_key_internal_type_disp,comp_pattern_key_internal_type,&comp_pattern_key_type);
-  PMPI_Type_commit(&comp_pattern_key_type);
+  comp_kernel_key ex_1;
+  MPI_Datatype comp_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int comp_kernel_key_internal_type_block_len[2] = { 7,1 };
+  MPI_Aint comp_kernel_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
+  PMPI_Type_create_struct(2,comp_kernel_key_internal_type_block_len,comp_kernel_key_internal_type_disp,comp_kernel_key_internal_type,&comp_kernel_key_type);
+  PMPI_Type_commit(&comp_kernel_key_type);
 
-  comm_pattern_key ex_2;
-  MPI_Datatype comm_pattern_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comm_pattern_key_internal_type_block_len[2] = { 9,1 };
-  MPI_Aint comm_pattern_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
-  PMPI_Type_create_struct(2,comm_pattern_key_internal_type_block_len,comm_pattern_key_internal_type_disp,comm_pattern_key_internal_type,&comm_pattern_key_type);
-  PMPI_Type_commit(&comm_pattern_key_type);
+  comm_kernel_key ex_2;
+  MPI_Datatype comm_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int comm_kernel_key_internal_type_block_len[2] = { 9,1 };
+  MPI_Aint comm_kernel_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
+  PMPI_Type_create_struct(2,comm_kernel_key_internal_type_block_len,comm_kernel_key_internal_type_disp,comm_kernel_key_internal_type,&comm_kernel_key_type);
+  PMPI_Type_commit(&comm_kernel_key_type);
 
-  pattern_propagate ex_3;
-  MPI_Datatype pattern_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int pattern_internal_block_len[2] = { 3,6 };
-  MPI_Aint pattern_internal_disp[2] = { (char*)&ex_3.hash_id-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
-  PMPI_Type_create_struct(2,pattern_internal_block_len,pattern_internal_disp,pattern_internal_type,&pattern_type);
-  PMPI_Type_commit(&pattern_type);
+  kernel_propagate ex_3;
+  MPI_Datatype kernel_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int kernel_internal_block_len[2] = { 3,6 };
+  MPI_Aint kernel_internal_disp[2] = { (char*)&ex_3.hash_id-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
+  PMPI_Type_create_struct(2,kernel_internal_block_len,kernel_internal_disp,kernel_internal_type,&kernel_type);
+  PMPI_Type_commit(&kernel_type);
 
-  pattern_batch_propagate ex_4;
+  kernel_batch_propagate ex_4;
   MPI_Datatype batch_internal_type[2] = { MPI_INT, MPI_DOUBLE };
   int batch_internal_block_len[2] = { 3,4 };
   MPI_Aint batch_internal_disp[2] = { (char*)&ex_4.hash_id-(char*)&ex_4, (char*)&ex_4.num_scheduled_units-(char*)&ex_4 };
@@ -1305,19 +1305,19 @@ void allocate(MPI_Comm comm){
     comp_analysis_param = 0;
   }
   if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
-    pattern_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
+    kernel_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
   } else{
-    pattern_count_limit = 2;
+    kernel_count_limit = 2;
   }
   if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
-    pattern_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
+    kernel_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
   } else{
-    pattern_time_limit = 0;
+    kernel_time_limit = 0;
   }
   if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
-    pattern_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
+    kernel_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
   } else{
-    pattern_error_limit = .5;
+    kernel_error_limit = .5;
   }
   if (std::getenv("CRITTER_COMP_KERNEL_TRANSFER_ID") != NULL){
     comp_kernel_transfer_id = atof(std::getenv("CRITTER_COMP_KERNEL_TRANSFER_ID"));
@@ -1368,53 +1368,53 @@ void final_accumulate(MPI_Comm comm, double last_time){
   discretization::_MPI_Barrier.comm = MPI_COMM_WORLD;
   discretization::_MPI_Barrier.save_comp_key.clear();
   discretization::_MPI_Barrier.save_comm_key.clear();
-  for (auto& it : comp_pattern_map){
+  for (auto& it : comp_kernel_map){
     // reset the local schedule count
-    active_patterns[it.second.val_index].num_local_schedules=0;
-    if ((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
+    active_kernels[it.second.val_index].num_local_schedules=0;
+    if ((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comp_key.push_back(it.first);
       temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]++;
     }
 
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3] += active_patterns[it.second.val_index].num_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4] += active_patterns[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5] += active_patterns[it.second.val_index].num_non_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6] += active_patterns[it.second.val_index].num_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7] += active_patterns[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8] += active_patterns[it.second.val_index].num_non_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9] += active_patterns[it.second.val_index].total_exec_time;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10] += active_patterns[it.second.val_index].total_local_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3] += active_kernels[it.second.val_index].num_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5] += active_kernels[it.second.val_index].num_non_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6] += active_kernels[it.second.val_index].num_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8] += active_kernels[it.second.val_index].num_non_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9] += active_kernels[it.second.val_index].total_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10] += active_kernels[it.second.val_index].total_local_exec_time;
     // Invalid assert-> this case is possible assert(comp_batch_map.find(it.first) != comp_batch_map.end());
     // if (comp_batch_map[it.first].size() == 0) continue;
     // Complete any active and incomplete batches. Liquidate them into the pathset.
     if (comp_sample_aggregation_mode == 1){
       auto stats = intermediate_stats(it.second,comp_batch_map[it.first]);
-      update_kernel_stats(comp_pattern_map[it.first],stats);
+      update_kernel_stats(comp_kernel_map[it.first],stats);
       comp_batch_map[it.first].clear();
     }
   }
-  for (auto& it : comm_pattern_map){
+  for (auto& it : comm_kernel_map){
     // reset the local schedule count
-    active_patterns[it.second.val_index].num_local_schedules=0;
-    if ((active_patterns[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
+    active_kernels[it.second.val_index].num_local_schedules=0;
+    if ((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comm_key.push_back(it.first);
       temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]++;
     }
 
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11] += active_patterns[it.second.val_index].num_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12] += active_patterns[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13] += active_patterns[it.second.val_index].num_non_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14] += active_patterns[it.second.val_index].num_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15] += active_patterns[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16] += active_patterns[it.second.val_index].num_non_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17] += active_patterns[it.second.val_index].total_exec_time;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18] += active_patterns[it.second.val_index].total_local_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11] += active_kernels[it.second.val_index].num_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13] += active_kernels[it.second.val_index].num_non_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14] += active_kernels[it.second.val_index].num_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16] += active_kernels[it.second.val_index].num_non_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17] += active_kernels[it.second.val_index].total_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18] += active_kernels[it.second.val_index].total_local_exec_time;
     // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
     //if (comm_batch_map[it.first].size() == 0) continue;
     // Complete any active and incomplete batches. Liquidate them into the pathset.
     if (comm_sample_aggregation_mode == 1){
       auto stats = intermediate_stats(it.second,comm_batch_map[it.first]);
-      update_kernel_stats(comm_pattern_map[it.first],stats);
+      update_kernel_stats(comm_kernel_map[it.first],stats);
       comm_batch_map[it.first].clear();
     }
   }
@@ -1448,9 +1448,9 @@ void final_accumulate(MPI_Comm comm, double last_time){
   global_comm_kernel_stats[6] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17];
   global_comm_kernel_stats[7] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18];
   PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
-  discretization::_MPI_Barrier.aggregate_comp_patterns = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]>0;
-  discretization::_MPI_Barrier.aggregate_comm_patterns = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]>0;
-  discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_patterns>0 || discretization::_MPI_Barrier.aggregate_comm_patterns>0;
+  discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]>0;
+  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]>0;
+  discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_kernels>0 || discretization::_MPI_Barrier.aggregate_comm_kernels>0;
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
@@ -1463,11 +1463,11 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   skip_ptr_set.clear();
 
   // This reset will no longer reset the kernel state, but will reset the schedule counters
-  for (auto& it : comp_pattern_map){
-    active_patterns[it.second.val_index].reset();
+  for (auto& it : comp_kernel_map){
+    active_kernels[it.second.val_index].reset();
   }
-  for (auto& it : comm_pattern_map){
-    active_patterns[it.second.val_index].reset();
+  for (auto& it : comm_kernel_map){
+    active_kernels[it.second.val_index].reset();
   }
 
   if (std::getenv("CRITTER_MODE") != NULL){
@@ -1485,11 +1485,11 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   if (force_steady_statistical_data_overide){
     // This branch is to be entered only after tuning a space of algorithmic parameterizations, in which the expectation is that all kernels,
     //   both comm and comp, have reached a sufficiently-predictable state (steady state).
-    for (auto it : comm_pattern_map){
+    for (auto it : comm_kernel_map){
       set_kernel_state(it.second,false);
       set_kernel_state_global(it.second,false);
     }
-    for (auto it : comp_pattern_map){
+    for (auto it : comp_kernel_map){
       set_kernel_state(it.second,false);
       set_kernel_state_global(it.second,false);
     }
@@ -1501,22 +1501,22 @@ void clear(){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
   // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
-  // The pattern keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
+  // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
   //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets if necessary.
-  for (auto& it : comp_pattern_map){
+  for (auto& it : comp_kernel_map){
     if (schedule_tag==""){
-      active_patterns[it.second.val_index].clear_distribution();
+      active_kernels[it.second.val_index].clear_distribution();
     }
     else if (schedule_tag=="cholinv"){
       if (clear_counter % 5 == 0){
         if (it.first.tag == 101){// potrf
-          active_patterns[it.second.val_index].clear_distribution();
+          active_kernels[it.second.val_index].clear_distribution();
         }
         else if (it.first.tag == 102){// trtri
-          active_patterns[it.second.val_index].clear_distribution();
+          active_kernels[it.second.val_index].clear_distribution();
         }
         else if (it.first.tag == 200){
-          active_patterns[it.second.val_index].clear_distribution();
+          active_kernels[it.second.val_index].clear_distribution();
         }
       }
       //No-op (for now, unless necessary)
@@ -1531,16 +1531,21 @@ void clear(){
       //No-op (for now, unless necessary)
     }
   }
-  for (auto& it : comm_pattern_map){
+  for (auto& it : comm_kernel_map){
     if (schedule_tag==""){
-      active_patterns[it.second.val_index].clear_distribution();
+      active_kernels[it.second.val_index].clear_distribution();
     }
     else if (schedule_tag=="cholinv"){
       // Note that I would like to check the reset count before clearing the Allgather, but I only need to do this once anyways.
-      assert(world_size==512);// change the below to fit other process counts later
       if (clear_counter == 10){
-        if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 64) && (it.first.dim_strides[0]==8) && (it.first.partner_offset == INT_MIN)){
-          active_patterns[it.second.val_index].clear_distribution();
+        if (world_size==64){
+          if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 16) && (it.first.dim_strides[0]==4) && (it.first.partner_offset == INT_MIN)){
+            active_kernels[it.second.val_index].clear_distribution();
+          }
+        } else if (world_size==512){
+          if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 64) && (it.first.dim_strides[0]==8) && (it.first.partner_offset == INT_MIN)){
+            active_kernels[it.second.val_index].clear_distribution();
+          }
         }
       }
     }

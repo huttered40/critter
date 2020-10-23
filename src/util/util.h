@@ -32,39 +32,39 @@ extern int comm_analysis_param;
 extern int comp_analysis_param;
 
 // ****************************************************************************************************************************************************
-struct pattern_key{};
+struct kernel_key{};
 
 // ****************************************************************************************************************************************************
-struct comm_pattern_key : public pattern_key{
+struct comm_kernel_key : public kernel_key{
 
-  comm_pattern_key(int _rank=-1, int _pattern_index=-1, int _tag=-1, int _dim_sizes[2]=nullptr, int _dim_strides[2]=nullptr, double _msg_size=-1, int _partner=-1);
-  comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset);
-  comm_pattern_key(const comm_pattern_key& _copy);
-  comm_pattern_key& operator=(const comm_pattern_key& _copy);
-  friend bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
-  friend bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2);
+  comm_kernel_key(int _rank=-1, int _kernel_index=-1, int _tag=-1, int _dim_sizes[2]=nullptr, int _dim_strides[2]=nullptr, double _msg_size=-1, int _partner=-1);
+  comm_kernel_key(int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset);
+  comm_kernel_key(const comm_kernel_key& _copy);
+  comm_kernel_key& operator=(const comm_kernel_key& _copy);
+  friend bool operator==(const comm_kernel_key& ref1, const comm_kernel_key& ref2);
+  friend bool operator<(const comm_kernel_key& ref1, const comm_kernel_key& ref2);
 
   int tag;
   int dim_sizes[2];// Allow up to 2 dimensions
   int dim_strides[2];// Allow up to 2 dimensions
   int partner_offset;
-  int pattern_index;
+  int kernel_index;
   double msg_size;
 };
 
 
 // ****************************************************************************************************************************************************
-struct comp_pattern_key : public pattern_key{
+struct comp_kernel_key : public kernel_key{
 
-  comp_pattern_key(int _pattern_index=-1, int _tag=-1, double _flops=-1, int =-1, int _param2=-1, int _param3=-1, int _param4=-1, int _param5=-1);
-  comp_pattern_key(const comp_pattern_key& _copy);
-  comp_pattern_key& operator=(const comp_pattern_key& _copy);
-  friend bool operator==(const comp_pattern_key& ref1, const comp_pattern_key& ref2);
-  friend bool operator<(const comp_pattern_key& ref1, const comp_pattern_key& ref2);
+  comp_kernel_key(int _kernel_index=-1, int _tag=-1, double _flops=-1, int =-1, int _param2=-1, int _param3=-1, int _param4=-1, int _param5=-1);
+  comp_kernel_key(const comp_kernel_key& _copy);
+  comp_kernel_key& operator=(const comp_kernel_key& _copy);
+  friend bool operator==(const comp_kernel_key& ref1, const comp_kernel_key& ref2);
+  friend bool operator<(const comp_kernel_key& ref1, const comp_kernel_key& ref2);
 
   int tag;
   int param1,param2,param3,param4,param5;
-  int pattern_index;
+  int kernel_index;
   double flops;
 };
 
@@ -82,11 +82,11 @@ struct int_int_double{
 };
 
 // ****************************************************************************************************************************************************
-struct pattern_key_id{
+struct kernel_key_id{
 
-  pattern_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false);
-  pattern_key_id(const pattern_key_id& _copy);
-  pattern_key_id& operator=(const pattern_key_id& _copy);
+  kernel_key_id(bool _is_active=false, int _key_index=0, int _val_index=0, bool _is_updated=false);
+  kernel_key_id(const kernel_key_id& _copy);
+  kernel_key_id& operator=(const kernel_key_id& _copy);
 
   // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
   bool is_active;

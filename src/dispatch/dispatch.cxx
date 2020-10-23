@@ -230,10 +230,10 @@ void final_accumulate(MPI_Comm comm, double last_time){
       break;
     case 1:
       discretization::final_accumulate(comm,last_time);
-      if (discretization::_MPI_Barrier.aggregate_comp_patterns){
+      if (discretization::_MPI_Barrier.aggregate_comp_kernels){
         discretization::path::comp_state_aggregation(discretization::_MPI_Barrier);
       }
-      if (discretization::_MPI_Barrier.aggregate_comm_patterns){
+      if (discretization::_MPI_Barrier.aggregate_comm_kernels){
         discretization::path::comm_state_aggregation(discretization::_MPI_Barrier);
       }
       break;

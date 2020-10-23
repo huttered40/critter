@@ -7,8 +7,8 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-struct pattern_batch;
-struct pattern_propagate;
+struct kernel_batch;
+struct kernel_propagate;
 
 
 struct sample_propagation_tree{
@@ -22,8 +22,8 @@ struct sample_propagation_forest{
   //void generate_span(channel* node, std::vector<std::pair<int,int>>& perm_tuples);
   void insert_node(solo_channel* node);
   void clear_info();
-  void fill_ancestors(solo_channel* node, pattern_batch& batch);
-  void fill_descendants(solo_channel* node, pattern_batch& batch);
+  void fill_ancestors(solo_channel* node, kernel_batch& batch);
+  void fill_descendants(solo_channel* node, kernel_batch& batch);
 
   sample_propagation_tree* tree;
 private:
@@ -39,15 +39,15 @@ private:
 };
 
 // ****************************************************************************************************************************************************
-// Note: 'pattern_batch' is to be used for volumetric sampling modes only.
+// Note: 'kernel_batch' is to be used for volumetric sampling modes only.
 // Note: batches will never exist across variants, as they will be liquidated into the pathset during a variant, or else in 'final_accumulate'
-struct pattern_batch{
+struct kernel_batch{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  pattern_batch(channel* node = nullptr);
-  pattern_batch(const pattern_batch& _copy);
-  pattern_batch& operator=(const pattern_batch& _copy);
+  kernel_batch(channel* node = nullptr);
+  kernel_batch(const kernel_batch& _copy);
+  kernel_batch& operator=(const kernel_batch& _copy);
 
   int hash_id;
   int channel_count;
@@ -62,15 +62,15 @@ struct pattern_batch{
 };
 
 // ****************************************************************************************************************************************************
-// Note: 'pattern_batch_propagate' is to be used for volumetric sampling modes only.
-struct pattern_batch_propagate{
+// Note: 'kernel_batch_propagate' is to be used for volumetric sampling modes only.
+struct kernel_batch_propagate{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  pattern_batch_propagate(){};
-  pattern_batch_propagate(const pattern_batch& _copy);
-  pattern_batch_propagate(const pattern_batch_propagate& _copy);
-  pattern_batch_propagate& operator=(const pattern_batch_propagate& _copy);
+  kernel_batch_propagate(){};
+  kernel_batch_propagate(const kernel_batch& _copy);
+  kernel_batch_propagate(const kernel_batch_propagate& _copy);
+  kernel_batch_propagate& operator=(const kernel_batch_propagate& _copy);
 
   int hash_id;
   int channel_count;
@@ -81,16 +81,16 @@ struct pattern_batch_propagate{
 };
 
 // ****************************************************************************************************************************************************
-struct pattern{
+struct kernel{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  pattern(channel* node = nullptr);
-  pattern(const pattern_batch& _copy);
-  pattern(const pattern& _copy);
-  pattern& operator=(const pattern& _copy);
-  pattern(const pattern_propagate& _copy);
-  pattern& operator=(const pattern_propagate& _copy);
+  kernel(channel* node = nullptr);
+  kernel(const kernel_batch& _copy);
+  kernel(const kernel& _copy);
+  kernel& operator=(const kernel& _copy);
+  kernel(const kernel_propagate& _copy);
+  kernel& operator=(const kernel_propagate& _copy);
   void reset();
   void clear_distribution();
 
@@ -110,14 +110,14 @@ struct pattern{
 };
 
 // ****************************************************************************************************************************************************
-struct pattern_propagate{
+struct kernel_propagate{
   // If I leverage the kurtosis, I will have to utilize the arithmetic mean.
   //   Note that I'd rather utilize the geometric mean, but I'm not sure how to convert this algorithm
   //     to handle that.
-  pattern_propagate(){};
-  pattern_propagate(const pattern& _copy);
-  pattern_propagate(const pattern_propagate& _copy);
-  pattern_propagate& operator=(const pattern_propagate& _copy);
+  kernel_propagate(){};
+  kernel_propagate(const kernel& _copy);
+  kernel_propagate(const kernel_propagate& _copy);
+  kernel_propagate& operator=(const kernel_propagate& _copy);
 
   int hash_id;
   int num_schedules;
@@ -132,8 +132,8 @@ struct pattern_propagate{
 
 // ****************************************************************************************************************************************************
 struct intermediate_stats{
-  intermediate_stats(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches);
-  void generate(const pattern& p, const std::vector<pattern_batch>& active_batches);
+  intermediate_stats(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches);
+  void generate(const kernel& p, const std::vector<kernel_batch>& active_batches);
 
   int num_schedules;
   int num_local_schedules;
@@ -156,24 +156,24 @@ extern int sample_constraint_mode;
 extern int schedule_kernels;
 extern int update_analysis;
 extern int autotuning_test_id;
-extern MPI_Datatype comm_pattern_key_type;
-extern MPI_Datatype comp_pattern_key_type;
-extern MPI_Datatype pattern_type;
+extern MPI_Datatype comm_kernel_key_type;
+extern MPI_Datatype comp_kernel_key_type;
+extern MPI_Datatype kernel_type;
 extern MPI_Datatype batch_type;
-extern size_t pattern_count_limit;
-extern double pattern_time_limit;
-extern double pattern_error_limit;
+extern size_t kernel_count_limit;
+extern double kernel_time_limit;
+extern double kernel_error_limit;
 extern int comp_kernel_transfer_id;
 extern int comm_kernel_transfer_id;
 extern int comp_kernel_buffer_id;
-extern std::map<comm_pattern_key,pattern_key_id> comm_pattern_map;
-extern std::map<comp_pattern_key,pattern_key_id> comp_pattern_map;
-extern std::vector<comm_pattern_key> active_comm_pattern_keys;
-extern std::vector<comp_pattern_key> active_comp_pattern_keys;
-extern std::vector<pattern> active_patterns;
+extern std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
+extern std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+extern std::vector<comm_kernel_key> active_comm_kernel_keys;
+extern std::vector<comp_kernel_key> active_comp_kernel_keys;
+extern std::vector<kernel> active_kernels;
 extern sample_propagation_forest spf;
-extern std::map<comm_pattern_key,std::vector<pattern_batch>> comm_batch_map;
-extern std::map<comp_pattern_key,std::vector<pattern_batch>> comp_batch_map;
+extern std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
+extern std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
 extern std::set<intptr_t> skip_ptr_set;
 
 extern std::ofstream stream_tune,stream_reconstruct;
@@ -221,76 +221,76 @@ extern int internal_tag5;
 extern bool is_first_iter;
 
 // ****************************************************************************************************************************************************
-bool is_key_skipable(const comm_pattern_key& key);
-bool is_key_skipable(const comp_pattern_key& key);
+bool is_key_skipable(const comm_kernel_key& key);
+bool is_key_skipable(const comp_kernel_key& key);
 
-double get_estimate(const pattern& p, int analysis_param, double unit_count=1.);
-double get_estimate(const pattern_propagate& p, int analysis_param, double unit_count=1.);
-double get_estimate(const pattern_key_id& index, int analysis_param, double unit_count=1.);
-double get_estimate(const pattern_key_id& index, const std::vector<pattern_batch>& active_batches, int analysis_param, double unit_count);
+double get_estimate(const kernel& p, int analysis_param, double unit_count=1.);
+double get_estimate(const kernel_propagate& p, int analysis_param, double unit_count=1.);
+double get_estimate(const kernel_key_id& index, int analysis_param, double unit_count=1.);
+double get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches, int analysis_param, double unit_count);
 double get_estimate(const intermediate_stats& p, int analysis_param, double unit_count=1.);
 
-double get_arithmetic_mean(const pattern& p);
-double get_arithmetic_mean(const pattern_propagate& p);
-double get_arithmetic_mean(const pattern_key_id& index);
+double get_arithmetic_mean(const kernel& p);
+double get_arithmetic_mean(const kernel_propagate& p);
+double get_arithmetic_mean(const kernel_key_id& index);
 double get_arithmetic_mean(const intermediate_stats& p);
 
-double get_harmonic_mean(const pattern& p);
-double get_harmonic_mean(const pattern_propagate& p);
-double get_harmonic_mean(const pattern_key_id& index);
+double get_harmonic_mean(const kernel& p);
+double get_harmonic_mean(const kernel_propagate& p);
+double get_harmonic_mean(const kernel_key_id& index);
 double get_harmonic_mean(const intermediate_stats& p);
 
-double get_variance(const pattern& p, int analysis_param);
-double get_variance(const pattern_propagate& p, int analysis_param);
-double get_variance(const pattern_key_id& index, int analysis_param);
+double get_variance(const kernel& p, int analysis_param);
+double get_variance(const kernel_propagate& p, int analysis_param);
+double get_variance(const kernel_key_id& index, int analysis_param);
 double get_variance(const intermediate_stats& p, int analysis_param);
 
-double get_std_dev(const pattern& p, int analysis_param);
-double get_std_dev(const pattern_propagate& p, int analysis_param);
-double get_std_dev(const pattern_key_id& index, int analysis_param);
+double get_std_dev(const kernel& p, int analysis_param);
+double get_std_dev(const kernel_propagate& p, int analysis_param);
+double get_std_dev(const kernel_key_id& index, int analysis_param);
 double get_std_dev(const intermediate_stats& p, int analysis_param);
 
-double get_std_error(const pattern& p, int analysis_param);
-double get_std_error(const pattern_propagate& p, int analysis_param);
-double get_std_error(const pattern_key_id& index, int analysis_param);
+double get_std_error(const kernel& p, int analysis_param);
+double get_std_error(const kernel_propagate& p, int analysis_param);
+double get_std_error(const kernel_key_id& index, int analysis_param);
 double get_std_error(const intermediate_stats& p, int analysis_param);
 
-double get_confidence_interval(const pattern& p, int analysis_param, double level = .95);
-double get_confidence_interval(const pattern_propagate& p, int analysis_param, double level = .95);
-double get_confidence_interval(const pattern_key_id& index, int analysis_param, double level = .95);
+double get_confidence_interval(const kernel& p, int analysis_param, double level = .95);
+double get_confidence_interval(const kernel_propagate& p, int analysis_param, double level = .95);
+double get_confidence_interval(const kernel_key_id& index, int analysis_param, double level = .95);
 double get_confidence_interval(const intermediate_stats& p, int analysis_param, double level = .95);
 
-bool is_steady(const pattern& p, int analysis_param);
-bool is_steady(const pattern_key_id& index, int analysis_param);
+bool is_steady(const kernel& p, int analysis_param);
+bool is_steady(const kernel_key_id& index, int analysis_param);
 bool is_steady(const intermediate_stats& p, int analysis_param);
 
-double get_error_estimate(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);
-double get_error_estimate(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param);
-double get_error_estimate(const pattern_propagate& p, int analysis_param);
+double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
+double get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
+double get_error_estimate(const kernel_propagate& p, int analysis_param);
 
-bool steady_test(const comm_pattern_key& key, const pattern& p, int analysis_param);
-bool steady_test(const comm_pattern_key& key, const pattern_key_id& index, int analysis_param);
-bool steady_test(const comp_pattern_key& key, const pattern& p, int analysis_param);
-bool steady_test(const comp_pattern_key& key, const pattern_key_id& index, int analysis_param);
+bool steady_test(const comm_kernel_key& key, const kernel& p, int analysis_param);
+bool steady_test(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
+bool steady_test(const comp_kernel_key& key, const kernel& p, int analysis_param);
+bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
 
-void update_kernel_stats(pattern& p, int analysis_param, volatile double exec_time, double unit_count);
-void update_kernel_stats(const pattern_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
-void update_kernel_stats(pattern& dest, const pattern& src, int analysis_param);
-void update_kernel_stats(pattern_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
-void update_kernel_stats(pattern& dest, const pattern_batch& src, int analysis_param);
-void update_kernel_stats(pattern_batch& dest, const pattern_batch& src, int analysis_param);
-void update_kernel_stats(const pattern_key_id& index, const intermediate_stats& stats);
+void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(kernel& dest, const kernel& src, int analysis_param);
+void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(kernel& dest, const kernel_batch& src, int analysis_param);
+void update_kernel_stats(kernel_batch& dest, const kernel_batch& src, int analysis_param);
+void update_kernel_stats(const kernel_key_id& index, const intermediate_stats& stats);
 
-int should_schedule(const pattern& p);
-int should_schedule(const pattern_key_id& index);
+int should_schedule(const kernel& p);
+int should_schedule(const kernel_key_id& index);
 
-void set_kernel_state(pattern& p, bool schedule_decision);
-void set_kernel_state(const pattern_key_id& index, bool schedule_decision);
+void set_kernel_state(kernel& p, bool schedule_decision);
+void set_kernel_state(const kernel_key_id& index, bool schedule_decision);
 
-void set_kernel_state_global(pattern& p, bool schedule_decision);
-void set_kernel_state_global(const pattern_key_id& index, bool schedule_decision);
+void set_kernel_state_global(kernel& p, bool schedule_decision);
+void set_kernel_state_global(const kernel_key_id& index, bool schedule_decision);
 
-void merge_batches(std::vector<pattern_batch>& batches, int analysis_param);
+void merge_batches(std::vector<kernel_batch>& batches, int analysis_param);
 
 void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);

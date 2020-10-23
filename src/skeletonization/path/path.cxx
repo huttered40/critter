@@ -89,6 +89,7 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
                         MPI_Status array_of_statuses[]){}
 
 void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
+
 /*
 void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int rank){
   // Use info_receiver[last].second when deciding who to issue 3 broadcasts from
@@ -97,7 +98,6 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
 
   auto local_pattern = active_patterns[comm_pattern_map[comm_key].val_index];
 
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   int size_array[3] = {0,0,0};
   if (rank == info_receiver[num_critical_path_measures-1].second){
     size_array[0] = active_comm_pattern_keys.size();
@@ -119,39 +119,20 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
   }
   else{
     // We leverage the fact that we know the path-defining process rank
-    if (true_eager_p2p){
-      if (tracker.is_sender){
-        PMPI_Bsend(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
-        PMPI_Bsend(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
-        PMPI_Bsend(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
-        PMPI_Bsend(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm);
-      } else{
-        PMPI_Recv(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-        active_comm_pattern_keys.resize(size_array[0]);
-        active_comp_pattern_keys.resize(size_array[1]);
-        active_patterns.resize(size_array[2]);
-        PMPI_Recv(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-        PMPI_Recv(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-        PMPI_Recv(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      }
-    }
-    else{
-      if (rank == info_receiver[num_critical_path_measures-1].second){
-        PMPI_Send(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
-        PMPI_Send(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
-        PMPI_Send(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
-        PMPI_Send(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm);
-      } else{
-        //TODO: I want to keep both variants. The first is easy to rewrite, just take from above.
-        PMPI_Recv(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-        active_comm_pattern_keys.resize(size_array[0]);
-        active_comp_pattern_keys.resize(size_array[1]);
-        active_patterns.resize(size_array[2]);
-        PMPI_Recv(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-        PMPI_Recv(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-        PMPI_Recv(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      }
-      //TODO: Note that I may be screwing up the case in which tracker.partner1 != tracker.partner2
+    if (rank == info_receiver[num_critical_path_measures-1].second){
+      PMPI_Send(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Send(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Send(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Send(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm);
+    } else{
+      //TODO: I want to keep both variants. The first is easy to rewrite, just take from above.
+      PMPI_Recv(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      active_comm_pattern_keys.resize(size_array[0]);
+      active_comp_pattern_keys.resize(size_array[1]);
+      active_patterns.resize(size_array[2]);
+      PMPI_Recv(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
     }
   }
 
@@ -189,19 +170,6 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
     comm_pattern_map[comm_key].is_updated = true;
   }
 
-  // Delete those keys that no longer lie along the critical path
-  // TODO: I may be able to just skip this loop if I am not deleting anything.
-  //   NO!!!!! I cannot just delete it. The problem is that these indices are no longer valid, so when I go to update, I will be updating the wrong kernel.
-  for (auto it = comm_pattern_map.begin(); it != comm_pattern_map.end();){
-    if (!it->second.is_active){ it++; continue;  }
-    if (!it->second.is_updated){
-      it = comm_pattern_map.erase(it);
-    }
-    else{
-      it->second.is_updated=false;	// to prepare for next propagation
-      it++;
-    }
-  }
   for (auto i=0; i<active_comp_pattern_keys.size(); i++){
     comp_pattern_key id(active_comp_pattern_keys[i].pattern_index,active_comp_pattern_keys[i].tag,active_comp_pattern_keys[i].flops,
                                active_comp_pattern_keys[i].param1,active_comp_pattern_keys[i].param2,active_comp_pattern_keys[i].param3,
@@ -213,17 +181,6 @@ void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int 
       comp_pattern_map[id].key_index = i;
       comp_pattern_map[id].val_index = active_comp_pattern_keys[i].pattern_index;
       comp_pattern_map[id].is_updated = true;
-    }
-  }
-  // Delete those keys that no longer lie along the critical path
-  for (auto it = comp_pattern_map.begin(); it != comp_pattern_map.end();){
-    if (!it->second.is_active){ it++; continue;  }
-    if (!it->second.is_updated){
-      it = comp_pattern_map.erase(it);
-    }
-    else{
-      it->second.is_updated=false;	// to prepare for next propagation
-      it++;
     }
   }
 }

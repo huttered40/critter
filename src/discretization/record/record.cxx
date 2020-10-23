@@ -11,31 +11,31 @@ namespace discretization{
 std::vector<double> record::set_tuning_statistics(){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
-  if (world_rank==0) { stream << pattern_count_limit << " " << pattern_count_limit << " " << pattern_error_limit << std::endl; }
+  if (world_rank==0) { stream << kernel_count_limit << " " << kernel_count_limit << " " << kernel_error_limit << std::endl; }
   {
     double total_scheduled_comm_time=0;
     double total_scheduled_comp_time=0;
-    for (auto& it : comm_pattern_map){
-      auto& pattern_list = active_patterns;
-      auto& key_list = active_comm_pattern_keys;
+    for (auto& it : comm_kernel_map){
+      auto& kernel_list = active_kernels;
+      auto& key_list = active_comm_kernel_keys;
       if (world_rank==0) {
-        stream << "Rank 0 Communication pattern (" << key_list[it.second.key_index].tag
+        stream << "Rank 0 Communication kernel (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << "," << key_list[it.second.key_index].dim_sizes[2] << ")"
                << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << "," << key_list[it.second.key_index].dim_strides[2] << ")"
                << "," << key_list[it.second.key_index].msg_size
                << "," << key_list[it.second.key_index].partner_offset
                << ") - with byte-count " << key_list[it.second.key_index].msg_size
                << std::endl;
-        stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
-               << "\tLocalScheduledTime - " << pattern_list[it.second.val_index].total_local_exec_time
-               << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
-               << ", NumLocalSchedules - " << pattern_list[it.second.val_index].num_local_schedules
-               << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
-               << ", NumScheduledBytes - " << pattern_list[it.second.val_index].num_scheduled_units
-               << ", NumLocalScheduledBytes - " << pattern_list[it.second.val_index].num_local_scheduled_units
-               << ", NumSkippedBytes - " << pattern_list[it.second.val_index].num_non_scheduled_units
-               << ", M1 - " << pattern_list[it.second.val_index].M1
-               << ", M2 - " << pattern_list[it.second.val_index].M2
+        stream << "\tScheduledTime - " << kernel_list[it.second.val_index].total_exec_time
+               << "\tLocalScheduledTime - " << kernel_list[it.second.val_index].total_local_exec_time
+               << ", NumSchedules - " << kernel_list[it.second.val_index].num_schedules
+               << ", NumLocalSchedules - " << kernel_list[it.second.val_index].num_local_schedules
+               << ", NumScheduleSkips - " << kernel_list[it.second.val_index].num_non_schedules
+               << ", NumScheduledBytes - " << kernel_list[it.second.val_index].num_scheduled_units
+               << ", NumLocalScheduledBytes - " << kernel_list[it.second.val_index].num_local_scheduled_units
+               << ", NumSkippedBytes - " << kernel_list[it.second.val_index].num_non_scheduled_units
+               << ", M1 - " << kernel_list[it.second.val_index].M1
+               << ", M2 - " << kernel_list[it.second.val_index].M2
                << std::endl;
         stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_analysis_param)
                << ", StdDev - " << discretization::get_std_dev(it.second,comm_analysis_param)
@@ -44,14 +44,14 @@ std::vector<double> record::set_tuning_statistics(){
                << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comm_analysis_param)/(2*discretization::get_estimate(it.second,comm_analysis_param))
                << std::endl;
       }
-      total_scheduled_comm_time += pattern_list[it.second.val_index].total_local_exec_time;
+      total_scheduled_comm_time += kernel_list[it.second.val_index].total_local_exec_time;
     }
     if (world_rank==0) { stream << std::endl << std::endl; }
-    for (auto& it : comp_pattern_map){
-      auto& pattern_list = active_patterns;
-      auto& key_list = active_comp_pattern_keys;
+    for (auto& it : comp_kernel_map){
+      auto& kernel_list = active_kernels;
+      auto& key_list = active_comp_kernel_keys;
       if (world_rank==0) {
-         stream << "Rank 0 Computation pattern (" << it.first.tag
+         stream << "Rank 0 Computation kernel (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
                 << "," << key_list[it.second.key_index].param2
                 << "," << key_list[it.second.key_index].param3
@@ -60,16 +60,16 @@ std::vector<double> record::set_tuning_statistics(){
                 << ") - with flop-count "
                 << it.first.flops
                 << std::endl;
-         stream << "\tScheduledTime - " << pattern_list[it.second.val_index].total_exec_time
-                << "\tLocalScheduledTime - " << pattern_list[it.second.val_index].total_local_exec_time
-                << ", NumSchedules - " << pattern_list[it.second.val_index].num_schedules
-                << ", NumLocalSchedules - " << pattern_list[it.second.val_index].num_local_schedules
-                << ", NumScheduleSkips - " << pattern_list[it.second.val_index].num_non_schedules
-                << ", NumScheduledFlops - " << pattern_list[it.second.val_index].num_scheduled_units
-                << ", NumLocalScheduledFlops - " << pattern_list[it.second.val_index].num_local_scheduled_units
-                << ", NumSkippedFlops - " << pattern_list[it.second.val_index].num_non_scheduled_units
-                << ", M1 - " << pattern_list[it.second.val_index].M1
-                << ", M2 - " << pattern_list[it.second.val_index].M2
+         stream << "\tScheduledTime - " << kernel_list[it.second.val_index].total_exec_time
+                << "\tLocalScheduledTime - " << kernel_list[it.second.val_index].total_local_exec_time
+                << ", NumSchedules - " << kernel_list[it.second.val_index].num_schedules
+                << ", NumLocalSchedules - " << kernel_list[it.second.val_index].num_local_schedules
+                << ", NumScheduleSkips - " << kernel_list[it.second.val_index].num_non_schedules
+                << ", NumScheduledFlops - " << kernel_list[it.second.val_index].num_scheduled_units
+                << ", NumLocalScheduledFlops - " << kernel_list[it.second.val_index].num_local_scheduled_units
+                << ", NumSkippedFlops - " << kernel_list[it.second.val_index].num_non_scheduled_units
+                << ", M1 - " << kernel_list[it.second.val_index].M1
+                << ", M2 - " << kernel_list[it.second.val_index].M2
                 << std::endl;
          stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_analysis_param,comp_analysis_param)
                 << ", StdDev - " << discretization::get_std_dev(it.second,comp_analysis_param)
@@ -78,24 +78,24 @@ std::vector<double> record::set_tuning_statistics(){
                 << ", Stopping criterion - " << discretization::get_confidence_interval(it.second,comp_analysis_param)/(2*discretization::get_estimate(it.second,comp_analysis_param))
                 << std::endl;
        }
-      total_scheduled_comp_time += pattern_list[it.second.val_index].total_local_exec_time;
+      total_scheduled_comp_time += kernel_list[it.second.val_index].total_local_exec_time;
     }
     if (world_rank==0){
       stream << std::endl;
 /*
       stream << "Max -- communication\n";
       stream << "\tExecution path parameterization #" << comm_envelope_param << " " << comm_unit_param << " " << comm_analysis_param << ":\n";
-      stream << "\t\tNum scheduled max_patterns - " << max_patterns[1] << std::endl;
-      stream << "\t\tNum total max_patterns - " << max_patterns[1]+max_patterns[2] << std::endl;
-      stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[1] * 1. / (max_patterns[1]+max_patterns[2])) << std::endl;
+      stream << "\t\tNum scheduled max_kernels - " << max_kernels[1] << std::endl;
+      stream << "\t\tNum total max_kernels - " << max_kernels[1]+max_kernels[2] << std::endl;
+      stream << "\t\tPattern hit ratio - " << 1.-(max_kernels[1] * 1. / (max_kernels[1]+max_kernels[2])) << std::endl;
       stream << "\t\tNum scheduled bytes - " << max_units[1] << std::endl;
       stream << "\t\tNum total bytes - " << max_units[1]+max_units[2] << std::endl;
       stream << "\t\tCommunication byte hit ratio - " << 1. - (max_units[1] * 1. / (max_units[1]+max_units[2])) << std::endl;
       stream << "Max -- computation\n";
       stream << "\tExecution path parameterization #" << comp_envelope_param << " " << comp_unit_param << " " << comp_analysis_param << ":\n";
-      stream << "\t\tNum scheduled max_patterns - " << max_patterns[4] << std::endl;
-      stream << "\t\tNum total max_patterns - " << max_patterns[4]+max_patterns[5] << std::endl;
-      stream << "\t\tPattern hit ratio - " << 1.-(max_patterns[4] * 1. / (max_patterns[4]+max_patterns[5])) << std::endl;
+      stream << "\t\tNum scheduled max_kernels - " << max_kernels[4] << std::endl;
+      stream << "\t\tNum total max_kernels - " << max_kernels[4]+max_kernels[5] << std::endl;
+      stream << "\t\tPattern hit ratio - " << 1.-(max_kernels[4] * 1. / (max_kernels[4]+max_kernels[5])) << std::endl;
       stream << "\t\tNum scheduled flops - " << max_units[4] << std::endl;
       stream << "\t\tNum total flops - " << max_units[4]+max_units[5] << std::endl;
       stream << "\t\tComputation flop hit ratio - " << 1. - (max_units[4] * 1. / (max_units[4]+max_units[5])) << std::endl;
@@ -243,9 +243,9 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_tune << std::left << std::setw(mode_1_width) << comp_envelope_param;
       stream_tune << std::left << std::setw(mode_1_width) << comp_unit_param;
       stream_tune << std::left << std::setw(mode_1_width) << comp_analysis_param;
-      stream_tune << std::left << std::setw(mode_1_width) << pattern_count_limit;
-      stream_tune << std::left << std::setw(mode_1_width) << pattern_time_limit;
-      stream_tune << std::left << std::setw(mode_1_width) << pattern_error_limit;
+      stream_tune << std::left << std::setw(mode_1_width) << kernel_count_limit;
+      stream_tune << std::left << std::setw(mode_1_width) << kernel_time_limit;
+      stream_tune << std::left << std::setw(mode_1_width) << kernel_error_limit;
       stream_tune << std::left << std::setw(mode_1_width) << _wall_time;
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[0];
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[1];
@@ -285,9 +285,9 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << comp_envelope_param;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comp_unit_param;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comp_analysis_param;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << pattern_count_limit;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << pattern_time_limit;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << pattern_error_limit;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << kernel_count_limit;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << kernel_time_limit;
+      stream_reconstruct << std::left << std::setw(mode_1_width) << kernel_error_limit;
       stream_reconstruct << std::left << std::setw(mode_1_width) << _wall_time;
       stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
       stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-2];

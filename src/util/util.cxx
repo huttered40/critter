@@ -83,8 +83,8 @@ int comp_unit_param;
 int comm_analysis_param;
 int comp_analysis_param;
 // ****************************************************************************************************************************************************
-comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner){
-  this->pattern_index = _pattern_index;
+comm_kernel_key::comm_kernel_key(int _rank, int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner){
+  this->kernel_index = _kernel_index;
   // Envelope (non-message-size) parameterization specification
   this->tag = _tag;
   if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],2*sizeof(int));
@@ -108,8 +108,8 @@ comm_pattern_key::comm_pattern_key(int _rank, int _pattern_index, int _tag, int 
 }
 
 // This constructor is used when transferring ownership of kernels following path propagation.
-comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset){
-  this->pattern_index = _pattern_index;
+comm_kernel_key::comm_kernel_key(int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset){
+  this->kernel_index = _kernel_index;
   this->tag = _tag;
   if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],2*sizeof(int));
   if (_dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_dim_strides[0],2*sizeof(int));
@@ -117,8 +117,8 @@ comm_pattern_key::comm_pattern_key(int _pattern_index, int _tag, int _dim_sizes[
   this->msg_size = _msg_size;
 }
 
-comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
-  this->pattern_index = _copy.pattern_index;
+comm_kernel_key::comm_kernel_key(const comm_kernel_key& _copy){
+  this->kernel_index = _copy.kernel_index;
   this->tag = _copy.tag;
   if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],2*sizeof(int));
   if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],2*sizeof(int));
@@ -126,8 +126,8 @@ comm_pattern_key::comm_pattern_key(const comm_pattern_key& _copy){
   this->partner_offset = _copy.partner_offset;
 }
 
-comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
-  this->pattern_index = _copy.pattern_index;
+comm_kernel_key& comm_kernel_key::operator=(const comm_kernel_key& _copy){
+  this->kernel_index = _copy.kernel_index;
   this->tag = _copy.tag;
   if (_copy.dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_copy.dim_sizes[0],2*sizeof(int));
   if (_copy.dim_strides != nullptr) std::memcpy(&this->dim_strides[0],&_copy.dim_strides[0],2*sizeof(int));
@@ -136,7 +136,7 @@ comm_pattern_key& comm_pattern_key::operator=(const comm_pattern_key& _copy){
   return *this;
 }
 
-bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
+bool operator==(const comm_kernel_key& ref1, const comm_kernel_key& ref2){
   // Note that because of how we set the member variables in the constructor based on envlope, unit, and analysis parameterizations, no branching is required here.
   if ((ref1.tag==ref2.tag) &&
       (ref1.dim_sizes[0] == ref2.dim_sizes[0]) && (ref1.dim_sizes[1] == ref2.dim_sizes[1]) && (ref1.dim_sizes[2] == ref2.dim_sizes[2]) &&
@@ -145,7 +145,7 @@ bool operator==(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
   else return false;
 }
 
-bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
+bool operator<(const comm_kernel_key& ref1, const comm_kernel_key& ref2){
   if (ref1.tag < ref2.tag) return true;
   else if (ref1.tag > ref2.tag) return false;
   if (ref1.dim_sizes[0] < ref2.dim_sizes[0]) return true;
@@ -168,8 +168,8 @@ bool operator<(const comm_pattern_key& ref1, const comm_pattern_key& ref2){
 }
 
 // ****************************************************************************************************************************************************
-comp_pattern_key::comp_pattern_key(int _pattern_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
-  this->pattern_index = _pattern_index;
+comp_kernel_key::comp_kernel_key(int _kernel_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
+  this->kernel_index = _kernel_index;
   this->tag = _tag;
   this->param1 = truncate(_param1,comp_unit_param);
   this->param2 = truncate(_param2,comp_unit_param);
@@ -179,8 +179,8 @@ comp_pattern_key::comp_pattern_key(int _pattern_index, int _tag, double _flops, 
   this->flops = truncate(_flops,comp_unit_param);
 }
 
-comp_pattern_key::comp_pattern_key(const comp_pattern_key& _copy){
-  this->pattern_index = _copy.pattern_index;
+comp_kernel_key::comp_kernel_key(const comp_kernel_key& _copy){
+  this->kernel_index = _copy.kernel_index;
   this->tag = _copy.tag;
   this->flops = _copy.flops;
   this->param1 = _copy.param1;
@@ -190,8 +190,8 @@ comp_pattern_key::comp_pattern_key(const comp_pattern_key& _copy){
   this->param5 = _copy.param5;
 }
 
-comp_pattern_key& comp_pattern_key::operator=(const comp_pattern_key& _copy){
-  this->pattern_index = _copy.pattern_index;
+comp_kernel_key& comp_kernel_key::operator=(const comp_kernel_key& _copy){
+  this->kernel_index = _copy.kernel_index;
   this->tag = _copy.tag;
   this->flops = _copy.flops;
   this->param1 = _copy.param1;
@@ -202,12 +202,12 @@ comp_pattern_key& comp_pattern_key::operator=(const comp_pattern_key& _copy){
   return *this;
 }
 
-bool operator==(const comp_pattern_key& ref1, const comp_pattern_key& ref2){
+bool operator==(const comp_kernel_key& ref1, const comp_kernel_key& ref2){
   if ((ref1.tag==ref2.tag) && (ref1.param1 == ref2.param1) && (ref1.param2 == ref2.param2) && (ref1.param3 == ref2.param3) && (ref1.param4 == ref2.param4) && (ref1.param5 == ref2.param5)) return true;
   else return false;
 }
 
-bool operator<(const comp_pattern_key& ref1, const comp_pattern_key& ref2){
+bool operator<(const comp_kernel_key& ref1, const comp_kernel_key& ref2){
   if (ref1.tag < ref2.tag) return true;
   else if (ref1.tag > ref2.tag) return false;
   if (ref1.param1 < ref2.param1) return true;
@@ -224,21 +224,21 @@ bool operator<(const comp_pattern_key& ref1, const comp_pattern_key& ref2){
 }
 
 // ****************************************************************************************************************************************************
-pattern_key_id::pattern_key_id(bool _is_active, int _key_index, int _val_index, bool _is_updated){
+kernel_key_id::kernel_key_id(bool _is_active, int _key_index, int _val_index, bool _is_updated){
   this->is_active = _is_active;
   this->key_index = _key_index;
   this->val_index = _val_index;
   this->is_updated = _is_updated;
 }
 
-pattern_key_id::pattern_key_id(const pattern_key_id& _copy){
+kernel_key_id::kernel_key_id(const kernel_key_id& _copy){
   this->is_active = _copy.is_active;
   this->key_index = _copy.key_index;
   this->val_index = _copy.val_index;
   this->is_updated = _copy.is_updated;
 }
 
-pattern_key_id& pattern_key_id::operator=(const pattern_key_id& _copy){
+kernel_key_id& kernel_key_id::operator=(const kernel_key_id& _copy){
   this->is_active = _copy.is_active;
   this->key_index = _copy.key_index;
   this->val_index = _copy.val_index;

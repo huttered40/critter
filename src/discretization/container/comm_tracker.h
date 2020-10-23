@@ -39,10 +39,10 @@ class comm_tracker{
     /* \brief is_sender bool with which start() was last called */
     bool is_sender;
     bool should_propagate;
-    bool aggregate_comp_patterns;
-    bool aggregate_comm_patterns;
-    std::vector<comm_pattern_key> save_comm_key;
-    std::vector<comp_pattern_key> save_comp_key;
+    bool aggregate_comp_kernels;
+    bool aggregate_comm_kernels;
+    std::vector<comm_kernel_key> save_comm_key;
+    std::vector<comp_kernel_key> save_comp_key;
     /** \brief initialization of state called by construtors */
     void init();
     /** */
