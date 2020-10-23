@@ -113,7 +113,7 @@ void path::complete_comp(std::vector<intptr_t>& user_array, size_t id, double fl
     } else{
       bool is_steady = steady_test(key,comp_pattern_map[key],comp_analysis_param);
       set_kernel_state(comp_pattern_map[key],!is_steady);
-      if (comp_state_aggregation_mode==0) set_kernel_state_global(comp_pattern_map[key],!is_steady);
+      if (comp_state_aggregation_mode==0 || sample_constraint_mode==-1) set_kernel_state_global(comp_pattern_map[key],!is_steady);
     }
   }
 
