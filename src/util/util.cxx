@@ -320,7 +320,8 @@ size_t
 	_LAPACK_tpmqrt__id;
 size_t
 	_CAPITAL_blktocyc__id;
-//std::map<std::pair<std::string,size_t>,bool> schedule_map;
+MPI_Datatype comm_kernel_key_type;
+MPI_Datatype comp_kernel_key_type;
 
 std::map<MPI_Comm,solo_channel*> comm_channel_map;
 std::map<int,solo_channel*> p2p_channel_map;

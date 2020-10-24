@@ -18,8 +18,6 @@ int sample_constraint_mode;
 int schedule_kernels;
 int update_analysis;
 int autotuning_test_id;
-MPI_Datatype comm_kernel_key_type;
-MPI_Datatype comp_kernel_key_type;
 MPI_Datatype kernel_type;
 MPI_Datatype batch_type;
 size_t kernel_count_limit;
@@ -1163,20 +1161,6 @@ void allocate(MPI_Comm comm){
     auto str2 = aggregate_channel::generate_hash_history(agg_node);
     std::cout << "Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
   }
-
-  comp_kernel_key ex_1;
-  MPI_Datatype comp_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comp_kernel_key_internal_type_block_len[2] = { 7,1 };
-  MPI_Aint comp_kernel_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
-  PMPI_Type_create_struct(2,comp_kernel_key_internal_type_block_len,comp_kernel_key_internal_type_disp,comp_kernel_key_internal_type,&comp_kernel_key_type);
-  PMPI_Type_commit(&comp_kernel_key_type);
-
-  comm_kernel_key ex_2;
-  MPI_Datatype comm_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comm_kernel_key_internal_type_block_len[2] = { 9,1 };
-  MPI_Aint comm_kernel_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
-  PMPI_Type_create_struct(2,comm_kernel_key_internal_type_block_len,comm_kernel_key_internal_type_disp,comm_kernel_key_internal_type,&comm_kernel_key_type);
-  PMPI_Type_commit(&comm_kernel_key_type);
 
   kernel_propagate ex_3;
   MPI_Datatype kernel_internal_type[2] = { MPI_INT, MPI_DOUBLE };

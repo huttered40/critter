@@ -176,6 +176,21 @@ void _init(int* argc, char*** argv){
   reset_counter = 0;
   clear_counter = 0;
 
+  comp_kernel_key ex_1;
+  MPI_Datatype comp_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int comp_kernel_key_internal_type_block_len[2] = { 7,1 };
+  MPI_Aint comp_kernel_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
+  PMPI_Type_create_struct(2,comp_kernel_key_internal_type_block_len,comp_kernel_key_internal_type_disp,comp_kernel_key_internal_type,&comp_kernel_key_type);
+  PMPI_Type_commit(&comp_kernel_key_type);
+
+  comm_kernel_key ex_2;
+  MPI_Datatype comm_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  int comm_kernel_key_internal_type_block_len[2] = { 9,1 };
+  MPI_Aint comm_kernel_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
+  PMPI_Type_create_struct(2,comm_kernel_key_internal_type_block_len,comm_kernel_key_internal_type_disp,comm_kernel_key_internal_type,&comm_kernel_key_type);
+  PMPI_Type_commit(&comm_kernel_key_type);
+
+
   mechanism=0;
   allocate(MPI_COMM_WORLD);
   mechanism=1;

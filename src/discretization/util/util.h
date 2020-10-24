@@ -156,8 +156,6 @@ extern int sample_constraint_mode;
 extern int schedule_kernels;
 extern int update_analysis;
 extern int autotuning_test_id;
-extern MPI_Datatype comm_kernel_key_type;
-extern MPI_Datatype comp_kernel_key_type;
 extern MPI_Datatype kernel_type;
 extern MPI_Datatype batch_type;
 extern size_t kernel_count_limit;

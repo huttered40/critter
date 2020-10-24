@@ -169,6 +169,8 @@ extern size_t
 	_LAPACK_tpmqrt__id;
 extern size_t
 	_CAPITAL_blktocyc__id;
+extern MPI_Datatype comm_kernel_key_type;
+extern MPI_Datatype comp_kernel_key_type;
 
 // ****************************************************************************************************************************************************
 struct channel{
