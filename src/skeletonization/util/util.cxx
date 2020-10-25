@@ -8,13 +8,10 @@ namespace critter{
 namespace internal{
 namespace skeletonization{
 
-MPI_Datatype comm_kernel_key_type;
-MPI_Datatype comp_kernel_key_type;
 std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
-std::vector<comm_kernel_key> steady_state_comm_kernel_keys;
+std::vector<int> active_kernels;
 std::vector<comm_kernel_key> active_comm_kernel_keys;
-std::vector<comp_kernel_key> steady_state_comp_kernel_keys;
 std::vector<comp_kernel_key> active_comp_kernel_keys;
 volatile double comm_intercept_overhead_stage1;
 volatile double comm_intercept_overhead_stage2;
@@ -55,22 +52,6 @@ void allocate(MPI_Comm comm){
   comm_intercept_overhead_stage2=0;
   comp_intercept_overhead=0;
 
-  comp_kernel_key ex_1;
-  MPI_Datatype comp_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comp_kernel_key_internal_type_block_len[2] = { 7,1 };
-  MPI_Aint comp_kernel_key_internal_type_disp[2] = { (char*)&ex_1.tag-(char*)&ex_1, (char*)&ex_1.flops-(char*)&ex_1 };
-  PMPI_Type_create_struct(2,comp_kernel_key_internal_type_block_len,comp_kernel_key_internal_type_disp,comp_kernel_key_internal_type,&comp_kernel_key_type);
-  PMPI_Type_commit(&comp_kernel_key_type);
-
-  comm_kernel_key ex_2;
-  MPI_Datatype comm_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int comm_kernel_key_internal_type_block_len[2] = { 9,1 };
-  MPI_Aint comm_kernel_key_internal_type_disp[2] = { (char*)&ex_2.tag-(char*)&ex_2, (char*)&ex_2.msg_size-(char*)&ex_2 };
-  PMPI_Type_create_struct(2,comm_kernel_key_internal_type_block_len,comm_kernel_key_internal_type_disp,comm_kernel_key_internal_type,&comm_kernel_key_type);
-  PMPI_Type_commit(&comm_kernel_key_type);
-
-  //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
-
   // Communication kernel time, computation kernel time, computation time, execution time
   num_critical_path_measures 		= 1;
   num_per_process_measures 		= 1;
@@ -92,7 +73,6 @@ void open_symbol(const char* symbol, double curtime){}
 void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
-
   max_per_process_costs = volume_costs;// copy over the per-process measurements that exist in volume_costs
   double temp_costs[5];
   for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];
@@ -112,6 +92,11 @@ void reset(){
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
+  active_kernels.clear();
+  active_comm_kernel_keys.clear();
+  active_comp_kernel_keys.clear();
+  comm_kernel_map.clear();
+  comp_kernel_map.clear();
   internal::bsp_counter=0;
 
   if (std::getenv("CRITTER_MODE") != NULL){

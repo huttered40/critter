@@ -599,8 +599,8 @@ void path::comp_state_aggregation(blocking& tracker){
       for (auto i=0; i<tracker.save_comp_key.size(); i++){
         auto& key = tracker.save_comp_key[i];
         if (save_comp_kernels.find(key) != save_comp_kernels.end()){
-          double ci_local = get_error_estimate(save_comp_kernels[key],comp_analysis_param);
-          double ci_foreign = get_error_estimate(foreign_active_kernels[i],comp_analysis_param);
+          double ci_local = get_error_estimate(key,save_comp_kernels[key],comp_analysis_param);
+          double ci_foreign = get_error_estimate(key,foreign_active_kernels[i],comp_analysis_param);
           if (ci_foreign < ci_local){
             save_comp_kernels[key] = foreign_active_kernels[i];
           }
@@ -719,8 +719,8 @@ void path::comm_state_aggregation(blocking& tracker){
       for (auto i=0; i<tracker.save_comm_key.size(); i++){
         auto& key = tracker.save_comm_key[i];
         if (save_comm_kernels.find(key) != save_comm_kernels.end()){
-          double ci_local = get_error_estimate(save_comm_kernels[key],comm_analysis_param);
-          double ci_foreign = get_error_estimate(foreign_active_kernels[i],comm_analysis_param);
+          double ci_local = get_error_estimate(key,save_comm_kernels[key],comm_analysis_param);
+          double ci_foreign = get_error_estimate(key,foreign_active_kernels[i],comm_analysis_param);
           if (ci_foreign < ci_local){
             save_comm_kernels[key] = foreign_active_kernels[i];
           }

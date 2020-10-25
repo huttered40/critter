@@ -1,6 +1,7 @@
 #include <limits.h>
 
 #include "util.h"
+#include "../../skeletonization/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
 
@@ -17,7 +18,6 @@ int sample_constraint_mode;
 //int sample_reset_mode;
 int schedule_kernels;
 int update_analysis;
-int autotuning_test_id;
 MPI_Datatype kernel_type;
 MPI_Datatype batch_type;
 size_t kernel_count_limit;
@@ -41,6 +41,10 @@ std::vector<double> intercept_overhead;
 std::vector<double> global_intercept_overhead;
 std::vector<double> global_comp_kernel_stats;
 std::vector<double> global_comm_kernel_stats;
+std::vector<double> local_comp_kernel_stats;
+std::vector<double> local_comm_kernel_stats;
+std::vector<double> save_comp_kernel_stats;
+std::vector<double> save_comm_kernel_stats;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -193,19 +197,17 @@ void kernel::reset(){
   // No reason to reset distribution members ('M1','M2','steady_state','global_steady_state')
   // Do not reset the schedule_count members because those are needed to determine sample variance,
   //   which builds across schedules.
-  this->total_exec_time = 0;
+  this->num_local_schedules=0;
   this->total_local_exec_time = 0;
-  this->num_scheduled_units = 0;
   this->num_local_scheduled_units = 0;
-  this->num_non_scheduled_units = 0;
 }
 void kernel::clear_distribution(){
   // All other members would have already been reset (via 'reset' above)
   this->steady_state = false;
   this->global_steady_state = false;
+  this->total_exec_time = 0;
+  this->num_scheduled_units = 0;
   this->num_schedules = 0;
-  this->num_local_schedules=0;
-  this->num_non_schedules = 0;
   this->M1=0; this->M2=0;
 }
 
@@ -612,6 +614,26 @@ bool is_key_skipable(const comp_kernel_key& key){
   return true;
 }
 
+int get_skel_count(const comm_kernel_key& key){
+  assert(sample_constraint_mode==3);
+  int skel_val = 1;
+  if (skeletonization::comm_kernel_map.find(key) != skeletonization::comm_kernel_map.end()){
+    skel_val = skeletonization::active_kernels[skeletonization::comm_kernel_map[key].val_index];
+    skel_val = std::max(skel_val,1);
+  }
+  return skel_val;
+}
+int get_skel_count(const comp_kernel_key& key){
+  assert(sample_constraint_mode==3);
+  int skel_val = 1;
+  if (skeletonization::comp_kernel_map.find(key) != skeletonization::comp_kernel_map.end()){
+    skel_val = skeletonization::active_kernels[skeletonization::comp_kernel_map[key].val_index];
+    skel_val = std::max(skel_val,1);
+  }
+  return skel_val;
+}
+
+
 double get_estimate(const kernel& p, int analysis_param, double unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(p);
@@ -741,140 +763,184 @@ double get_std_dev(const intermediate_stats& p, int analysis_param){
   return pow(get_variance(p,analysis_param),1./2.);
 }
 
+int get_std_error_count(const kernel& p){
+  int n = 1;
+  switch (sample_constraint_mode){
+    case -1:
+      n = 1; break;
+    case 0:
+      n=1; break;
+    case 1:
+      n = p.num_local_schedules; break;
+    case 2:
+      n = p.num_schedules; break;
+  }
+  n = std::max(1,n);
+  return n;
+}
+int get_std_error_count(const kernel_propagate& p){
+  int n = 1;
+  switch (sample_constraint_mode){
+    case -1:
+      n = 1; break;
+    case 0:
+      n=1; break;
+    case 1:
+      n = p.num_local_schedules; break;
+    case 2:
+      n = p.num_schedules; break;
+  }
+  n = std::max(1,n);
+  return n;
+}
+int get_std_error_count(const kernel_key_id& index){
+  int n = 1;
+  switch (sample_constraint_mode){
+    case -1:
+      n = 1; break;
+    case 0:
+      n=1; break;
+    case 1:
+      n = active_kernels[index.val_index].num_local_schedules; break;
+    case 2:
+      n = active_kernels[index.val_index].num_schedules; break;
+  }
+  n = std::max(1,n);
+  return n;
+}
+int get_std_error_count(const intermediate_stats& p){
+  // returns standard error
+  int n = 1;
+  switch (sample_constraint_mode){
+    case -1:
+      n = 1; break;
+    case 0:
+      n=1; break;
+    case 1:
+      n = p.num_local_schedules; break;
+    case 2:
+      n = p.num_schedules; break;
+  }
+  n = std::max(1,n);
+  return n;
+}
+
 // Standard error calculation takes into account execution path analysis
-double get_std_error(const kernel& p, int analysis_param){
+double get_std_error(const comm_kernel_key& key, const kernel& p, int analysis_param){
   // returns standard error
-  size_t n = 1;
-  switch (sample_constraint_mode){
-    case -1:
-      n = 1;// Doesn't matter what I set here
-      break;
-    case 0:
-      n=1;
-      break;
-    case 1:
-/*
-      assert(key in skeleton map); .. i need to get this key though. Might just be easier to snag the count from is_Steady
-      .. verify that entry is not 0. If it is, then set n=1
-      n = p.num_schedules;
-*/
-      n = p.num_local_schedules;
-      break;
-    case 2:
-      n = p.num_schedules;
-      break;
-  }
-  assert(n>0);// Can change to max(1,n) once Im sure the assert won't get hit
+  int n = get_std_error_count(p);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const kernel_propagate& p, int analysis_param){
+double get_std_error(const comp_kernel_key& key, const kernel& p, int analysis_param){
   // returns standard error
-  int n = 1;
-  switch (sample_constraint_mode){
-    case -1:
-      n = 1;// Doesn't matter what I set here
-      break;
-    case 0:
-      n=1;
-      break;
-    case 1:
-/*
-      assert(key in skeleton map); .. i need to get this key though. Might just be easier to snag the count from is_Steady
-      .. verify that entry is not 0. If it is, then set n=1
-      n = p.num_schedules;
-*/
-      n = p.num_local_schedules;
-      break;
-    case 2:
-      n = p.num_schedules;
-      break;
-  }
-  n = std::max(1,n);
+  int n = get_std_error_count(p);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const kernel_key_id& index, int analysis_param){
+double get_std_error(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param){
   // returns standard error
-  int n = 1;
-  switch (sample_constraint_mode){
-    case -1:
-      n = 1;// Doesn't matter what I set here
-      break;
-    case 0:
-      n=1;
-      break;
-    case 1:
-/*
-      assert(key in skeleton map); .. i need to get this key though. Might just be easier to snag the count from is_Steady
-      .. verify that entry is not 0. If it is, then set n=1
-      n = p.num_schedules;
-*/
-      n = active_kernels[index.val_index].num_local_schedules;
-      break;
-    case 2:
-      n = active_kernels[index.val_index].num_schedules;
-      break;
-  }
-  n = std::max(1,n);
+  int n = get_std_error_count(p);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
+  return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
+}
+double get_std_error(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param){
+  // returns standard error
+  int n = get_std_error_count(p);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
+  return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
+}
+double get_std_error(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
+  // returns standard error
+  int n = get_std_error_count(index);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const intermediate_stats& p, int analysis_param){
+double get_std_error(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   // returns standard error
-  int n = 1;
-  switch (sample_constraint_mode){
-    case -1:
-      n = 1;// Doesn't matter what I set here
-      break;
-    case 0:
-      n=1;
-      break;
-    case 1:
-/*
-      assert(key in skeleton map); .. i need to get this key though. Might just be easier to snag the count from is_Steady
-      .. verify that entry is not 0. If it is, then set n=1
-      n = p.num_schedules;
-*/
-      n = p.num_local_schedules;
-      break;
-    case 2:
-      n = p.num_schedules;
-      break;
-  }
-  n = std::max(1,n);
+  int n = get_std_error_count(index);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
+  return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
+}
+double get_std_error(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param){
+  // returns standard error
+  int n = get_std_error_count(p);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
+  return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
+}
+double get_std_error(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param){
+  // returns standard error
+  int n = get_std_error_count(p);
+  if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 
-double get_confidence_interval(const kernel& p, int analysis_param, double level){
+double get_confidence_interval(const comm_kernel_key& key, const kernel& p, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
-  return 1.96*get_std_error(p,analysis_param);
+  return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const kernel_propagate& p, int analysis_param, double level){
+double get_confidence_interval(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
-  return 1.96*get_std_error(p,analysis_param);
+  return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const kernel_key_id& index, int analysis_param, double level){
+double get_confidence_interval(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
-  return 1.96*get_std_error(index,analysis_param);
+  return 1.96*get_std_error(key,index,analysis_param);
 }
-double get_confidence_interval(const intermediate_stats& p, int analysis_param, double level){
+double get_confidence_interval(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param, double level){
   // returns confidence interval length with 95% confidence level
-  return 1.96*get_std_error(p,analysis_param);
+  return 1.96*get_std_error(key,p,analysis_param);
+}
+double get_confidence_interval(const comp_kernel_key& key, const kernel& p, int analysis_param, double level){
+  // returns confidence interval length with 95% confidence level
+  return 1.96*get_std_error(key,p,analysis_param);
+}
+double get_confidence_interval(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param, double level){
+  // returns confidence interval length with 95% confidence level
+  return 1.96*get_std_error(key,p,analysis_param);
+}
+double get_confidence_interval(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param, double level){
+  // returns confidence interval length with 95% confidence level
+  return 1.96*get_std_error(key,index,analysis_param);
+}
+double get_confidence_interval(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param, double level){
+  // returns confidence interval length with 95% confidence level
+  return 1.96*get_std_error(key,p,analysis_param);
 }
 
-bool is_steady(const kernel& p, int analysis_param){
+bool is_steady(const comm_kernel_key& key, const kernel& p, int analysis_param){
   if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
           (p.num_schedules >= kernel_count_limit) &&
           (p.total_exec_time >= kernel_time_limit);
 }
-bool is_steady(const kernel_key_id& index, int analysis_param){
+bool is_steady(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
-  return ((get_confidence_interval(index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
+  return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
           (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
           (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
 }
-bool is_steady(const intermediate_stats& p, int analysis_param){
+bool is_steady(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param){
   if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+          (p.num_schedules >= kernel_count_limit) &&
+          (p.total_exec_time >= kernel_time_limit);
+}
+bool is_steady(const comp_kernel_key& key, const kernel& p, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
+  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+          (p.num_schedules >= kernel_count_limit) &&
+          (p.total_exec_time >= kernel_time_limit);
+}
+bool is_steady(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
+  return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
+          (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
+          (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
+}
+bool is_steady(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
+  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
           (p.num_schedules >= kernel_count_limit) &&
           (p.total_exec_time >= kernel_time_limit);
 }
@@ -882,47 +948,50 @@ bool is_steady(const intermediate_stats& p, int analysis_param){
 double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   auto& active_batches = comm_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
-  return get_confidence_interval(stats,analysis_param) / (get_estimate(stats,analysis_param));
+  return get_confidence_interval(key,stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
 double get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   auto& active_batches = comp_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
-  return get_confidence_interval(stats,analysis_param) / (get_estimate(stats,analysis_param));
+  return get_confidence_interval(key,stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
-double get_error_estimate(const kernel_propagate& p, int analysis_param){
-  return get_confidence_interval(p,analysis_param) / (get_estimate(p,analysis_param));
+double get_error_estimate(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param){
+  return get_confidence_interval(key,p,analysis_param) / (get_estimate(p,analysis_param));
+}
+double get_error_estimate(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param){
+  return get_confidence_interval(key,p,analysis_param) / (get_estimate(p,analysis_param));
 }
 
 bool steady_test(const comm_kernel_key& key, const kernel& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  return is_steady(p,analysis_param);
+  return is_steady(key,p,analysis_param);
 }
 bool steady_test(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
   if (comm_sample_aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){
-    return is_steady(index,analysis_param);
+    return is_steady(key,index,analysis_param);
   }
   else if (comm_sample_aggregation_mode == 1){
     //TODO: We may not want to allow this
     auto& active_batches = comm_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
-    return is_steady(stats,analysis_param);
+    return is_steady(key,stats,analysis_param);
   }
 }
 bool steady_test(const comp_kernel_key& key, const kernel& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  return is_steady(p,analysis_param);
+  return is_steady(key,p,analysis_param);
 }
 bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
   if (comp_sample_aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){
-    return is_steady(index,analysis_param);
+    return is_steady(key,index,analysis_param);
   }
   else if (comp_sample_aggregation_mode == 1){
     //TODO: We may not want to allow this
     auto& active_batches = comp_batch_map[key];
     auto stats = intermediate_stats(index,active_batches);
-    return is_steady(stats,analysis_param);
+    return is_steady(key,stats,analysis_param);
   }
 }
 
@@ -1134,8 +1203,12 @@ void allocate(MPI_Comm comm){
   is_first_iter = true;
   intercept_overhead.resize(3,0);
   global_intercept_overhead.resize(3,0);
-  global_comm_kernel_stats.resize(8,0);
-  global_comp_kernel_stats.resize(8,0);
+  global_comm_kernel_stats.resize(5,0);
+  global_comp_kernel_stats.resize(5,0);
+  local_comm_kernel_stats.resize(5,0);
+  local_comp_kernel_stats.resize(5,0);
+  save_comp_kernel_stats.resize(2,0);
+  save_comm_kernel_stats.resize(2,0);
 
   solo_channel* world_node = new solo_channel();
   world_node->tag = communicator_count++;
@@ -1208,10 +1281,6 @@ void allocate(MPI_Comm comm){
       stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
     }
   }
-  if (std::getenv("CRITTER_AUTOTUNING_TEST") != NULL){
-    autotuning_test_id = atoi(std::getenv("CRITTER_AUTOTUNING_TEST"));
-    assert(autotuning_test_id>=0 && autotuning_test_id<=2);
-  } else assert(0);
   if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){
     tuning_delta = atoi(std::getenv("CRITTER_AUTOTUNING_DELTA"));
     assert(tuning_delta>=0 && tuning_delta<=3);// tuning_delta==0 requires decomposition mechanism
@@ -1346,28 +1415,26 @@ void final_accumulate(MPI_Comm comm, double last_time){
 
   _wall_time = wall_timer[wall_timer.size()-1];
 
-  double temp_costs[4+4+3+8+8+2];
+  double temp_costs[4+4+3+5+5+2+3+3];
   for (int i=0; i<18; i++){ temp_costs[11+i]=0; }
 
   discretization::_MPI_Barrier.comm = MPI_COMM_WORLD;
   discretization::_MPI_Barrier.save_comp_key.clear();
   discretization::_MPI_Barrier.save_comm_key.clear();
   for (auto& it : comp_kernel_map){
-    // reset the local schedule count
-    active_kernels[it.second.val_index].num_local_schedules=0;
     if ((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comp_key.push_back(it.first);
-      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]++;
+      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]++;
     }
 
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3] += active_kernels[it.second.val_index].num_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4] += active_kernels[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5] += active_kernels[it.second.val_index].num_non_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6] += active_kernels[it.second.val_index].num_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7] += active_kernels[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8] += active_kernels[it.second.val_index].num_non_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9] += active_kernels[it.second.val_index].total_exec_time;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10] += active_kernels[it.second.val_index].total_local_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4] += active_kernels[it.second.val_index].num_non_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6] += active_kernels[it.second.val_index].num_non_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7] += active_kernels[it.second.val_index].total_local_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17] += active_kernels[it.second.val_index].total_local_exec_time;
     // Invalid assert-> this case is possible assert(comp_batch_map.find(it.first) != comp_batch_map.end());
     // if (comp_batch_map[it.first].size() == 0) continue;
     // Complete any active and incomplete batches. Liquidate them into the pathset.
@@ -1378,21 +1445,19 @@ void final_accumulate(MPI_Comm comm, double last_time){
     }
   }
   for (auto& it : comm_kernel_map){
-    // reset the local schedule count
-    active_kernels[it.second.val_index].num_local_schedules=0;
     if ((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comm_key.push_back(it.first);
-      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]++;
+      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14]++;
     }
 
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11] += active_kernels[it.second.val_index].num_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12] += active_kernels[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13] += active_kernels[it.second.val_index].num_non_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14] += active_kernels[it.second.val_index].num_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15] += active_kernels[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16] += active_kernels[it.second.val_index].num_non_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17] += active_kernels[it.second.val_index].total_exec_time;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18] += active_kernels[it.second.val_index].total_local_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9] += active_kernels[it.second.val_index].num_non_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11] += active_kernels[it.second.val_index].num_non_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12] += active_kernels[it.second.val_index].total_local_exec_time;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20] += active_kernels[it.second.val_index].total_local_exec_time;
     // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
     //if (comm_batch_map[it.first].size() == 0) continue;
     // Complete any active and incomplete batches. Liquidate them into the pathset.
@@ -1409,31 +1474,39 @@ void final_accumulate(MPI_Comm comm, double last_time){
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()] = intercept_overhead[0];
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1] = intercept_overhead[1];
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2] = intercept_overhead[2];
-  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],4+4+3+8+8+2,MPI_DOUBLE,MPI_MAX,comm);
+  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],4+4+3+5+5+2+3+3,MPI_DOUBLE,MPI_MAX,comm);
   for (auto i=0; i<critical_path_costs.size(); i++) critical_path_costs[i] = temp_costs[i];
   for (auto i=0; i<max_per_process_costs.size(); i++) max_per_process_costs[i] = temp_costs[critical_path_costs.size()+i];
   global_intercept_overhead[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()];
   global_intercept_overhead[1] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1];
   global_intercept_overhead[2] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2];
-  global_comp_kernel_stats[0] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3];
+  global_comp_kernel_stats[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3];
   global_comp_kernel_stats[1] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4];
-  global_comp_kernel_stats[2] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5];
-  global_comp_kernel_stats[3] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6];
+  global_comp_kernel_stats[2] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5];
+  global_comp_kernel_stats[3] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6];
   global_comp_kernel_stats[4] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7];
-  global_comp_kernel_stats[5] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8];
-  global_comp_kernel_stats[6] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9];
-  global_comp_kernel_stats[7] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10];
-  global_comm_kernel_stats[0] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11];
-  global_comm_kernel_stats[1] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12];
-  global_comm_kernel_stats[2] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13];
-  global_comm_kernel_stats[3] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14];
-  global_comm_kernel_stats[4] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15];
-  global_comm_kernel_stats[5] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16];
-  global_comm_kernel_stats[6] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17];
-  global_comm_kernel_stats[7] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18];
+  global_comm_kernel_stats[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8];
+  global_comm_kernel_stats[1] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9];
+  global_comm_kernel_stats[2] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10];
+  global_comm_kernel_stats[3] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11];
+  global_comm_kernel_stats[4] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12];
+  local_comp_kernel_stats[0] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15];
+  local_comp_kernel_stats[1] = global_comp_kernel_stats[1] - save_comp_kernel_stats[0];
+  local_comp_kernel_stats[2] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16];
+  local_comp_kernel_stats[3] = global_comp_kernel_stats[3] - save_comp_kernel_stats[1];
+  local_comp_kernel_stats[4] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17];
+  local_comm_kernel_stats[0] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18];
+  local_comm_kernel_stats[1] = global_comm_kernel_stats[1] - save_comm_kernel_stats[0];
+  local_comm_kernel_stats[2] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19];
+  local_comm_kernel_stats[3] = global_comm_kernel_stats[3] - save_comm_kernel_stats[1];
+  local_comm_kernel_stats[4] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20];
+  save_comp_kernel_stats[0] = global_comp_kernel_stats[1];
+  save_comp_kernel_stats[1] = global_comp_kernel_stats[3];
+  save_comm_kernel_stats[0] = global_comm_kernel_stats[1];
+  save_comm_kernel_stats[1] = global_comm_kernel_stats[3];
   PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
-  discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19]>0;
-  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20]>0;
+  discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]>0;
+  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+24]>0;
   discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_kernels>0 || discretization::_MPI_Barrier.aggregate_comm_kernels>0;
 }
 
@@ -1444,6 +1517,8 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
   internal::bsp_counter=0;
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
+  memset(&local_comp_kernel_stats[0],0,sizeof(double)*local_comp_kernel_stats.size());
+  memset(&local_comm_kernel_stats[0],0,sizeof(double)*local_comm_kernel_stats.size());
   skip_ptr_set.clear();
 
   // This reset will no longer reset the kernel state, but will reset the schedule counters
@@ -1488,19 +1563,24 @@ void clear(){
   // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
   //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets if necessary.
   for (auto& it : comp_kernel_map){
+    bool is_clear=false;
     if (schedule_tag==""){
       active_kernels[it.second.val_index].clear_distribution();
+      is_clear=true;
     }
     else if (schedule_tag=="cholinv"){
       if (clear_counter % 5 == 0){
         if (it.first.tag == 101){// potrf
           active_kernels[it.second.val_index].clear_distribution();
+          is_clear=true;
         }
         else if (it.first.tag == 102){// trtri
           active_kernels[it.second.val_index].clear_distribution();
+          is_clear=true;
         }
         else if (it.first.tag == 200){
           active_kernels[it.second.val_index].clear_distribution();
+          is_clear=true;
         }
       }
       //No-op (for now, unless necessary)
@@ -1516,8 +1596,10 @@ void clear(){
     }
   }
   for (auto& it : comm_kernel_map){
+    bool is_clear=false;
     if (schedule_tag==""){
       active_kernels[it.second.val_index].clear_distribution();
+      is_clear=true;
     }
     else if (schedule_tag=="cholinv"){
       // Note that I would like to check the reset count before clearing the Allgather, but I only need to do this once anyways.
@@ -1525,10 +1607,12 @@ void clear(){
         if (world_size==64){
           if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 16) && (it.first.dim_strides[0]==4) && (it.first.partner_offset == INT_MIN)){
             active_kernels[it.second.val_index].clear_distribution();
+            is_clear=true;
           }
         } else if (world_size==512){
           if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 64) && (it.first.dim_strides[0]==8) && (it.first.partner_offset == INT_MIN)){
             active_kernels[it.second.val_index].clear_distribution();
+            is_clear=true;
           }
         }
       }

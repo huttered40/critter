@@ -155,7 +155,6 @@ extern int sample_constraint_mode;
 //extern int sample_reset_mode;
 extern int schedule_kernels;
 extern int update_analysis;
-extern int autotuning_test_id;
 extern MPI_Datatype kernel_type;
 extern MPI_Datatype batch_type;
 extern size_t kernel_count_limit;
@@ -179,6 +178,10 @@ extern std::vector<double> intercept_overhead;
 extern std::vector<double> global_intercept_overhead;
 extern std::vector<double> global_comp_kernel_stats;
 extern std::vector<double> global_comm_kernel_stats;
+extern std::vector<double> local_comp_kernel_stats;
+extern std::vector<double> local_comm_kernel_stats;
+extern std::vector<double> save_comp_kernel_stats;
+extern std::vector<double> save_comm_kernel_stats;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -222,6 +225,9 @@ extern bool is_first_iter;
 bool is_key_skipable(const comm_kernel_key& key);
 bool is_key_skipable(const comp_kernel_key& key);
 
+int get_skel_count(const comm_kernel_key& key);
+int get_skel_count(const comp_kernel_key& key);
+
 double get_estimate(const kernel& p, int analysis_param, double unit_count=1.);
 double get_estimate(const kernel_propagate& p, int analysis_param, double unit_count=1.);
 double get_estimate(const kernel_key_id& index, int analysis_param, double unit_count=1.);
@@ -248,15 +254,28 @@ double get_std_dev(const kernel_propagate& p, int analysis_param);
 double get_std_dev(const kernel_key_id& index, int analysis_param);
 double get_std_dev(const intermediate_stats& p, int analysis_param);
 
-double get_std_error(const kernel& p, int analysis_param);
-double get_std_error(const kernel_propagate& p, int analysis_param);
-double get_std_error(const kernel_key_id& index, int analysis_param);
-double get_std_error(const intermediate_stats& p, int analysis_param);
+int get_std_error_count(const kernel& p);
+int get_std_error_count(const kernel_propagate& p);
+int get_std_error_count(const kernel_key_id& index);
+int get_std_error_count(const intermediate_stats& p);
 
-double get_confidence_interval(const kernel& p, int analysis_param, double level = .95);
-double get_confidence_interval(const kernel_propagate& p, int analysis_param, double level = .95);
-double get_confidence_interval(const kernel_key_id& index, int analysis_param, double level = .95);
-double get_confidence_interval(const intermediate_stats& p, int analysis_param, double level = .95);
+double get_std_error(const comm_kernel_key& key, const kernel& p, int analysis_param);
+double get_std_error(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param);
+double get_std_error(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
+double get_std_error(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param);
+double get_std_error(const comp_kernel_key& key, const kernel& p, int analysis_param);
+double get_std_error(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param);
+double get_std_error(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
+double get_std_error(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param);
+
+double get_confidence_interval(const comm_kernel_key& key, const kernel& p, int analysis_param, double level = .95);
+double get_confidence_interval(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param, double level = .95);
+double get_confidence_interval(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param, double level = .95);
+double get_confidence_interval(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param, double level = .95);
+double get_confidence_interval(const comp_kernel_key& key, const kernel& p, int analysis_param, double level = .95);
+double get_confidence_interval(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param, double level = .95);
+double get_confidence_interval(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param, double level = .95);
+double get_confidence_interval(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param, double level = .95);
 
 bool is_steady(const kernel& p, int analysis_param);
 bool is_steady(const kernel_key_id& index, int analysis_param);
@@ -264,7 +283,8 @@ bool is_steady(const intermediate_stats& p, int analysis_param);
 
 double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
 double get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
-double get_error_estimate(const kernel_propagate& p, int analysis_param);
+double get_error_estimate(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param);
+double get_error_estimate(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param);
 
 bool steady_test(const comm_kernel_key& key, const kernel& p, int analysis_param);
 bool steady_test(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);

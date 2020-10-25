@@ -15,19 +15,22 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 }
 
 void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
-/*
-  comp_pattern_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-  if (comp_pattern_map.find(key) == comp_pattern_map.end()){
-    comp_pattern_map[key] = pattern_key_id(true,active_comp_pattern_keys.size()-1,active_patterns.size()-1,false);
+  comp_kernel_key key(active_kernels.size(),id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+  if (comp_kernel_map.find(key) == comp_kernel_map.end()){
+    active_comp_kernel_keys.push_back(key);
+    active_kernels.push_back(1);
+    comp_kernel_map[key] = kernel_key_id(true,active_comp_kernel_keys.size()-1,active_kernels.size()-1,false);
   }
+  else{
+    active_kernels[comp_kernel_map[key].val_index]++;
+  }
+
   critical_path_costs[num_critical_path_measures-1] += flop_count;	// execution cost
   volume_costs[num_volume_measures-1] += flop_count;			// execution cost
-*/
 }
 
 bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                          bool is_sender, int partner1, int partner2){
-/*
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
   int64_t nbytes = word_size * nelem;
@@ -38,13 +41,11 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.is_sender = is_sender;
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
-*/
   return false;
 }
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
 void path::complete_comm(blocking& tracker, int recv_source){
-/*
   volatile double overhead_start_time = MPI_Wtime();
   std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
   std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
@@ -56,21 +57,24 @@ void path::complete_comm(blocking& tracker, int recv_source){
     comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
     comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
   }
-  // Below, the idea is that key doesn't exist in comm_pattern_map iff the key hasn't been seen before. If the key has been seen, we automatically
-  //   create an entry in comm_pattern_key, although it will be empty.
-  comm_pattern_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+  // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
+  //   create an entry in comm_kernel_key, although it will be empty.
+  comm_kernel_key key(rank,active_kernels.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
   //if (world_rank == 8) std::cout << "******" << key.tag << " " << key.dim_sizes[0] << " " << key.dim_strides[0] << " " << key.msg_size << " " << key.partner_offset << ")\n";
-  if (comm_pattern_map.find(key) == comm_pattern_map.end()){
-    comm_pattern_map[key] = pattern_key_id(true,active_comm_pattern_keys.size()-1,active_patterns.size()-1,false);
+  if (comm_kernel_map.find(key) == comm_kernel_map.end()){
+    active_comm_kernel_keys.push_back(key);
+    active_kernels.push_back(1);
+    comm_kernel_map[key] = kernel_key_id(true,active_comm_kernel_keys.size()-1,active_kernels.size()-1,false);
+  }
+  else{
+    active_kernels[comm_kernel_map[key].val_index]++;
   }
 
-  critical_path_costs[num_critical_path_measures-1] += cost_alpha_beta.first*1e6 + cost_alpha_beta.second*1e3;
-  volume_costs[num_volume_measures-1] += cost_alpha_beta.first*1e6 + cost_alpha_beta.second*1e3;
+  critical_path_costs[num_critical_path_measures-1] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+  volume_costs[num_volume_measures-1] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
 
-  // Attain the min and max costs to determine whether or not to propogate the root's kernel counts to the rest of the processors
-  PMPI_Allreduce();
+  propagate_kernels(tracker);
   comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
-*/
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
@@ -90,101 +94,107 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
 
 void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
 
-/*
-void path::propagate_patterns(blocking& tracker, comm_pattern_key comm_key, int rank){
+void path::propagate_kernels(blocking& tracker){
   // Use info_receiver[last].second when deciding who to issue 3 broadcasts from
   // First need to broadcast the size of each of the 3 broadcasts so that the receiving buffers can prepare the size of their receiving buffers
   // Only the active kernels need propagating. Steady-state are treated differently depending on the communicator.
+  int rank; MPI_Comm_rank(tracker.comm,&rank);
 
-  auto local_pattern = active_patterns[comm_pattern_map[comm_key].val_index];
+  // Attain the min and max costs to determine whether or not to propogate the root's kernel counts to the rest of the processors
+  int max_proc,max_val;
+  int min_proc,min_val;
+  info_sender[0].first = critical_path_costs[0];
+  info_sender[0].second = rank;
+  if (tracker.partner1 == -1){
+    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_DOUBLE_INT, MPI_MAXLOC, tracker.comm);
+    max_proc = info_receiver[0].second;
+    max_val = info_receiver[0].first;
+    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_DOUBLE_INT, MPI_MINLOC, tracker.comm);
+    min_proc = info_receiver[0].second;
+    min_val = info_receiver[0].first;
+  }
+  else{
+    PMPI_Sendrecv(&info_sender[0].first, 1, MPI_DOUBLE_INT, tracker.partner1, internal_tag,
+                  &info_receiver[0].first, 1, MPI_DOUBLE_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
+    if (info_sender[0].first>info_receiver[0].first){max_proc = rank;}
+    else if (info_sender[0].first==info_receiver[0].first){ max_proc = std::min(rank,tracker.partner1); }
+    max_val = std::max(info_sender[0].first, info_receiver[0].first);
+    if (info_sender[0].first<info_receiver[0].first){min_proc = rank;}
+    else if (info_sender[0].first==info_receiver[0].first){ min_proc = std::min(rank,tracker.partner1); }
+    min_val = std::min(info_sender[0].first, info_receiver[0].first);
+  }
+
+  if (max_val == min_val){ return; }
 
   int size_array[3] = {0,0,0};
-  if (rank == info_receiver[num_critical_path_measures-1].second){
-    size_array[0] = active_comm_pattern_keys.size();
-    size_array[1] = active_comp_pattern_keys.size();
-    size_array[2] = active_patterns.size();
+  if (rank == max_proc){
+    size_array[0] = active_comm_kernel_keys.size();
+    size_array[1] = active_comp_kernel_keys.size();
+    size_array[2] = active_kernels.size();
   }
   if (tracker.partner1 == -1){
-    PMPI_Bcast(&size_array[0],3,MPI_INT,info_receiver[num_critical_path_measures-1].second,tracker.comm);
-    if (rank != info_receiver[num_critical_path_measures-1].second){
-        active_comm_pattern_keys.resize(size_array[0]);
-        active_comp_pattern_keys.resize(size_array[1]);
-        active_patterns.resize(size_array[2]);
+    PMPI_Bcast(&size_array[0],3,MPI_INT,max_proc,tracker.comm);
+    if (rank != max_proc){
+        active_comm_kernel_keys.resize(size_array[0]);
+        active_comp_kernel_keys.resize(size_array[1]);
+        active_kernels.resize(size_array[2]);
     }
-    PMPI_Bcast(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,info_receiver[num_critical_path_measures-1].second,tracker.comm);
-    PMPI_Bcast(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,info_receiver[num_critical_path_measures-1].second,tracker.comm);
-    PMPI_Bcast(&active_patterns[0],size_array[2],pattern_type,info_receiver[num_critical_path_measures-1].second,tracker.comm);
+    PMPI_Bcast(&active_comm_kernel_keys[0],size_array[0],comm_kernel_key_type,max_proc,tracker.comm);
+    PMPI_Bcast(&active_comp_kernel_keys[0],size_array[1],comp_kernel_key_type,max_proc,tracker.comm);
+    PMPI_Bcast(&active_kernels[0],size_array[2],MPI_INT,max_proc,tracker.comm);
     // receivers update their maps and data structures. Yes, this is costly, but I guess this is what has to happen.
     // basically everything is set via the broadcasts themselves, except for the two maps.
   }
   else{
     // We leverage the fact that we know the path-defining process rank
-    if (rank == info_receiver[num_critical_path_measures-1].second){
+    if (rank == max_proc){
       PMPI_Send(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
-      PMPI_Send(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
-      PMPI_Send(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm);
-      PMPI_Send(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Send(&active_comm_kernel_keys[0],size_array[0],comm_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Send(&active_comp_kernel_keys[0],size_array[1],comp_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Send(&active_kernels[0],size_array[2],MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
     } else{
       //TODO: I want to keep both variants. The first is easy to rewrite, just take from above.
       PMPI_Recv(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      active_comm_pattern_keys.resize(size_array[0]);
-      active_comp_pattern_keys.resize(size_array[1]);
-      active_patterns.resize(size_array[2]);
-      PMPI_Recv(&active_comm_pattern_keys[0],size_array[0],comm_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      PMPI_Recv(&active_comp_pattern_keys[0],size_array[1],comp_pattern_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      PMPI_Recv(&active_patterns[0],size_array[2],pattern_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      active_comm_kernel_keys.resize(size_array[0]);
+      active_comp_kernel_keys.resize(size_array[1]);
+      active_kernels.resize(size_array[2]);
+      PMPI_Recv(&active_comm_kernel_keys[0],size_array[0],comm_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&active_comp_kernel_keys[0],size_array[1],comp_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&active_kernels[0],size_array[2],MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
     }
   }
+
+  comm_kernel_map.clear();
+  comp_kernel_map.clear();
 
   // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
-  bool key_match = ( (comm_key.tag <= 12) || (comm_key.tag >= 19) ? true : false);// Only start as false if dealing with p2p
-  for (auto i=0; i<active_comm_pattern_keys.size(); i++){
-    comm_pattern_key id(active_comm_pattern_keys[i].pattern_index,active_comm_pattern_keys[i].tag,active_comm_pattern_keys[i].dim_sizes,
-                        active_comm_pattern_keys[i].dim_strides,active_comm_pattern_keys[i].msg_size,active_comm_pattern_keys[i].partner_offset); 
-    if (comm_pattern_map.find(id) == comm_pattern_map.end()){
-      comm_pattern_map[id] = pattern_key_id(true, i, active_comm_pattern_keys[i].pattern_index, false);
+  for (auto i=0; i<active_comm_kernel_keys.size(); i++){
+    comm_kernel_key id(active_comm_kernel_keys[i].kernel_index,active_comm_kernel_keys[i].tag,active_comm_kernel_keys[i].dim_sizes,
+                        active_comm_kernel_keys[i].dim_strides,active_comm_kernel_keys[i].msg_size,active_comm_kernel_keys[i].partner_offset); 
+    if (comm_kernel_map.find(id) == comm_kernel_map.end()){
+      comm_kernel_map[id] = kernel_key_id(true, i, active_comm_kernel_keys[i].kernel_index, false);
     } else{
-      comm_pattern_map[id].is_active = true;	// always assumed true
-      comm_pattern_map[id].key_index = i;
-      comm_pattern_map[id].val_index = active_comm_pattern_keys[i].pattern_index;
-      comm_pattern_map[id].is_updated = true;
+      comm_kernel_map[id].is_active = true;	// always assumed true
+      comm_kernel_map[id].key_index = i;
+      comm_kernel_map[id].val_index = active_comm_kernel_keys[i].kernel_index;
+      comm_kernel_map[id].is_updated = false;
     }
-    if (rank != info_receiver[num_critical_path_measures-1].second){
-      if ((id.tag > 12) && (id.tag < 19)){
-        if (id == comm_key){
-          key_match = true;
-          active_patterns[comm_pattern_map[id].val_index] = local_pattern;// update with local data that must have been added once before.
-        }
-      }
-    }
-  }
-  // If not key match, then we need to add the key ourselves
-  if (!key_match){
-    // It is assumed that 'comm_pattern_map' stores our local 'comm_key' as a key, as we don't delete keys until loop below
-    active_patterns.push_back(local_pattern);
-    comm_key.pattern_index = active_patterns.size()-1;
-    active_comm_pattern_keys.push_back(comm_key);
-    comm_pattern_map[comm_key].is_active = true;	// always assumed true
-    comm_pattern_map[comm_key].key_index = active_comm_pattern_keys.size()-1;
-    comm_pattern_map[comm_key].val_index = comm_key.pattern_index;
-    comm_pattern_map[comm_key].is_updated = true;
   }
 
-  for (auto i=0; i<active_comp_pattern_keys.size(); i++){
-    comp_pattern_key id(active_comp_pattern_keys[i].pattern_index,active_comp_pattern_keys[i].tag,active_comp_pattern_keys[i].flops,
-                               active_comp_pattern_keys[i].param1,active_comp_pattern_keys[i].param2,active_comp_pattern_keys[i].param3,
-                               active_comp_pattern_keys[i].param4,active_comp_pattern_keys[i].param5); 
-    if (comp_pattern_map.find(id) == comp_pattern_map.end()){
-      comp_pattern_map[id] = pattern_key_id(true, i, active_comp_pattern_keys[i].pattern_index,false);
+  for (auto i=0; i<active_comp_kernel_keys.size(); i++){
+    comp_kernel_key id(active_comp_kernel_keys[i].kernel_index,active_comp_kernel_keys[i].tag,active_comp_kernel_keys[i].flops,
+                               active_comp_kernel_keys[i].param1,active_comp_kernel_keys[i].param2,active_comp_kernel_keys[i].param3,
+                               active_comp_kernel_keys[i].param4,active_comp_kernel_keys[i].param5); 
+    if (comp_kernel_map.find(id) == comp_kernel_map.end()){
+      comp_kernel_map[id] = kernel_key_id(true, i, active_comp_kernel_keys[i].kernel_index,false);
     } else{
-      comp_pattern_map[id].is_active = true;	// always assumed true
-      comp_pattern_map[id].key_index = i;
-      comp_pattern_map[id].val_index = active_comp_pattern_keys[i].pattern_index;
-      comp_pattern_map[id].is_updated = true;
+      comp_kernel_map[id].is_active = true;	// always assumed true
+      comp_kernel_map[id].key_index = i;
+      comp_kernel_map[id].val_index = active_comp_kernel_keys[i].kernel_index;
+      comp_kernel_map[id].is_updated = false;
     }
   }
 }
-*/
 
 }
 }

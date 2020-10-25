@@ -8,10 +8,11 @@ namespace internal{
 namespace skeletonization{
 
 // ****************************************************************************************************************************************************
-extern MPI_Datatype comm_kernel_key_type;
-extern MPI_Datatype comp_kernel_key_type;
 extern std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 extern std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+extern std::vector<int> active_kernels;
+extern std::vector<comm_kernel_key> active_comm_kernel_keys;
+extern std::vector<comp_kernel_key> active_comp_kernel_keys;
 extern volatile double comm_intercept_overhead_stage1;
 extern volatile double comm_intercept_overhead_stage2;
 extern volatile double comp_intercept_overhead;
@@ -36,14 +37,6 @@ extern int internal_tag3;
 extern int internal_tag4;
 extern int internal_tag5;
 extern bool is_first_iter;
-
-/*
-extern std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
-extern std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
-extern std::vector<comm_kernel_key> active_comm_kernel_keys;
-extern std::vector<comp_kernel_key> active_comp_kernel_keys;
-extern std::vector<kernel_count> active_kernels;
-*/
 
 void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);
