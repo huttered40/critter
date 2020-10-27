@@ -56,13 +56,14 @@ bool path::initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile 
     }
   }
   intercept_overhead[0] += MPI_Wtime() - overhead_start_time;
+
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
   return schedule_decision;
 }
 
-void path::complete_comp(std::vector<intptr_t>& user_array, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
-  volatile double comp_time = MPI_Wtime( ) - comp_start_time;	// complete computation time
+void path::complete_comp(double errtime, std::vector<intptr_t>& user_array, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
+  volatile double comp_time = MPI_Wtime( ) - comp_start_time - errtime;	// complete computation time
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return; }
@@ -638,7 +639,10 @@ void path::comp_state_aggregation(blocking& tracker){
         active_kernels[comp_kernel_map[key].val_index].hash_id = foreign_active_kernels[i].hash_id;
       }
       else if (comp_kernel_transfer_id==1){
+        auto save_kernel = active_kernels[comp_kernel_map[key].val_index];
         active_kernels[comp_kernel_map[key].val_index] = foreign_active_kernels[i];
+        active_kernels[comp_kernel_map[key].val_index].num_non_schedules = save_kernel.num_non_schedules;
+        active_kernels[comp_kernel_map[key].val_index].num_non_scheduled_units = save_kernel.num_non_scheduled_units;
       }
     } else{
       // Add new entry.
@@ -758,7 +762,10 @@ void path::comm_state_aggregation(blocking& tracker){
         active_kernels[comm_kernel_map[key].val_index].hash_id = foreign_active_kernels[i].hash_id;
       }
       else if (comm_kernel_transfer_id==1){
+        auto save_kernel = active_kernels[comm_kernel_map[key].val_index];
         active_kernels[comm_kernel_map[key].val_index] = foreign_active_kernels[i];
+        active_kernels[comm_kernel_map[key].val_index].num_non_schedules = save_kernel.num_non_schedules;
+        active_kernels[comm_kernel_map[key].val_index].num_non_scheduled_units = save_kernel.num_non_scheduled_units;
       }
     } else{
       // Add new entry.

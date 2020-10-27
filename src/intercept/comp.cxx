@@ -17,7 +17,7 @@ void _saxpy_(const int n , const float a , const float *x , const int incx , flo
     if (schedule_decision) cblas_saxpy(n,a,x,incx,y,incy);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_axpy__id,flops,n);
+    complete_comp(0,ptrs,_BLAS_axpy__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -38,7 +38,7 @@ void _daxpy_(const int n , const double a , const double *x , const int incx , d
     if (schedule_decision) cblas_daxpy(n,a,x,incx,y,incy);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_axpy__id,flops,n);
+    complete_comp(0,ptrs,_BLAS_axpy__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -59,7 +59,7 @@ void _sscal_(const int n , const float a , float *x , const int incx){
     if (schedule_decision) cblas_sscal(n,a,x,incx);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_scal__id,flops,n);
+    complete_comp(0,ptrs,_BLAS_scal__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -80,7 +80,7 @@ void _dscal_(const int n , const double a , double *x , const int incx){
     if (schedule_decision) cblas_dscal(n,a,x,incx);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_scal__id,flops,n);
+    complete_comp(0,ptrs,_BLAS_scal__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -102,7 +102,7 @@ void _sger_(const CBLAS_LAYOUT Layout , const int m , const int n , const float 
     if (schedule_decision) cblas_sger(Layout,m,n,alpha,x,incx,y,incy,a,lda);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_ger__id,flops,m,n);
+    complete_comp(0,ptrs,_BLAS_ger__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -124,7 +124,7 @@ void _dger_(const CBLAS_LAYOUT Layout , const int m , const int n , const double
     if (schedule_decision) cblas_dger(Layout,m,n,alpha,x,incx,y,incy,a,lda);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_ger__id,flops,m,n);
+    complete_comp(0,ptrs,_BLAS_ger__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -147,7 +147,7 @@ void _sgemm_(const CBLAS_LAYOUT Layout , const CBLAS_TRANSPOSE transa , const CB
     if (schedule_decision) cblas_sgemm(Layout,transa,transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_gemm__id,flops,m,n,k);
+    complete_comp(0,ptrs,_BLAS_gemm__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -170,7 +170,7 @@ void _dgemm_(const CBLAS_LAYOUT Layout , const CBLAS_TRANSPOSE transa , const CB
     if (schedule_decision) cblas_dgemm(Layout,transa,transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_gemm__id,flops,m,n,k);
+    complete_comp(0,ptrs,_BLAS_gemm__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -193,7 +193,7 @@ void _strmm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPL
     if (schedule_decision) cblas_strmm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_trmm__id,flops,m,n);
+    complete_comp(0,ptrs,_BLAS_trmm__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -216,7 +216,7 @@ void _dtrmm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPL
     if (schedule_decision) cblas_dtrmm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_trmm__id,flops,m,n);
+    complete_comp(0,ptrs,_BLAS_trmm__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -239,7 +239,7 @@ void _strsm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPL
     if (schedule_decision) cblas_strsm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_trsm__id,flops,m,n);
+    complete_comp(0,ptrs,_BLAS_trsm__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -262,7 +262,7 @@ void _dtrsm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPL
     if (schedule_decision) cblas_dtrsm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_trsm__id,flops,m,n);
+    complete_comp(0,ptrs,_BLAS_trsm__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -285,7 +285,7 @@ void _ssyrk_(const CBLAS_LAYOUT Layout , const CBLAS_UPLO uplo , const CBLAS_TRA
     if (schedule_decision) cblas_ssyrk(Layout,uplo,trans,n,k,alpha,a,lda,beta,c,ldc);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_syrk__id,flops,n,k);
+    complete_comp(0,ptrs,_BLAS_syrk__id,flops,n,k);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -308,7 +308,7 @@ void _dsyrk_(const CBLAS_LAYOUT Layout , const CBLAS_UPLO uplo , const CBLAS_TRA
     if (schedule_decision) cblas_dsyrk(Layout,uplo,trans,n,k,alpha,a,lda,beta,c,ldc);
 #endif
 #endif
-    complete_comp(ptrs,_BLAS_syrk__id,flops,n,k);
+    complete_comp(0,ptrs,_BLAS_syrk__id,flops,n,k);
   } else{
 #ifdef MKL
 #ifdef CBLAS
@@ -324,13 +324,29 @@ void _sgetrf_(int matrix_layout , int m , int n , float* a , int lda , int* ipiv
     double _m = m; double _n = n;
     double flops = 2./3. * _n*_n*_n; if (m > n) flops = (1./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (1./3.)*_m*_m*(3*_n-_m);
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getrf__id,curtime,flops,m,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv);
+    if (schedule_decision){
+      int ret = LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // GETRF -- must force nonsingular
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(float));// assumes column-major layout
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_getrf__id,flops,m,n);
+    complete_comp(special_time,ptrs,_LAPACK_getrf__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -345,13 +361,29 @@ void _dgetrf_(int matrix_layout , int m , int n , double* a , int lda , int* ipi
     double _m = m; double _n = n;
     double flops = 2./3. * _n*_n*_n; if (m > n) flops = (1./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (1./3.)*_m*_m*(3*_n-_m);
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getrf__id,curtime,flops,m,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv);
+    if (schedule_decision){
+      int ret = LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // GETRF -- must force nonsingular
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(double));// assumes column-major layout
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_getrf__id,flops,m,n);
+    complete_comp(special_time,ptrs,_LAPACK_getrf__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -366,13 +398,29 @@ void _spotrf_(int matrix_layout , char uplo , int n , float* a , int lda){
     double _n = n;
     double flops = 1./3.*_n*_n*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_potrf__id,curtime,flops,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_spotrf(matrix_layout,uplo,n,a,lda);
+    if (schedule_decision){
+      int ret = LAPACKE_spotrf(matrix_layout,uplo,n,a,lda);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // POTRF -- must force positive-definiteness
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(float));
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_potrf__id,flops,n);
+    complete_comp(special_time,ptrs,_LAPACK_potrf__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -387,13 +435,29 @@ void _dpotrf_(int matrix_layout , char uplo , int n , double* a , int lda){
     double _n = n;
     double flops = 1./3.*_n*_n*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_potrf__id,curtime,flops,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda);
+    if (schedule_decision){
+      int ret = LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // POTRF -- must force positive-definiteness
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(double));
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_potrf__id,flops,n);
+    complete_comp(special_time,ptrs,_LAPACK_potrf__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -408,13 +472,29 @@ void _strtri_(int matrix_layout , char uplo , char diag , int n , float* a , int
     double _n = n;
     double flops = 1./3.*_n*_n*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_trtri__id,curtime,flops,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda);
+    if (schedule_decision){
+      int ret = LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // TRTRI -- must force positive-definiteness
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(float));
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_trtri__id,flops,n);
+    complete_comp(special_time,ptrs,_LAPACK_trtri__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -429,13 +509,29 @@ void _dtrtri_(int matrix_layout , char uplo , char diag , int n , double* a , in
     double _n = n;
     double flops = 1./3.*_n*_n*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_trtri__id,curtime,flops,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda);
+    if (schedule_decision){
+      int ret = LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // TRTRI -- must force positive-definiteness
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(double));
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_trtri__id,flops,n);
+    complete_comp(special_time,ptrs,_LAPACK_trtri__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -456,7 +552,7 @@ void _sgeqrf_(int matrix_layout , int m , int n , float* a , int lda , float* ta
     if (schedule_decision) LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_geqrf__id,flops,m,n);
+    complete_comp(0,ptrs,_LAPACK_geqrf__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -477,7 +573,7 @@ void _dgeqrf_(int matrix_layout , int m , int n , double* a , int lda , double* 
     if (schedule_decision) LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_geqrf__id,flops,m,n);
+    complete_comp(0,ptrs,_LAPACK_geqrf__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -498,7 +594,7 @@ void _sorgqr_(int matrix_layout , int m , int n , int k , float* a , int lda , c
     if (schedule_decision) LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_orgqr__id,flops,m,n,k);
+    complete_comp(0,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -519,7 +615,7 @@ void _dorgqr_(int matrix_layout , int m , int n , int k , double* a , int lda , 
     if (schedule_decision) LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_orgqr__id,flops,m,n,k);
+    complete_comp(0,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -540,7 +636,7 @@ void _sormqr_(int matrix_layout , char side , char trans , int m , int n , int k
     if (schedule_decision) LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_ormqr__id,flops,m,n,k);
+    complete_comp(0,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -561,7 +657,7 @@ void _dormqr_(int matrix_layout , char side , char trans , int m , int n , int k
     if (schedule_decision) LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_ormqr__id,flops,m,n,k);
+    complete_comp(0,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -582,7 +678,7 @@ void _sgetri_(int matrix_layout , int n , float * a , int lda , const int * ipiv
     if (schedule_decision) LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_getri__id,flops,n);
+    complete_comp(0,ptrs,_LAPACK_getri__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -603,7 +699,7 @@ void _dgetri_(int matrix_layout , int n , double * a , int lda , const int * ipi
     if (schedule_decision) LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_getri__id,flops,n);
+    complete_comp(0,ptrs,_LAPACK_getri__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -624,7 +720,7 @@ void _stpqrt_(int matrix_layout , int m , int n , int l , int nb , float * a , i
     if (schedule_decision) LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
+    complete_comp(0,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -645,7 +741,7 @@ void _dtpqrt_(int matrix_layout , int m , int n , int l , int nb , double * a , 
     if (schedule_decision) LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
+    complete_comp(0,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -667,7 +763,7 @@ void _stpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
     if (schedule_decision) LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
+    complete_comp(0,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -689,7 +785,7 @@ void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
     if (schedule_decision) LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
 #endif
 #endif
-    complete_comp(ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
+    complete_comp(0,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -727,7 +823,7 @@ void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int 
         }
       }
     }
-    complete_comp(ptrs,_CAPITAL_blktocyc__id,flops,num_rows_local,num_columns_local,sliceDim);
+    complete_comp(0,ptrs,_CAPITAL_blktocyc__id,flops,num_rows_local,num_columns_local,sliceDim);
   } else{
     int write_idx = 0; int read_idx = 0;
     int offset = num_rows_local*num_columns_local;

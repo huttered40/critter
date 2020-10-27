@@ -76,13 +76,13 @@ bool initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile double
   return schedule_decision;
 }
 
-void complete_comp(std::vector<intptr_t>& user_array, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+void complete_comp(double errtime, std::vector<intptr_t>& user_array, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comp(id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 1:
-      discretization::path::complete_comp(user_array,id,flop_count,param1,param2,param3,param4,param5);
+      discretization::path::complete_comp(errtime,user_array,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
       skeletonization::path::complete_comp(id,flop_count,param1,param2,param3,param4,param5);

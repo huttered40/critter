@@ -203,6 +203,8 @@ void kernel::reset(){
 }
 void kernel::clear_distribution(){
   // All other members would have already been reset (via 'reset' above)
+  this->hash_id = 0;
+  this->registered_channels.clear();
   this->steady_state = false;
   this->global_steady_state = false;
   this->total_exec_time = 0;
@@ -998,7 +1000,7 @@ bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int ana
 void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
-  if (p.steady_state == 0){
+  if (p.global_steady_state == 0){
     p.num_schedules++;
     p.num_local_schedules++;
     p.num_scheduled_units += unit_count;
@@ -1026,7 +1028,7 @@ void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_tim
 void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile double exec_time, double unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
-  if (active_kernels[index.val_index].steady_state == 0){
+  if (active_kernels[index.val_index].global_steady_state == 0){
     active_kernels[index.val_index].num_schedules++;
     active_kernels[index.val_index].num_local_schedules++;
     active_kernels[index.val_index].num_scheduled_units += unit_count;
