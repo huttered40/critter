@@ -1506,7 +1506,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
   save_comm_kernel_stats[1] = global_comm_kernel_stats[3];
   PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
   discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]>0;
-  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+24]>0;
+  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14]>0;
   discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_kernels>0 || discretization::_MPI_Barrier.aggregate_comm_kernels>0;
 }
 

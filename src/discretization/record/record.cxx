@@ -27,6 +27,12 @@ std::vector<double> record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
+        double decomp_time = -1;
+        if (decomposition::replace_comm_map_local.find(it.first) != decomposition::replace_comm_map_local.end()){
+          decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
+        } else{
+          decomp_time = decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
+        }
         stream << "Rank 0 Communication kernel (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << ")"
                << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << ")"
@@ -47,6 +53,7 @@ std::vector<double> record::set_tuning_statistics(){
                << ", M2 - " << kernel_list[it.second.val_index].M2
                << std::endl;
         stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comm_analysis_param)
+	       << ", DecompTime - " << decomp_time
                << ", StdDev - " << discretization::get_std_dev(it.second,comm_analysis_param)
                << ", StdError - " << discretization::get_std_error(it.first,it.second,comm_analysis_param)
                << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param)
@@ -68,6 +75,12 @@ std::vector<double> record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
+        double decomp_time = -1;
+        if (decomposition::replace_comp_map_local.find(it.first) != decomposition::replace_comp_map_local.end()){
+          decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
+        } else{
+          decomp_time = decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
+        }
          stream << "Rank 0 Computation kernel (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
                 << "," << key_list[it.second.key_index].param2
@@ -90,6 +103,7 @@ std::vector<double> record::set_tuning_statistics(){
                 << ", M2 - " << kernel_list[it.second.val_index].M2
                 << std::endl;
          stream << "\t\tEstimate - " << discretization::get_estimate(it.second,comp_analysis_param,comp_analysis_param)
+	        << ", DecompTime - " << decomp_time
                 << ", StdDev - " << discretization::get_std_dev(it.second,comp_analysis_param)
                 << ", StdError - " << discretization::get_std_error(it.first,it.second,comp_analysis_param)
                 << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param)
