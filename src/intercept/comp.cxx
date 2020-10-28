@@ -546,13 +546,27 @@ void _sgeqrf_(int matrix_layout , int m , int n , float* a , int lda , float* ta
     double _m = m; double _n = n;
     double flops = 4./3. * _n*_n*_n; if (m > n) flops = (2./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (2./3.)*_m*_m*(3*_n-_m);
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_geqrf__id,curtime,flops,m,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau);
+    if (schedule_decision){
+      LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau);
+      int ret = LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // GEQRF -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,1,m*n*sizeof(float));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,/*lda*/m,tau)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_geqrf__id,flops,m,n);
+    complete_comp(special_time,ptrs,_LAPACK_geqrf__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -567,13 +581,26 @@ void _dgeqrf_(int matrix_layout , int m , int n , double* a , int lda , double* 
     double _m = m; double _n = n;
     double flops = 4./3. * _n*_n*_n; if (m > n) flops = (2./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (2./3.)*_m*_m*(3*_n-_m);
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_geqrf__id,curtime,flops,m,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau);
+    if (schedule_decision){
+      int ret = LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // GEQRF -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,1,m*n*sizeof(double));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,/*lda*/m,tau)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_geqrf__id,flops,m,n);
+    complete_comp(special_time,ptrs,_LAPACK_geqrf__id,flops,m,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -588,13 +615,28 @@ void _sorgqr_(int matrix_layout , int m , int n , int k , float* a , int lda , c
     double _m = m; double _n = n; double _k = k;
     double flops = 4.*_m*_n*_k - 2.*(_m+_n) * _k*_k + (4./3.)*_k*_k*_k;//Note: this routine, which forms an explicit Q, may not even count as flops, rather as overhead
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_orgqr__id,curtime,flops,m,n,k);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau);
+    if (schedule_decision){
+      int ret = LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // ORGQR -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        float* tau_temp = (float*)tau;//(float*)malloc(k*sizeof(float));
+        memset(a,1,/*lda*/m*n*sizeof(float));// Assumes column-major
+        memset(tau_temp,1,k*sizeof(float));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_sorgqr(matrix_layout,m,n,k,a,/*lda*/m,tau_temp)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
+    complete_comp(special_time,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -609,13 +651,28 @@ void _dorgqr_(int matrix_layout , int m , int n , int k , double* a , int lda , 
     double _m = m; double _n = n; double _k = k;
     double flops = 4.*_m*_n*_k - 2.*(_m+_n) * _k*_k + (4./3.)*_k*_k*_k;//Note: this routine, which forms an explicit Q, may not even count as flops, rather as overhead
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_orgqr__id,curtime,flops,m,n,k);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau);
+    if (schedule_decision){
+      int ret = LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // ORGQR -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        double* tau_temp = (double*)tau;//(double*)malloc(k*sizeof(double));
+        memset(a,1,/*lda*/m*n*sizeof(double));// Assumes column-major
+        memset(tau_temp,1,k*sizeof(double));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dorgqr(matrix_layout,m,n,k,a,/*lda*/m,tau_temp)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
+    complete_comp(special_time,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -630,13 +687,38 @@ void _sormqr_(int matrix_layout , char side , char trans , int m , int n , int k
     double _m = m; double _n = n; double _k = k;
     double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_ormqr__id,curtime,flops,m,n,k);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc);
+    if (schedule_decision){
+      int ret = LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // ORMQR -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        float* a_temp = (float*)a;//malloc(lda*k*sizeof(float));
+        float* tau_temp = (float*)tau;//malloc(k*sizeof(float));
+        memset(c,1,/*ldc*/m*n*sizeof(float));// Assumes column-major
+        if (side == 'L'){
+          memset(a_temp,1,/*lda*/m*k*sizeof(float));// Assumes column-major
+        } else{
+          memset(a_temp,1,/*lda*/n*k*sizeof(float));// Assumes column-major
+        }
+        memset(tau_temp,1,k*sizeof(float));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        if (side == 'L'){
+          assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a_temp,/*lda*/m,tau_temp,c,/*ldc*/m)==0);
+        } else{
+          assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a_temp,/*lda*/n,tau_temp,c,/*ldc*/m)==0);
+        }
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
+    complete_comp(special_time,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -651,13 +733,38 @@ void _dormqr_(int matrix_layout , char side , char trans , int m , int n , int k
     double _m = m; double _n = n; double _k = k;
     double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_ormqr__id,curtime,flops,m,n,k);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc);
+    if (schedule_decision){
+      int ret = LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // ORMQR -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        double* a_temp = (double*)a;//malloc(lda*k*sizeof(double));
+        double* tau_temp = (double*)tau;//malloc(k*sizeof(double));
+        memset(c,1,/*ldc*/m*n*sizeof(double));// Assumes column-major
+        if (side == 'L'){
+          memset(a_temp,1,/*lda*/m*k*sizeof(double));// Assumes column-major
+        } else{
+          memset(a_temp,1,/*lda*/n*k*sizeof(double));// Assumes column-major
+        }
+        memset(tau_temp,1,k*sizeof(double));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        if (side == 'L'){
+          assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a_temp,/*lda*/m,tau_temp,c,/*ldc*/m)==0);
+        } else{
+          assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a_temp,/*lda*/n,tau_temp,c,/*ldc*/m)==0);
+        }
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
+    complete_comp(special_time,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -672,13 +779,30 @@ void _sgetri_(int matrix_layout , int n , float * a , int lda , const int * ipiv
     double _n = n;
     double flops = 4./3.*_n*_n*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getri__id,curtime,flops,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv);
+    if (schedule_decision){
+      int ret = LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // GETRI -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(float));// Assumes column-major
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+          //ipiv[i] = i;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_getri__id,flops,n);
+    complete_comp(special_time,ptrs,_LAPACK_getri__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -693,13 +817,30 @@ void _dgetri_(int matrix_layout , int n , double * a , int lda , const int * ipi
     double _n = n;
     double flops = 4./3.*_n*_n*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getri__id,curtime,flops,n);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv);
+    if (schedule_decision){
+      int ret = LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // GETRI -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,0,lda*n*sizeof(double));// Assumes column-major
+        for (int i=0; i<n; i++){
+          a[i*lda+i] = 1;
+          //ipiv[i] = i;
+        }
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_getri__id,flops,n);
+    complete_comp(special_time,ptrs,_LAPACK_getri__id,flops,n);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -714,13 +855,27 @@ void _stpqrt_(int matrix_layout , int m , int n , int l , int nb , float * a , i
     double _m = m; double _n = n; double _l = l;
     double flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(t)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
+    if (schedule_decision){
+      int ret = LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // TPQRT -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,1,/*lda*/n*n*sizeof(float));// Assumes column-major
+        memset(b,1,/*ldb*/m*n*sizeof(float));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,/*lda*/n,b,/*ldb*/m,t,ldt)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
+    complete_comp(special_time,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -735,13 +890,27 @@ void _dtpqrt_(int matrix_layout , int m , int n , int l , int nb , double * a , 
     double _m = m; double _n = n; double _l = l;
     double flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(t)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
+    if (schedule_decision){
+      int ret = LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // TPQRT -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        memset(a,1,/*lda*/n*n*sizeof(double));// Assumes column-major
+        memset(b,1,/*ldb*/m*n*sizeof(double));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        assert(LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,/*lda*/n,b,/*ldb*/m,t,ldt)==0);
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
+    complete_comp(special_time,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -757,13 +926,40 @@ void _stpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
     double _m = m; double _n = n; double _k = k;
     double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b),reinterpret_cast<intptr_t>(t),reinterpret_cast<intptr_t>(v)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
+    if (schedule_decision){
+      int ret = LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // TPMQRT -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        float* v_temp = (float*)v;
+        float* t_temp = (float*)t;
+        if (side == 'L'){
+          memset(v_temp,1,/*ldv*/m*k*sizeof(float));// Assumes column-major
+        } else{
+          memset(v_temp,1,/*ldv*/n*n*sizeof(float));// Assumes column-major
+        }
+        memset(t_temp,1,/*ldt*/nb*k*sizeof(float));// Assumes column-major
+        if (side=='L') memset(a,1,/*lda*/k*n*sizeof(float));// Assumes column-major
+        if (side=='R') memset(a,1,/*lda*/m*k*sizeof(float));// Assumes column-major
+        memset(b,1,/*ldb*/m*n*sizeof(float));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        if (side == 'L'){
+          assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v_temp,/*ldv*/m,t_temp,/*ldt*/nb,a,/*lda*/k,b,/*ldb*/m)==0);
+        } else{
+          assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v_temp,/*ldv*/n,t_temp,/*ldt*/nb,a,/*lda*/m,b,/*ldb*/m)==0);
+        }
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
+    complete_comp(special_time,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
@@ -779,13 +975,40 @@ void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
     double _m = m; double _n = n; double _k = k;
     double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b),reinterpret_cast<intptr_t>(t),reinterpret_cast<intptr_t>(v)};
+    double special_time;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
 #ifdef MKL
 #ifdef LAPACKE
-    if (schedule_decision) LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
+    if (schedule_decision){
+      int ret = LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
+      if ((ret!=0) && (mechanism != 1)) assert(0);
+      if (ret != 0){
+        // Specialized checks:
+        // TPMQRT -- must force values to be legal
+        //       -- Safest approach: Overwrite matrix to form identity matrix
+        special_time = MPI_Wtime();
+        double* v_temp = (double*)v;
+        double* t_temp = (double*)t;
+        if (side == 'L'){
+          memset(v_temp,1,/*ldv*/m*k*sizeof(double));// Assumes column-major
+        } else{
+          memset(v_temp,1,/*ldv*/n*n*sizeof(double));// Assumes column-major
+        }
+        memset(t_temp,1,/*ldt*/nb*k*sizeof(double));// Assumes column-major
+        if (side=='L') memset(a,1,/*lda*/k*n*sizeof(double));// Assumes column-major
+        if (side=='R') memset(a,1,/*lda*/m*k*sizeof(double));// Assumes column-major
+        memset(b,1,/*ldb*/m*n*sizeof(double));// Assumes column-major
+        special_time = MPI_Wtime() - special_time;
+        if (side == 'L'){
+          assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v_temp,/*ldv*/m,t_temp,/*ldt*/nb,a,/*lda*/k,b,/*ldb*/m)==0);
+        } else{
+          assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v_temp,/*ldv*/n,t_temp,/*ldt*/nb,a,/*lda*/m,b,/*ldb*/m)==0);
+        }
+      }
+    }
 #endif
 #endif
-    complete_comp(0,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
+    complete_comp(special_time,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
   } else{
 #ifdef MKL
 #ifdef LAPACKE
