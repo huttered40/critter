@@ -31,7 +31,7 @@ std::vector<double> record::set_tuning_statistics(){
         if (decomposition::replace_comm_map_local.find(it.first) != decomposition::replace_comm_map_local.end()){
           decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
         } else{
-          decomp_time = decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
+          decomp_time = decomposition::replace_comm_map_global[it.first].second; // decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
         }
         stream << "Rank 0 Communication kernel (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << ")"
@@ -79,7 +79,7 @@ std::vector<double> record::set_tuning_statistics(){
         if (decomposition::replace_comp_map_local.find(it.first) != decomposition::replace_comp_map_local.end()){
           decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
         } else{
-          decomp_time = decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
+          decomp_time = decomposition::replace_comp_map_global[it.first].second;//decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
         }
          stream << "Rank 0 Computation kernel (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1

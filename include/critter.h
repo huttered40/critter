@@ -251,6 +251,7 @@
 // *****************************************************************************************************************************************************************
 // Note: these are defined specially for 'capital', which abstracts the call to blas routines. Double arguents are always used.
 
+/*
 #define _axpy_(a,b,c,d,e,f)\
   do{\
     critter::internal::_daxpy_(a,b,c,d,e,f);\
@@ -265,6 +266,7 @@
   do{\
     critter::internal::_dger_(a,b,c,d,e,f,g,h,i,j);\
   } while (0);
+*/
 
 #define _trmm_(a,b,c,d,e,f,g,h,i,j,k,l)\
   do{\

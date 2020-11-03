@@ -64,6 +64,7 @@ bool path::initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile 
 
 void path::complete_comp(double errtime, std::vector<intptr_t>& user_array, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime( ) - comp_start_time - errtime;	// complete computation time
+
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return; }
@@ -414,7 +415,6 @@ void path::complete_comm(std::vector<intptr_t>& user_msg, blocking& tracker, int
     // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
     //   create an entry in comm_kernel_key, although it will be empty.
     comm_kernel_key key(rank,active_kernels.size(),tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    //if (world_rank == 8) std::cout << "******" << key.tag << " " << key.dim_sizes[0] << " " << key.dim_strides[0] << " " << key.msg_size << " " << key.partner_offset << ")\n";
     if (comm_kernel_map.find(key) == comm_kernel_map.end()){
       active_comm_kernel_keys.push_back(key);
       if (tracker.partner1 != -1){
