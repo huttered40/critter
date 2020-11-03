@@ -1565,69 +1565,10 @@ void clear(){
   // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
   //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets if necessary.
   for (auto& it : comp_kernel_map){
-    bool is_clear=false;
-    if (schedule_tag==""){
-      active_kernels[it.second.val_index].clear_distribution();
-      is_clear=true;
-    }
-    else if (schedule_tag=="cholinv"){
-      if (clear_counter % 5 == 0){
-        if (it.first.tag == 101){// potrf
-          active_kernels[it.second.val_index].clear_distribution();
-          is_clear=true;
-        }
-        else if (it.first.tag == 102){// trtri
-          active_kernels[it.second.val_index].clear_distribution();
-          is_clear=true;
-        }
-        else if (it.first.tag == 200){
-          active_kernels[it.second.val_index].clear_distribution();
-          is_clear=true;
-        }
-      }
-      //No-op (for now, unless necessary)
-    }
-    else if (schedule_tag=="cacqr"){
-      //No-op (for now, unless necessary)
-    }
-    else if (schedule_tag=="caqr_level1"){
-      //No-op (for now, unless necessary)
-    }
-    else if (schedule_tag=="caqr_level1pipe"){
-      //No-op (for now, unless necessary)
-    }
+    active_kernels[it.second.val_index].clear_distribution();
   }
   for (auto& it : comm_kernel_map){
-    bool is_clear=false;
-    if (schedule_tag==""){
-      active_kernels[it.second.val_index].clear_distribution();
-      is_clear=true;
-    }
-    else if (schedule_tag=="cholinv"){
-      // Note that I would like to check the reset count before clearing the Allgather, but I only need to do this once anyways.
-      if (clear_counter == 10){
-        if (world_size==64){
-          if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 16) && (it.first.dim_strides[0]==4) && (it.first.partner_offset == INT_MIN)){
-            active_kernels[it.second.val_index].clear_distribution();
-            is_clear=true;
-          }
-        } else if (world_size==512){
-          if ((it.first.tag == 5) && (it.first.dim_sizes[0] == 64) && (it.first.dim_strides[0]==8) && (it.first.partner_offset == INT_MIN)){
-            active_kernels[it.second.val_index].clear_distribution();
-            is_clear=true;
-          }
-        }
-      }
-    }
-    else if (schedule_tag=="cacqr"){
-      //No-op (for now, unless necessary)
-    }
-    else if (schedule_tag=="caqr_level1"){
-      //No-op (for now, unless necessary)
-    }
-    else if (schedule_tag=="caqr_level1pipe"){
-      //No-op (for now, unless necessary)
-    }
+    active_kernels[it.second.val_index].clear_distribution();
   }
 }
 

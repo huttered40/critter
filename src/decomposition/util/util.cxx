@@ -280,63 +280,10 @@ void reset(){
   }
 
   for (auto it = replace_comp_map_global.begin(); it != replace_comp_map_global.end();){
-    if (schedule_tag==""){
-      it = replace_comp_map_global.erase(it);
-    }
-    else if (schedule_tag=="cholinv"){
-      bool is_match = false;
-      if (clear_counter % 5 == 0){
-        if (it->first.tag == 101){// potrf
-          it = replace_comp_map_global.erase(it);
-          is_match = true;
-        }
-        else if (it->first.tag == 102){// trtri
-          it = replace_comp_map_global.erase(it);
-          is_match = true;
-        }
-        else if (it->first.tag == 200){// blk-to-cyc
-          it = replace_comp_map_global.erase(it);
-          is_match = true;
-        }
-      }
-      if (!is_match) it++;
-    }
-    else if (schedule_tag=="caqr_level1pipe"){
-      //No-op (for now, unless necessary)
-      it++;
-    }
-    else{
-      it++;
-    }
+    it = replace_comp_map_global.erase(it);
   }
   for (auto it = replace_comm_map_global.begin(); it != replace_comm_map_global.end();){
-    if (schedule_tag==""){
-      it = replace_comm_map_global.erase(it);
-    }
-    else if (schedule_tag=="cholinv"){
-      bool is_match = false;
-      if (clear_counter == 10){
-        if (world_size == 64){
-          if ((it->first.tag == 5) && (it->first.dim_sizes[0] == 16) && (it->first.dim_strides[0]==4) && (it->first.partner_offset == INT_MIN)){
-            it = replace_comm_map_global.erase(it);
-            is_match = true;
-          }
-        } else if (world_size == 512){
-          if ((it->first.tag == 5) && (it->first.dim_sizes[0] == 64) && (it->first.dim_strides[0]==8) && (it->first.partner_offset == INT_MIN)){
-            it = replace_comm_map_global.erase(it);
-            is_match = true;
-          }
-        }
-      }
-      if (!is_match) it++;
-    }
-    else if (schedule_tag=="caqr_level1pipe"){
-      //No-op (for now, unless necessary)
-      it++;
-    }
-    else{
-      it++;
-    }
+    it = replace_comm_map_global.erase(it);
   }
 
   wait_id=true;
