@@ -417,4 +417,9 @@
     critter::internal::_blk_to_cyc_rect_(blocked,cyclic,num_rows_local,num_columns_local,sliceDim);\
   } while (0);
 
+#define cyc_to_blk_rect(blocked,cyclic,num_rows_local,num_columns_local,sliceDim)\
+  do{\
+    critter::internal::_cyc_to_blk_rect_(blocked,cyclic,num_rows_local,num_columns_local,sliceDim);\
+  } while (0);
+
 #endif /*CRITTER_H_*/

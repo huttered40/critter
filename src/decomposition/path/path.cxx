@@ -54,8 +54,8 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   return schedule_decision;
 }
 
-void path::complete_comp(size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
-  volatile double comp_time = MPI_Wtime() - comp_start_time;	// complete computation time
+void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
+  volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
 
   if (replace_comp == 1){
     comp_kernel_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
@@ -602,6 +602,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   propagate(tracker);
 
   // Prepare to leave interception and re-enter user code by restarting computation timers.
+  bsp_counter++;
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }

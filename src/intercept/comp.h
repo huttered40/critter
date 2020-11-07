@@ -74,6 +74,7 @@ void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
                int ldv , const double * t , int ldt , double * a , int lda , double * b , int ldb);
 
 void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int num_columns_local, int sliceDim);
+void _cyc_to_blk_rect_(double* blocked, double* cyclic, int num_rows_local, int num_columns_local, int sliceDim);
 }
 }
 

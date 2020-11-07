@@ -12,6 +12,7 @@ void clear();
 
 void set_mechanism(int input_mechanism=-1);
 void set_mode(int input_mode=-1);
+void set_debug(int debug_mode);
 
 namespace internal{
 

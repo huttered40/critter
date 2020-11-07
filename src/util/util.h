@@ -96,6 +96,7 @@ struct kernel_key_id{
 };
 
 // ****************************************************************************************************************************************************
+extern int autotuning_debug;
 extern int bsp_counter;
 extern int reset_counter;
 extern int clear_counter;
@@ -168,7 +169,8 @@ extern size_t
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
 extern size_t
-	_CAPITAL_blktocyc__id;
+	_CAPITAL_blktocyc__id,
+	_CAPITAL_cyctoblk__id;
 extern MPI_Datatype comm_kernel_key_type;
 extern MPI_Datatype comp_kernel_key_type;
 

@@ -332,14 +332,14 @@ void _sgetrf_(int matrix_layout , int m , int n , float* a , int lda , int* ipiv
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,m*sizeof(float));// Assumes column-major
+          memset(a+i*lda,1,m*sizeof(float));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
@@ -367,14 +367,14 @@ void _dgetrf_(int matrix_layout , int m , int n , double* a , int lda , int* ipi
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,m*sizeof(double));// Assumes column-major
+          memset(a+i*lda,1,m*sizeof(double));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
@@ -402,14 +402,14 @@ void _spotrf_(int matrix_layout , char uplo , int n , float* a , int lda){
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,n*sizeof(float));// Assumes column-major
+          memset(a+i*lda,1,n*sizeof(float));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
@@ -437,14 +437,14 @@ void _dpotrf_(int matrix_layout , char uplo , int n , double* a , int lda){
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,n*sizeof(double));// Assumes column-major
+          memset(a+i*lda,1,n*sizeof(double));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
@@ -472,14 +472,14 @@ void _strtri_(int matrix_layout , char uplo , char diag , int n , float* a , int
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,n*sizeof(float));// Assumes column-major
+          memset(a+i*lda,1,n*sizeof(float));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
@@ -507,14 +507,14 @@ void _dtrtri_(int matrix_layout , char uplo , char diag , int n , double* a , in
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,n*sizeof(double));// Assumes column-major
+          memset(a+i*lda,1,n*sizeof(double));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
@@ -542,14 +542,14 @@ void _sgeqrf_(int matrix_layout , int m , int n , float* a , int lda , float* ta
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,m*sizeof(float));// Assumes column-major
+          memset(a+i*lda,1,m*sizeof(float));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau)==0);
@@ -577,14 +577,14 @@ void _dgeqrf_(int matrix_layout , int m , int n , double* a , int lda , double* 
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
-          memset(a+i*lda,0,m*sizeof(double));// Assumes column-major
+          memset(a+i*lda,1,m*sizeof(double));// Assumes column-major
         }
         for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
+          a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
         assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau)==0);
@@ -612,7 +612,7 @@ void _sorgqr_(int matrix_layout , int m , int n , int k , float* a , int lda , c
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
       else{
         special_time = MPI_Wtime();
         float* tau_temp = (float*)tau;
@@ -649,7 +649,7 @@ void _dorgqr_(int matrix_layout , int m , int n , int k , double* a , int lda , 
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
       else{
         special_time = MPI_Wtime();
         double* tau_temp = (double*)tau;
@@ -686,7 +686,7 @@ void _sormqr_(int matrix_layout , char side , char trans , int m , int n , int k
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -733,7 +733,7 @@ void _dormqr_(int matrix_layout , char side , char trans , int m , int n , int k
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -779,7 +779,7 @@ void _sgetri_(int matrix_layout , int n , float * a , int lda , const int * ipiv
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv)==0);
       else{
         special_time = MPI_Wtime();
         float* ipiv_temp = (float*)ipiv;
@@ -816,7 +816,7 @@ void _dgetri_(int matrix_layout , int n , double * a , int lda , const int * ipi
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv)==0);
       else{
         special_time = MPI_Wtime();
         double* ipiv_temp = (double*)ipiv;
@@ -853,7 +853,7 @@ void _stpqrt_(int matrix_layout , int m , int n , int l , int nb , float * a , i
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -892,7 +892,7 @@ void _dtpqrt_(int matrix_layout , int m , int n , int l , int nb , double * a , 
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -932,7 +932,7 @@ void _stpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
       else{
         special_time = MPI_Wtime();
         float* v_temp = (float*)v;
@@ -988,7 +988,7 @@ void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
 #ifdef MKL
 #ifdef LAPACKE
     if (schedule_decision){
-      if (mechanism == 0) assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
       else{
         special_time = MPI_Wtime();
         double* v_temp = (double*)v;
@@ -1081,6 +1081,40 @@ void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int 
     for (int i=0; i<num_columns_global; i++){
       for (int j=i+1; j<num_rows_global; j++){
         cyclic[i*num_rows_global+j]=0.;
+      }
+    }
+  }
+}
+void _cyc_to_blk_rect_(double* blocked, double* cyclic, int num_rows_local, int num_columns_local, int sliceDim){
+  if (mode){
+    volatile double curtime = MPI_Wtime();
+    double flops = 0;
+    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(blocked),reinterpret_cast<intptr_t>(cyclic)};
+    bool schedule_decision = initiate_comp(ptrs,_CAPITAL_cyctoblk__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
+    if (schedule_decision){
+      int write_idx = 0; int read_idx = 0; int offset = num_rows_local*num_columns_local;
+      for (int i=0; i<num_columns_local; i++){
+        for (int j=0; j<sliceDim; j++){
+          for (int k=0; k<num_rows_local; k++){
+            for (int z=0; z<sliceDim; z++){
+              write_idx = z*offset*sliceDim + k + j*offset + i*num_rows_local;
+              blocked[write_idx] = cyclic[read_idx++];
+            }
+          }
+        }
+      }
+    }
+    complete_comp(0,ptrs,_CAPITAL_cyctoblk__id,flops,num_rows_local,num_columns_local,sliceDim);
+  } else{
+    int write_idx = 0; int read_idx = 0; int offset = num_rows_local*num_columns_local;
+    for (int i=0; i<num_columns_local; i++){
+      for (int j=0; j<sliceDim; j++){
+        for (int k=0; k<num_rows_local; k++){
+          for (int z=0; z<sliceDim; z++){
+            write_idx = z*offset*sliceDim + k + j*offset + i*num_rows_local;
+            blocked[write_idx] = cyclic[read_idx++];
+          }
+        }
       }
     }
   }

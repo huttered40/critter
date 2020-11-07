@@ -14,7 +14,7 @@ std::vector<double> record::set_tuning_statistics(){
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   {
     double total_scheduled_comm_time=0;
-    double total_scheduled_comp_time=0;
+    if (decomposition::replace_comm == 1){
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
@@ -62,7 +62,10 @@ std::vector<double> record::set_tuning_statistics(){
       }
       total_scheduled_comm_time += kernel_list[it.second.val_index].total_local_exec_time;
     }
+    }
     if (world_rank==0) { stream << std::endl << std::endl; }
+    double total_scheduled_comp_time=0;
+    if (decomposition::replace_comp == 1){
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comp_kernel_keys;
@@ -111,6 +114,7 @@ std::vector<double> record::set_tuning_statistics(){
                 << std::endl;
        }
       total_scheduled_comp_time += kernel_list[it.second.val_index].total_local_exec_time;
+    }
     }
     if (world_rank==0){
       stream << std::endl;

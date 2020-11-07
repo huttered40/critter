@@ -54,6 +54,10 @@ void set_mode(int input_mode){
   }
 }
 
+void set_debug(int debug_mode){
+  internal::autotuning_debug = debug_mode;
+}
+
 void set_mechanism(int input_mechanism){
   if (input_mechanism != -1) { internal::mechanism = input_mechanism; }
   else{
@@ -172,6 +176,9 @@ void _init(int* argc, char*** argv){
   _LAPACK_tpmqrt__id = 108;
 
   _CAPITAL_blktocyc__id = 200;
+  _CAPITAL_cyctoblk__id = 201;
+
+  autotuning_debug = 0;
 
   reset_counter = 0;
   clear_counter = 0;

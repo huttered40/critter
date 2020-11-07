@@ -247,6 +247,7 @@ kernel_key_id& kernel_key_id::operator=(const kernel_key_id& _copy){
 }
 
 
+int autotuning_debug;
 int bsp_counter;
 int reset_counter;
 int clear_counter;
@@ -319,7 +320,8 @@ size_t
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
 size_t
-	_CAPITAL_blktocyc__id;
+	_CAPITAL_blktocyc__id,
+	_CAPITAL_cyctoblk__id;
 MPI_Datatype comm_kernel_key_type;
 MPI_Datatype comp_kernel_key_type;
 
