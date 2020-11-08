@@ -5,6 +5,7 @@
 namespace critter{
 namespace internal{
 
+/*
 void _saxpy_(const int n , const float a , const float *x , const int incx , float *y , const int incy){
   if (mode && track_blas){
     volatile double curtime = MPI_Wtime();
@@ -89,6 +90,8 @@ void _dscal_(const int n , const double a , double *x , const int incx){
 #endif
   }
 }
+*/
+
 void _sger_(const CBLAS_LAYOUT Layout , const int m , const int n , const float alpha , const float *x , const int incx ,
             const float *y , const int incy , float *a , const int lda){
   if (mode && track_blas){
@@ -280,7 +283,7 @@ void _ssyrk_(const CBLAS_LAYOUT Layout , const CBLAS_UPLO uplo , const CBLAS_TRA
   if (mode && track_blas){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _k = k;
-    double flops = 2*_k*_n*_n;//Note: the factor of 2 might be wrong
+    double flops = _k*_n*(_n+1);
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(c)};
     bool schedule_decision = initiate_comp(ptrs,_BLAS_syrk__id,curtime,flops,n,k);
 #ifdef MKL
@@ -303,7 +306,7 @@ void _dsyrk_(const CBLAS_LAYOUT Layout , const CBLAS_UPLO uplo , const CBLAS_TRA
   if (mode && track_blas){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _k = k;
-    double flops = 2*_k*_n*_n;//Note: the factor of 2 might be wrong
+    double flops = _k*_n*(_n+1);
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(c)};
     bool schedule_decision = initiate_comp(ptrs,_BLAS_syrk__id,curtime,flops,n,k);
 #ifdef MKL
@@ -325,7 +328,12 @@ void _sgetrf_(int matrix_layout , int m , int n , float* a , int lda , int* ipiv
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n;
-    double flops = 2./3. * _n*_n*_n; if (m > n) flops = (1./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (1./3.)*_m*_m*(3*_n-_m);
+    double flops = 0;
+    if (m>=n){
+      flops = _m*_n*_n - 1./3.*_n*_n*_n - 1./2.*_n*_n + 5./6.*_n;
+    } else{
+      flops = _n*_m*_m - 1./3.*_m*_m*_m - 1./2.*_m*_m + 5./6.*_m;
+    }
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getrf__id,curtime,flops,m,n);
@@ -360,7 +368,12 @@ void _dgetrf_(int matrix_layout , int m , int n , double* a , int lda , int* ipi
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n;
-    double flops = 2./3. * _n*_n*_n; if (m > n) flops = (1./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (1./3.)*_m*_m*(3*_n-_m);
+    double flops = 0;
+    if (m>=n){
+      flops = _m*_n*_n - 1./3.*_n*_n*_n - 1./2.*_n*_n + 5./6.*_n;
+    } else{
+      flops = _n*_m*_m - 1./3.*_m*_m*_m - 1./2.*_m*_m + 5./6.*_m;
+    }
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getrf__id,curtime,flops,m,n);
@@ -395,7 +408,7 @@ void _spotrf_(int matrix_layout , char uplo , int n , float* a , int lda){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
-    double flops = 1./3.*_n*_n*_n;
+    double flops = 1./3.*_n*_n*_n + 1./2.*_n*_n + 1./6.*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_potrf__id,curtime,flops,n);
@@ -430,7 +443,7 @@ void _dpotrf_(int matrix_layout , char uplo , int n , double* a , int lda){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
-    double flops = 1./3.*_n*_n*_n;
+    double flops = 1./3.*_n*_n*_n + 1./2.*_n*_n + 1./6.*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_potrf__id,curtime,flops,n);
@@ -465,7 +478,7 @@ void _strtri_(int matrix_layout , char uplo , char diag , int n , float* a , int
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
-    double flops = 1./3.*_n*_n*_n;
+    double flops = 1./3.*_n*_n*_n + 2./3.*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_trtri__id,curtime,flops,n);
@@ -500,7 +513,7 @@ void _dtrtri_(int matrix_layout , char uplo , char diag , int n , double* a , in
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
-    double flops = 1./3.*_n*_n*_n;
+    double flops = 1./3.*_n*_n*_n + 2./3.*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_trtri__id,curtime,flops,n);
@@ -535,7 +548,12 @@ void _sgeqrf_(int matrix_layout , int m , int n , float* a , int lda , float* ta
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n;
-    double flops = 4./3. * _n*_n*_n; if (m > n) flops = (2./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (2./3.)*_m*_m*(3*_n-_m);
+    double flops = 0;
+    if (m>=n){
+      flops = 2.*_m*_n*_n - 2./3.*_n*_n*_n + _m*_n + _n*_n + 14./3.*_n;
+    } else{
+      flops = 2.*_n*_m*_m - 2./3.*_m*_m*_m + 3.*_m*_n - _m*_m + 14./3.*_m;
+    }
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_geqrf__id,curtime,flops,m,n);
@@ -570,7 +588,12 @@ void _dgeqrf_(int matrix_layout , int m , int n , double* a , int lda , double* 
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n;
-    double flops = 4./3. * _n*_n*_n; if (m > n) flops = (2./3.)*_n*_n*(3*_m-_n); if (m < n) flops = (2./3.)*_m*_m*(3*_n-_m);
+    double flops = 0;
+    if (m>=n){
+      flops = 2.*_m*_n*_n - 2./3.*_n*_n*_n + _m*_n + _n*_n + 14./3.*_n;
+    } else{
+      flops = 2.*_n*_m*_m - 2./3.*_m*_m*_m + 3.*_m*_n - _m*_m + 14./3.*_m;
+    }
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_geqrf__id,curtime,flops,m,n);
@@ -605,7 +628,7 @@ void _sorgqr_(int matrix_layout , int m , int n , int k , float* a , int lda , c
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
-    double flops = 4.*_m*_n*_k - 2.*(_m+_n) * _k*_k + (4./3.)*_k*_k*_k;//Note: this routine, which forms an explicit Q, may not even count as flops, rather as overhead
+    double flops = 4.*_m*_n*_k - 2.*(_m+_n)*_k*_k + (4./3.)*_k*_k*_k + 3.*_n*_k - _m*_k - _k*_k - 4./3.*_k;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_orgqr__id,curtime,flops,m,n,k);
@@ -642,7 +665,7 @@ void _dorgqr_(int matrix_layout , int m , int n , int k , double* a , int lda , 
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
-    double flops = 4.*_m*_n*_k - 2.*(_m+_n) * _k*_k + (4./3.)*_k*_k*_k;//Note: this routine, which forms an explicit Q, may not even count as flops, rather as overhead
+    double flops = 4.*_m*_n*_k - 2.*(_m+_n)*_k*_k + (4./3.)*_k*_k*_k + 3.*_n*_k - _m*_k - _k*_k - 4./3.*_k;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_orgqr__id,curtime,flops,m,n,k);
@@ -679,7 +702,12 @@ void _sormqr_(int matrix_layout , char side , char trans , int m , int n , int k
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
-    double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
+    double flops = 0;
+    if (side == 'L'){
+      flops = 4.*_m*_n*_k - 2.*_n*_k*_k + 3.*_n*_k;
+    } else{
+      flops = 4.*_n*_m*_k - 2.*_m*_k*_k + 2.*m*_k + _n*_k - 1./2.*_k*_k + 1./2.*_k;
+    }
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_ormqr__id,curtime,flops,m,n,k);
@@ -726,7 +754,12 @@ void _dormqr_(int matrix_layout , char side , char trans , int m , int n , int k
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
-    double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
+    double flops = 0;
+    if (side == 'L'){
+      flops = 4.*_m*_n*_k - 2.*_n*_k*_k + 3.*_n*_k;
+    } else{
+      flops = 4.*_n*_m*_k - 2.*_m*_k*_k + 2.*m*_k + _n*_k - 1./2.*_k*_k + 1./2.*_k;
+    }
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_ormqr__id,curtime,flops,m,n,k);
@@ -772,7 +805,7 @@ void _sgetri_(int matrix_layout , int n , float * a , int lda , const int * ipiv
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
-    double flops = 4./3.*_n*_n*_n;
+    double flops = 4./3.*_n*_n*_n - _n*_n + 5./3.*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getri__id,curtime,flops,n);
@@ -809,7 +842,7 @@ void _dgetri_(int matrix_layout , int n , double * a , int lda , const int * ipi
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
-    double flops = 4./3.*_n*_n*_n;
+    double flops = 4./3.*_n*_n*_n - _n*_n + 5./3.*_n;
     std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
     bool schedule_decision = initiate_comp(ptrs,_LAPACK_getri__id,curtime,flops,n);
