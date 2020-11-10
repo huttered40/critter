@@ -57,7 +57,7 @@ std::vector<double> record::set_tuning_statistics(){
                << ", StdDev - " << discretization::get_std_dev(it.second,comm_analysis_param)
                << ", StdError - " << discretization::get_std_error(it.first,it.second,comm_analysis_param)
                << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param)
-               << ", Stopping criterion - " << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param)/(2*discretization::get_estimate(it.second,comm_analysis_param))
+               << ", Stopping criterion - " << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param)/discretization::get_estimate(it.second,comm_analysis_param)
                << std::endl;
       }
       total_scheduled_comm_time += kernel_list[it.second.val_index].total_local_exec_time;
@@ -110,7 +110,7 @@ std::vector<double> record::set_tuning_statistics(){
                 << ", StdDev - " << discretization::get_std_dev(it.second,comp_analysis_param)
                 << ", StdError - " << discretization::get_std_error(it.first,it.second,comp_analysis_param)
                 << ", 95% confidence interval len - " << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param)
-                << ", Stopping criterion - " << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param)/(2*discretization::get_estimate(it.second,comp_analysis_param))
+                << ", Stopping criterion - " << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param)/discretization::get_estimate(it.second,comp_analysis_param)
                 << std::endl;
        }
       total_scheduled_comp_time += kernel_list[it.second.val_index].total_local_exec_time;
