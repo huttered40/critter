@@ -271,13 +271,13 @@ void close_symbol(const char* symbol, double curtime){
   }
 }
 
-void clear(){
+void clear(int tag_count, int* distribution_tags){
   switch (mechanism){
     case 0:
       decomposition::clear();
       break;
     case 1:
-      discretization::clear();
+      discretization::clear(tag_count,distribution_tags);
       break;
     case 2:
       skeletonization::clear();

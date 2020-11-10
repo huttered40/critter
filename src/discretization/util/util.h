@@ -315,7 +315,7 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide);
-void clear();
+void clear(int tag_count, int* distribution_tags);
 void finalize();
 
 }

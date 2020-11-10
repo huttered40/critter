@@ -31,7 +31,7 @@ void close_symbol(const char* symbol, double curtime);
 void write_file(int variantID, int print_mode, double overhead_time);
 void print(int variantID, int print_mode, double overhead_time);
 
-void clear();
+void clear(int tag_count, int* distribution_tags);
 void _finalize();
 
 }

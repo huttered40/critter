@@ -1558,17 +1558,39 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   }
 }
 
-void clear(){
+void clear(int tag_count, int* distribution_tags){
+  int world_rank; MPI_Comm_size(MPI_COMM_WORLD,&world_rank);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
-  // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
-  // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
-  // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
-  //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets if necessary.
-  for (auto& it : comp_kernel_map){
-    active_kernels[it.second.val_index].clear_distribution();
+
+  if (distribution_tags == nullptr){
+    // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
+    // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
+    // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
+    //   (which it isn't), so in fact the only relevant part of this routine is the clearing of the pathsets if necessary.
+    for (auto& it : comp_kernel_map){
+      active_kernels[it.second.val_index].clear_distribution();
+    }
+    for (auto& it : comm_kernel_map){
+      active_kernels[it.second.val_index].clear_distribution();
+    }
   }
-  for (auto& it : comm_kernel_map){
-    active_kernels[it.second.val_index].clear_distribution();
+  else{
+    for (auto& it : comp_kernel_map){
+      for (int i=0; i<tag_count; i++){
+        if (it.first.tag == distribution_tags[i]){
+          active_kernels[it.second.val_index].clear_distribution();
+          break;
+        }
+      }
+    }
+    for (auto& it : comm_kernel_map){
+      for (int i=0; i<tag_count; i++){
+        if (it.first.tag == distribution_tags[i]){
+          active_kernels[it.second.val_index].clear_distribution();
+          break;
+        }
+      }
+    }
   }
 }
 

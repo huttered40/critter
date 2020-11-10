@@ -38,9 +38,9 @@ void record(int variantID, int print_mode, double overhead_time){
   internal::write_file(variantID,print_mode,overhead_time);
 }
 
-void clear(){
+void clear(int tag_count, int* distribution_tags){
   internal::clear_counter++;
-  internal::clear();
+  internal::clear(tag_count, distribution_tags);
 }
 
 void set_mode(int input_mode){
@@ -157,26 +157,78 @@ void _init(int* argc, char*** argv){
   _MPI_Ialltoallv__id = 31;
   _MPI_Bsend__id = 32;
 
-  _BLAS_axpy__id = 0;
-  _BLAS_scal__id = 1;
-  _BLAS_ger__id = 2;
-  _BLAS_gemm__id = 3;
-  _BLAS_trmm__id = 4;
-  _BLAS_trsm__id = 5;
-  _BLAS_syrk__id = 6;
+  _BLAS_axpy__id = 100;
+  _BLAS_scal__id = 101;
+  _BLAS_ger__id = 102;
+  _BLAS_gemm__id = 103;
+  _BLAS_trmm__id = 104;
+  _BLAS_trsm__id = 105;
+  _BLAS_syrk__id = 106;
 
-  _LAPACK_getrf__id = 100;
-  _LAPACK_potrf__id = 101;
-  _LAPACK_trtri__id = 102;
-  _LAPACK_geqrf__id = 103;
-  _LAPACK_orgqr__id = 104;
-  _LAPACK_ormqr__id = 105;
-  _LAPACK_getri__id = 106;
-  _LAPACK_tpqrt__id = 107;
-  _LAPACK_tpmqrt__id = 108;
+  _LAPACK_getrf__id = 200;
+  _LAPACK_potrf__id = 201;
+  _LAPACK_trtri__id = 202;
+  _LAPACK_geqrf__id = 203;
+  _LAPACK_orgqr__id = 204;
+  _LAPACK_ormqr__id = 205;
+  _LAPACK_getri__id = 206;
+  _LAPACK_tpqrt__id = 207;
+  _LAPACK_tpmqrt__id = 208;
 
-  _CAPITAL_blktocyc__id = 200;
-  _CAPITAL_cyctoblk__id = 201;
+  _CAPITAL_blktocyc__id = 300;
+  _CAPITAL_cyctoblk__id = 301;
+
+/*
+  reset_map["MPI_Barrier"] = 0;
+  reset_map["MPI_Bcast"] = 1;
+  reset_map["MPI_Reduce"] = 2;
+  reset_map["MPI_Allreduce"] = 3;
+  reset_map["MPI_Gather"] = 4;
+  reset_map["MPI_Allgather"] = 5;
+  reset_map["MPI_Scatter"] = 6;
+  reset_map["MPI_Reduce_scatter"] = 7;
+  reset_map["MPI_Alltoall"] = 8;
+  reset_map["MPI_Gatherv"] = 9;
+  reset_map["MPI_Allgatherv"] = 10;
+  reset_map["MPI_Scatterv"] = 11;
+  reset_map["MPI_Alltoallv"] = 12;
+  reset_map["MPI_Sendrecv"] = 13;
+  reset_map["MPI_Sendrecv_replace"] = 14;
+  reset_map["MPI_Ssend"] = 15;
+  reset_map["MPI_Send"] = 16;
+  reset_map["MPI_Recv"] = 17;
+  reset_map["MPI_Isend"] = 18;
+  reset_map["MPI_Irecv"] = 19;
+  reset_map["MPI_Ibcast"] = 20;
+  reset_map["MPI_Iallreduce"] = 21;
+  reset_map["MPI_Ireduce"] = 22;
+  reset_map["MPI_Igather"] = 23;
+  reset_map["MPI_Igatherv"] = 24;
+  reset_map["MPI_Iallgather"] = 25;
+  reset_map["MPI_Iallgatherv"] = 26;
+  reset_map["MPI_Iscatter"] = 27;
+  reset_map["MPI_Iscatterv"] = 28;
+  reset_map["MPI_Ireduce_scatter"] = 29;
+  reset_map["MPI_Ialltoall"] = 30;
+  reset_map["MPI_Ialltoallv"] = 31;
+  reset_map["MPI_Bsend"] = 32;
+  reset_map["BLAS_ger"] = 102;
+  reset_map["BLAS_gemm"] = 103;
+  reset_map["BLAS_trmm"] = 104;
+  reset_map["BLAS_trsm"] = 105;
+  reset_map["BLAS_syrk"] = 106;
+  reset_map["LAPACK_getrf"] = 200;
+  reset_map["LAPACK_potrf"] = 201;
+  reset_map["LAPACK_trtri"] = 202;
+  reset_map["LAPACK_geqrf"] = 203;
+  reset_map["LAPACK_orgqr"] = 204;
+  reset_map["LAPACK_ormqr"] = 205;
+  reset_map["LAPACK_getri"] = 206;
+  reset_map["LAPACK_tpqrt"] = 207;
+  reset_map["LAPACK_tpmqrt"] = 208;
+  reset_map["CAPITAL_blktocyc"] = 300;
+  reset_map["CAPITAL_cyctoblk"] = 301;
+*/
 
   autotuning_debug = 0;
 
@@ -197,13 +249,13 @@ void _init(int* argc, char*** argv){
   PMPI_Type_create_struct(2,comm_kernel_key_internal_type_block_len,comm_kernel_key_internal_type_disp,comm_kernel_key_internal_type,&comm_kernel_key_type);
   PMPI_Type_commit(&comm_kernel_key_type);
 
-
   mechanism=0;
   allocate(MPI_COMM_WORLD);
   mechanism=1;
   allocate(MPI_COMM_WORLD);
   mechanism=2;
   allocate(MPI_COMM_WORLD);
+
   if (std::getenv("CRITTER_MECHANISM") != NULL){
     mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
   } else{
@@ -229,7 +281,7 @@ void barrier(MPI_Comm comm){
     volatile double curtime = MPI_Wtime();
     std::vector<intptr_t> ptrs;
     bool schedule_decision = initiate_comm(ptrs,_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
-    if (schedule_decision) PMPI_Barrier(comm);// For now, barriers will not be conditionally scheduled
+    if (schedule_decision) PMPI_Barrier(comm);
     complete_comm(ptrs,_MPI_Barrier__id);
   }
   else{
