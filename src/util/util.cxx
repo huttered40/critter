@@ -618,22 +618,51 @@ std::string aggregate_channel::generate_hash_history(aggregate_channel* comm){
 }
 
 
-void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
-  if (comm_channel_map.find(newcomm) != comm_channel_map.end()){ return; }
+void generate_initial_aggregate(){
+  int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
+  int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
+  solo_channel* world_node = new solo_channel();
+  world_node->tag = communicator_count++;
+  world_node->offset = 0;
+  world_node->id.push_back(std::make_pair(_world_size,1));
+  world_node->parent=nullptr;
+  std::string local_channel_hash_str = ".." + std::to_string(world_node->id[0].first) + "." + std::to_string(world_node->id[0].second);
+  std::string global_channel_hash_str = ".." + std::to_string(world_node->id[0].first) + "." + std::to_string(world_node->id[0].second);
+  world_node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);// will avoid any local overlap.
+  world_node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);// will avoid any global overlap.
+/*
+  sample_propagation_tree* tree = new sample_propagation_tree;
+  tree->root = world_node;
+  spf.tree = tree;
+*/
+  comm_channel_map[MPI_COMM_WORLD] = world_node;
+  // Always treat 1-communicator channels as trivial aggregate channels.
+  aggregate_channel* agg_node = new aggregate_channel(world_node->id,world_node->local_hash_tag,world_node->global_hash_tag,world_node->offset,1);
+  agg_node->channels.insert(world_node->local_hash_tag);
+  assert(aggregate_channel_map.find(world_node->local_hash_tag) == aggregate_channel_map.end());
+  aggregate_channel_map[world_node->local_hash_tag] = agg_node;
+  aggregate_channel_map[world_node->local_hash_tag]->is_final=true;
+  if (_world_rank == 8){
+    auto str1 = channel::generate_tuple_string(agg_node);
+    auto str2 = aggregate_channel::generate_hash_history(agg_node);
+    std::cout << "World -- Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
+  }
+}
 
+void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
   int world_comm_size; MPI_Comm_size(MPI_COMM_WORLD,&world_comm_size);
   int old_comm_size; MPI_Comm_size(oldcomm,&old_comm_size);
   int new_comm_size; MPI_Comm_size(newcomm,&new_comm_size);
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   int new_comm_rank; MPI_Comm_rank(newcomm,&new_comm_rank);
 
-  // There is no way to know whether each generated newcomm is of equal size without global knowledge of all colors specified (i.e. an Allgather)
-  //   Therefore, I will just set the below assert inside the branch, which is motivated by the fact that I am not yet sure how to handle stride-specification for channels with a single process.
-  if (world_comm_size<=1) return;
-  //int old_comm_rank; MPI_Comm_rank(oldcomm,&old_comm_rank);
+  if (new_comm_size<=1){
+    return;
+  }
   solo_channel* node = new solo_channel();
   std::vector<int> gathered_info(new_comm_size,0);
   PMPI_Allgather(&world_comm_rank,1,MPI_INT,&gathered_info[0],1,MPI_INT,newcomm);
+
   // Now we detect the "color" (really the stride) via iteration
   // Step 1: subtract out the offset from 0 : assuming that the key arg to comm_split didn't re-shuffle
   //         I can try to use std::min_element vs. writing my own manual loop
@@ -665,12 +694,14 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
   std::set<int> previous_channels_set;
   // Check if 'node' is a sibling of all existing aggregates already formed. Note that we do not include p2p aggregates, nor p2p+comm aggregates.
   // Note this loop assumes that the local_hash_tags of each aggregate across new_comm are in the same sorted order (hence the assert below)
+
   for (auto it : aggregate_channel_map){
     // 0. Check that each process in newcomm is processing the same aggregate.
-    int verify_global_agg_hash;
-    PMPI_Allreduce(&it.second->global_hash_tag,&verify_global_agg_hash,1,MPI_INT,MPI_MIN,newcomm);
-    //if (verify_global_agg_hash != it.second->global_hash_tag) std::cout << "Verify - " << verify_global_agg_hash << " " << it.second->global_hash_tag << std::endl;
-    assert(verify_global_agg_hash == it.second->global_hash_tag);
+    int verify_global_agg_hash1,verify_global_agg_hash2;
+    PMPI_Allreduce(&it.second->global_hash_tag,&verify_global_agg_hash1,1,MPI_INT,MPI_MIN,newcomm);
+    PMPI_Allreduce(&it.second->global_hash_tag,&verify_global_agg_hash2,1,MPI_INT,MPI_MAX,newcomm);
+    // if (verify_global_agg_hash1 != verify_global_agg_hash2) std::cout << "Verify - " << verify_global_agg_hash1 << " " << " " << verify_global_agg_hash2 << it.second->global_hash_tag << std::endl; 
+    assert(verify_global_agg_hash1 == verify_global_agg_hash2);
     // 1. Check if 'node' is a child of 'aggregate'
     bool is_child_1 = channel::verify_ancestor_relation(it.second,node);
     // 2. Check if 'aggregate' is a child of 'node'
@@ -725,11 +756,13 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
     // assert(aggregate_channel_map.find(new_aggregate_channels[i]->local_hash_tag) == aggregate_channel_map.end());
     if (aggregate_channel_map.find(new_aggregate_channels[i]->local_hash_tag) == aggregate_channel_map.end()){
       aggregate_channel_map[new_aggregate_channels[i]->local_hash_tag] = new_aggregate_channels[i];
+/*
       if (world_comm_rank == 8){
         auto str1 = channel::generate_tuple_string(new_aggregate_channels[i]);
         auto str2 = aggregate_channel::generate_hash_history(new_aggregate_channels[i]);
         std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << new_aggregate_channels[i]->local_hash_tag << " " << new_aggregate_channels[i]->global_hash_tag << "), num_channels - " << new_aggregate_channels[i]->num_channels << std::endl;
       }
+*/
     }
   }
 
@@ -741,16 +774,27 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
   // assert(aggregate_channel_map.find(node->local_hash_tag) == aggregate_channel_map.end());
   if (aggregate_channel_map.find(node->local_hash_tag) == aggregate_channel_map.end()){
     aggregate_channel_map[node->local_hash_tag] = agg_node;
+/*
     if (world_comm_rank == 8){
       auto str1 = channel::generate_tuple_string(agg_node);
       auto str2 = aggregate_channel::generate_hash_history(agg_node);
       std::cout << "Process " << world_comm_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
     }
+*/
     if (local_sibling_size==0){// Only if 'node' exists as the smallest trivial aggregate should it be considered final. Think of 'node==world' of the very first registered channel
       aggregate_channel_map[node->local_hash_tag]->is_final=true;
     } else{
     }
   }
+}
+
+void clear_aggregates(){
+  for (auto it : comm_channel_map) delete it.second;
+  for (auto it : p2p_channel_map) delete it.second;
+  for (auto it : aggregate_channel_map) delete it.second;
+  comm_channel_map.clear();
+  p2p_channel_map.clear();
+  aggregate_channel_map.clear();
 }
 
 }

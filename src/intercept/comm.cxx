@@ -38,9 +38,14 @@ void record(int variantID, int print_mode, double overhead_time){
   internal::write_file(variantID,print_mode,overhead_time);
 }
 
-void clear(int tag_count, int* distribution_tags){
-  internal::clear_counter++;
-  internal::clear(tag_count, distribution_tags);
+void clear(int mode, int tag_count, int* distribution_tags){
+  if (mode==1){
+    internal::clear_aggregates();
+    internal::generate_initial_aggregate();
+  } else{
+    internal::clear_counter++;
+    internal::clear(tag_count, distribution_tags);
+  }
 }
 
 void set_mode(int input_mode){
@@ -299,6 +304,20 @@ void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   }
   else{
     PMPI_Comm_split(comm,color,key,newcomm);
+  }
+  exchange_communicators(comm,*newcomm);
+}
+
+void comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
+  if (mode){
+    volatile double curtime = MPI_Wtime();
+    std::vector<intptr_t> ptrs;
+    bool schedule_decision = initiate_comm(ptrs,_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
+    PMPI_Comm_dup(comm,newcomm);
+    complete_comm(ptrs,_MPI_Barrier__id);
+  }
+  else{
+    PMPI_Comm_dup(comm,newcomm);
   }
   exchange_communicators(comm,*newcomm);
 }

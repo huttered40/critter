@@ -247,7 +247,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
 
-  assert(comm != 0);
   int rank; MPI_Comm_rank(comm, &rank);
   // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
   // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
@@ -662,6 +661,28 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
 }
 
 void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+  int rank; MPI_Comm_rank(tracker.comm, &rank);
+  if (replace_comm == 1){
+    assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
+    int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
+    for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
+      comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
+      comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
+    }
+    comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
+    if (replace_comm_map_global.find(key) == replace_comm_map_global.end()){
+      if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
+        replace_comm_map_local[key] = std::make_pair(1,comm_time);
+      } else{
+        replace_comm_map_local[key].first++;
+        replace_comm_map_local[key].second += comm_time;
+      }
+    }
+    else{
+      comm_time = replace_comm_map_global[key].second;
+    }
+  }
+
   auto comm_info_it = internal_comm_info.find(*request);
   auto comm_comm_it = internal_comm_comm.find(*request);
   auto comm_data_it = internal_comm_data.find(*request);

@@ -216,7 +216,9 @@ extern std::map<MPI_Comm,solo_channel*> comm_channel_map;
 extern std::map<int,solo_channel*> p2p_channel_map;
 extern std::map<int,aggregate_channel*> aggregate_channel_map;
 
+void generate_initial_aggregate();
 void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm);
+void clear_aggregates();
 
 }
 }

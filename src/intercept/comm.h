@@ -8,7 +8,7 @@ namespace critter{
 void start(bool schedule_kernels_override = true, bool force_steady_statistical_data_overide = false);
 void stop();
 void record(int variantID=-1, int print_mode=1, double overhead_time=0.);
-void clear(int tag_count=0, int* distribution_tags = nullptr);
+void clear(int mode=0, int tag_count=0, int* distribution_tags = nullptr);
 
 void set_mechanism(int input_mechanism=-1);
 void set_mode(int input_mode=-1);
@@ -20,6 +20,7 @@ void init(int* argc, char*** argv);
 void init_thread(int* argc, char*** argv, int required, int* provided);
 void barrier(MPI_Comm comm);
 void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm);
+void comm_dup(MPI_Comm comm, MPI_Comm* newcomm);
 void comm_free(MPI_Comm* comm);
 void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* new_comm);
 void bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm);

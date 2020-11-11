@@ -1191,8 +1191,6 @@ void merge_batches(std::vector<kernel_batch>& batches, int analysis_param){
 
 
 void allocate(MPI_Comm comm){
-  int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
-  int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
   mode_1_width = 25;
   mode_2_width = 15;
   communicator_count=INT_MIN;// to avoid conflict with p2p, which could range from (-p,p)
@@ -1212,30 +1210,7 @@ void allocate(MPI_Comm comm){
   save_comp_kernel_stats.resize(2,0);
   save_comm_kernel_stats.resize(2,0);
 
-  solo_channel* world_node = new solo_channel();
-  world_node->tag = communicator_count++;
-  world_node->offset = 0;
-  world_node->id.push_back(std::make_pair(_world_size,1));
-  world_node->parent=nullptr;
-  std::string local_channel_hash_str = ".." + std::to_string(world_node->id[0].first) + "." + std::to_string(world_node->id[0].second);
-  std::string global_channel_hash_str = ".." + std::to_string(world_node->id[0].first) + "." + std::to_string(world_node->id[0].second);
-  world_node->local_hash_tag = std::hash<std::string>()(local_channel_hash_str);// will avoid any local overlap.
-  world_node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);// will avoid any global overlap.
-  sample_propagation_tree* tree = new sample_propagation_tree;
-  tree->root = world_node;
-  spf.tree = tree;
-  comm_channel_map[MPI_COMM_WORLD] = world_node;
-  // Always treat 1-communicator channels as trivial aggregate channels.
-  aggregate_channel* agg_node = new aggregate_channel(world_node->id,world_node->local_hash_tag,world_node->global_hash_tag,world_node->offset,1);
-  agg_node->channels.insert(world_node->local_hash_tag);
-  assert(aggregate_channel_map.find(world_node->local_hash_tag) == aggregate_channel_map.end());
-  aggregate_channel_map[world_node->local_hash_tag] = agg_node;
-  aggregate_channel_map[world_node->local_hash_tag]->is_final=true;
-  if (_world_rank == 8){
-    auto str1 = channel::generate_tuple_string(agg_node);
-    auto str2 = aggregate_channel::generate_hash_history(agg_node);
-    std::cout << "Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
-  }
+  generate_initial_aggregate();
 
   kernel_propagate ex_3;
   MPI_Datatype kernel_internal_type[2] = { MPI_INT, MPI_DOUBLE };
