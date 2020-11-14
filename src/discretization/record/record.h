@@ -13,7 +13,7 @@ public:
   static void print(int variantID, int print_mode, double overhead_time);
 
 private:
-  static std::vector<double> set_tuning_statistics();
+  static void set_tuning_statistics();
 };
 
 }

@@ -2,329 +2,191 @@
 #include "../util/util.h"
 #include "../dispatch/dispatch.h"
 
+#ifdef MKL
+// Note: this MKL inclusion should be conditional on config.mk
+#include "mkl.h"
+//#include <mkl_cblas.h>
+#else
+#define CBLAS_LAYOUT int
+#define CBLAS_SIDE int
+#define CBLAS_DIAG int
+#define CBLAS_TRANSPOSE int
+#define CBLAS_UPLO int
+#endif /* MKL */
+
 namespace critter{
 namespace internal{
 
-/*
-void _saxpy_(const int n , const float a , const float *x , const int incx , float *y , const int incy){
-  if (mode && track_blas){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 2.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(x),reinterpret_cast<intptr_t>(y)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_axpy__id,curtime,flops,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_saxpy(n,a,x,incx,y,incy);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_axpy__id,flops,n);
-  } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_saxpy(n,a,x,incx,y,incy);
-#endif
-#endif
-  }
-}
 void _daxpy_(const int n , const double a , const double *x , const int incx , double *y , const int incy){
-  if (mode && track_blas){
+  if (mode && track_blas1){
     volatile double curtime = MPI_Wtime();
     double _n = n;
     double flops = 2.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(x),reinterpret_cast<intptr_t>(y)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_axpy__id,curtime,flops,n);
-#ifdef MKL
-#ifdef CBLAS
+    bool schedule_decision = initiate_comp(_BLAS_axpy__id,curtime,flops,n);
     if (schedule_decision) cblas_daxpy(n,a,x,incx,y,incy);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_axpy__id,flops,n);
+    complete_comp(0,_BLAS_axpy__id,flops,n);
   } else{
-#ifdef MKL
-#ifdef CBLAS
     cblas_daxpy(n,a,x,incx,y,incy);
-#endif
-#endif
-  }
-}
-void _sscal_(const int n , const float a , float *x , const int incx){
-  if (mode && track_blas){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 1.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(x)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_scal__id,curtime,flops,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_sscal(n,a,x,incx);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_scal__id,flops,n);
-  } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_sscal(n,a,x,incx);
-#endif
-#endif
   }
 }
 void _dscal_(const int n , const double a , double *x , const int incx){
-  if (mode && track_blas){
+  if (mode && track_blas1){
     volatile double curtime = MPI_Wtime();
     double _n = n;
     double flops = 1.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(x)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_scal__id,curtime,flops,n);
-#ifdef MKL
-#ifdef CBLAS
+    bool schedule_decision = initiate_comp(_BLAS_scal__id,curtime,flops,n);
     if (schedule_decision) cblas_dscal(n,a,x,incx);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_scal__id,flops,n);
+    complete_comp(0,_BLAS_scal__id,flops,n);
   } else{
-#ifdef MKL
-#ifdef CBLAS
     cblas_dscal(n,a,x,incx);
-#endif
-#endif
   }
 }
-*/
 
-void _sger_(const CBLAS_LAYOUT Layout , const int m , const int n , const float alpha , const float *x , const int incx ,
-            const float *y , const int incy , float *a , const int lda){
-  if (mode && track_blas){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = 2.*_m*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(x),reinterpret_cast<intptr_t>(y),reinterpret_cast<intptr_t>(a)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_ger__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_sger(Layout,m,n,alpha,x,incx,y,incy,a,lda);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_ger__id,flops,m,n);
-  } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_sger(Layout,m,n,alpha,x,incx,y,incy,a,lda);
-#endif
-#endif
-  }
-}
-void _dger_(const CBLAS_LAYOUT Layout , const int m , const int n , const double alpha , const double *x , const int incx , const double *y , const int incy , double *a ,
+void _dger_(const int m , const int n , const double alpha , const double *x , const int incx , const double *y , const int incy , double *a ,
             const int lda){
-  if (mode && track_blas){
+  if (mode && track_blas2){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _m = m;
-    double flops = 2.*_m*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(x),reinterpret_cast<intptr_t>(y),reinterpret_cast<intptr_t>(a)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_ger__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_dger(Layout,m,n,alpha,x,incx,y,incy,a,lda);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_ger__id,flops,m,n);
+    double flops = 2.*_m*_n+_m+_n;
+    bool schedule_decision = initiate_comp(_BLAS_ger__id,curtime,flops,m,n);
+    if (schedule_decision) cblas_dger(CblasColMajor,m,n,alpha,x,incx,y,incy,a,lda);
+    complete_comp(0,_BLAS_ger__id,flops,m,n);
   } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_dger(Layout,m,n,alpha,x,incx,y,incy,a,lda);
-#endif
-#endif
+    cblas_dger(CblasColMajor,m,n,alpha,x,incx,y,incy,a,lda);
   }
 }
-void _sgemm_(const CBLAS_LAYOUT Layout , const CBLAS_TRANSPOSE transa , const CBLAS_TRANSPOSE transb ,
-             const int m , const int n , const int k , const float alpha , const float *a ,
-             const int lda , const float *b , const int ldb , const float beta , float *c , const int ldc){
-  if (mode && track_blas){
+void _dgemv_(const int trans , const int m , const int n, const double alpha , const double *a , const int lda , const double *x, const int incx ,
+             const double beta, double *y , const int incy ){
+  if (mode && track_blas2){
     volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m; double _k = k;
-    double flops = 2.*_m*_n*_k;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b),reinterpret_cast<intptr_t>(c)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_gemm__id,curtime,flops,m,n,k);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_sgemm(Layout,transa,transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_gemm__id,flops,m,n,k);
+    double _n = n; double _m = m;
+    double flops = _m*_n+_m+_n;
+    bool schedule_decision = initiate_comp(_BLAS_gemv__id,curtime,flops,m,n);
+    if (schedule_decision) cblas_dgemv(CblasColMajor,(CBLAS_TRANSPOSE)trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
+    complete_comp(0,_BLAS_gemv__id,flops,m,n);
   } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_sgemm(Layout,transa,transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
-#endif
-#endif
+    cblas_dgemv(CblasColMajor,(CBLAS_TRANSPOSE)trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
   }
 }
-void _dgemm_(const CBLAS_LAYOUT Layout , const CBLAS_TRANSPOSE transa , const CBLAS_TRANSPOSE transb ,
+
+void _dtrmv_(const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
+  if (mode && track_blas2){
+    volatile double curtime = MPI_Wtime();
+    double _n = n;
+    double flops = (0.5*(_n+1)*_n + 2*_n);
+    bool schedule_decision = initiate_comp(_BLAS_trmv__id,curtime,flops,n);
+    if (schedule_decision) cblas_dtrmv(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
+    complete_comp(0,_BLAS_trmv__id,flops,n);
+  } else{
+    cblas_dtrmv(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
+  }
+}
+
+void _dgemm_(const int transa , const int transb ,
              const int m , const int n , const int k , const double alpha , const double *a ,
              const int lda , const double *b , const int ldb , const double beta , double *c , const int ldc){
-  if (mode && track_blas){
+  if (mode && track_blas3){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _m = m; double _k = k;
     double flops = 2.*_m*_n*_k;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b),reinterpret_cast<intptr_t>(c)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_gemm__id,curtime,flops,m,n,k);
-#ifdef MKL
-#ifdef CBLAS
+    bool schedule_decision = initiate_comp(_BLAS_gemm__id,curtime,flops,m,n,k);
     if (schedule_decision){
-      cblas_dgemm(Layout,transa,transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
+      cblas_dgemm(CblasColMajor,(CBLAS_TRANSPOSE)transa,(CBLAS_TRANSPOSE)transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_BLAS_gemm__id,flops,m,n,k);
+    complete_comp(special_time,_BLAS_gemm__id,flops,m,n,k);
   } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_dgemm(Layout,transa,transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
-#endif
-#endif
+    cblas_dgemm(CblasColMajor,(CBLAS_TRANSPOSE)transa,(CBLAS_TRANSPOSE)transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
   }
 }
-void _strmm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPLO uplo , const CBLAS_TRANSPOSE transa ,
-             const CBLAS_DIAG diag , const int m , const int n , const float alpha , const float *a ,
-             const int lda , float *b , const int ldb){
-  if (mode && track_blas){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_trmm__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_strmm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_trmm__id,flops,m,n);
-  } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_strmm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
-  }
-}
-void _dtrmm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPLO uplo , const CBLAS_TRANSPOSE transa ,
-             const CBLAS_DIAG diag , const int m , const int n , const double alpha , const double *a ,
+void _dtrmm_(const int side , const int uplo , const int transa ,
+             const int diag , const int m , const int n , const double alpha , const double *a ,
              const int lda , double *b , const int ldb){
-  if (mode && track_blas){
+  if (mode && track_blas3){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _m = m;
-    double flops = side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_trmm__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_dtrmm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_trmm__id,flops,m,n);
+    double flops = (CBLAS_SIDE)side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
+    bool schedule_decision = initiate_comp(_BLAS_trmm__id,curtime,flops,m,n);
+    if (schedule_decision) cblas_dtrmm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
+    complete_comp(0,_BLAS_trmm__id,flops,m,n);
   } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_dtrmm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
+    cblas_dtrmm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
   }
 }
-void _strsm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPLO uplo , const CBLAS_TRANSPOSE transa ,
-             const CBLAS_DIAG diag , const int m , const int n , const float alpha , const float *a ,
-             const int lda , float *b , const int ldb){
-  if (mode && track_blas){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_trsm__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_strsm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_trsm__id,flops,m,n);
-  } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_strsm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
-  }
-}
-void _dtrsm_(const CBLAS_LAYOUT Layout , const CBLAS_SIDE side , const CBLAS_UPLO uplo , const CBLAS_TRANSPOSE transa ,
-             const CBLAS_DIAG diag , const int m , const int n , const double alpha , const double *a ,
+void _dtrsm_(const int side , const int uplo , const int transa ,
+             const int diag , const int m , const int n , const double alpha , const double *a ,
              const int lda , double *b , const int ldb){
-  if (mode && track_blas){
+  if (mode && track_blas3){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _m = m;
-    double flops = side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_trsm__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_dtrsm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_trsm__id,flops,m,n);
+    double flops = (CBLAS_SIDE)side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
+    bool schedule_decision = initiate_comp(_BLAS_trsm__id,curtime,flops,m,n);
+    if (schedule_decision) cblas_dtrsm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
+    complete_comp(0,_BLAS_trsm__id,flops,m,n);
   } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_dtrsm(Layout,side,uplo,transa,diag,m,n,alpha,a,lda,b,ldb);
-#endif
-#endif
+    cblas_dtrsm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
   }
 }
-void _ssyrk_(const CBLAS_LAYOUT Layout , const CBLAS_UPLO uplo , const CBLAS_TRANSPOSE trans ,
-             const int n , const int k , const float alpha , const float *a , const int lda ,
-             const float beta , float *c , const int ldc){
-  if (mode && track_blas){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _k = k;
-    double flops = _k*_n*(_n+1);
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(c)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_syrk__id,curtime,flops,n,k);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_ssyrk(Layout,uplo,trans,n,k,alpha,a,lda,beta,c,ldc);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_syrk__id,flops,n,k);
-  } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_ssyrk(Layout,uplo,trans,n,k,alpha,a,lda,beta,c,ldc);
-#endif
-#endif
-  }
-}
-void _dsyrk_(const CBLAS_LAYOUT Layout , const CBLAS_UPLO uplo , const CBLAS_TRANSPOSE trans ,
+void _dsyrk_(const int uplo , const int trans ,
              const int n , const int k , const double alpha , const double *a , const int lda ,
              const double beta , double *c , const int ldc){
-  if (mode && track_blas){
+  if (mode && track_blas3){
     volatile double curtime = MPI_Wtime();
     double _n = n; double _k = k;
     double flops = _k*_n*(_n+1);
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(c)};
-    bool schedule_decision = initiate_comp(ptrs,_BLAS_syrk__id,curtime,flops,n,k);
-#ifdef MKL
-#ifdef CBLAS
-    if (schedule_decision) cblas_dsyrk(Layout,uplo,trans,n,k,alpha,a,lda,beta,c,ldc);
-#endif
-#endif
-    complete_comp(0,ptrs,_BLAS_syrk__id,flops,n,k);
+    bool schedule_decision = initiate_comp(_BLAS_syrk__id,curtime,flops,n,k);
+    if (schedule_decision) cblas_dsyrk(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,beta,c,ldc);
+    complete_comp(0,_BLAS_syrk__id,flops,n,k);
   } else{
-#ifdef MKL
-#ifdef CBLAS
-    cblas_dsyrk(Layout,uplo,trans,n,k,alpha,a,lda,beta,c,ldc);
-#endif
-#endif
+    cblas_dsyrk(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,beta,c,ldc);
   }
 }
 
-void _sgetrf_(int matrix_layout , int m , int n , float* a , int lda , int* ipiv){
+void __dgemv__(const char trans , const int m , const int n, const double alpha , const double *a , const int lda , const double *x, const int incx ,
+             const double beta, double *y , const int incy ){
+  CBLAS_TRANSPOSE _trans;
+  if (trans=='T') _trans = CblasTrans; else if (trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dgemv_(_trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
+}
+void __dtrmv__(const char uplo , const char trans , const char diag , const int n , const double *a , const int lda , double *x, const int incx ){
+  CBLAS_TRANSPOSE _trans;
+  if (trans=='T') _trans = CblasTrans; else if (trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtrmv_((uplo=='U' ? CblasUpper : CblasLower), _trans, (diag=='U' ? CblasUnit : CblasNonUnit), n,a,lda,x,incx);
+}
+void __dgemm__(const char transa , const char transb ,
+             const int m , const int n , const int k , const double alpha , const double *a ,
+             const int lda , const double *b , const int ldb , const double beta , double *c , const int ldc){
+  CBLAS_TRANSPOSE _transa;
+  if (transa=='T') _transa = CblasTrans; else if (transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
+  CBLAS_TRANSPOSE _transb;
+  if (transb=='T') _transb = CblasTrans; else if (transb=='N') _transb = CblasNoTrans; else _transb = CblasConjTrans;
+  _dgemm_(_transa, _transb, m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
+}
+void __dtrmm__(const char side , const char uplo , const char transa ,
+             const char diag , const int m , const int n , const double alpha , const double *a ,
+             const int lda , double *b , const int ldb){
+  CBLAS_TRANSPOSE _transa;
+  if (transa=='T') _transa = CblasTrans; else if (transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
+  _dtrmm_((side=='L' ? CblasLeft : CblasRight), (uplo=='U' ? CblasUpper : CblasLower), _transa,
+          (diag=='U' ? CblasUnit : CblasNonUnit), m,n,alpha,a,lda,b,ldb);
+}
+void __dtrsm__(const char side , const char uplo , const char transa ,
+             const char diag , const int m , const int n , const double alpha , const double *a ,
+             const int lda , double *b , const int ldb){
+  CBLAS_TRANSPOSE _transa;
+  if (transa=='T') _transa = CblasTrans; else if (transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
+  _dtrsm_((side=='L' ? CblasLeft : CblasRight), (uplo=='U' ? CblasUpper : CblasLower), _transa,
+          (diag=='U' ? CblasUnit : CblasNonUnit), m,n,alpha,a,lda,b,ldb);
+}
+void __dsyrk__(const char uplo , const char trans ,
+             const int n , const int k , const double alpha , const double *a , const int lda ,
+             const double beta , double *c , const int ldc){
+  CBLAS_TRANSPOSE _trans;
+  if (trans=='T') _trans = CblasTrans; else if (trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dsyrk_((uplo=='U' ? CblasUpper : CblasLower), _trans, n,k,alpha,a,lda,beta,c,ldc);
+}
+
+void _dgetrf_(int m , int n , double* a , int lda , int* ipiv){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n;
@@ -334,53 +196,10 @@ void _sgetrf_(int matrix_layout , int m , int n , float* a , int lda , int* ipiv
     } else{
       flops = _n*_m*_m - 1./3.*_m*_m*_m - 1./2.*_m*_m + 5./6.*_m;
     }
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_getrf__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_getrf__id,curtime,flops,m,n);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,m*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_getrf__id,flops,m,n);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_sgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
-#endif
-#endif
-  }
-}
-void _dgetrf_(int matrix_layout , int m , int n , double* a , int lda , int* ipiv){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n;
-    double flops = 0;
-    if (m>=n){
-      flops = _m*_n*_n - 1./3.*_n*_n*_n - 1./2.*_n*_n + 5./6.*_n;
-    } else{
-      flops = _n*_m*_m - 1./3.*_m*_m*_m - 1./2.*_m*_m + 5./6.*_m;
-    }
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_getrf__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetrf(LAPACK_COL_MAJOR,m,n,a,lda,ipiv)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -390,67 +209,23 @@ void _dgetrf_(int matrix_layout , int m , int n , double* a , int lda , int* ipi
           a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
+        assert(LAPACKE_dgetrf(LAPACK_COL_MAJOR,m,n,a,lda,ipiv)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_getrf__id,flops,m,n);
+    complete_comp(special_time,_LAPACK_getrf__id,flops,m,n);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dgetrf(matrix_layout,m,n,a,lda,ipiv)==0);
-#endif
-#endif
+    assert(LAPACKE_dgetrf(LAPACK_COL_MAJOR,m,n,a,lda,ipiv)==0);
   }
 }
-void _spotrf_(int matrix_layout , char uplo , int n , float* a , int lda){
+void _dpotrf_(char uplo , int n , double* a , int lda){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
     double flops = 1./3.*_n*_n*_n + 1./2.*_n*_n + 1./6.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_potrf__id,curtime,flops,n);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_potrf__id,curtime,flops,n);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,n*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_potrf__id,flops,n);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_spotrf(matrix_layout,uplo,n,a,lda)==0);
-#endif
-#endif
-  }
-}
-void _dpotrf_(int matrix_layout , char uplo , int n , double* a , int lda){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 1./3.*_n*_n*_n + 1./2.*_n*_n + 1./6.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_potrf__id,curtime,flops,n);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dpotrf(LAPACK_COL_MAJOR,uplo,n,a,lda)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -460,67 +235,23 @@ void _dpotrf_(int matrix_layout , char uplo , int n , double* a , int lda){
           a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
+        assert(LAPACKE_dpotrf(LAPACK_COL_MAJOR,uplo,n,a,lda)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_potrf__id,flops,n);
+    complete_comp(special_time,_LAPACK_potrf__id,flops,n);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dpotrf(matrix_layout,uplo,n,a,lda)==0);
-#endif
-#endif
+    assert(LAPACKE_dpotrf(LAPACK_COL_MAJOR,uplo,n,a,lda)==0);
   }
 }
-void _strtri_(int matrix_layout , char uplo , char diag , int n , float* a , int lda){
+void _dtrtri_(char uplo , char diag , int n , double* a , int lda){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
     double flops = 1./3.*_n*_n*_n + 2./3.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_trtri__id,curtime,flops,n);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_trtri__id,curtime,flops,n);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,n*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_trtri__id,flops,n);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_strtri(matrix_layout,uplo,diag,n,a,lda)==0);
-#endif
-#endif
-  }
-}
-void _dtrtri_(int matrix_layout , char uplo , char diag , int n , double* a , int lda){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 1./3.*_n*_n*_n + 2./3.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_trtri__id,curtime,flops,n);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtrtri(LAPACK_COL_MAJOR,uplo,diag,n,a,lda)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -530,21 +261,15 @@ void _dtrtri_(int matrix_layout , char uplo , char diag , int n , double* a , in
           a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
+        assert(LAPACKE_dtrtri(LAPACK_COL_MAJOR,uplo,diag,n,a,lda)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_trtri__id,flops,n);
+    complete_comp(special_time,_LAPACK_trtri__id,flops,n);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dtrtri(matrix_layout,uplo,diag,n,a,lda)==0);
-#endif
-#endif
+    assert(LAPACKE_dtrtri(LAPACK_COL_MAJOR,uplo,diag,n,a,lda)==0);
   }
 }
-void _sgeqrf_(int matrix_layout , int m , int n , float* a , int lda , float* tau){
+void _dgeqrf_(int m , int n , double* a , int lda , double* tau){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n;
@@ -554,53 +279,10 @@ void _sgeqrf_(int matrix_layout , int m , int n , float* a , int lda , float* ta
     } else{
       flops = 2.*_n*_m*_m - 2./3.*_m*_m*_m + 3.*_m*_n - _m*_m + 14./3.*_m;
     }
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_geqrf__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_geqrf__id,curtime,flops,m,n);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,m*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_geqrf__id,flops,m,n);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_sgeqrf(matrix_layout,m,n,a,lda,tau)==0);
-#endif
-#endif
-  }
-}
-void _dgeqrf_(int matrix_layout , int m , int n , double* a , int lda , double* tau){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n;
-    double flops = 0;
-    if (m>=n){
-      flops = 2.*_m*_n*_n - 2./3.*_n*_n*_n + _m*_n + _n*_n + 14./3.*_n;
-    } else{
-      flops = 2.*_n*_m*_m - 2./3.*_m*_m*_m + 3.*_m*_n - _m*_m + 14./3.*_m;
-    }
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_geqrf__id,curtime,flops,m,n);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgeqrf(LAPACK_COL_MAJOR,m,n,a,lda,tau)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -610,69 +292,23 @@ void _dgeqrf_(int matrix_layout , int m , int n , double* a , int lda , double* 
           a[i*lda+i] = 4.*n;
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau)==0);
+        assert(LAPACKE_dgeqrf(LAPACK_COL_MAJOR,m,n,a,lda,tau)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_geqrf__id,flops,m,n);
+    complete_comp(special_time,_LAPACK_geqrf__id,flops,m,n);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dgeqrf(matrix_layout,m,n,a,lda,tau)==0);
-#endif
-#endif
+    assert(LAPACKE_dgeqrf(LAPACK_COL_MAJOR,m,n,a,lda,tau)==0);
   }
 }
-void _sorgqr_(int matrix_layout , int m , int n , int k , float* a , int lda , const float* tau){
+void _dorgqr_(int m , int n , int k , double* a , int lda , const double* tau){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
     double flops = 4.*_m*_n*_k - 2.*(_m+_n)*_k*_k + (4./3.)*_k*_k*_k + 3.*_n*_k - _m*_k - _k*_k - 4./3.*_k;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_orgqr__id,curtime,flops,m,n,k);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_orgqr__id,curtime,flops,m,n,k);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
-      else{
-        special_time = MPI_Wtime();
-        float* tau_temp = (float*)tau;
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,0,m*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
-        }
-        memset(tau_temp,1,k*sizeof(float));// Assumes column-major
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau_temp)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_sorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
-#endif
-#endif
-  }
-}
-void _dorgqr_(int matrix_layout , int m , int n , int k , double* a , int lda , const double* tau){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 4.*_m*_n*_k - 2.*(_m+_n)*_k*_k + (4./3.)*_k*_k*_k + 3.*_n*_k - _m*_k - _k*_k - 4./3.*_k;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_orgqr__id,curtime,flops,m,n,k);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dorgqr(LAPACK_COL_MAJOR,m,n,k,a,lda,tau)==0);
       else{
         special_time = MPI_Wtime();
         double* tau_temp = (double*)tau;
@@ -684,21 +320,15 @@ void _dorgqr_(int matrix_layout , int m , int n , int k , double* a , int lda , 
         }
         memset(tau_temp,1,k*sizeof(double));// Assumes column-major
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau_temp)==0);
+        assert(LAPACKE_dorgqr(LAPACK_COL_MAJOR,m,n,k,a,lda,tau_temp)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_orgqr__id,flops,m,n,k);
+    complete_comp(special_time,_LAPACK_orgqr__id,flops,m,n,k);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dorgqr(matrix_layout,m,n,k,a,lda,tau)==0);
-#endif
-#endif
+    assert(LAPACKE_dorgqr(LAPACK_COL_MAJOR,m,n,k,a,lda,tau)==0);
   }
 }
-void _sormqr_(int matrix_layout , char side , char trans , int m , int n , int k , const float * a , int lda , const float * tau , float * c , int ldc){
+void _dormqr_(char side , char trans , int m , int n , int k , const double * a , int lda , const double * tau , double * c , int ldc){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
@@ -708,65 +338,10 @@ void _sormqr_(int matrix_layout , char side , char trans , int m , int n , int k
     } else{
       flops = 4.*_n*_m*_k - 2.*_m*_k*_k + 2.*m*_k + _n*_k - 1./2.*_k*_k + 1./2.*_k;
     }
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_ormqr__id,curtime,flops,m,n,k);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_ormqr__id,curtime,flops,m,n,k);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(c+i*ldc,1,m*sizeof(float));// Assumes column-major
-        }
-        float* a_temp = (float*)a;
-        float* tau_temp = (float*)tau;
-        if (side == 'L'){
-          for (int i=0; i<k; i++){
-            memset(a_temp+i*lda,0,m*sizeof(float));// Assumes column-major
-            a_temp[i*lda+i] = 1;
-          }
-        } else{
-
-          for (int i=0; i<k; i++){
-            memset(a_temp+i*lda,0,n*sizeof(float));// Assumes column-major
-            a_temp[i*lda+i] = 1;
-          }
-        }
-        memset(tau_temp,1,k*sizeof(float));// Assumes column-major
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_sormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-#endif
-#endif
-  }
-}
-void _dormqr_(int matrix_layout , char side , char trans , int m , int n , int k , const double * a , int lda , const double * tau , double * c , int ldc){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 0;
-    if (side == 'L'){
-      flops = 4.*_m*_n*_k - 2.*_n*_k*_k + 3.*_n*_k;
-    } else{
-      flops = 4.*_n*_m*_k - 2.*_m*_k*_k + 2.*m*_k + _n*_k - 1./2.*_k*_k + 1./2.*_k;
-    }
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_ormqr__id,curtime,flops,m,n,k);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dormqr(LAPACK_COL_MAJOR,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -787,69 +362,23 @@ void _dormqr_(int matrix_layout , char side , char trans , int m , int n , int k
         }
         memset(tau_temp,1,k*sizeof(double));// Assumes column-major
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
+        assert(LAPACKE_dormqr(LAPACK_COL_MAJOR,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_ormqr__id,flops,m,n,k);
+    complete_comp(special_time,_LAPACK_ormqr__id,flops,m,n,k);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dormqr(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-#endif
-#endif
+    assert(LAPACKE_dormqr(LAPACK_COL_MAJOR,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
   }
 }
-void _sgetri_(int matrix_layout , int n , float * a , int lda , const int * ipiv){
+void _dgetri_(int n , double * a , int lda , const int * ipiv){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _n = n;
     double flops = 4./3.*_n*_n*_n - _n*_n + 5./3.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_getri__id,curtime,flops,n);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_getri__id,curtime,flops,n);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv)==0);
-      else{
-        special_time = MPI_Wtime();
-        float* ipiv_temp = (float*)ipiv;
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,0,n*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
-          ipiv_temp[i] = i;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_getri__id,flops,n);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_sgetri(matrix_layout,n,a,lda,ipiv)==0);
-#endif
-#endif
-  }
-}
-void _dgetri_(int matrix_layout , int n , double * a , int lda , const int * ipiv){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 4./3.*_n*_n*_n - _n*_n + 5./3.*_n;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_getri__id,curtime,flops,n);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetri(LAPACK_COL_MAJOR,n,a,lda,ipiv)==0);
       else{
         special_time = MPI_Wtime();
         double* ipiv_temp = (double*)ipiv;
@@ -861,71 +390,23 @@ void _dgetri_(int matrix_layout , int n , double * a , int lda , const int * ipi
           ipiv_temp[i] = i;
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv)==0);
+        assert(LAPACKE_dgetri(LAPACK_COL_MAJOR,n,a,lda,ipiv)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_getri__id,flops,n);
+    complete_comp(special_time,_LAPACK_getri__id,flops,n);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dgetri(matrix_layout,n,a,lda,ipiv)==0);
-#endif
-#endif
+    assert(LAPACKE_dgetri(LAPACK_COL_MAJOR,n,a,lda,ipiv)==0);
   }
 }
-void _stpqrt_(int matrix_layout , int m , int n , int l , int nb , float * a , int lda , float * b , int ldb , float * t , int ldt){
+void _dtpqrt_(int m , int n , int l , int nb , double * a , int lda , double * b , int ldb , double * t , int ldt){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _l = l;
     double flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(t)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,(i+1)*sizeof(float));// Assumes column-major
-          memset(a+i*lda+i+1,0,(n-i-1)*sizeof(float));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          memset(b+i*ldb,1,(i+1)*sizeof(float));// Assumes column-major
-          memset(b+i*ldb+i+1,0,(std::max(0,(m-l)-i-1))*sizeof(float));// Assumes column-major
-          memset(b+i*ldb+(m-l),1,std::min(i+1,l)*sizeof(float));// Assumes column-major
-          memset(b+i*ldb+(m-l)+i+1,0,std::max(0,(l-i-1))*sizeof(float));// Assumes column-major
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_stpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-#endif
-#endif
-  }
-}
-void _dtpqrt_(int matrix_layout , int m , int n , int l , int nb , double * a , int lda , double * b , int ldb , double * t , int ldt){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _l = l;
-    double flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(t)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpqrt(LAPACK_COL_MAJOR,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -939,89 +420,24 @@ void _dtpqrt_(int matrix_layout , int m , int n , int l , int nb , double * a , 
           memset(b+i*ldb+(m-l)+i+1,0,std::max(0,(l-i-1))*sizeof(double));// Assumes column-major
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
+        assert(LAPACKE_dtpqrt(LAPACK_COL_MAJOR,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_tpqrt__id,flops,m,n,l,nb);
+    complete_comp(special_time,_LAPACK_tpqrt__id,flops,m,n,l,nb);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dtpqrt(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-#endif
-#endif
+    assert(LAPACKE_dtpqrt(LAPACK_COL_MAJOR,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
   }
 }
-void _stpmqrt_(int matrix_layout , char side , char trans , int m , int n , int k , int l , int nb , const float * v ,
-               int ldv , const float * t , int ldt , float * a , int lda , float * b , int ldb){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b),reinterpret_cast<intptr_t>(t),reinterpret_cast<intptr_t>(v)};
-    double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
-#ifdef MKL
-#ifdef LAPACKE
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
-      else{
-        special_time = MPI_Wtime();
-        float* v_temp = (float*)v;
-        float* t_temp = (float*)t;
-        if (side == 'L'){
-          for (int i=0; i<k; i++){
-            memset(v_temp+i*ldv,1,m*sizeof(float));// Assumes column-major
-          }
-        } else{
-          for (int i=0; i<n; i++){
-            memset(v_temp+i*ldv,1,n*sizeof(float));// Assumes column-major
-          }
-        }
-        for (int i=0; i<k; i++){
-          memset(t_temp+i*ldt,1,nb*sizeof(float));// Assumes column-major
-        }
-        if (side=='L'){
-          for (int i=0; i<n; i++){
-            memset(a+i*lda,1,k*sizeof(float));// Assumes column-major
-          }
-        } else{
-          for (int i=0; i<k; i++){
-            memset(a+i*lda,1,m*sizeof(float));// Assumes column-major
-          }
-        }
-        for (int i=0; i<n; i++){
-          memset(b+i*ldb,1,m*sizeof(float));// Assumes column-major
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v_temp,ldv,t_temp,ldt,a,lda,b,ldb)==0);
-      }
-    }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
-  } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_stpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
-#endif
-#endif
-  }
-}
-void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int k , int l , int nb , const double * v ,
+void _dtpmqrt_(char side , char trans , int m , int n , int k , int l , int nb , const double * v ,
                int ldv , const double * t , int ldt , double * a , int lda , double * b , int ldb){
   if (mode && track_lapack){
     volatile double curtime = MPI_Wtime();
     double _m = m; double _n = n; double _k = k;
     double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(a),reinterpret_cast<intptr_t>(b),reinterpret_cast<intptr_t>(t),reinterpret_cast<intptr_t>(v)};
     double special_time=0;
-    bool schedule_decision = initiate_comp(ptrs,_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
-#ifdef MKL
-#ifdef LAPACKE
+    bool schedule_decision = initiate_comp(_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
     if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
+      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpmqrt(LAPACK_COL_MAJOR,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
       else{
         special_time = MPI_Wtime();
         double* v_temp = (double*)v;
@@ -1051,18 +467,12 @@ void _dtpmqrt_(int matrix_layout , char side , char trans , int m , int n , int 
           memset(b+i*ldb,1,m*sizeof(double));// Assumes column-major
         }
         special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v_temp,ldv,t_temp,ldt,a,lda,b,ldb)==0);
+        assert(LAPACKE_dtpmqrt(LAPACK_COL_MAJOR,side,trans,m,n,k,l,nb,v_temp,ldv,t_temp,ldt,a,lda,b,ldb)==0);
       }
     }
-#endif
-#endif
-    complete_comp(special_time,ptrs,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
+    complete_comp(special_time,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
   } else{
-#ifdef MKL
-#ifdef LAPACKE
-    assert(LAPACKE_dtpmqrt(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
-#endif
-#endif
+    assert(LAPACKE_dtpmqrt(LAPACK_COL_MAJOR,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
   }
 }
 
@@ -1070,8 +480,7 @@ void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int 
   if (mode){
     volatile double curtime = MPI_Wtime();
     double flops = 0;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(blocked),reinterpret_cast<intptr_t>(cyclic)};
-    bool schedule_decision = initiate_comp(ptrs,_CAPITAL_blktocyc__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
+    bool schedule_decision = initiate_comp(_CAPITAL_blktocyc__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
     if (schedule_decision){
       int write_idx = 0; int read_idx = 0;
       int offset = num_rows_local*num_columns_local;
@@ -1094,7 +503,7 @@ void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int 
         }
       }
     }
-    complete_comp(0,ptrs,_CAPITAL_blktocyc__id,flops,num_rows_local,num_columns_local,sliceDim);
+    complete_comp(0,_CAPITAL_blktocyc__id,flops,num_rows_local,num_columns_local,sliceDim);
   } else{
     int write_idx = 0; int read_idx = 0;
     int offset = num_rows_local*num_columns_local;
@@ -1122,8 +531,7 @@ void _cyc_to_blk_rect_(double* blocked, double* cyclic, int num_rows_local, int 
   if (mode){
     volatile double curtime = MPI_Wtime();
     double flops = 0;
-    std::vector<intptr_t> ptrs = {reinterpret_cast<intptr_t>(blocked),reinterpret_cast<intptr_t>(cyclic)};
-    bool schedule_decision = initiate_comp(ptrs,_CAPITAL_cyctoblk__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
+    bool schedule_decision = initiate_comp(_CAPITAL_cyctoblk__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
     if (schedule_decision){
       int write_idx = 0; int read_idx = 0; int offset = num_rows_local*num_columns_local;
       for (int i=0; i<num_columns_local; i++){
@@ -1137,7 +545,7 @@ void _cyc_to_blk_rect_(double* blocked, double* cyclic, int num_rows_local, int 
         }
       }
     }
-    complete_comp(0,ptrs,_CAPITAL_cyctoblk__id,flops,num_rows_local,num_columns_local,sliceDim);
+    complete_comp(0,_CAPITAL_cyctoblk__id,flops,num_rows_local,num_columns_local,sliceDim);
   } else{
     int write_idx = 0; int read_idx = 0; int offset = num_rows_local*num_columns_local;
     for (int i=0; i<num_columns_local; i++){

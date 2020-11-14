@@ -14,7 +14,9 @@ public:
   static void complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5);
   static bool initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                        bool is_sender, int partner1, int partner2);
-  static bool initiate_comm(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
+  static bool initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem,
+                       MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner);
+  static void initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
                        MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner);
   static void complete_comm(blocking& tracker, int recv_source=-1);
   static void complete_comm(double curtime, MPI_Request* request, MPI_Status* status);

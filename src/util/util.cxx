@@ -252,6 +252,7 @@ int bsp_counter;
 int reset_counter;
 int clear_counter;
 int communicator_count;
+int recv_kernel_override;
 std::string schedule_tag;
 volatile double computation_timer;
 std::vector<double> wall_timer;
@@ -260,13 +261,16 @@ size_t auto_capture;
 bool is_world_root;
 size_t mechanism,mode,stack_id;
 double scratch_pad;
-size_t track_blas;
+size_t track_blas1;
+size_t track_blas2;
+size_t track_blas3;
 size_t track_lapack;
 size_t track_collective;
 size_t track_p2p;
 size_t track_p2p_idle;
 size_t eager_p2p;
 size_t delete_comm;
+int request_id;
 size_t
          _MPI_Send__id,
          _MPI_Ssend__id,
@@ -305,6 +309,8 @@ size_t
 	_BLAS_axpy__id,
 	_BLAS_scal__id,
 	_BLAS_ger__id,
+	_BLAS_gemv__id,
+	_BLAS_trmv__id,
 	_BLAS_gemm__id,
 	_BLAS_trmm__id,
 	_BLAS_trsm__id,
@@ -645,7 +651,7 @@ void generate_initial_aggregate(){
   if (_world_rank == 8){
     auto str1 = channel::generate_tuple_string(agg_node);
     auto str2 = aggregate_channel::generate_hash_history(agg_node);
-    std::cout << "World -- Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
+    //std::cout << "World -- Process " << _world_rank << " has aggregate " << str1 << " " << str2 << " with hashes (" << agg_node->local_hash_tag << " " << agg_node->global_hash_tag << "), num_channels - " << agg_node->num_channels << std::endl;
   }
 }
 
@@ -656,9 +662,6 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
   int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
   int new_comm_rank; MPI_Comm_rank(newcomm,&new_comm_rank);
 
-  if (new_comm_size<=1){
-    return;
-  }
   solo_channel* node = new solo_channel();
   std::vector<int> gathered_info(new_comm_size,0);
   PMPI_Allgather(&world_comm_rank,1,MPI_INT,&gathered_info[0],1,MPI_INT,newcomm);
@@ -685,6 +688,11 @@ void generate_aggregate_channels(MPI_Comm oldcomm, MPI_Comm newcomm){
   node->global_hash_tag = std::hash<std::string>()(global_channel_hash_str);// will avoid any global overlap.
   //spf.insert_node(node);// This call will just fill in SPT via node's parent/children members, and the members of related channels
   comm_channel_map[newcomm] = node;
+
+  if (new_comm_size<=1){
+    // Just don't even create an aggregate for size-1 communicators.
+    return;
+  }
 
   // Recursively build up other legal aggregate channels that include 'node'
   std::vector<int> local_hash_array;

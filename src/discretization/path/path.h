@@ -10,13 +10,15 @@ namespace discretization{
 class path{
 public:
   static void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm);
-  static bool initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5);
-  static void complete_comp(double errtime, std::vector<intptr_t>& user_array, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5);
-  static bool initiate_comm(std::vector<intptr_t>& user_msg, blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+  static bool initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5);
+  static void complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5);
+  static bool initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                        bool is_sender, int partner1, int partner2);
-  static bool initiate_comm(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
-                       MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner);
-  static void complete_comm(std::vector<intptr_t>& user_msg, blocking& tracker, int recv_source=-1);
+  static bool initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem,
+                       MPI_Datatype t, MPI_Comm comm, int user_tag, bool is_sender, int partner);
+  static void initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
+                       MPI_Datatype t, MPI_Comm comm, MPI_Request* request, int user_tag, bool is_sender, int partner);
+  static void complete_comm(blocking& tracker, int recv_source=-1);
   static void complete_comm(double curtime, MPI_Request* request, MPI_Status* status);
   static void complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
   static void complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);

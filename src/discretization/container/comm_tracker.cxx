@@ -4,7 +4,7 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-std::map<MPI_Request,nonblocking*> internal_comm_track;
+std::map<MPI_Request,nonblocking*> internal_comm_info4;
 blocking _MPI_Barrier("MPI_Barrier",0, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,0.);},

@@ -124,7 +124,7 @@ extern nonblocking
          _MPI_Ialltoallv;
 constexpr auto list_size=33;
 extern comm_tracker* list[list_size];
-extern std::map<MPI_Request,nonblocking*> internal_comm_track;
+extern std::map<MPI_Request,nonblocking*> internal_comm_info4;
 
 }
 }

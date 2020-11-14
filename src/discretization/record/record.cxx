@@ -9,7 +9,7 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-std::vector<double> record::set_tuning_statistics(){
+void record::set_tuning_statistics(){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   {
@@ -125,22 +125,6 @@ std::vector<double> record::set_tuning_statistics(){
       stream << "\tStage2, Max per-process: " << global_intercept_overhead[2] << std::endl;
     }
   }
-
-  std::vector<double> tuning_stats(13);
-  tuning_stats[0] = global_comp_kernel_stats[0];
-  tuning_stats[1] = global_comp_kernel_stats[1];
-  tuning_stats[2] = global_comp_kernel_stats[2];
-  tuning_stats[3] = global_comp_kernel_stats[3];
-  tuning_stats[4] = global_comp_kernel_stats[4];
-  tuning_stats[5] = global_comm_kernel_stats[0];
-  tuning_stats[6] = global_comm_kernel_stats[1];
-  tuning_stats[7] = global_comm_kernel_stats[2];
-  tuning_stats[8] = global_comm_kernel_stats[3];
-  tuning_stats[9] = global_comm_kernel_stats[4];
-  tuning_stats[10] = global_intercept_overhead[0];
-  tuning_stats[11] = global_intercept_overhead[1];
-  tuning_stats[12] = global_intercept_overhead[2];
-  return tuning_stats;
 }
 
 void record::write_file(int variantID, int print_mode, double overhead_time){
@@ -234,7 +218,20 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
 
   // To simplify interface, 'update_analysis' is used to differentiate between printing tuning data and reconstruct data
   if (print_mode==0){
-    auto tuning_data = set_tuning_statistics();
+    std::vector<double> tuning_data(13);
+    tuning_data[0] = global_comp_kernel_stats[0];
+    tuning_data[1] = global_comp_kernel_stats[1];
+    tuning_data[2] = global_comp_kernel_stats[2];
+    tuning_data[3] = global_comp_kernel_stats[3];
+    tuning_data[4] = global_comp_kernel_stats[4];
+    tuning_data[5] = global_comm_kernel_stats[0];
+    tuning_data[6] = global_comm_kernel_stats[1];
+    tuning_data[7] = global_comm_kernel_stats[2];
+    tuning_data[8] = global_comm_kernel_stats[3];
+    tuning_data[9] = global_comm_kernel_stats[4];
+    tuning_data[10] = global_intercept_overhead[0];
+    tuning_data[11] = global_intercept_overhead[1];
+    tuning_data[12] = global_intercept_overhead[2];
     if (world_rank == 0){ 
       stream_tune << std::left << std::setw(mode_1_width) << tuning_delta;
       stream_tune << std::left << std::setw(mode_1_width) << comp_sample_aggregation_mode;

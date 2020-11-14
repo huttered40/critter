@@ -60,29 +60,29 @@ void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   }
 }
 
-bool initiate_comp(std::vector<intptr_t>& user_array, size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   bool schedule_decision;
   switch (mechanism){
     case 0:
       schedule_decision = decomposition::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 1:
-      schedule_decision = discretization::path::initiate_comp(user_array,id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = skeletonization::path::initiate_comp(id,flop_count,param1,param2,param3,param4,param5);
       break;
   }
   return schedule_decision;
 }
 
-void complete_comp(double errtime, std::vector<intptr_t>& user_array, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+void complete_comp(double errtime, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 1:
-      discretization::path::complete_comp(errtime,user_array,id,flop_count,param1,param2,param3,param4,param5);
+      discretization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
       skeletonization::path::complete_comp(id,flop_count,param1,param2,param3,param4,param5);
@@ -90,7 +90,7 @@ void complete_comp(double errtime, std::vector<intptr_t>& user_array, size_t id,
   }
 }
 
-bool initiate_comm(std::vector<intptr_t>& user_msg, size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender, int partner1, int partner2){
   bool schedule_decision;
   switch (mechanism){
@@ -98,39 +98,53 @@ bool initiate_comm(std::vector<intptr_t>& user_msg, size_t id, volatile double c
       schedule_decision = decomposition::path::initiate_comm(*(decomposition::blocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
     case 1:
-      schedule_decision = discretization::path::initiate_comm(user_msg, *(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      schedule_decision = discretization::path::initiate_comm(*(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],nelem,t,cm,is_sender,partner1,partner2);
       break;
   }
   return schedule_decision;
 }
 
-bool initiate_comm(size_t id, volatile double curtime, volatile double itime, int64_t nelem,
-              MPI_Datatype t, MPI_Comm cm, MPI_Request* request, bool is_sender, int partner){
+bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int user_tag,
+              bool is_sender, int partner){
   bool schedule_decision;
   switch (mechanism){
     case 0:
-      schedule_decision = decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],curtime,itime,nelem,t,cm,request,is_sender,partner);
+      schedule_decision = decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner);
       break;
     case 1:
-      schedule_decision = discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],curtime,itime,nelem,t,cm,request,is_sender,partner);
+      schedule_decision = discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],curtime,nelem,t,cm,user_tag,is_sender,partner);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],curtime,itime,nelem,t,cm,request,is_sender,partner);
+      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],nelem,t,cm,is_sender,partner);
       break;
   }
   return schedule_decision;
 }
 
-void complete_comm(std::vector<intptr_t>& user_msg, size_t id, int recv_source){
+void initiate_comm(size_t id, volatile double itime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, int user_tag, bool is_sender, int partner){
+  switch (mechanism){
+    case 0:
+      decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],itime,nelem,t,cm,request,is_sender,partner);
+      break;
+    case 1:
+      discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],itime,nelem,t,cm,request,user_tag,is_sender,partner);
+      break;
+    case 2:
+      skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],nelem,t,cm,request,is_sender,partner);
+      break;
+  }
+}
+
+void complete_comm(size_t id, int recv_source){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comm(*(decomposition::blocking*)decomposition::list[id],recv_source);
       break;
     case 1:
-      discretization::path::complete_comm(user_msg,*(discretization::blocking*)discretization::list[id],recv_source);
+      discretization::path::complete_comm(*(discretization::blocking*)discretization::list[id],recv_source);
       break;
     case 2:
       skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id],recv_source);
@@ -147,7 +161,7 @@ void complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
       discretization::path::complete_comm(curtime,request,status);
       break;
     case 2:
-      skeletonization::path::complete_comm(curtime,request,status);
+      skeletonization::path::complete_comm(request,status);
       break;
   }
 }
@@ -158,10 +172,12 @@ void complete_comm(double curtime, int count, MPI_Request array_of_requests[], i
       decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
       break;
     case 1:
+      assert(0);	// Temporary
       discretization::path::complete_comm(curtime,count,array_of_requests,indx,status);
       break;
     case 2:
-      skeletonization::path::complete_comm(curtime,count,array_of_requests,indx,status);
+      assert(0);	// Temporary
+      skeletonization::path::complete_comm(count,array_of_requests,indx,status);
       break;
   }
 }
@@ -172,10 +188,12 @@ void complete_comm(double curtime, int incount, MPI_Request array_of_requests[],
       decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
       break;
     case 1:
+      assert(0);	// Temporary
       discretization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
       break;
     case 2:
-      skeletonization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      assert(0);	// Temporary
+      skeletonization::path::complete_comm(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
       break;
   }
 }
@@ -189,7 +207,7 @@ void complete_comm(double curtime, int count, MPI_Request array_of_requests[], M
       discretization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
       break;
     case 2:
-      skeletonization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
+      skeletonization::path::complete_comm(count,array_of_requests,array_of_statuses);
       break;
   }
 }

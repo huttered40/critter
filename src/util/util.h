@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <cmath>
 #include <assert.h>
+#include <climits>
 
 namespace critter{
 namespace internal{
@@ -101,6 +102,7 @@ extern int bsp_counter;
 extern int reset_counter;
 extern int clear_counter;
 extern int communicator_count;
+extern int recv_kernel_override;
 extern std::string schedule_tag;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
@@ -109,13 +111,16 @@ extern size_t auto_capture;
 extern bool is_world_root;
 extern size_t mechanism,mode,stack_id;
 extern double scratch_pad;
-extern size_t track_blas;
+extern size_t track_blas1;
+extern size_t track_blas2;
+extern size_t track_blas3;
 extern size_t track_lapack;
 extern size_t track_collective;
 extern size_t track_p2p;
 extern size_t track_p2p_idle;
 extern size_t eager_p2p;
 extern size_t delete_comm;
+extern int request_id;
 extern size_t
          _MPI_Send__id,
          _MPI_Ssend__id,
@@ -154,6 +159,8 @@ extern size_t
 	_BLAS_axpy__id,
 	_BLAS_scal__id,
 	_BLAS_ger__id,
+	_BLAS_gemv__id,
+	_BLAS_trmv__id,
 	_BLAS_gemm__id,
 	_BLAS_trmm__id,
 	_BLAS_trsm__id,

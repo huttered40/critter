@@ -15,7 +15,6 @@ int comm_state_aggregation_mode;
 int comp_sample_aggregation_mode;
 int comp_state_aggregation_mode;
 int sample_constraint_mode;
-//int sample_reset_mode;
 int schedule_kernels;
 int update_analysis;
 MPI_Datatype kernel_type;
@@ -59,18 +58,13 @@ std::vector<double> max_per_process_costs;
 std::vector<double> volume_costs;
 std::vector<double_int> info_sender;
 std::vector<double_int> info_receiver;
+std::vector<double> nonblocking_eager_pad;
 std::vector<char> eager_pad;
 double comp_start_time;
-std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
-std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
-std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
-std::vector<std::pair<double*,int>> internal_comm_prop;
-std::vector<MPI_Request> internal_comm_prop_req;
-std::vector<int*> internal_timer_prop_int;
-std::vector<double*> internal_timer_prop_double;
-std::vector<double_int*> internal_timer_prop_double_int;
-std::vector<char*> internal_timer_prop_char;
-std::vector<MPI_Request> internal_timer_prop_req;
+std::map<MPI_Request,std::pair<bool,int>> internal_comm_info1;
+std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_info2;
+std::map<MPI_Request,std::pair<double,double>> internal_comm_info3;
+std::map<MPI_Request,std::pair<int,int>> internal_comm_info5;
 std::vector<bool> decisions;
 std::map<std::string,std::vector<double>> save_info;
 std::vector<double> new_cs;
@@ -1359,13 +1353,9 @@ void allocate(MPI_Comm comm){
   } else{
     comm_kernel_transfer_id = 0;
   }
-  if (std::getenv("CRITTER_COMP_KERNEL_BUFFER_ID") != NULL){
-    comp_kernel_buffer_id = atof(std::getenv("CRITTER_COMP_KERNEL_BUFFER_ID"));
-  } else{
-    comp_kernel_buffer_id = 0;
-  }
 
-
+/*
+  NOTE: Below was copied straight from decomposition. It needs modification.
   if (eager_p2p){
     int eager_msg_sizes[5];
     MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
@@ -1377,6 +1367,12 @@ void allocate(MPI_Comm comm){
     for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
     eager_pad.resize(eager_pad_size);
   }
+*/
+  int eager_msg_size;
+  MPI_Pack_size(17,MPI_DOUBLE,comm,&eager_msg_size);
+  int nonblocking_eager_pad_size = MPI_BSEND_OVERHEAD;
+  nonblocking_eager_pad_size += eager_msg_size;
+  nonblocking_eager_pad.resize(nonblocking_eager_pad_size);
 }
 
 void open_symbol(const char* symbol, double curtime){}
@@ -1384,7 +1380,7 @@ void open_symbol(const char* symbol, double curtime){}
 void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
-  assert(internal_comm_info.size() == 0);
+  assert(internal_comm_info1.size() == 0);
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
@@ -1488,7 +1484,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
-  assert(internal_comm_info.size() == 0);
+  assert(internal_comm_info1.size() == 0);
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());

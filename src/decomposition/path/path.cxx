@@ -575,7 +575,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   //   (which does not get subtracted by the min idle time any one process incurs due to efficiency complications with matching nonblocking+blocking p2p communications).
   //   Its handled correctly for blocking collectives.
   // If per-process execution-time gets larger than execution-time along the execution-time critical path, subtract out the difference from idle time.
-  volume_costs[num_volume_measures-5] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
+  volume_costs[num_volume_measures-6] -= std::max(0.,volume_costs[num_volume_measures-1]-critical_path_costs[num_critical_path_measures-1]);
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     // Special handling of excessively large idle time caused by suspected tool interference
     // Specifically, this interference is caused by not subtracting out the barrier time of the last process to enter the barrier (which ideally is 0).
@@ -608,11 +608,10 @@ void path::complete_comm(blocking& tracker, int recv_source){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile double itime, int64_t nelem,
-                            MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
+bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner){
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-  tracker.comp_time = curtime - computation_timer + itime;
+  tracker.comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time
@@ -621,7 +620,38 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
   if (symbol_path_select_size>0 && symbol_stack.size()>0){
     assert(symbol_stack.size()>0);
     assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
-    double save_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top()+itime;
+    double save_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
+    for (auto i=0; i<symbol_path_select_size; i++){
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += save_time;
+      symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += save_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-1] += save_time;
+      symbol_timers[symbol_stack.top()].cp_excl_measure[i][num_per_process_measures-3] += save_time;
+    }
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-1] += save_time;
+    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_per_process_measures-3] += save_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_volume_measures-1] += save_time;
+    symbol_timers[symbol_stack.top()].pp_excl_measure[num_volume_measures-3] += save_time;
+  }
+
+  // Note: routine below will be called immediately afterward.
+  return true;
+}
+
+// Called by both nonblocking p2p and nonblocking collectives
+void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
+                            MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
+
+  // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
+  tracker.comp_time = itime;
+  critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;		// update critical path computation time
+  critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;		// update critical path runtime
+  volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time
+  volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local runtime
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += tracker.comp_time; }
+  if (symbol_path_select_size>0 && symbol_stack.size()>0){
+    assert(symbol_stack.size()>0);
+    assert(symbol_timers[symbol_stack.top()].start_timer.size()>0);
+    double save_time = itime;
     for (auto i=0; i<symbol_path_select_size; i++){
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-1] += save_time;
       symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][num_per_process_measures-3] += save_time;
@@ -657,10 +687,27 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, volatile
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
-  return true;// For now, nonblocking communication will always be scheduled.
 }
 
 void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+  auto comm_info_it = internal_comm_info.find(*request);
+  auto comm_comm_it = internal_comm_comm.find(*request);
+  auto comm_data_it = internal_comm_data.find(*request);
+  auto comm_track_it = internal_comm_track.find(*request);
+  assert(comm_info_it != internal_comm_info.end());
+  assert(comm_comm_it != internal_comm_comm.end());
+  assert(comm_data_it != internal_comm_data.end());
+  assert(comm_track_it != internal_comm_track.end());
+  assert(comm_comm_it->second.first != 0);
+
+  tracker.is_sender = comm_info_it->second.first;
+  tracker.comm = comm_comm_it->second.first;
+  tracker.partner1 = comm_comm_it->second.second;
+  tracker.partner2 = -1;
+  tracker.nbytes = comm_data_it->second.first;
+  tracker.comm_size = comm_data_it->second.second;
+  tracker.synch_time=0;
+
   int rank; MPI_Comm_rank(tracker.comm, &rank);
   if (replace_comm == 1){
     assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
@@ -683,22 +730,6 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
     }
   }
 
-  auto comm_info_it = internal_comm_info.find(*request);
-  auto comm_comm_it = internal_comm_comm.find(*request);
-  auto comm_data_it = internal_comm_data.find(*request);
-  auto comm_track_it = internal_comm_track.find(*request);
-  assert(comm_info_it != internal_comm_info.end());
-  assert(comm_comm_it != internal_comm_comm.end());
-  assert(comm_data_it != internal_comm_data.end());
-  assert(comm_track_it != internal_comm_track.end());
-
-  tracker.is_sender = comm_info_it->second.first;
-  tracker.comm = comm_comm_it->second.first;
-  tracker.partner1 = comm_comm_it->second.second;
-  tracker.partner2 = -1;
-  tracker.nbytes = comm_data_it->second.first;
-  tracker.comm_size = comm_data_it->second.second;
-  tracker.synch_time=0;
 
   // Both sender and receiver will now update its critical path with the data from the communication
   std::pair<double,double> cost_bsp  = tracker.cost_func_bsp(tracker.nbytes,tracker.comm_size);
@@ -1372,7 +1403,6 @@ void path::propagate_symbols(blocking& tracker, int rank){
 }
 
 void path::propagate(blocking& tracker){
-  assert(tracker.comm != 0);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
   bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
@@ -1455,7 +1485,6 @@ void path::propagate(blocking& tracker){
 }
 
 void path::propagate(nonblocking& tracker){
-  assert(tracker.comm != 0);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if (rank == tracker.partner1) { return; } 
   if (symbol_path_select_size>0){

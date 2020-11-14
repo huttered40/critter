@@ -64,13 +64,20 @@ void print_cost_model_header(){
 }
 
 void print_cost_model_header_file(){
-  if (cost_models[0]=='1'){
+  if ((cost_models[0]=='1') && (cost_models[1]=='1')){
     stream << "\tBSPCommCost";
-    stream << "\tBSPSynchCost";
-  }
-  if (cost_models[1]=='1'){
     stream << "\tABCommCost";
+    stream << "\tBSPSynchCost";
     stream << "\tABSynchCost";
+  } else{
+    if (cost_models[0]=='1'){
+      stream << "\tBSPCommCost";
+      stream << "\tBSPSynchCost";
+    }
+    if (cost_models[1]=='1'){
+      stream << "\tABCommCost";
+      stream << "\tABSynchCost";
+    }
   }
 }
 

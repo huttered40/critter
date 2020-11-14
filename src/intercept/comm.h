@@ -18,11 +18,14 @@ namespace internal{
 
 void init(int* argc, char*** argv);
 void init_thread(int* argc, char*** argv, int required, int* provided);
-void barrier(MPI_Comm comm);
+void finalize();
+
 void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm);
 void comm_dup(MPI_Comm comm, MPI_Comm* newcomm);
 void comm_free(MPI_Comm* comm);
-void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* new_comm);
+void get_count(MPI_Status* status, MPI_Datatype, int* count);
+
+void barrier(MPI_Comm comm);
 void bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm);
 void reduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm);
 void allreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm);
@@ -76,7 +79,9 @@ void wait(MPI_Request* request, MPI_Status* status);
 void waitany(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
 void waitsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
 void waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
-void finalize();
+void test(MPI_Request* request, int* flag, MPI_Status* status);
+void probe(int source, int tag, MPI_Comm comm, MPI_Status* status);
+void iprobe(int source, int tag, MPI_Comm comm, int* flag, MPI_Status* status);
 
 }
 }
