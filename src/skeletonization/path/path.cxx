@@ -135,14 +135,22 @@ void path::initiate_comm(nonblocking& tracker, int64_t nelem,
 
 void path::complete_comm(nonblocking& tracker, MPI_Request* request){}
 
-void path::complete_comm(MPI_Request* request, MPI_Status* status){}
+int path::complete_comm(MPI_Request* request, MPI_Status* status){
+  return MPI_SUCCESS;
+}
 
-void path::complete_comm(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){}
+int path::complete_comm(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+  return MPI_SUCCESS;
+}
 
-void path::complete_comm(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
-                        MPI_Status array_of_statuses[]){}
+int path::complete_comm(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+                        MPI_Status array_of_statuses[]){
+  return MPI_SUCCESS;
+}
 
-void path::complete_comm(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){}
+int path::complete_comm(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+  return MPI_SUCCESS;
+}
 
 void path::propagate_kernels(blocking& tracker){
   // Use info_receiver[last].second when deciding who to issue 3 broadcasts from

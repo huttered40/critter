@@ -740,8 +740,9 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.start_time = MPI_Wtime();
 }
 
-void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
+int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   double comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
   double save_comm_time = 0;
   assert(internal_comm_info4.find(*request) != internal_comm_info4.end());
   auto comm_track_it = internal_comm_info4.find(*request);
@@ -750,7 +751,7 @@ void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* statu
   int schedule_decision = comm_info_it->second.second;
   if (schedule_decision == 1){
     volatile double last_start_time = MPI_Wtime();
-    PMPI_Wait(request, status);
+    ret = PMPI_Wait(request, status);
     save_comm_time = MPI_Wtime() - last_start_time;
     complete_comm(*comm_track_it->second, &save_request, comp_time, save_comm_time);
   } else{
@@ -758,9 +759,11 @@ void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* statu
     *request = MPI_REQUEST_NULL;
   }
   computation_timer = MPI_Wtime();
+  return ret;
 }
 
-void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+  int ret = MPI_SUCCESS;
 /*
   double waitany_comp_time = curtime - computation_timer;
   assert(track_p2p_idle==0);
@@ -776,10 +779,12 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   complete_comm(*comm_track_it->second, &request, waitany_comp_time, waitany_comm_time);
   computation_timer = MPI_Wtime();
 */
+  return ret;
 }
 
-void path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+int path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
+  int ret = MPI_SUCCESS;
 /*
   double waitsome_comp_time = curtime - computation_timer;
   // Read comment in function above. Same ideas apply for Waitsome.
@@ -803,10 +808,12 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
 //  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
 */
+  return ret;
 }
 
-void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   double waitall_comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
   int true_count = count;
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   // Scan over the requests to identify those that are 'fake'
@@ -833,7 +840,8 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   while (true_count>0){
     int indx; MPI_Status status;
     volatile double start_comm_time = MPI_Wtime();
-    PMPI_Waitany(count,array_of_requests,&indx,&status);
+    int _ret = PMPI_Waitany(count,array_of_requests,&indx,&status);
+    if (_ret != MPI_SUCCESS) ret = _ret;
     double comm_time = MPI_Wtime() - start_comm_time;
     bool is_sender = internal_comm_info1[pt[indx]].first;
     if ((array_of_statuses != MPI_STATUS_IGNORE) && (!is_sender)){ array_of_statuses[indx] = status; }
@@ -844,6 +852,7 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
     waitall_comp_time=0;
   }
   computation_timer = MPI_Wtime();
+  return ret;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

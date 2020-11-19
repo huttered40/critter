@@ -308,13 +308,21 @@ size_t
 size_t
 	_BLAS_axpy__id,
 	_BLAS_scal__id,
-	_BLAS_ger__id,
+	_BLAS_gbmv__id,
 	_BLAS_gemv__id,
+	_BLAS_ger__id,
+	_BLAS_trsv__id,
 	_BLAS_trmv__id,
+	_BLAS_tpsv__id,
+	_BLAS_tpmv__id,
+	_BLAS_tbsv__id,
+	_BLAS_tbmv__id,
 	_BLAS_gemm__id,
 	_BLAS_trmm__id,
 	_BLAS_trsm__id,
-	_BLAS_syrk__id;
+	_BLAS_syrk__id,
+	_BLAS_syr2k__id,
+	_BLAS_symm__id;
 size_t
 	_LAPACK_getrf__id,
 	_LAPACK_potrf__id,

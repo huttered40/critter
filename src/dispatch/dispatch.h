@@ -19,10 +19,10 @@ bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatyp
 void initiate_comm(size_t id, volatile double itime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               MPI_Request* request, int user_tag=-1, bool is_sender=false, int partner=-1);
 void complete_comm(size_t id, int recv_source=-1);
-void complete_comm(double curtime, MPI_Request* request, MPI_Status* status);
-void complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
-void complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
-void complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
+int complete_comm(double curtime, MPI_Request* request, MPI_Status* status);
+int complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status);
+int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
+int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
 void propagate(MPI_Comm comm);
 void collect(MPI_Comm comm);
 void final_accumulate(MPI_Comm comm, double last_time);

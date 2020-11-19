@@ -14,551 +14,309 @@
 #define CBLAS_UPLO int
 #endif /* MKL */
 
+#include <tuple>
+
+#include "func_generators.h"
+
 namespace critter{
 namespace internal{
 
+// BLAS 1
 void _daxpy_(const int n , const double a , const double *x , const int incx , double *y , const int incy){
-  if (mode && track_blas1){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 2.*_n;
-    bool schedule_decision = initiate_comp(_BLAS_axpy__id,curtime,flops,n);
-    if (schedule_decision) cblas_daxpy(n,a,x,incx,y,incy);
-    complete_comp(0,_BLAS_axpy__id,flops,n);
-  } else{
-    cblas_daxpy(n,a,x,incx,y,incy);
-  }
+  conditional_blas_engine(_BLAS_axpy__id,track_blas1,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_daxpy,n,a,x,incx,y,incy);
 }
 void _dscal_(const int n , const double a , double *x , const int incx){
-  if (mode && track_blas1){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 1.*_n;
-    bool schedule_decision = initiate_comp(_BLAS_scal__id,curtime,flops,n);
-    if (schedule_decision) cblas_dscal(n,a,x,incx);
-    complete_comp(0,_BLAS_scal__id,flops,n);
-  } else{
-    cblas_dscal(n,a,x,incx);
-  }
+  conditional_blas_engine(_BLAS_scal__id,track_blas1,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dscal,n,a,x,incx);
 }
 
-void _dger_(const int m , const int n , const double alpha , const double *x , const int incx , const double *y , const int incy , double *a ,
-            const int lda){
-  if (mode && track_blas2){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = 2.*_m*_n+_m+_n;
-    bool schedule_decision = initiate_comp(_BLAS_ger__id,curtime,flops,m,n);
-    if (schedule_decision) cblas_dger(CblasColMajor,m,n,alpha,x,incx,y,incy,a,lda);
-    complete_comp(0,_BLAS_ger__id,flops,m,n);
-  } else{
-    cblas_dger(CblasColMajor,m,n,alpha,x,incx,y,incy,a,lda);
-  }
+// BLAS 2
+void _dgbmv_(const int order, const int trans, const int m, const int n, const int kl, const int ku, const double alpha,
+             const double *a, const int lda, const double *x, const int incx, const double beta, double *y, const int incy){
+  conditional_blas_engine(_BLAS_gbmv__id,track_blas2,std::make_tuple(m,n,kl,ku),std::make_tuple(m,n,kl,ku),IndexPack<0,1,2,3>{},
+                          &cblas_dgbmv,(CBLAS_ORDER)order,(CBLAS_TRANSPOSE)trans,m,n,kl,ku,alpha,a,lda,x,incx,beta,y,incy);
 }
-void _dgemv_(const int trans , const int m , const int n, const double alpha , const double *a , const int lda , const double *x, const int incx ,
+void _dgemv_(const int order, const int trans , const int m , const int n, const double alpha , const double *a , const int lda , const double *x, const int incx ,
              const double beta, double *y , const int incy ){
-  if (mode && track_blas2){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = _m*_n+_m+_n;
-    bool schedule_decision = initiate_comp(_BLAS_gemv__id,curtime,flops,m,n);
-    if (schedule_decision) cblas_dgemv(CblasColMajor,(CBLAS_TRANSPOSE)trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
-    complete_comp(0,_BLAS_gemv__id,flops,m,n);
-  } else{
-    cblas_dgemv(CblasColMajor,(CBLAS_TRANSPOSE)trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
-  }
+  conditional_blas_engine(_BLAS_gemv__id,track_blas2,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
+                          &cblas_dgemv,(CBLAS_ORDER)order,(CBLAS_TRANSPOSE)trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
+}
+void _dger_(const int order, const int m , const int n , const double alpha , const double *x , const int incx ,
+            const double *y , const int incy , double *a , const int lda){
+  conditional_blas_engine(_BLAS_ger__id,track_blas2,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
+                          &cblas_dger,(CBLAS_ORDER)order,m,n,alpha,x,incx,y,incy,a,lda);
+}
+void _dtrsv_(const int order, const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
+  conditional_blas_engine(_BLAS_trsv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dtrsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
+}
+void _dtrmv_(const int order, const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
+  conditional_blas_engine(_BLAS_trmv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dtrmv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
+}
+void _dtpsv_(const int order, const int uplo, const int trans, const int diag, const int n, const double *ap,
+             double *x, const int incx){
+  conditional_blas_engine(_BLAS_tpsv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dtpsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,ap,x,incx);
+}
+void _dtpmv_(const int order, const int uplo, const int trans, const int diag, const int n, const double *ap,
+             double *x, const int incx){
+  conditional_blas_engine(_BLAS_tpmv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dtpmv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,ap,x,incx);
+}
+void _dtbsv_(const int order, const int uplo, const int trans, const int diag, const int n, const int k,
+             const double *a, const int lda, double *x, const int incx){
+  conditional_blas_engine(_BLAS_tbsv__id,track_blas2,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+                          &cblas_dtbsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,k,a,lda,x,incx);
+}
+void _dtbmv_(const int order, const int uplo, const int trans, const int diag, const int n, const int k,
+             const double *a, const int lda, double *x, const int incx){
+  conditional_blas_engine(_BLAS_tbmv__id,track_blas2,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+                          &cblas_dtbmv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,k,a,lda,x,incx);
 }
 
-void _dtrmv_(const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
-  if (mode && track_blas2){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = (0.5*(_n+1)*_n + 2*_n);
-    bool schedule_decision = initiate_comp(_BLAS_trmv__id,curtime,flops,n);
-    if (schedule_decision) cblas_dtrmv(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
-    complete_comp(0,_BLAS_trmv__id,flops,n);
-  } else{
-    cblas_dtrmv(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
-  }
-}
-
-void _dgemm_(const int transa , const int transb ,
+// BLAS 3
+void _dgemm_(const int order, const int transa , const int transb ,
              const int m , const int n , const int k , const double alpha , const double *a ,
              const int lda , const double *b , const int ldb , const double beta , double *c , const int ldc){
-  if (mode && track_blas3){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m; double _k = k;
-    double flops = 2.*_m*_n*_k;
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_BLAS_gemm__id,curtime,flops,m,n,k);
-    if (schedule_decision){
-      cblas_dgemm(CblasColMajor,(CBLAS_TRANSPOSE)transa,(CBLAS_TRANSPOSE)transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
-    }
-    complete_comp(special_time,_BLAS_gemm__id,flops,m,n,k);
-  } else{
-    cblas_dgemm(CblasColMajor,(CBLAS_TRANSPOSE)transa,(CBLAS_TRANSPOSE)transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
-  }
+  conditional_blas_engine(_BLAS_gemm__id,track_blas3,std::make_tuple(m,n,k),std::make_tuple(m,n,k),IndexPack<0,1,2>{},
+                          &cblas_dgemm,(CBLAS_ORDER)order,(CBLAS_TRANSPOSE)transa,(CBLAS_TRANSPOSE)transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
 }
-void _dtrmm_(const int side , const int uplo , const int transa ,
+void _dtrmm_(const int order, const int side , const int uplo , const int transa ,
              const int diag , const int m , const int n , const double alpha , const double *a ,
              const int lda , double *b , const int ldb){
-  if (mode && track_blas3){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = (CBLAS_SIDE)side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
-    bool schedule_decision = initiate_comp(_BLAS_trmm__id,curtime,flops,m,n);
-    if (schedule_decision) cblas_dtrmm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
-    complete_comp(0,_BLAS_trmm__id,flops,m,n);
-  } else{
-    cblas_dtrmm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
-  }
+  conditional_blas_engine(_BLAS_trmm__id,track_blas3,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
+                          &cblas_dtrmm,(CBLAS_ORDER)order,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
 }
-void _dtrsm_(const int side , const int uplo , const int transa ,
+void _dtrsm_(const int order, const int side , const int uplo , const int transa ,
              const int diag , const int m , const int n , const double alpha , const double *a ,
              const int lda , double *b , const int ldb){
-  if (mode && track_blas3){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _m = m;
-    double flops = (CBLAS_SIDE)side==CblasLeft ? _m*_m*_n : _m*_n*_n;// Note: might want an extra factor of 2.
-    bool schedule_decision = initiate_comp(_BLAS_trsm__id,curtime,flops,m,n);
-    if (schedule_decision) cblas_dtrsm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
-    complete_comp(0,_BLAS_trsm__id,flops,m,n);
-  } else{
-    cblas_dtrsm(CblasColMajor,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
-  }
+  conditional_blas_engine(_BLAS_trsm__id,track_blas3,
+                          (CBLAS_SIDE)side==CblasLeft ? std::make_tuple(m,n) : std::make_tuple(n,m),
+                          std::make_tuple(m,n), IndexPack<0,1>{},
+                          &cblas_dtrsm,(CBLAS_ORDER)order,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
 }
-void _dsyrk_(const int uplo , const int trans ,
+void _dsyrk_(const int order, const int uplo , const int trans ,
              const int n , const int k , const double alpha , const double *a , const int lda ,
              const double beta , double *c , const int ldc){
-  if (mode && track_blas3){
-    volatile double curtime = MPI_Wtime();
-    double _n = n; double _k = k;
-    double flops = _k*_n*(_n+1);
-    bool schedule_decision = initiate_comp(_BLAS_syrk__id,curtime,flops,n,k);
-    if (schedule_decision) cblas_dsyrk(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,beta,c,ldc);
-    complete_comp(0,_BLAS_syrk__id,flops,n,k);
-  } else{
-    cblas_dsyrk(CblasColMajor,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,beta,c,ldc);
-  }
+  conditional_blas_engine(_BLAS_syrk__id,track_blas3,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+                          &cblas_dsyrk,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,beta,c,ldc);
+}
+void _dsyr2k_(const int order, const int uplo, const int trans, const int n, const int k, const double alpha,
+              const double *a, const int lda, const double *b, const int ldb, const double beta, double *c,
+              const int ldc){
+  conditional_blas_engine(_BLAS_syr2k__id,track_blas3,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+                          &cblas_dsyr2k,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
+}
+void _dsymm_(const int order, const int side, const int uplo, const int m, const int n, const double alpha,
+             const double *a, const int lda, const double *b, const int ldb, const double beta, double *c,
+             const int ldc){
+  conditional_blas_engine(_BLAS_symm__id,track_blas3,
+                          (CBLAS_SIDE)side==CblasLeft ? std::make_tuple(m,n) : std::make_tuple(n,m),
+                          std::make_tuple(m,n), IndexPack<0,1>{},
+                          &cblas_dsymm,(CBLAS_ORDER)order,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,m,n,alpha,a,lda,b,ldb,beta,c,ldc);
 }
 
-void __dgemv__(const char trans , const int m , const int n, const double alpha , const double *a , const int lda , const double *x, const int incx ,
-             const double beta, double *y , const int incy ){
-  CBLAS_TRANSPOSE _trans;
-  if (trans=='T') _trans = CblasTrans; else if (trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
-  _dgemv_(_trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
+// **********************************************************************************************************************************
+// BLAS 1
+void __daxpy__(const int* n , const double* a , const double *x , const int* incx , double *y , const int* incy){
+  _daxpy_(*n,*a,x,*incx,y,*incy);
 }
-void __dtrmv__(const char uplo , const char trans , const char diag , const int n , const double *a , const int lda , double *x, const int incx ){
-  CBLAS_TRANSPOSE _trans;
-  if (trans=='T') _trans = CblasTrans; else if (trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
-  _dtrmv_((uplo=='U' ? CblasUpper : CblasLower), _trans, (diag=='U' ? CblasUnit : CblasNonUnit), n,a,lda,x,incx);
+void __dscal__(const int* n , const double* a , double *x , const int* incx){
+  _dscal_(*n,*a,x,*incx);
 }
-void __dgemm__(const char transa , const char transb ,
-             const int m , const int n , const int k , const double alpha , const double *a ,
-             const int lda , const double *b , const int ldb , const double beta , double *c , const int ldc){
+
+// BLAS 2
+void __dgbmv__(const char* trans , const int* m , const int* n, const int* kl, const int* ku, const double* alpha ,
+               const double *a , const int* lda , const double *x, const int* incx ,
+               const double* beta, double *y , const int* incy ){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dgbmv_(CblasColMajor,_trans,*m,*n,*kl,*ku,*alpha,a,*lda,x,*incx,*beta,y,*incy);
+}
+void __dgemv__(const char* trans , const int* m , const int* n, const double* alpha , const double *a , const int* lda ,
+               const double *x, const int* incx , const double* beta, double *y , const int* incy ){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dgemv_(CblasColMajor,_trans,*m,*n,*alpha,a,*lda,x,*incx,*beta,y,*incy);
+}
+void __dger__(const int* m , const int* n , const double* alpha , const double *x , const int* incx , const double *y ,
+              const int* incy , double *a ,
+            const int* lda){
+  _dger_(CblasColMajor,*m,*n,*alpha,x,*incx,y,*incy,a,*lda);
+}
+void __dtrsv__(const char* uplo, const char* trans, const char* diag, const int* n, const double *a,
+               const int* lda, double *x, const int* incx){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtrsv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, (*diag=='U' ? CblasUnit : CblasNonUnit), *n,a,*lda,x,*incx);
+}
+void __dtrmv__(const char* uplo , const char* trans , const char* diag , const int* n , const double *a ,
+               const int* lda , double *x, const int* incx ){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtrmv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, (*diag=='U' ? CblasUnit : CblasNonUnit), *n,a,*lda,x,*incx);
+}
+void __dtpsv__(const char* uplo, const char* trans, const char* diag, const int* n, const double *ap,
+               double *x, const int* incx){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtpsv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, (*diag=='U' ? CblasUnit : CblasNonUnit), *n,ap,x,*incx);
+}
+void __dtpmv__(const char* uplo, const char* trans, const char* diag, const int* n, const double *ap,
+               double *x, const int* incx){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtpmv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, (*diag=='U' ? CblasUnit : CblasNonUnit), *n,ap,x,*incx);
+}
+void __dtbsv__(const char* uplo, const char* trans, const char* diag, const int* n, const int* k,
+               const double *a, const int* lda, double *x, const int* incx){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtbsv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, (*diag=='U' ? CblasUnit : CblasNonUnit), *n,*k,a,*lda,x,*incx);
+}
+void __dtbmv__(const char* uplo, const char* trans, const char* diag, const int* n, const int* k,
+               const double *a, const int* lda, double *x, const int* incx){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dtbmv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, (*diag=='U' ? CblasUnit : CblasNonUnit), *n,*k,a,*lda,x,*incx);
+}
+
+// BLAS 3
+void __dgemm__(const char* transa , const char* transb ,
+             const int* m , const int* n , const int* k , const double* alpha , const double *a ,
+             const int* lda , const double *b , const int* ldb , const double* beta , double *c , const int* ldc){
   CBLAS_TRANSPOSE _transa;
-  if (transa=='T') _transa = CblasTrans; else if (transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
+  if (*transa=='T') _transa = CblasTrans; else if (*transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
   CBLAS_TRANSPOSE _transb;
-  if (transb=='T') _transb = CblasTrans; else if (transb=='N') _transb = CblasNoTrans; else _transb = CblasConjTrans;
-  _dgemm_(_transa, _transb, m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
+  if (*transb=='T') _transb = CblasTrans; else if (*transb=='N') _transb = CblasNoTrans; else _transb = CblasConjTrans;
+  _dgemm_(CblasColMajor,_transa, _transb, *m,*n,*k,*alpha,a,*lda,b,*ldb,*beta,c,*ldc);
 }
-void __dtrmm__(const char side , const char uplo , const char transa ,
-             const char diag , const int m , const int n , const double alpha , const double *a ,
-             const int lda , double *b , const int ldb){
+void __dtrmm__(const char* side , const char* uplo , const char* transa ,
+             const char* diag , const int* m , const int* n , const double* alpha , const double *a ,
+             const int* lda , double *b , const int* ldb){
   CBLAS_TRANSPOSE _transa;
-  if (transa=='T') _transa = CblasTrans; else if (transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
-  _dtrmm_((side=='L' ? CblasLeft : CblasRight), (uplo=='U' ? CblasUpper : CblasLower), _transa,
-          (diag=='U' ? CblasUnit : CblasNonUnit), m,n,alpha,a,lda,b,ldb);
+  if (*transa=='T') _transa = CblasTrans; else if (*transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
+  _dtrmm_(CblasColMajor,(*side=='L' ? CblasLeft : CblasRight), (*uplo=='U' ? CblasUpper : CblasLower), _transa,
+          (*diag=='U' ? CblasUnit : CblasNonUnit), *m,*n,*alpha,a,*lda,b,*ldb);
 }
-void __dtrsm__(const char side , const char uplo , const char transa ,
-             const char diag , const int m , const int n , const double alpha , const double *a ,
-             const int lda , double *b , const int ldb){
+void __dtrsm__(const char* side , const char* uplo , const char* transa ,
+             const char* diag , const int* m , const int* n , const double* alpha , const double *a ,
+             const int* lda , double *b , const int* ldb){
   CBLAS_TRANSPOSE _transa;
-  if (transa=='T') _transa = CblasTrans; else if (transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
-  _dtrsm_((side=='L' ? CblasLeft : CblasRight), (uplo=='U' ? CblasUpper : CblasLower), _transa,
-          (diag=='U' ? CblasUnit : CblasNonUnit), m,n,alpha,a,lda,b,ldb);
+  if (*transa=='T') _transa = CblasTrans; else if (*transa=='N') _transa = CblasNoTrans; else _transa = CblasConjTrans;
+  _dtrsm_(CblasColMajor,(*side=='L' ? CblasLeft : CblasRight), (*uplo=='U' ? CblasUpper : CblasLower), _transa,
+          (*diag=='U' ? CblasUnit : CblasNonUnit), *m,*n,*alpha,a,*lda,b,*ldb);
 }
-void __dsyrk__(const char uplo , const char trans ,
-             const int n , const int k , const double alpha , const double *a , const int lda ,
-             const double beta , double *c , const int ldc){
+void __dsyrk__(const char* uplo, const char* trans ,
+             const int* n , const int* k , const double* alpha , const double *a , const int* lda ,
+             const double* beta , double *c , const int* ldc){
   CBLAS_TRANSPOSE _trans;
-  if (trans=='T') _trans = CblasTrans; else if (trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
-  _dsyrk_((uplo=='U' ? CblasUpper : CblasLower), _trans, n,k,alpha,a,lda,beta,c,ldc);
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dsyrk_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans, *n,*k,*alpha,a,*lda,*beta,c,*ldc);
+}
+void __dsyr2k__(const char* uplo, const char* trans, const int* n, const int* k, const double* alpha,
+                const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
+                const int* ldc){
+  CBLAS_TRANSPOSE _trans;
+  if (*trans=='T') _trans = CblasTrans; else if (*trans=='N') _trans = CblasNoTrans; else _trans = CblasConjTrans;
+  _dsyr2k_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower), _trans,*n,*k,*alpha,a,*lda,b,*ldb,*beta,c,*ldc);
+}
+void __dsymm__(const char* side, const char* uplo, const int* m, const int* n, const double* alpha,
+               const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
+               const int* ldc){
+  _dsymm_(CblasColMajor,(*side=='L' ? CblasLeft : CblasRight), (*uplo=='U' ? CblasUpper : CblasLower),*m,*n,*alpha,
+          a,*lda,b,*ldb,*beta,c,*ldc);
 }
 
-void _dgetrf_(int m , int n , double* a , int lda , int* ipiv){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n;
-    double flops = 0;
-    if (m>=n){
-      flops = _m*_n*_n - 1./3.*_n*_n*_n - 1./2.*_n*_n + 5./6.*_n;
-    } else{
-      flops = _n*_m*_m - 1./3.*_m*_m*_m - 1./2.*_m*_m + 5./6.*_m;
-    }
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_getrf__id,curtime,flops,m,n);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetrf(LAPACK_COL_MAJOR,m,n,a,lda,ipiv)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,m*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dgetrf(LAPACK_COL_MAJOR,m,n,a,lda,ipiv)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_getrf__id,flops,m,n);
-  } else{
-    assert(LAPACKE_dgetrf(LAPACK_COL_MAJOR,m,n,a,lda,ipiv)==0);
-  }
+// **********************************************************************************************************************************
+// C interface
+int _dgetrf_(int matrix_layout, int m , int n , double* a , int lda , int* ipiv){
+  return conditional_lapack_engine(_LAPACK_getrf__id,track_lapack,
+                                 (m>=n ? std::make_tuple(m,n) : std::make_pair(n,m)), std::make_tuple(m,n),IndexPack<0,1>{},
+                                 &LAPACKE_dgetrf,std::make_tuple(matrix_layout,m,n,a,lda,ipiv),IndexPack<0,1,2,3,4,5>{},
+                                std::make_tuple(a,m,n,lda,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 4.*n;}}));
 }
-void _dpotrf_(char uplo , int n , double* a , int lda){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 1./3.*_n*_n*_n + 1./2.*_n*_n + 1./6.*_n;
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_potrf__id,curtime,flops,n);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dpotrf(LAPACK_COL_MAJOR,uplo,n,a,lda)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,n*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dpotrf(LAPACK_COL_MAJOR,uplo,n,a,lda)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_potrf__id,flops,n);
-  } else{
-    assert(LAPACKE_dpotrf(LAPACK_COL_MAJOR,uplo,n,a,lda)==0);
-  }
+int _dpotrf_(int matrix_layout, char uplo , int n , double* a , int lda){
+  return conditional_lapack_engine(_LAPACK_potrf__id,track_lapack,
+                                   std::make_tuple(n), std::make_tuple(n),IndexPack<0>{},
+                                   &LAPACKE_dpotrf,std::make_tuple(matrix_layout,uplo,n,a,lda),IndexPack<0,1,2,3,4>{},
+                                   std::make_tuple(a,n,n,lda,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 4.*n;}}));
 }
-void _dtrtri_(char uplo , char diag , int n , double* a , int lda){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 1./3.*_n*_n*_n + 2./3.*_n;
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_trtri__id,curtime,flops,n);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtrtri(LAPACK_COL_MAJOR,uplo,diag,n,a,lda)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,n*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dtrtri(LAPACK_COL_MAJOR,uplo,diag,n,a,lda)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_trtri__id,flops,n);
-  } else{
-    assert(LAPACKE_dtrtri(LAPACK_COL_MAJOR,uplo,diag,n,a,lda)==0);
-  }
+int _dtrtri_(int matrix_layout, char uplo , char diag , int n , double* a , int lda){
+  return conditional_lapack_engine(_LAPACK_trtri__id,track_lapack,
+                                   std::make_tuple(n), std::make_tuple(n),IndexPack<0>{},
+                                   &LAPACKE_dtrtri,std::make_tuple(matrix_layout,uplo,diag,n,a,lda),IndexPack<0,1,2,3,4,5>{},
+                                   std::make_tuple(a,n,n,lda,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 4.*n;}}));
 }
-void _dgeqrf_(int m , int n , double* a , int lda , double* tau){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n;
-    double flops = 0;
-    if (m>=n){
-      flops = 2.*_m*_n*_n - 2./3.*_n*_n*_n + _m*_n + _n*_n + 14./3.*_n;
-    } else{
-      flops = 2.*_n*_m*_m - 2./3.*_m*_m*_m + 3.*_m*_n - _m*_m + 14./3.*_m;
-    }
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_geqrf__id,curtime,flops,m,n);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgeqrf(LAPACK_COL_MAJOR,m,n,a,lda,tau)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,m*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 4.*n;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dgeqrf(LAPACK_COL_MAJOR,m,n,a,lda,tau)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_geqrf__id,flops,m,n);
-  } else{
-    assert(LAPACKE_dgeqrf(LAPACK_COL_MAJOR,m,n,a,lda,tau)==0);
-  }
+
+int _dgeqrf_(int matrix_layout, int m , int n , double* a , int lda , double* tau){
+  return conditional_lapack_engine(_LAPACK_geqrf__id,track_lapack,
+                                   (m>=n ? std::make_tuple(m,n) : std::make_tuple(n,m)),std::make_tuple(m,n),IndexPack<0,1>{},
+                                   &LAPACKE_dgeqrf,std::make_tuple(matrix_layout,m,n,a,lda,tau),IndexPack<0,1,2,3,4,5>{},
+                                   std::make_tuple(a,m,n,lda,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 4.*n;}}));
 }
-void _dorgqr_(int m , int n , int k , double* a , int lda , const double* tau){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 4.*_m*_n*_k - 2.*(_m+_n)*_k*_k + (4./3.)*_k*_k*_k + 3.*_n*_k - _m*_k - _k*_k - 4./3.*_k;
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_orgqr__id,curtime,flops,m,n,k);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dorgqr(LAPACK_COL_MAJOR,m,n,k,a,lda,tau)==0);
-      else{
-        special_time = MPI_Wtime();
-        double* tau_temp = (double*)tau;
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,0,m*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
-        }
-        memset(tau_temp,1,k*sizeof(double));// Assumes column-major
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dorgqr(LAPACK_COL_MAJOR,m,n,k,a,lda,tau_temp)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_orgqr__id,flops,m,n,k);
-  } else{
-    assert(LAPACKE_dorgqr(LAPACK_COL_MAJOR,m,n,k,a,lda,tau)==0);
-  }
+int _dorgqr_(int matrix_layout, int m , int n , int k , double* a , int lda , const double* tau){
+  return conditional_lapack_engine(_LAPACK_orgqr__id,track_lapack,
+                                   std::make_tuple(m,n,k),std::make_tuple(m,n,k),IndexPack<0,1,2>{},
+                                   &LAPACKE_dorgqr,std::make_tuple(matrix_layout,m,n,k,a,lda,tau),IndexPack<0,1,2,3,4,5,6>{},
+                                   std::make_tuple(a,m,n,lda,0,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 1.;}}),
+                                   std::make_tuple((double*)tau,k,1,k,1,[](double* a, int m, int n, int lda){}));
 }
-void _dormqr_(char side , char trans , int m , int n , int k , const double * a , int lda , const double * tau , double * c , int ldc){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 0;
-    if (side == 'L'){
-      flops = 4.*_m*_n*_k - 2.*_n*_k*_k + 3.*_n*_k;
-    } else{
-      flops = 4.*_n*_m*_k - 2.*_m*_k*_k + 2.*m*_k + _n*_k - 1./2.*_k*_k + 1./2.*_k;
-    }
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_ormqr__id,curtime,flops,m,n,k);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dormqr(LAPACK_COL_MAJOR,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(c+i*ldc,1,m*sizeof(double));// Assumes column-major
-        }
-        double* a_temp = (double*)a;
-        double* tau_temp = (double*)tau;
-        if (side == 'L'){
-          for (int i=0; i<k; i++){
-            memset(a_temp+i*lda,0,m*sizeof(double));// Assumes column-major
-            a_temp[i*lda+i] = 1;
-          }
-        } else{
-          for (int i=0; i<k; i++){
-            memset(a_temp+i*lda,0,n*sizeof(double));// Assumes column-major
-            a_temp[i*lda+i] = 1;
-          }
-        }
-        memset(tau_temp,1,k*sizeof(double));// Assumes column-major
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dormqr(LAPACK_COL_MAJOR,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_ormqr__id,flops,m,n,k);
-  } else{
-    assert(LAPACKE_dormqr(LAPACK_COL_MAJOR,side,trans,m,n,k,a,lda,tau,c,ldc)==0);
-  }
+int _dormqr_(int matrix_layout, char side , char trans , int m , int n , int k , const double * a , int lda , const double * tau , double * c , int ldc){
+  return conditional_lapack_engine(_LAPACK_ormqr__id,track_lapack,
+                                   (side == 'L' ? std::make_tuple(m,n,k) : std::make_tuple(n,m,k)),std::make_tuple(m,n,k),IndexPack<0,1,2>{},
+                                   &LAPACKE_dormqr,std::make_tuple(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc),IndexPack<0,1,2,3,4,5,6,7,8,9,10>{},
+                                   std::make_tuple(c,m,n,ldc,1,[](double* a, int m, int n, int lda){}),
+                                   std::make_tuple((double*)a,(side=='L'?m:n),k,lda,0,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 1.;}}),
+                                   std::make_tuple((double*)tau,k,1,k,1,[](double* a, int m, int n, int lda){}));
 }
-void _dgetri_(int n , double * a , int lda , const int * ipiv){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _n = n;
-    double flops = 4./3.*_n*_n*_n - _n*_n + 5./3.*_n;
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_getri__id,curtime,flops,n);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dgetri(LAPACK_COL_MAJOR,n,a,lda,ipiv)==0);
-      else{
-        special_time = MPI_Wtime();
-        double* ipiv_temp = (double*)ipiv;
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,0,n*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          a[i*lda+i] = 1;
-          ipiv_temp[i] = i;
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dgetri(LAPACK_COL_MAJOR,n,a,lda,ipiv)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_getri__id,flops,n);
-  } else{
-    assert(LAPACKE_dgetri(LAPACK_COL_MAJOR,n,a,lda,ipiv)==0);
-  }
+int _dgetri_(int matrix_layout, int n , double * a , int lda , const int * ipiv){
+  return conditional_lapack_engine(_LAPACK_getri__id,track_lapack,
+                                   std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                                   &LAPACKE_dgetri,std::make_tuple(matrix_layout,n,a,lda,ipiv),IndexPack<0,1,2,3,4>{},
+                                   std::make_tuple(a,n,n,lda,0,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 1.;}}),
+                                   std::make_tuple((double*)ipiv,n,1,n,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i] = i;}}));
 }
-void _dtpqrt_(int m , int n , int l , int nb , double * a , int lda , double * b , int ldb , double * t , int ldt){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _l = l;
-    double flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpqrt(LAPACK_COL_MAJOR,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-      else{
-        special_time = MPI_Wtime();
-        for (int i=0; i<n; i++){
-          memset(a+i*lda,1,(i+1)*sizeof(double));// Assumes column-major
-          memset(a+i*lda+i+1,0,(n-i-1)*sizeof(double));// Assumes column-major
-        }
-        for (int i=0; i<n; i++){
-          memset(b+i*ldb,1,(i+1)*sizeof(double));// Assumes column-major
-          memset(b+i*ldb+i+1,0,(std::max(0,(m-l)-i-1))*sizeof(double));// Assumes column-major
-          memset(b+i*ldb+(m-l),1,std::min(i+1,l)*sizeof(double));// Assumes column-major
-          memset(b+i*ldb+(m-l)+i+1,0,std::max(0,(l-i-1))*sizeof(double));// Assumes column-major
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dtpqrt(LAPACK_COL_MAJOR,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_tpqrt__id,flops,m,n,l,nb);
-  } else{
-    assert(LAPACKE_dtpqrt(LAPACK_COL_MAJOR,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
-  }
+int _dtpqrt_(int matrix_layout, int m , int n , int l , int nb , double * a , int lda , double * b , int ldb , double * t , int ldt){
+  return conditional_lapack_engine_tpqrt_(&LAPACKE_dtpqrt,matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
 }
-void _dtpmqrt_(char side , char trans , int m , int n , int k , int l , int nb , const double * v ,
+int _dtpmqrt_(int matrix_layout, char side , char trans , int m , int n , int k , int l , int nb , const double * v ,
                int ldv , const double * t , int ldt , double * a , int lda , double * b , int ldb){
-  if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
-    double special_time=0;
-    bool schedule_decision = initiate_comp(_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
-    if (schedule_decision){
-      if (mechanism == 0 && autotuning_debug==0) assert(LAPACKE_dtpmqrt(LAPACK_COL_MAJOR,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
-      else{
-        special_time = MPI_Wtime();
-        double* v_temp = (double*)v;
-        double* t_temp = (double*)t;
-        if (side == 'L'){
-          for (int i=0; i<k; i++){
-            memset(v_temp+i*ldv,1,m*sizeof(double));// Assumes column-major
-          }
-        } else{
-          for (int i=0; i<n; i++){
-            memset(v_temp+i*ldv,1,n*sizeof(double));// Assumes column-major
-          }
-        }
-        for (int i=0; i<k; i++){
-          memset(t_temp+i*ldt,1,nb*sizeof(double));// Assumes column-major
-        }
-        if (side=='L'){
-          for (int i=0; i<n; i++){
-            memset(a+i*lda,1,k*sizeof(double));// Assumes column-major
-          }
-        } else{
-          for (int i=0; i<k; i++){
-            memset(a+i*lda,1,m*sizeof(double));// Assumes column-major
-          }
-        }
-        for (int i=0; i<n; i++){
-          memset(b+i*ldb,1,m*sizeof(double));// Assumes column-major
-        }
-        special_time = MPI_Wtime() - special_time;
-        assert(LAPACKE_dtpmqrt(LAPACK_COL_MAJOR,side,trans,m,n,k,l,nb,v_temp,ldv,t_temp,ldt,a,lda,b,ldb)==0);
-      }
-    }
-    complete_comp(special_time,_LAPACK_tpmqrt__id,flops,m,n,k,l,nb);
-  } else{
-    assert(LAPACKE_dtpmqrt(LAPACK_COL_MAJOR,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
-  }
+  return conditional_lapack_engine_tpmqrt_(&LAPACKE_dtpmqrt,matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
 }
 
-void _blk_to_cyc_rect_(double* blocked, double* cyclic, int num_rows_local, int num_columns_local, int sliceDim){
-  if (mode){
-    volatile double curtime = MPI_Wtime();
-    double flops = 0;
-    bool schedule_decision = initiate_comp(_CAPITAL_blktocyc__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
-    if (schedule_decision){
-      int write_idx = 0; int read_idx = 0;
-      int offset = num_rows_local*num_columns_local;
-      int num_rows_global = num_rows_local*sliceDim;
-      int num_columns_global = num_columns_local*sliceDim;
-      for (int i=0; i<num_columns_local; i++){
-        for (int j=0; j<sliceDim; j++){
-          for (int k=0; k<num_rows_local; k++){
-            for (int z=0; z<sliceDim; z++){
-              read_idx = z*offset*sliceDim + k + j*offset + i*num_rows_local;
-              cyclic[write_idx++] = blocked[read_idx];
-            }
-          }
-        }
-      }
-      // Remove scalars that should be zeros
-      for (int i=0; i<num_columns_global; i++){
-        for (int j=i+1; j<num_rows_global; j++){
-          cyclic[i*num_rows_global+j]=0.;
-        }
-      }
-    }
-    complete_comp(0,_CAPITAL_blktocyc__id,flops,num_rows_local,num_columns_local,sliceDim);
-  } else{
-    int write_idx = 0; int read_idx = 0;
-    int offset = num_rows_local*num_columns_local;
-    int num_rows_global = num_rows_local*sliceDim;
-    int num_columns_global = num_columns_local*sliceDim;
-    for (int i=0; i<num_columns_local; i++){
-      for (int j=0; j<sliceDim; j++){
-        for (int k=0; k<num_rows_local; k++){
-          for (int z=0; z<sliceDim; z++){
-            read_idx = z*offset*sliceDim + k + j*offset + i*num_rows_local;
-            cyclic[write_idx++] = blocked[read_idx];
-          }
-        }
-      }
-    }
-    // Remove scalars that should be zeros
-    for (int i=0; i<num_columns_global; i++){
-      for (int j=i+1; j<num_rows_global; j++){
-        cyclic[i*num_rows_global+j]=0.;
-      }
-    }
-  }
+// FORTRAN interface
+void __dgetrf__(const int* m , const int* n , double* a , const int* lda , int* ipiv, int* info){
+  *info = _dgetrf_(LAPACK_COL_MAJOR,*m,*n,a,*lda,ipiv);
 }
-void _cyc_to_blk_rect_(double* blocked, double* cyclic, int num_rows_local, int num_columns_local, int sliceDim){
-  if (mode){
-    volatile double curtime = MPI_Wtime();
-    double flops = 0;
-    bool schedule_decision = initiate_comp(_CAPITAL_cyctoblk__id,curtime,flops,num_rows_local,num_columns_local,sliceDim);
-    if (schedule_decision){
-      int write_idx = 0; int read_idx = 0; int offset = num_rows_local*num_columns_local;
-      for (int i=0; i<num_columns_local; i++){
-        for (int j=0; j<sliceDim; j++){
-          for (int k=0; k<num_rows_local; k++){
-            for (int z=0; z<sliceDim; z++){
-              write_idx = z*offset*sliceDim + k + j*offset + i*num_rows_local;
-              blocked[write_idx] = cyclic[read_idx++];
-            }
-          }
-        }
-      }
-    }
-    complete_comp(0,_CAPITAL_cyctoblk__id,flops,num_rows_local,num_columns_local,sliceDim);
-  } else{
-    int write_idx = 0; int read_idx = 0; int offset = num_rows_local*num_columns_local;
-    for (int i=0; i<num_columns_local; i++){
-      for (int j=0; j<sliceDim; j++){
-        for (int k=0; k<num_rows_local; k++){
-          for (int z=0; z<sliceDim; z++){
-            write_idx = z*offset*sliceDim + k + j*offset + i*num_rows_local;
-            blocked[write_idx] = cyclic[read_idx++];
-          }
-        }
-      }
-    }
-  }
+void __dpotrf__(const char* uplo , const int* n , double* a , const int* lda, int* info){
+  *info = _dpotrf_(LAPACK_COL_MAJOR,*uplo,*n,a,*lda);
+}
+void __dtrtri__(const char* uplo , const char* diag , const int* n , double* a , const int* lda, int* info){
+  *info = _dtrtri_(LAPACK_COL_MAJOR,*uplo,*diag,*n,a,*lda);
+}
+void __dgeqrf__(const int* m , const int* n , double* a , const int* lda , double* tau, double* work, const int* lwork, int* info){
+  *info = _dgeqrf_(LAPACK_COL_MAJOR,*m,*n,a,*lda,tau);
+}
+void __dorgqr__(const int* m , const int* n , const int* k , double* a , const int* lda , const double* tau, double* work, const int* lwork, int* info){
+  *info = _dorgqr_(LAPACK_COL_MAJOR,*m,*n,*k,a,*lda,tau);
+}
+void __dormqr__(const char* side , const char* trans , const int* m , const int* n , const int* k , const double * a , const int* lda , const double * tau ,
+                double * c , const int* ldc, double* work, const int* lwork, int* info){
+  *info = _dormqr_(LAPACK_COL_MAJOR,*side,*trans,*m,*n,*k,a,*lda,tau,c,*ldc);
+}
+void __dgetri__(const int* n , double * a , const int* lda , const int * ipiv, double* work, const int* lwork, int* info){
+  *info = _dgetri_(LAPACK_COL_MAJOR,*n,a,*lda,ipiv);
+}
+void __dtpqrt__(const int* m , const int* n , const int* l , const int* nb , double * a , const int* lda , double* b , const int* ldb , double * t , const int* ldt,
+                double* work, int* info){
+  *info = _dtpqrt_(LAPACK_COL_MAJOR,*m,*n,*l,*nb,a,*lda,b,*ldb,t,*ldt);
+}
+void __dtpmqrt__(const char* side , const char* trans , const int* m , const int* n , const int* k , const int* l , const int* nb , const double * v ,
+                 const int* ldv , const double * t , const int* ldt , double * a , const int* lda , double * b , const int* ldb, double* work, int* info){
+  *info = _dtpmqrt_(LAPACK_COL_MAJOR,*side,*trans,*m,*n,*k,*l,*nb,v,*ldv,t,*ldt,a,*lda,b,*ldb);
 }
 
 }

@@ -152,63 +152,51 @@ void complete_comm(size_t id, int recv_source){
   }
 }
 
-void complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
+int complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   switch (mechanism){
     case 0:
-      decomposition::path::complete_comm(curtime,request,status);
-      break;
+      return decomposition::path::complete_comm(curtime,request,status);
     case 1:
-      discretization::path::complete_comm(curtime,request,status);
-      break;
+      return discretization::path::complete_comm(curtime,request,status);
     case 2:
-      skeletonization::path::complete_comm(request,status);
-      break;
+      return skeletonization::path::complete_comm(request,status);
   }
 }
 
-void complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   switch (mechanism){
     case 0:
-      decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
-      break;
+      return decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 1:
       assert(0);	// Temporary
-      discretization::path::complete_comm(curtime,count,array_of_requests,indx,status);
-      break;
+      return discretization::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 2:
       assert(0);	// Temporary
-      skeletonization::path::complete_comm(count,array_of_requests,indx,status);
-      break;
+      return skeletonization::path::complete_comm(count,array_of_requests,indx,status);
   }
 }
 
-void complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
-      decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
-      break;
+      return decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 1:
       assert(0);	// Temporary
-      discretization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
-      break;
+      return discretization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 2:
       assert(0);	// Temporary
-      skeletonization::path::complete_comm(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
-      break;
+      return skeletonization::path::complete_comm(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   }
 }
 
-void complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
-      decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
-      break;
+      return decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
     case 1:
-      discretization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
-      break;
+      return discretization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
     case 2:
-      skeletonization::path::complete_comm(count,array_of_requests,array_of_statuses);
-      break;
+      return skeletonization::path::complete_comm(count,array_of_requests,array_of_statuses);
   }
 }
 

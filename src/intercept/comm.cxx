@@ -180,13 +180,21 @@ void _init(int* argc, char*** argv){
 
   _BLAS_axpy__id = 100;
   _BLAS_scal__id = 101;
-  _BLAS_ger__id = 102;
-  _BLAS_gemv__id = 103;
-  _BLAS_trmv__id = 104;
-  _BLAS_gemm__id = 105;
-  _BLAS_trmm__id = 106;
-  _BLAS_trsm__id = 107;
-  _BLAS_syrk__id = 108;
+  _BLAS_gbmv__id = 120;
+  _BLAS_gemv__id = 121;
+  _BLAS_ger__id = 123;
+  _BLAS_trsv__id = 124;
+  _BLAS_trmv__id = 125;
+  _BLAS_tpsv__id = 126;
+  _BLAS_tpmv__id = 127;
+  _BLAS_tbsv__id = 128;
+  _BLAS_tbmv__id = 129;
+  _BLAS_gemm__id = 150;
+  _BLAS_trmm__id = 151;
+  _BLAS_trsm__id = 152;
+  _BLAS_syrk__id = 153;
+  _BLAS_syr2k__id = 154;
+  _BLAS_symm__id = 155;
 
   _LAPACK_getrf__id = 200;
   _LAPACK_potrf__id = 201;
@@ -200,58 +208,6 @@ void _init(int* argc, char*** argv){
 
   _CAPITAL_blktocyc__id = 300;
   _CAPITAL_cyctoblk__id = 301;
-
-/*
-  reset_map["MPI_Barrier"] = 0;
-  reset_map["MPI_Bcast"] = 1;
-  reset_map["MPI_Reduce"] = 2;
-  reset_map["MPI_Allreduce"] = 3;
-  reset_map["MPI_Gather"] = 4;
-  reset_map["MPI_Allgather"] = 5;
-  reset_map["MPI_Scatter"] = 6;
-  reset_map["MPI_Reduce_scatter"] = 7;
-  reset_map["MPI_Alltoall"] = 8;
-  reset_map["MPI_Gatherv"] = 9;
-  reset_map["MPI_Allgatherv"] = 10;
-  reset_map["MPI_Scatterv"] = 11;
-  reset_map["MPI_Alltoallv"] = 12;
-  reset_map["MPI_Sendrecv"] = 13;
-  reset_map["MPI_Sendrecv_replace"] = 14;
-  reset_map["MPI_Ssend"] = 15;
-  reset_map["MPI_Send"] = 16;
-  reset_map["MPI_Recv"] = 17;
-  reset_map["MPI_Isend"] = 18;
-  reset_map["MPI_Irecv"] = 19;
-  reset_map["MPI_Ibcast"] = 20;
-  reset_map["MPI_Iallreduce"] = 21;
-  reset_map["MPI_Ireduce"] = 22;
-  reset_map["MPI_Igather"] = 23;
-  reset_map["MPI_Igatherv"] = 24;
-  reset_map["MPI_Iallgather"] = 25;
-  reset_map["MPI_Iallgatherv"] = 26;
-  reset_map["MPI_Iscatter"] = 27;
-  reset_map["MPI_Iscatterv"] = 28;
-  reset_map["MPI_Ireduce_scatter"] = 29;
-  reset_map["MPI_Ialltoall"] = 30;
-  reset_map["MPI_Ialltoallv"] = 31;
-  reset_map["MPI_Bsend"] = 32;
-  reset_map["BLAS_ger"] = 102;
-  reset_map["BLAS_gemm"] = 103;
-  reset_map["BLAS_trmm"] = 104;
-  reset_map["BLAS_trsm"] = 105;
-  reset_map["BLAS_syrk"] = 106;
-  reset_map["LAPACK_getrf"] = 200;
-  reset_map["LAPACK_potrf"] = 201;
-  reset_map["LAPACK_trtri"] = 202;
-  reset_map["LAPACK_geqrf"] = 203;
-  reset_map["LAPACK_orgqr"] = 204;
-  reset_map["LAPACK_ormqr"] = 205;
-  reset_map["LAPACK_getri"] = 206;
-  reset_map["LAPACK_tpqrt"] = 207;
-  reset_map["LAPACK_tpmqrt"] = 208;
-  reset_map["CAPITAL_blktocyc"] = 300;
-  reset_map["CAPITAL_cyctoblk"] = 301;
-*/
 
   autotuning_debug = 0;
 
@@ -288,135 +244,157 @@ void _init(int* argc, char*** argv){
 }
 
 
-void init(int* argc, char*** argv){
-  PMPI_Init(argc,argv);
+int init(int* argc, char*** argv){
+  int ret = PMPI_Init(argc,argv);
   _init(argc, argv);
+  return ret;
 }
 
-void init_thread(int* argc, char*** argv, int required, int* provided){
+int init_thread(int* argc, char*** argv, int required, int* provided){
   assert(required == MPI_THREAD_SINGLE);
-  PMPI_Init_thread(argc,argv,required,provided);
+  int ret = PMPI_Init_thread(argc,argv,required,provided);
   _init(argc, argv);
+  return ret;
 }
 
-void finalize(){
+int finalize(){
   if (auto_capture) stop();
   internal::_finalize();
-  PMPI_Finalize();
+  return PMPI_Finalize();
 }
 
-void comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
+int comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
+  int ret = MPI_SUCCESS;
   if (mode){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
-    PMPI_Comm_split(comm,color,key,newcomm);
+    ret = PMPI_Comm_split(comm,color,key,newcomm);
     complete_comm(_MPI_Barrier__id);
   }
   else{
-    PMPI_Comm_split(comm,color,key,newcomm);
+    ret = PMPI_Comm_split(comm,color,key,newcomm);
   }
   exchange_communicators(comm,*newcomm);
+  return ret;
 }
 
-void comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
+int comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
+  int ret = MPI_SUCCESS;
   if (mode){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
-    PMPI_Comm_dup(comm,newcomm);
+    ret = PMPI_Comm_dup(comm,newcomm);
     complete_comm(_MPI_Barrier__id);
   }
   else{
-    PMPI_Comm_dup(comm,newcomm);
+    ret = PMPI_Comm_dup(comm,newcomm);
   }
   exchange_communicators(comm,*newcomm);
+  return ret;
 }
 
-void comm_free(MPI_Comm* comm){
+int comm_free(MPI_Comm* comm){
+  int ret = MPI_SUCCESS;
   if (mode){
     if (delete_comm){
-      PMPI_Comm_free(comm);
+      ret = PMPI_Comm_free(comm);
     }
   }
   else{
-    PMPI_Comm_free(comm);
+    ret = PMPI_Comm_free(comm);
   }
+  return ret;
 }
 
-void get_count(MPI_Status* status, MPI_Datatype, int* count){
+int get_count(MPI_Status* status, MPI_Datatype, int* count){
   //TODO: Not implemented yet.
   assert(0);
+  return 0;
 }
 
-void barrier(MPI_Comm comm){
+int barrier(MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
-    if (schedule_decision) PMPI_Barrier(comm);
+    if (schedule_decision) ret = PMPI_Barrier(comm);
     complete_comm(_MPI_Barrier__id);
   }
   else{
-    PMPI_Barrier(comm);
+    ret = PMPI_Barrier(comm);
   }
+  return ret;
 }
 
-void bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm){
+int bcast(void* buffer, int count, MPI_Datatype datatype, int root, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Bcast__id,curtime, count, datatype, comm);
-    if (schedule_decision) PMPI_Bcast(buffer, count, datatype, root, comm);
+    if (schedule_decision) ret = PMPI_Bcast(buffer, count, datatype, root, comm);
     complete_comm(_MPI_Bcast__id);
   }
   else{
-    PMPI_Bcast(buffer, count, datatype, root, comm);
+    ret = PMPI_Bcast(buffer, count, datatype, root, comm);
   }
+  return ret;
 }
 
-void reduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm){
+int reduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Reduce__id,curtime, count, datatype, comm);
-    if (schedule_decision) PMPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
+    if (schedule_decision) ret = PMPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
     complete_comm(_MPI_Reduce__id);
   }
   else{
-    PMPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
+    ret = PMPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
   }
+  return ret;
 }
 
-void allreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm){
+int allreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Allreduce__id,curtime, count, datatype, comm);
-    if (schedule_decision) PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
+    if (schedule_decision) ret = PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
     complete_comm(_MPI_Allreduce__id);
   }
   else{
-    PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
+    ret = PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
   }
+  return ret;
 }
 
-void gather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
+int gather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
+           MPI_Datatype recvtype, int root, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
     bool schedule_decision = initiate_comm(_MPI_Gather__id,curtime, recvbuf_size, sendtype, comm);
-    if (schedule_decision) PMPI_Gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
+    if (schedule_decision) ret = PMPI_Gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
     complete_comm(_MPI_Gather__id);
   }
   else{
-    PMPI_Gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
+    ret = PMPI_Gather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
   }
+  return ret;
 }
 
-void allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm){
+int allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
+              MPI_Datatype recvtype, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
     bool schedule_decision = initiate_comm(_MPI_Allgather__id,curtime, recvbuf_size, sendtype, comm);
     if (schedule_decision){
-      PMPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
+      ret = PMPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
     }
     complete_comm(_MPI_Allgather__id);
   }
@@ -434,206 +412,237 @@ void allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* 
     PMPI_Barrier(MPI_COMM_WORLD);
     if (is_world_root) std::cout << "before allgather with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << std::endl;
 */
-    PMPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
+    ret = PMPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
 /*
     PMPI_Barrier(MPI_COMM_WORLD);
     // debug
     if (is_world_root) std::cout << "after allgather with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << std::endl;
 */
   }
+  return ret;
 }
 
-void scatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
+int scatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
+            MPI_Datatype recvtype, int root, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t sendbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
     bool schedule_decision = initiate_comm(_MPI_Scatter__id,curtime, sendbuf_size, sendtype, comm);
-    if (schedule_decision) PMPI_Scatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
+    if (schedule_decision) ret = PMPI_Scatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
     complete_comm(_MPI_Scatter__id);
   }
   else{
-    PMPI_Scatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
+    ret = PMPI_Scatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm);
   }
+  return ret;
 }
 
-void reduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], MPI_Datatype datatype, MPI_Op op, MPI_Comm comm){
+int reduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], MPI_Datatype datatype, MPI_Op op, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0;
     int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_recv += recvcounts[i]; }
     bool schedule_decision = initiate_comm(_MPI_Reduce_scatter__id,curtime, tot_recv, datatype, comm);
-    if (schedule_decision) PMPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm);
+    if (schedule_decision) ret = PMPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm);
     complete_comm(_MPI_Reduce_scatter__id);
   }
   else{
-    PMPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm);
+    ret = PMPI_Reduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm);
   }
+  return ret;
 }
 
-void alltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm){
+int alltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
+             MPI_Datatype recvtype, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
     bool schedule_decision = initiate_comm(_MPI_Alltoall__id,curtime,recvbuf_size, sendtype, comm);
-    if (schedule_decision) PMPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
+    if (schedule_decision) ret = PMPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
     complete_comm(_MPI_Alltoall__id);
   }
   else{
-    PMPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
+    ret = PMPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
   }
+  return ret;
 }
 
-void gatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int* recvcounts, const int* displs,
+int gatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int* recvcounts, const int* displs,
              MPI_Datatype recvtype, int root, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_recv += ((int*)recvcounts)[i]; }
     bool schedule_decision = initiate_comm(_MPI_Gatherv__id,curtime, std::max((int64_t)sendcount,tot_recv), sendtype, comm);
-    if (schedule_decision) PMPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm);
+    if (schedule_decision) ret = PMPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm);
     complete_comm(_MPI_Gatherv__id);
    }
    else{
-    PMPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm);
+    ret = PMPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm);
   }
+  return ret;
 }
 
-void allgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int* recvcounts, const int* displs,
+int allgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int* recvcounts, const int* displs,
              MPI_Datatype recvtype, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_recv += recvcounts[i]; }
     bool schedule_decision = initiate_comm(_MPI_Allgatherv__id,curtime, std::max((int64_t)sendcount,tot_recv), sendtype, comm);
-    if (schedule_decision) PMPI_Allgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm);
+    if (schedule_decision) ret = PMPI_Allgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm);
     complete_comm(_MPI_Allgatherv__id);
   }
   else{
-    PMPI_Allgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm);
+    ret = PMPI_Allgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm);
   }
+  return ret;
 }
 
-void scatterv(const void* sendbuf, const int* sendcounts, const int* displs, MPI_Datatype sendtype,
+int scatterv(const void* sendbuf, const int* sendcounts, const int* displs, MPI_Datatype sendtype,
               void* recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0; int comm_size;MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_send += ((int*)sendcounts)[i]; } 
     bool schedule_decision = initiate_comm(_MPI_Scatterv__id,curtime, std::max(tot_send,(int64_t)recvcount), sendtype, comm);
-    if (schedule_decision) PMPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm);
+    if (schedule_decision) ret = PMPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm);
     complete_comm(_MPI_Scatterv__id);
   }
   else{
-    PMPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm);
+    ret = PMPI_Scatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm);
   }
+  return ret;
 }
 
-void alltoallv(const void* sendbuf, const int* sendcounts, const int* sdispls, MPI_Datatype sendtype, void* recvbuf,
+int alltoallv(const void* sendbuf, const int* sendcounts, const int* sdispls, MPI_Datatype sendtype, void* recvbuf,
                const int* recvcounts, const int* rdispls, MPI_Datatype recvtype, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0, tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
     for (int i=0; i<comm_size; i++){ tot_send += sendcounts[i]; tot_recv += recvcounts[i]; }
     bool schedule_decision = initiate_comm(_MPI_Alltoallv__id,curtime, std::max(tot_send,tot_recv), sendtype, comm);
-    if (schedule_decision) PMPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+    if (schedule_decision) ret = PMPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
     complete_comm(_MPI_Alltoallv__id);
   }
   else{
-    PMPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
+    ret = PMPI_Alltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm);
   }
+  return ret;
 }
 
-void sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int dest, int sendtag, void* recvbuf, int recvcount,
+int sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int dest, int sendtag, void* recvbuf, int recvcount,
               MPI_Datatype recvtype, int source, int recvtag, MPI_Comm comm, MPI_Status* status){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Sendrecv__id,curtime, std::max(sendcount,recvcount), sendtype, comm, true, dest, source);
-    if (schedule_decision) PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
+    if (schedule_decision) ret = PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount,
+                                               recvtype, source, recvtag, comm, status);
     complete_comm(_MPI_Sendrecv__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
   }
   else{
-    PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
+    ret = PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
   }
+  return ret;
 }
 
-void sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int sendtag, int source, int recvtag,
+int sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int sendtag, int source, int recvtag,
                       MPI_Comm comm, MPI_Status* status){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(sendtag != internal_tag); assert(recvtag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Sendrecv_replace__id,curtime, count, datatype, comm, true, dest, source);
-    if (schedule_decision) PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
+    if (schedule_decision) ret = PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
     complete_comm(_MPI_Sendrecv_replace__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
    }
   else{
-    PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
+    ret = PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
   }
+  return ret;
 }
 
-void ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+int ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Ssend__id,curtime, count, datatype, comm, true, dest);
-    if (schedule_decision) PMPI_Ssend(buf, count, datatype, dest, tag, comm);
+    if (schedule_decision) ret = PMPI_Ssend(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Ssend__id);
   }
   else{
-    PMPI_Ssend(buf, count, datatype, dest, tag, comm);
+    ret = PMPI_Ssend(buf, count, datatype, dest, tag, comm);
   }
+  return ret;
 }
 
-void bsend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+int bsend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Bsend__id,curtime, count, datatype, comm, true, dest);
-    if (schedule_decision) PMPI_Bsend(buf, count, datatype, dest, tag, comm);
+    if (schedule_decision) ret = PMPI_Bsend(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Bsend__id);
   }
   else{
-    PMPI_Ssend(buf, count, datatype, dest, tag, comm);
+    ret = PMPI_Ssend(buf, count, datatype, dest, tag, comm);
   }
+  return ret;
 }
 
-void send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+int send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Send__id,curtime, count, datatype, comm, true, dest);
-    if (schedule_decision) PMPI_Send(buf, count, datatype, dest, tag, comm);
+    if (schedule_decision) ret = PMPI_Send(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Send__id);
   }
   else{
-    PMPI_Send(buf, count, datatype, dest, tag, comm);
+    ret = PMPI_Send(buf, count, datatype, dest, tag, comm);
   }
+  return ret;
 }
 
-void recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status* status){
+int recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Status* status){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(tag != internal_tag);
     bool schedule_decision = initiate_comm(_MPI_Recv__id,curtime, count, datatype, comm, false, source);
-    if (schedule_decision){ PMPI_Recv(buf, count, datatype, source, tag, comm, status); }
+    if (schedule_decision) ret = PMPI_Recv(buf, count, datatype, source, tag, comm, status);
     complete_comm(_MPI_Recv__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
   }
   else{
-    PMPI_Recv(buf, count, datatype, source, tag, comm, status);
+    ret = PMPI_Recv(buf, count, datatype, source, tag, comm, status);
   }
+  return ret;
 }
 
-void isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* request){
+int isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(tag != internal_tag);
     bool schedule_decision = inspect_comm(_MPI_Isend__id, curtime, count, datatype, comm, tag, true, dest);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
+      ret = PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Isend__id, itime, count, datatype, comm, request, tag, true, dest);
     } else{
@@ -641,18 +650,20 @@ void isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag,
     }
   }
   else{
-    PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
+    ret = PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
   }
+  return ret;
 }
 
-void irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Request* request){
+int irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
     //assert(tag != internal_tag);
     bool schedule_decision = inspect_comm(_MPI_Irecv__id, curtime, count, datatype, comm, tag, false, source);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
+      ret = PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Irecv__id, itime, count, datatype, comm, request, tag, false, source);
     } else{
@@ -660,17 +671,19 @@ void irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI
     }
   }
   else{
-    PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
+    ret = PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
   }
+  return ret;
 }
 
-void ibcast(void* buf, int count, MPI_Datatype datatype, int root, MPI_Comm comm, MPI_Request* request){
+int ibcast(void* buf, int count, MPI_Datatype datatype, int root, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = inspect_comm(_MPI_Ibcast__id, curtime, count, datatype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Ibcast(buf, count, datatype, root, comm, request);
+      ret = PMPI_Ibcast(buf, count, datatype, root, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Ibcast__id, itime, count, datatype, comm, request);
     } else{
@@ -678,18 +691,20 @@ void ibcast(void* buf, int count, MPI_Datatype datatype, int root, MPI_Comm comm
     }
   }
   else{
-    PMPI_Ibcast(buf, count, datatype, root, comm, request);
+    ret = PMPI_Ibcast(buf, count, datatype, root, comm, request);
   }
+  return ret;
 }
 
-void iallreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
+int iallreduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, MPI_Comm comm,
                 MPI_Request *request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = inspect_comm(_MPI_Iallreduce__id, curtime, count, datatype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request);
+      ret = PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Iallreduce__id, itime, count, datatype, comm, request);
     } else{
@@ -697,17 +712,19 @@ void iallreduce(const void *sendbuf, void *recvbuf, int count, MPI_Datatype data
     }
   }
   else{
-    PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request);
+    ret = PMPI_Iallreduce(sendbuf, recvbuf, count, datatype, op, comm, request);
   }
+  return ret;
 }
 
-void ireduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm, MPI_Request* request){
+int ireduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op, int root, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     bool schedule_decision = inspect_comm(_MPI_Iallreduce__id, curtime, count, datatype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Ireduce(sendbuf, recvbuf, count, datatype, op, root, comm, request);
+      ret = PMPI_Ireduce(sendbuf, recvbuf, count, datatype, op, root, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Iallreduce__id, itime, count, datatype, comm, request);
     } else{
@@ -715,12 +732,14 @@ void ireduce(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatyp
     }
   }
   else{
-    PMPI_Ireduce(sendbuf, recvbuf, count, datatype, op, root, comm, request);
+    ret = PMPI_Ireduce(sendbuf, recvbuf, count, datatype, op, root, comm, request);
   }
+  return ret;
 }
 
-void igather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
+int igather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
              int root, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
@@ -728,7 +747,7 @@ void igather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* re
     bool schedule_decision = inspect_comm(_MPI_Igather__id, curtime, recvbuf_size, sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Igather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
+      ret = PMPI_Igather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Igather__id, itime, recvbuf_size, sendtype, comm, request);
     } else{
@@ -736,12 +755,14 @@ void igather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* re
     }
   }
   else{
-    PMPI_Igather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
+    ret = PMPI_Igather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
   }
+  return ret;
 }
 
-void igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int recvcounts[], const int displs[],
+int igatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int recvcounts[], const int displs[],
               MPI_Datatype recvtype, int root, MPI_Comm comm, MPI_Request *request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_rank,comm_size; MPI_Comm_rank(comm, &comm_rank); MPI_Comm_size(comm, &comm_size);
@@ -749,7 +770,7 @@ void igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *r
     bool schedule_decision = inspect_comm(_MPI_Igatherv__id, curtime, std::max((int64_t)sendcount,tot_recv), sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Igatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm, request);
+      ret = PMPI_Igatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Igatherv__id, itime, std::max((int64_t)sendcount,tot_recv), sendtype, comm, request);
     } else{
@@ -757,19 +778,21 @@ void igatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *r
     }
   }
   else{
-     PMPI_Igatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm, request);
+     ret = PMPI_Igatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm, request);
   }
+  return ret;
 }
 
-void iallgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
+int iallgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
                 MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size); int64_t recvbuf_size = std::max((int64_t)sendcount,(int64_t)recvcount) * comm_size;
     bool schedule_decision = inspect_comm(_MPI_Iallgather__id, curtime, recvbuf_size, sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Iallgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
+      ret = PMPI_Iallgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Iallgather__id, itime, recvbuf_size, sendtype, comm, request);
     } else{
@@ -777,12 +800,14 @@ void iallgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void*
     }
   }
   else{
-    PMPI_Iallgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
+    ret = PMPI_Iallgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
   }
+  return ret;
 }
 
-void iallgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int recvcounts[], const int displs[],
+int iallgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int recvcounts[], const int displs[],
                  MPI_Datatype recvtype, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0; int comm_size; MPI_Comm_size(comm, &comm_size);
@@ -790,7 +815,7 @@ void iallgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void
     bool schedule_decision = inspect_comm(_MPI_Iallgatherv__id, curtime, std::max((int64_t)sendcount,tot_recv), sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Iallgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm, request);
+      ret = PMPI_Iallgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Iallgatherv__id, itime, std::max((int64_t)sendcount,tot_recv), sendtype, comm, request);
     } else{
@@ -798,12 +823,14 @@ void iallgatherv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void
     }
   }
   else{
-    PMPI_Iallgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm, request);
+    ret = PMPI_Iallgatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm, request);
   }
+  return ret;
 }
 
-void iscatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
+int iscatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
               MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
@@ -811,7 +838,7 @@ void iscatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* r
     bool schedule_decision = inspect_comm(_MPI_Iscatter__id, curtime, sendbuf_size, sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Iscatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
+      ret = PMPI_Iscatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Iscatter__id, itime, sendbuf_size, sendtype, comm, request);
     } else{
@@ -819,12 +846,14 @@ void iscatter(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* r
     }
   }
   else{
-    PMPI_Iscatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
+    ret = PMPI_Iscatter(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
   }
+  return ret;
 }
 
-void iscatterv(const void* sendbuf, const int sendcounts[], const int displs[], MPI_Datatype sendtype, void* recvbuf, int recvcount,
+int iscatterv(const void* sendbuf, const int sendcounts[], const int displs[], MPI_Datatype sendtype, void* recvbuf, int recvcount,
                MPI_Datatype recvtype, int root, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0;
@@ -833,7 +862,7 @@ void iscatterv(const void* sendbuf, const int sendcounts[], const int displs[], 
     bool schedule_decision = inspect_comm(_MPI_Iscatterv__id, curtime, std::max(tot_send,(int64_t)recvcount), sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Iscatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
+      ret = PMPI_Iscatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Iscatterv__id, itime, std::max(tot_send,(int64_t)recvcount), sendtype, comm, request);
     } else{
@@ -841,12 +870,14 @@ void iscatterv(const void* sendbuf, const int sendcounts[], const int displs[], 
     }
   }
   else{
-    PMPI_Iscatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
+    ret = PMPI_Iscatterv(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root, comm, request);
   }
+  return ret;
 }
 
-void ireduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], MPI_Datatype datatype, MPI_Op op,
+int ireduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[], MPI_Datatype datatype, MPI_Op op,
                      MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_recv=0;
@@ -855,7 +886,7 @@ void ireduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[],
     bool schedule_decision = inspect_comm(_MPI_Ireduce_scatter__id, curtime, tot_recv, datatype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Ireduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm, request);
+      ret = PMPI_Ireduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Ireduce_scatter__id, itime, tot_recv, datatype, comm, request);
     } else{
@@ -863,19 +894,21 @@ void ireduce_scatter(const void* sendbuf, void* recvbuf, const int recvcounts[],
     }
   }
   else{
-    PMPI_Ireduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm, request);
+    ret = PMPI_Ireduce_scatter(sendbuf, recvbuf, recvcounts, datatype, op, comm, request);
   }
+  return ret;
 }
 
-void ialltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
+int ialltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount, MPI_Datatype recvtype,
                MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int comm_size; MPI_Comm_size(comm, &comm_size);
     bool schedule_decision = inspect_comm(_MPI_Ialltoall__id, curtime, std::max((int64_t)sendcount,(int64_t)recvcount)*comm_size, sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Ialltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
+      ret = PMPI_Ialltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Ialltoall__id, itime, std::max((int64_t)sendcount,(int64_t)recvcount)*comm_size, sendtype, comm, request);
     } else{
@@ -883,12 +916,14 @@ void ialltoall(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* 
     }
   }
   else{
-    PMPI_Ialltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
+    ret = PMPI_Ialltoall(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request);
   }
+  return ret;
 }
 
-void ialltoallv(const void* sendbuf, const int sendcounts[], const int sdispls[], MPI_Datatype sendtype, void* recvbuf,
+int ialltoallv(const void* sendbuf, const int sendcounts[], const int sdispls[], MPI_Datatype sendtype, void* recvbuf,
                 const int recvcounts[], const int rdispls[], MPI_Datatype recvtype, MPI_Comm comm, MPI_Request* request){
+  int ret = MPI_SUCCESS;
   if (mode && track_collective){
     volatile double curtime = MPI_Wtime();
     int64_t tot_send=0, tot_recv=0;
@@ -897,7 +932,7 @@ void ialltoallv(const void* sendbuf, const int sendcounts[], const int sdispls[]
     bool schedule_decision = inspect_comm(_MPI_Ialltoallv__id, curtime, std::max(tot_send,tot_recv), sendtype, comm);
     if (schedule_decision){
       volatile double itime = MPI_Wtime();
-      PMPI_Ialltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm, request);
+      ret = PMPI_Ialltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm, request);
       itime = MPI_Wtime()-itime;
       initiate_comm(_MPI_Ialltoallv__id, itime, std::max(tot_send,tot_recv), sendtype, comm, request);
     } else{
@@ -905,60 +940,72 @@ void ialltoallv(const void* sendbuf, const int sendcounts[], const int sdispls[]
     }
   }
   else{
-    PMPI_Ialltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm, request);
+    ret = PMPI_Ialltoallv(sendbuf, sendcounts, sdispls, sendtype, recvbuf, recvcounts, rdispls, recvtype, comm, request);
   }
+  return ret;
 }
 
-void wait(MPI_Request* request, MPI_Status* status){
+int wait(MPI_Request* request, MPI_Status* status){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    complete_comm(curtime,request, status);
+    ret = complete_comm(curtime,request, status);
   }
   else{
-    PMPI_Wait(request, status);
+    ret = PMPI_Wait(request, status);
   }
+  return ret;
 }
 
-void waitany(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int waitany(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    complete_comm(curtime, count, array_of_requests, indx, status);
+    ret = complete_comm(curtime, count, array_of_requests, indx, status);
   }
   else{
-    PMPI_Waitany(count, array_of_requests, indx, status);
+    ret = PMPI_Waitany(count, array_of_requests, indx, status);
   }
+  return ret;
 }
 
-void waitsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+int waitsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    complete_comm(curtime, incount, array_of_requests, outcount, array_of_indices, array_of_statuses);
+    ret = complete_comm(curtime, incount, array_of_requests, outcount, array_of_indices, array_of_statuses);
   }
   else{
-    PMPI_Waitsome(incount, array_of_requests, outcount, array_of_indices, array_of_statuses);
+    ret = PMPI_Waitsome(incount, array_of_requests, outcount, array_of_indices, array_of_statuses);
   }
+  return ret;
 }
 
-void waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+  int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile double curtime = MPI_Wtime();
-    complete_comm(curtime,count,array_of_requests,array_of_statuses);
+    ret = complete_comm(curtime,count,array_of_requests,array_of_statuses);
   }
   else{
-    PMPI_Waitall(count, array_of_requests, array_of_statuses);
+    ret = PMPI_Waitall(count, array_of_requests, array_of_statuses);
   }
+  return ret;
 }
 
-void test(MPI_Request* request, int* flag, MPI_Status* status){
+int test(MPI_Request* request, int* flag, MPI_Status* status){
   assert(0);//TODO
+  return 0;
 }
 
-void probe(int source, int tag, MPI_Comm comm, MPI_Status* status){
+int probe(int source, int tag, MPI_Comm comm, MPI_Status* status){
   assert(0);//TODO
+  return 0;
 }
 
-void iprobe(int source, int tag, MPI_Comm comm, int* flag, MPI_Status* status){
+int iprobe(int source, int tag, MPI_Comm comm, int* flag, MPI_Status* status){
   assert(0);//TODO
+  return 0;
 }
 
 }

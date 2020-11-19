@@ -851,8 +851,9 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.start_time = MPI_Wtime();
 }
 
-void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
+int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   double comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
   auto comm_track_it = internal_comm_track.find(*request);
   assert(comm_track_it != internal_comm_track.end());
   auto comm_info_it = internal_comm_info.find(*request);
@@ -874,7 +875,7 @@ void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* statu
     }
   }
   volatile double last_start_time = MPI_Wtime();
-  PMPI_Wait(request, status);
+  ret = PMPI_Wait(request, status);
   double save_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
   if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
@@ -882,11 +883,13 @@ void path::complete_comm(double curtime, MPI_Request* request, MPI_Status* statu
   if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  return ret;
 }
 
-void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
 
   double waitany_comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
   // We must force 'track_p2p_idle' to be zero because we don't know which request the MPI implementation will choose before
   //   it chooses it. Note that this is a not a problem for MPI_Waitall because all requests are chosen.
   //   Thus, we cannot participate in any idle/synch time exchanges. This is not a big deal at all if MPI_Waitany
@@ -898,7 +901,7 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
-  PMPI_Waitany(count,array_of_requests,indx,status);
+  ret = PMPI_Waitany(count,array_of_requests,indx,status);
   double waitany_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
   MPI_Request request = pt[*indx];
@@ -910,19 +913,21 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  return ret;
 }
 
-void path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+int path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
 
   double waitsome_comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
   wait_id=true;
   // Read comment in function above. Same ideas apply for Waitsome.
   assert(track_p2p_idle==0);
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(incount); for (int i=0;i<incount;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
-  PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+  ret = PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   double waitsome_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
   for (int i=0; i<*outcount; i++){
@@ -939,10 +944,12 @@ void path::complete_comm(double curtime, int incount, MPI_Request array_of_reque
   if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  return ret;
 }
 
-void path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   double waitall_comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
   wait_id=true;
   if (track_p2p_idle==1){// nonblocking collectives won't pass the if statements below anyway.
     std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
@@ -990,7 +997,7 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
-  PMPI_Waitall(count,array_of_requests,array_of_statuses);
+  ret = PMPI_Waitall(count,array_of_requests,array_of_statuses);
   double waitall_comm_time = MPI_Wtime() - last_start_time;
   if (eager_p2p==1) { complete_path_update(); }
   for (int i=0; i<count; i++){
@@ -1009,6 +1016,7 @@ void path::complete_comm(double curtime, int count, MPI_Request array_of_request
   if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  return ret;
 }
 
 void path::propagate_symbols(nonblocking& tracker, int rank){
