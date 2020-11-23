@@ -25,6 +25,27 @@
 #define cblas_dger(a,b,c,d,e,f,g,h,i,j)\
     critter::internal::_dger_(a,b,c,d,e,f,g,h,i,j)
 
+#define cblas_dsbmv(a,b,c,d,e,f,g,h,i,j,k,l)\
+    critter::internal::_dsbmv_(a,b,c,d,e,f,g,h,i,j,k,l)
+
+#define cblas_dspmv(a,b,c,d,e,f,g,h,i,j)\
+    critter::internal::_dspmv_(a,b,c,d,e,f,g,h,i,j)
+
+#define cblas_dspr(a,b,c,d,e,f,g)\
+    critter::internal::_dspr_(a,b,c,d,e,f,g)
+
+#define cblas_dspr2(a,b,c,d,e,f,g,h,i)\
+    critter::internal::_dspr2_(a,b,c,d,e,f,g,h,i)
+
+#define cblas_dsymv(a,b,c,d,e,f,g,h,i,j,k)\
+    critter::internal::_dsymv_(a,b,c,d,e,f,g,h,i,j,k)
+
+#define cblas_dsyr(a,b,c,d,e,f,g,h)\
+    critter::internal::_dsyr_(a,b,c,d,e,f,g,h)
+
+#define cblas_dsyr2(a,b,c,d,e,f,g,h,i,j)\
+    critter::internal::_dsyr2_(a,b,c,d,e,f,g,h,i,j)
+
 #define cblas_dtrsv(a,b,c,d,e,f,g,h,i)\
     critter::internal::_dtrsv_(a,b,c,d,e,f,g,h,i)
 
@@ -108,6 +129,69 @@
     critter::internal::__dger__(a,b,c,d,e,f,g,h,i)
 #define DGER(a,b,c,d,e,f,g,h,i)\
     critter::internal::__dger__(a,b,c,d,e,f,g,h,i)
+
+#define dsbmv_(a,b,c,d,e,f,g,h,i,j,k)\
+    critter::internal::__dsbmv__(a,b,c,d,e,f,g,h,i,j,k)
+#define dsbmv(a,b,c,d,e,f,g,h,i,j,k)\
+    critter::internal::__dsbmv__(a,b,c,d,e,f,g,h,i,j,k)
+#define DSBMV_(a,b,c,d,e,f,g,h,i,j,k)\
+    critter::internal::__dsbmv__(a,b,c,d,e,f,g,h,i,j,k)
+#define DSBMV(a,b,c,d,e,f,g,h,i,j,k)\
+    critter::internal::__dsbmv__(a,b,c,d,e,f,g,h,i,j,k)
+
+#define dspmv_(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dspmv__(a,b,c,d,e,f,g,h,i)
+#define dspmv(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dspmv__(a,b,c,d,e,f,g,h,i)
+#define DSPMV_(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dspmv__(a,b,c,d,e,f,g,h,i)
+#define DSPMV(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dspmv__(a,b,c,d,e,f,g,h,i)
+
+#define dspr_(a,b,c,d,e,f)\
+    critter::internal::__dspr__(a,b,c,d,e,f)
+#define dspr(a,b,c,d,e,f)\
+    critter::internal::__dspr__(a,b,c,d,e,f)
+#define DSPR_(a,b,c,d,e,f)\
+    critter::internal::__dspr__(a,b,c,d,e,f)
+#define DSPR(a,b,c,d,e,f)\
+    critter::internal::__dspr__(a,b,c,d,e,f)
+
+#define dspr2_(a,b,c,d,e,f,g,h)\
+    critter::internal::__dspr2__(a,b,c,d,e,f,g,h)
+#define dspr2(a,b,c,d,e,f,g,h)\
+    critter::internal::__dspr2__(a,b,c,d,e,f,g,h)
+#define DSPR2_(a,b,c,d,e,f,g,h)\
+    critter::internal::__dspr2__(a,b,c,d,e,f,g,h)
+#define DSPR2(a,b,c,d,e,f,g,h)\
+    critter::internal::__dspr2__(a,b,c,d,e,f,g,h)
+
+#define dsymv_(a,b,c,d,e,f,g,h,i,j)\
+    critter::internal::__dsymv__(a,b,c,d,e,f,g,h,i,j)
+#define dsymv(a,b,c,d,e,f,g,h,i,j)\
+    critter::internal::__dsymv__(a,b,c,d,e,f,g,h,i,j)
+#define DSYMV_(a,b,c,d,e,f,g,h,i,j)\
+    critter::internal::__dsymv__(a,b,c,d,e,f,g,h,i,j)
+#define DSYMV(a,b,c,d,e,f,g,h,i,j)\
+    critter::internal::__dsymv__(a,b,c,d,e,f,g,h,i,j)
+
+#define dsyr_(a,b,c,d,e,f,g)\
+    critter::internal::__dsyr__(a,b,c,d,e,f,g)
+#define dsyr(a,b,c,d,e,f,g)\
+    critter::internal::__dsyr__(a,b,c,d,e,f,g)
+#define DSYR_(a,b,c,d,e,f,g)\
+    critter::internal::__dsyr__(a,b,c,d,e,f,g)
+#define DSYR(a,b,c,d,e,f,g)\
+    critter::internal::__dsyr__(a,b,c,d,e,f,g)
+
+#define dsyr2_(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dsyr2__(a,b,c,d,e,f,g,h,i)
+#define dsyr2(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dsyr2__(a,b,c,d,e,f,g,h,i)
+#define DSYR2_(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dsyr2__(a,b,c,d,e,f,g,h,i)
+#define DSYR2(a,b,c,d,e,f,g,h,i)\
+    critter::internal::__dsyr2__(a,b,c,d,e,f,g,h,i)
 
 #define dtrsv_(a,b,c,d,e,f,g,h)\
     critter::internal::__dtrsv__(a,b,c,d,e,f,g,h)

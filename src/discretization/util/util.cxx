@@ -2,6 +2,7 @@
 
 #include "util.h"
 #include "../../skeletonization/util/util.h"
+#include "../../decomposition/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
 
@@ -33,9 +34,13 @@ std::vector<kernel> active_kernels;
 sample_propagation_forest spf;
 std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
 std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
-std::set<intptr_t> skip_ptr_set;
+int stop_criterion_mode;
+int sample_percentage;
+int debug_iter_count;
+std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
+std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
 
-std::ofstream stream,stream_tune,stream_reconstruct;
+std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
 std::vector<double> intercept_overhead;
 std::vector<double> global_intercept_overhead;
 std::vector<double> global_comp_kernel_stats;
@@ -905,40 +910,104 @@ double get_confidence_interval(const comp_kernel_key& key, const intermediate_st
 }
 
 bool is_steady(const comm_kernel_key& key, const kernel& p, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
-          (p.num_schedules >= kernel_count_limit) &&
-          (p.total_exec_time >= kernel_time_limit);
+  if (stop_criterion_mode == 1){
+    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
+    return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+            (p.num_schedules >= kernel_count_limit) &&
+            (p.total_exec_time >= kernel_time_limit);
+  }
+  else if (stop_criterion_mode == 0){
+//    assert(critter::internal::decomposition::replace_comm_map_local.find(key) != critter::internal::decomposition::replace_comm_map_local.end());
+    double target = (critter::internal::decomposition::replace_comm_map_local[key].first*debug_iter_count) * sample_percentage*.01;
+    if (p.num_schedules >= target) return true; else return false;
+  }
+  else if (stop_criterion_mode == 2){
+    comm_kernel_list[key].push_back(p);
+    return false;
+  }
 }
 bool is_steady(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
-  return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
-          (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
-          (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
+  if (stop_criterion_mode == 1){
+    if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
+    return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
+            (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
+            (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
+  }
+  else if (stop_criterion_mode == 0){
+//    assert(critter::internal::decomposition::replace_comm_map_local.find(key) != critter::internal::decomposition::replace_comm_map_local.end());
+    double target = (critter::internal::decomposition::replace_comm_map_local[key].first*debug_iter_count) * sample_percentage*.01;
+    if (active_kernels[index.val_index].num_schedules >= target) return true; else return false;
+  }
+  else if (stop_criterion_mode == 2){
+    comm_kernel_list[key].push_back(active_kernels[index.val_index]);
+    return false;
+  }
 }
 bool is_steady(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
-          (p.num_schedules >= kernel_count_limit) &&
-          (p.total_exec_time >= kernel_time_limit);
+  if (stop_criterion_mode == 1){
+    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
+    return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+            (p.num_schedules >= kernel_count_limit) &&
+            (p.total_exec_time >= kernel_time_limit);
+  }
+  else if (stop_criterion_mode == 0){
+//    assert(critter::internal::decomposition::replace_comm_map_local.find(key) != critter::internal::decomposition::replace_comm_map_local.end());
+    double target = (critter::internal::decomposition::replace_comm_map_local[key].first*debug_iter_count) * sample_percentage*.01;
+    if (p.num_schedules >= target) return true; else return false;
+  }
+  else if (stop_criterion_mode == 2){
+    return false;
+  }
 }
 bool is_steady(const comp_kernel_key& key, const kernel& p, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
-          (p.num_schedules >= kernel_count_limit) &&
-          (p.total_exec_time >= kernel_time_limit);
+  if (stop_criterion_mode == 1){
+    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
+    return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+            (p.num_schedules >= kernel_count_limit) &&
+            (p.total_exec_time >= kernel_time_limit);
+  }
+  else if (stop_criterion_mode == 0){
+//    assert(critter::internal::decomposition::replace_comp_map_local.find(key) != critter::internal::decomposition::replace_comp_map_local.end());
+    double target = (critter::internal::decomposition::replace_comp_map_local[key].first*debug_iter_count) * sample_percentage*.01;
+    if (p.num_schedules >= target) return true; else return false;
+  }
+  else if (stop_criterion_mode == 2){
+    comp_kernel_list[key].push_back(p);
+    return false;
+  }
 }
 bool is_steady(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
-  return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
-          (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
-          (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
+  if (stop_criterion_mode == 1){
+    if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
+    return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
+            (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
+            (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
+  }
+  else if (stop_criterion_mode == 0){
+//    assert(critter::internal::decomposition::replace_comp_map_local.find(key) != critter::internal::decomposition::replace_comp_map_local.end());
+    double target = (critter::internal::decomposition::replace_comp_map_local[key].first*debug_iter_count) * sample_percentage*.01;
+    if (active_kernels[index.val_index].num_schedules >= target) return true; else return false;
+  }
+  else if (stop_criterion_mode == 2){
+    comp_kernel_list[key].push_back(active_kernels[index.val_index]);
+    return false;
+  }
 }
 bool is_steady(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param){
-  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
-  return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
-          (p.num_schedules >= kernel_count_limit) &&
-          (p.total_exec_time >= kernel_time_limit);
+  if (stop_criterion_mode == 1){
+    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
+    return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
+            (p.num_schedules >= kernel_count_limit) &&
+            (p.total_exec_time >= kernel_time_limit);
+  }
+  else if (stop_criterion_mode == 0){
+//    assert(critter::internal::decomposition::replace_comp_map_local.find(key) != critter::internal::decomposition::replace_comp_map_local.end());
+    double target = (critter::internal::decomposition::replace_comp_map_local[key].first*debug_iter_count) * sample_percentage*.01;
+    if (p.num_schedules >= target) return true; else return false;
+  }
+  else if (stop_criterion_mode == 2){
+    return false;
+  }
 }
 
 double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
@@ -1243,13 +1312,19 @@ void allocate(MPI_Comm comm){
     std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
     std::string stream_tune_name = std::getenv("CRITTER_VIZ_FILE");
     std::string stream_reconstruct_name = std::getenv("CRITTER_VIZ_FILE");
+    std::string stream_comm_kernel_name = std::getenv("CRITTER_VIZ_FILE");
+    std::string stream_comp_kernel_name = std::getenv("CRITTER_VIZ_FILE");
     stream_name += "_discretization.txt";
     stream_tune_name += "_discretization_tune.txt";
     stream_reconstruct_name += "_discretization_reconstruct.txt";
+    stream_comm_kernel_name += "_commk.txt";
+    stream_comp_kernel_name += "_compk.txt";
     if (is_world_root){
       stream.open(stream_name.c_str(),std::ofstream::app);
       stream_tune.open(stream_tune_name.c_str(),std::ofstream::app);
       stream_reconstruct.open(stream_reconstruct_name.c_str(),std::ofstream::app);
+      stream_comm_kernel.open(stream_comm_kernel_name.c_str(),std::ofstream::app);
+      stream_comp_kernel.open(stream_comp_kernel_name.c_str(),std::ofstream::app);
     }
   }
   if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){
@@ -1352,6 +1427,21 @@ void allocate(MPI_Comm comm){
     comm_kernel_transfer_id = atof(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID"));
   } else{
     comm_kernel_transfer_id = 0;
+  }
+  if (std::getenv("CRITTER_STOP_CRIT_MODE") != NULL){
+    stop_criterion_mode = atof(std::getenv("CRITTER_STOP_CRIT_MODE"));
+  } else{
+    stop_criterion_mode = 1;// confidence interval length
+  }
+  if (std::getenv("CRITTER_SAMPLE_PERCENTAGE") != NULL){
+    sample_percentage = atof(std::getenv("CRITTER_SAMPLE_PERCENTAGE"));
+  } else{
+    sample_percentage = 1;// confidence interval length
+  }
+  if (std::getenv("CRITTER_DEBUG_ITER_COUNT") != NULL){
+    debug_iter_count = atof(std::getenv("CRITTER_DEBUG_ITER_COUNT"));
+  } else{
+    debug_iter_count = 1;
   }
 
 /*
@@ -1492,7 +1582,6 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
   memset(&local_comp_kernel_stats[0],0,sizeof(double)*local_comp_kernel_stats.size());
   memset(&local_comm_kernel_stats[0],0,sizeof(double)*local_comm_kernel_stats.size());
-  skip_ptr_set.clear();
 
   // This reset will no longer reset the kernel state, but will reset the schedule counters
   for (auto& it : comp_kernel_map){
@@ -1526,6 +1615,34 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
       set_kernel_state_global(it.second,false);
     }
     update_analysis=0;
+  }
+
+  // Print process 0's per-process comm/comp kernel count
+  for (auto it : critter::internal::decomposition::replace_comm_map_local){
+    if (is_world_root){
+      stream << "Process 0 (discretization::reset printing decomp values): (" << it.first.tag << "," << it.first.dim_sizes[0] << "," << it.first.dim_strides[0] << "," << it.first.msg_size << ","
+                << it.first.partner_offset << ") - " << it.second.first << " " << it.second.second << std::endl;
+    }
+  }
+  for (auto it : critter::internal::decomposition::replace_comp_map_local){
+    if (is_world_root){
+      stream << "Process 0 (discretization::reset printing decomp values): (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << ","
+                << it.first.param4 << "," << it.first.param5 << "," << it.first.flops << ") - " << it.second.first << " " << it.second.second << std::endl;
+    }
+  }
+  for (auto it : critter::internal::skeletonization::comm_kernel_map){
+    if (is_world_root){
+      stream << "Process 0 - (discretization::reset printing skel values): (" << it.first.tag << "," << it.first.dim_sizes[0] << "," << it.first.dim_strides[0] << "," << it.first.msg_size << "," << it.first.partner_offset << ") - "
+                << critter::internal::skeletonization::active_kernels[it.second.val_index] << std::endl;
+    }
+    //comm_kernel_select_sort_list.push_back(std::make_pair(it.first,active_kernels[it.second.val_index]));
+  }
+  for (auto it : critter::internal::skeletonization::comp_kernel_map){
+    if (is_world_root){
+      stream << "Process 0 - (discretization::reset printing skel values): (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << "," << it.first.flops << ") - "
+                << critter::internal::skeletonization::active_kernels[it.second.val_index] << std::endl;
+    }
+    //comp_kernel_select_sort_list.push_back(std::make_pair(it.first,active_kernels[it.second.val_index]));
   }
 }
 

@@ -47,6 +47,41 @@ void _dger_(const int order, const int m , const int n , const double alpha , co
   conditional_blas_engine(_BLAS_ger__id,track_blas2,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
                           &cblas_dger,(CBLAS_ORDER)order,m,n,alpha,x,incx,y,incy,a,lda);
 }
+void _dsbmv_(const int Layout, const int uplo, const int n, const int k, const double alpha, const double *a,
+             const int lda, const double *x, const int incx, const double beta, double *y, const int incy){
+  conditional_blas_engine(_BLAS_sbmv__id,track_blas2,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+                          &cblas_dsbmv,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,k,alpha,a,lda,x,incx,beta,y,incy);
+}
+void _dspmv_(const int Layout, const int uplo, const int n, const double alpha, const double *ap, const double *x,
+             const int incx, const double beta, double *y, const int incy){
+  conditional_blas_engine(_BLAS_spmv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dspmv,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,ap,x,incx,beta,y,incy);
+}
+void _dspr_(const int Layout, const int uplo, const int n, const double alpha, const double *x,
+            const int incx, double *ap){
+  conditional_blas_engine(_BLAS_spr__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dspr,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,ap);
+}
+void _dspr2_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
+             const double *y, const int incy, double *ap){
+  conditional_blas_engine(_BLAS_spr2__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dspr2,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,y,incy,ap);
+}
+void _dsymv_(const int Layout, const int uplo, const int n, const double alpha, const double *a, const int lda,
+            const double *x, const int incx, const double beta, double *y, const int incy){
+  conditional_blas_engine(_BLAS_symv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dsymv,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,a,lda,x,incx,beta,y,incy);
+}
+void _dsyr_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
+            double *a, const int lda){
+  conditional_blas_engine(_BLAS_syr__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dsyr,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,a,lda);
+}
+void _dsyr2_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
+             const double *y, const int incy, double *a, const int lda){
+  conditional_blas_engine(_BLAS_syr2__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+                          &cblas_dsyr2,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,y,incy,a,lda);
+}
 void _dtrsv_(const int order, const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
   conditional_blas_engine(_BLAS_trsv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
                           &cblas_dtrsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
@@ -145,6 +180,34 @@ void __dger__(const int* m , const int* n , const double* alpha , const double *
               const int* incy , double *a ,
             const int* lda){
   _dger_(CblasColMajor,*m,*n,*alpha,x,*incx,y,*incy,a,*lda);
+}
+void __dsbmv__(const char* uplo, const int* n, const int* k, const double* alpha, const double *a,
+               const int* lda, const double *x, const int* incx, const double* beta, double *y, const int* incy){
+  _dsbmv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*k,*alpha,a,*lda,x,*incx,*beta,y,*incy);
+}
+void __dspmv__(const char* uplo, const int* n, const double* alpha, const double *ap, const double *x,
+               const int* incx, const double* beta, double *y, const int* incy){
+  _dspmv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*alpha,ap,x,*incx,*beta,y,*incy);
+}
+void __dspr__(const char* uplo, const int* n, const double* alpha, const double *x,
+              const int* incx, double *ap){
+  _dspr_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*alpha,x,*incx,ap);
+}
+void __dspr2__(const char* uplo, const int* n, const double* alpha, const double *x, const int* incx,
+               const double *y, const int* incy, double *ap){
+  _dspr2_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*alpha,x,*incx,y,*incy,ap);
+}
+void __dsymv__(const char* uplo, const int* n, const double* alpha, const double *a, const int* lda,
+               const double *x, const int* incx, const double* beta, double *y, const int* incy){
+  _dsymv_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*alpha,a,*lda,x,*incx,*beta,y,*incy);
+}
+void __dsyr__(const char* uplo, const int* n, const double* alpha, const double *x, const int* incx,
+              double *a, const int* lda){
+  _dsyr_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*alpha,x,*incx,a,*lda);
+}
+void __dsyr2__(const char* uplo, const int* n, const double* alpha, const double *x, const int* incx,
+               const double *y, const int* incy, double *a, const int* lda){
+  _dsyr2_(CblasColMajor,(*uplo=='U' ? CblasUpper : CblasLower),*n,*alpha,x,*incx,y,*incy,a,*lda);
 }
 void __dtrsv__(const char* uplo, const char* trans, const char* diag, const int* n, const double *a,
                const int* lda, double *x, const int* incx){

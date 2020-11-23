@@ -103,7 +103,7 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_TRACK_BLAS2") != NULL){
     track_blas2 = atoi(std::getenv("CRITTER_TRACK_BLAS2"));
   } else{
-    track_blas2 = 1;
+    track_blas2 = 0;
   }
   if (std::getenv("CRITTER_TRACK_BLAS3") != NULL){
     track_blas3 = atoi(std::getenv("CRITTER_TRACK_BLAS3"));
@@ -142,6 +142,16 @@ void _init(int* argc, char*** argv){
     recv_kernel_override = atof(std::getenv("CRITTER_RECV_KERNEL_OVERRIDE"));
   } else{
     recv_kernel_override = 1;
+  }
+  if (std::getenv("CRITTER_COMM_KERNEL_SELECT_SIZE") != NULL){
+    comm_kernel_select_size = atof(std::getenv("CRITTER_COMM_KERNEL_SELECT_SIZE"));
+  } else{
+    comm_kernel_select_size = 25;
+  }
+  if (std::getenv("CRITTER_COMP_KERNEL_SELECT_SIZE") != NULL){
+    comp_kernel_select_size = atof(std::getenv("CRITTER_COMP_KERNEL_SELECT_SIZE"));
+  } else{
+    comp_kernel_select_size = 25;
   }
 
   _MPI_Barrier__id = 0;
@@ -183,12 +193,19 @@ void _init(int* argc, char*** argv){
   _BLAS_gbmv__id = 120;
   _BLAS_gemv__id = 121;
   _BLAS_ger__id = 123;
-  _BLAS_trsv__id = 124;
-  _BLAS_trmv__id = 125;
-  _BLAS_tpsv__id = 126;
-  _BLAS_tpmv__id = 127;
-  _BLAS_tbsv__id = 128;
-  _BLAS_tbmv__id = 129;
+  _BLAS_sbmv__id = 124;
+  _BLAS_spmv__id = 125;
+  _BLAS_spr__id = 126;
+  _BLAS_spr2__id = 127;
+  _BLAS_symv__id = 128;
+  _BLAS_syr__id = 129;
+  _BLAS_syr2__id = 130;
+  _BLAS_trsv__id = 131;
+  _BLAS_trmv__id = 132;
+  _BLAS_tpsv__id = 133;
+  _BLAS_tpmv__id = 134;
+  _BLAS_tbsv__id = 135;
+  _BLAS_tbmv__id = 136;
   _BLAS_gemm__id = 150;
   _BLAS_trmm__id = 151;
   _BLAS_trsm__id = 152;

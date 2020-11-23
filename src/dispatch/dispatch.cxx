@@ -245,6 +245,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
       break;
     case 2:
       skeletonization::final_accumulate(comm,last_time);
+      skeletonization::path::propagate_kernels(skeletonization::_MPI_Barrier);
+      //skeletonization::path::kernel_select();
       break;
   }
 }

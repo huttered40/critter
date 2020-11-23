@@ -16,6 +16,20 @@ void _dgemv_(const int order, const int trans , const int m , const int n, const
              const int lda , const double *x, const int incx , const double beta, double *y , const int incy );
 void _dger_(const int order, const int m , const int n , const double alpha , const double *x , const int incx ,
             const double *y , const int incy , double *a , const int lda);
+void _dsbmv_(const int Layout, const int uplo, const int n, const int k, const double alpha, const double *a,
+             const int lda, const double *x, const int incx, const double beta, double *y, const int incy);
+void _dspmv_(const int Layout, const int uplo, const int n, const double alpha, const double *ap, const double *x,
+             const int incx, const double beta, double *y, const int incy);
+void _dspr_(const int Layout, const int uplo, const int n, const double alpha, const double *x,
+            const int incx, double *ap);
+void _dspr2_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
+             const double *y, const int incy, double *ap);
+void _dsymv_(const int Layout, const int uplo, const int n, const double alpha, const double *a, const int lda,
+            const double *x, const int incx, const double beta, double *y, const int incy);
+void _dsyr_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
+            double *a, const int lda);
+void _dsyr2_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
+             const double *y, const int incy, double *a, const int lda);
 void _dtrsv_(const int order, const int uplo, const int trans, const int diag, const int n, const double *a,
              const int lda, double *x, const int incx);
 void _dtrmv_(const int order, const int uplo , const int trans , const int diag , const int n , const double *a ,
@@ -63,6 +77,20 @@ void __dgemv__(const char* trans , const int* m , const int* n, const double* al
                const double* beta, double *y , const int* incy );
 void __dger__(const int* m , const int* n , const double* alpha , const double *x , const int* incx ,
               const double *y , const int* incy , double *a , const int* lda);
+void __dsbmv__(const char* uplo, const int* n, const int* k, const double* alpha, const double *a,
+               const int* lda, const double *x, const int* incx, const double* beta, double *y, const int* incy);
+void __dspmv__(const char* uplo, const int* n, const double* alpha, const double *ap, const double *x,
+               const int* incx, const double* beta, double *y, const int* incy);
+void __dspr__(const char* uplo, const int* n, const double* alpha, const double *x,
+              const int* incx, double *ap);
+void __dspr2__(const char* uplo, const int* n, const double* alpha, const double *x, const int* incx,
+               const double *y, const int* incy, double *ap);
+void __dsymv__(const char* uplo, const int* n, const double* alpha, const double *a, const int* lda,
+               const double *x, const int* incx, const double* beta, double *y, const int* incy);
+void __dsyr__(const char* uplo, const int* n, const double* alpha, const double *x, const int* incx,
+              double *a, const int* lda);
+void __dsyr2__(const char* uplo, const int* n, const double* alpha, const double *x, const int* incx,
+               const double *y, const int* incy, double *a, const int* lda);
 void __dtrsv__(const char* uplo, const char* trans, const char* diag, const int* n, const double *a,
                const int* lda, double *x, const int* incx);
 void __dtrmv__(const char* uplo , const char* trans , const char* diag , const int* n , const double *a ,
@@ -78,23 +106,23 @@ void __dtbmv__(const char* uplo, const char* trans, const char* diag, const int*
 
 // BLAS 3
 void __dgemm__(const char* transa , const char* transb ,
-             const int* m , const int* n , const int* k , const double* alpha , const double *a ,
-             const int* lda , const double *b , const int* ldb , const double* beta , double *c , const int* ldc);
+               const int* m , const int* n , const int* k , const double* alpha , const double *a ,
+               const int* lda , const double *b , const int* ldb , const double* beta , double *c , const int* ldc);
 void __dtrmm__(const char* side , const char* uplo , const char* transa ,
-             const char* diag , const int* m , const int* n , const double* alpha , const double *a ,
-             const int* lda , double *b , const int* ldb);
+               const char* diag , const int* m , const int* n , const double* alpha , const double *a ,
+               const int* lda , double *b , const int* ldb);
 void __dtrsm__(const char* side , const char* uplo , const char* transa ,
-             const char* diag , const int* m , const int* n , const double* alpha , const double *a ,
-             const int* lda , double *b , const int* ldb);
+               const char* diag , const int* m , const int* n , const double* alpha , const double *a ,
+               const int* lda , double *b , const int* ldb);
 void __dsyrk__(const char* uplo, const char* trans ,
-             const int* n , const int* k , const double* alpha , const double *a , const int* lda ,
-             const double* beta , double *c , const int* ldc);
+               const int* n , const int* k , const double* alpha , const double *a , const int* lda ,
+               const double* beta , double *c , const int* ldc);
 void __dsyr2k__(const char* uplo, const char* trans, const int* n, const int* k, const double* alpha,
-              const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
-              const int* ldc);
-void __dsymm__(const char* order, const char* side, const char* uplo, const int* m, const int* n, const double* alpha,
-             const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
-             const int* ldc);
+                const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
+                const int* ldc);
+void __dsymm__(const char* side, const char* uplo, const int* m, const int* n, const double* alpha,
+               const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
+               const int* ldc);
 
 // C interface
 int _dgetrf_(int matrix_layout, int m , int n , double* a , int lda , int* ipiv);

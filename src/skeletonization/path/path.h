@@ -23,9 +23,11 @@ public:
   static int complete_comm(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
   static int complete_comm(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
 
+  static void propagate_kernels(blocking& tracker);
+  static void kernel_select();
+
 private:
   static void complete_comm(nonblocking& tracker, MPI_Request* request);
-  static void propagate_kernels(blocking& tracker);
 };
 
 }

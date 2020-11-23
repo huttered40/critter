@@ -14,6 +14,7 @@ public:
 
 private:
   static void set_tuning_statistics();
+  static void set_kernel_statistics();
 };
 
 }

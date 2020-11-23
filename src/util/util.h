@@ -97,6 +97,8 @@ struct kernel_key_id{
 };
 
 // ****************************************************************************************************************************************************
+extern int comm_kernel_select_size;
+extern int comp_kernel_select_size;
 extern int autotuning_debug;
 extern int bsp_counter;
 extern int reset_counter;
@@ -161,6 +163,13 @@ extern size_t
 	_BLAS_gbmv__id,
 	_BLAS_gemv__id,
 	_BLAS_ger__id,
+        _BLAS_sbmv__id,
+        _BLAS_spmv__id,
+        _BLAS_spr__id,
+        _BLAS_spr2__id,
+        _BLAS_symv__id,
+        _BLAS_syr__id,
+        _BLAS_syr2__id,
 	_BLAS_trsv__id,
 	_BLAS_trmv__id,
 	_BLAS_tpsv__id,

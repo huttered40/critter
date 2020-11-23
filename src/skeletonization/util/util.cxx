@@ -10,6 +10,8 @@ namespace skeletonization{
 
 std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+std::vector<std::pair<comm_kernel_key,int>> comm_kernel_select_sort_list;
+std::vector<std::pair<comp_kernel_key,int>> comp_kernel_select_sort_list;
 std::vector<int> active_kernels;
 std::vector<comm_kernel_key> active_comm_kernel_keys;
 std::vector<comp_kernel_key> active_comp_kernel_keys;
@@ -86,6 +88,23 @@ void final_accumulate(MPI_Comm comm, double last_time){
   comm_intercept_overhead_stage1 = temp_costs[critical_path_costs.size()+max_per_process_costs.size()];
   comm_intercept_overhead_stage2 = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1];
   comp_intercept_overhead = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2];
+
+  skeletonization::_MPI_Barrier.comm = MPI_COMM_WORLD;
+  skeletonization::_MPI_Barrier.partner1 = -1;
+  skeletonization::_MPI_Barrier.partner2 = -1;
+/*
+  Note: the idea below is if one wants to incrementally reduce each kernel's confidence interval length, without having to "cheat"
+        and use the per-process count (which usually sufficies).
+  After every process owns the same information (the kernel count along the analytical cp),
+     iterate over the comp map and the comm map separately and pick out the kernels that have the most kernels or the most cost.
+     Perhaps leave that choice for an environment variable?
+     Write to two new maps that will be referenced in discretization if scm==3, to propagate kernel information at the reduction,
+       with no need to propagate kernel key information because the order is fixed right here.
+    scm==1 uses pp information for each kernel, and scm==3 should use cp information for each kernel.
+  Just as a judgement call, we only want to propagate the kernel count, and nothing else.
+    We want to limit the samples that make up the distributions themselves to per-process ones,
+    even if the kernel count along the cp no longer matches the number of kernel schedules local to a processor.
+*/
 }
 
 void reset(){
@@ -98,6 +117,9 @@ void reset(){
   comm_kernel_map.clear();
   comp_kernel_map.clear();
   internal::bsp_counter=0;
+
+  comm_kernel_select_sort_list.clear();
+  comp_kernel_select_sort_list.clear();
 
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));

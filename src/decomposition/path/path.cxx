@@ -57,7 +57,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
 
-  if (replace_comp == 1){
+  if ((autotuning_debug == 1) || (replace_comp == 1)){
     comp_kernel_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
     if (replace_comp_map_global.find(key) == replace_comp_map_global.end()){
       if (replace_comp_map_local.find(key) == replace_comp_map_local.end()){
@@ -443,7 +443,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   int rank; MPI_Comm_rank(tracker.comm, &rank);
 
-  if (replace_comm == 1){
+  if ((autotuning_debug == 1) || (replace_comm == 1)){
     assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
     int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
     for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -709,7 +709,7 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.synch_time=0;
 
   int rank; MPI_Comm_rank(tracker.comm, &rank);
-  if (replace_comm == 1){
+  if ((autotuning_debug == 1) || (replace_comm == 1)){
     assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
     int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
     for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -929,6 +929,8 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
   volatile double last_start_time = MPI_Wtime();
   ret = PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   double waitsome_comm_time = MPI_Wtime() - last_start_time;
+  // Below: new addition
+  waitsome_comm_time /= *outcount;
   if (eager_p2p==1) { complete_path_update(); }
   for (int i=0; i<*outcount; i++){
     MPI_Request request = pt[(array_of_indices)[i]];
@@ -938,7 +940,7 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
     if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
     complete_comm(*comm_track_it->second, &request, waitsome_comp_time, waitsome_comm_time);
     waitsome_comp_time=0;
-    waitsome_comm_time=0;
+    //waitsome_comm_time=0;
     if (i==0){wait_id=false;}
   }
   if (eager_p2p==0) { complete_path_update(); }
@@ -999,6 +1001,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   volatile double last_start_time = MPI_Wtime();
   ret = PMPI_Waitall(count,array_of_requests,array_of_statuses);
   double waitall_comm_time = MPI_Wtime() - last_start_time;
+  // Below: new addition
+  waitall_comm_time /= count;
   if (eager_p2p==1) { complete_path_update(); }
   for (int i=0; i<count; i++){
     MPI_Request request = pt[i];
@@ -1009,7 +1013,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     complete_comm(*comm_track_it->second, &request, waitall_comp_time, waitall_comm_time);
     // Although we have to exchange the path data for each request, we do not want to double-count the computation time nor the communicaion time
     waitall_comp_time=0;
-    waitall_comm_time=0;
+    //waitall_comm_time=0;
     if (i==0){wait_id=false;}
   }
   wait_id=true;

@@ -139,8 +139,8 @@ comm_kernel_key& comm_kernel_key::operator=(const comm_kernel_key& _copy){
 bool operator==(const comm_kernel_key& ref1, const comm_kernel_key& ref2){
   // Note that because of how we set the member variables in the constructor based on envlope, unit, and analysis parameterizations, no branching is required here.
   if ((ref1.tag==ref2.tag) &&
-      (ref1.dim_sizes[0] == ref2.dim_sizes[0]) && (ref1.dim_sizes[1] == ref2.dim_sizes[1]) && (ref1.dim_sizes[2] == ref2.dim_sizes[2]) &&
-      (ref1.dim_strides[0] == ref2.dim_strides[0]) && (ref1.dim_strides[1] == ref2.dim_strides[1]) && (ref1.dim_strides[2] == ref2.dim_strides[2]) &&
+      (ref1.dim_sizes[0] == ref2.dim_sizes[0]) && (ref1.dim_sizes[1] == ref2.dim_sizes[1]) &&
+      (ref1.dim_strides[0] == ref2.dim_strides[0]) && (ref1.dim_strides[1] == ref2.dim_strides[1]) &&
       (ref1.msg_size == ref2.msg_size) && (ref1.partner_offset == ref2.partner_offset)) return true;
   else return false;
 }
@@ -152,14 +152,10 @@ bool operator<(const comm_kernel_key& ref1, const comm_kernel_key& ref2){
   else if (ref1.dim_sizes[0] > ref2.dim_sizes[0]) return false;
   if (ref1.dim_sizes[1] < ref2.dim_sizes[1]) return true;
   else if (ref1.dim_sizes[1] > ref2.dim_sizes[1]) return false;
-  if (ref1.dim_sizes[2] < ref2.dim_sizes[2]) return true;
-  else if (ref1.dim_sizes[2] > ref2.dim_sizes[2]) return false;
   if (ref1.dim_strides[0] < ref2.dim_strides[0]) return true;
   else if (ref1.dim_strides[0] > ref2.dim_strides[0]) return false;
   if (ref1.dim_strides[1] < ref2.dim_strides[1]) return true;
   else if (ref1.dim_strides[1] > ref2.dim_strides[1]) return false;
-  if (ref1.dim_strides[2] < ref2.dim_strides[2]) return true;
-  else if (ref1.dim_strides[2] > ref2.dim_strides[2]) return false;
   if (ref1.msg_size < ref2.msg_size) return true;
   else if (ref1.msg_size > ref2.msg_size) return false;
   if (ref1.partner_offset < ref2.partner_offset) return true;
@@ -247,6 +243,8 @@ kernel_key_id& kernel_key_id::operator=(const kernel_key_id& _copy){
 }
 
 
+int comm_kernel_select_size;
+int comp_kernel_select_size;
 int autotuning_debug;
 int bsp_counter;
 int reset_counter;
@@ -311,6 +309,13 @@ size_t
 	_BLAS_gbmv__id,
 	_BLAS_gemv__id,
 	_BLAS_ger__id,
+        _BLAS_sbmv__id,
+        _BLAS_spmv__id,
+        _BLAS_spr__id,
+        _BLAS_spr2__id,
+        _BLAS_symv__id,
+        _BLAS_syr__id,
+        _BLAS_syr2__id,
 	_BLAS_trsv__id,
 	_BLAS_trmv__id,
 	_BLAS_tpsv__id,

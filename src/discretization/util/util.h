@@ -145,7 +145,6 @@ struct intermediate_stats{
 };
 
 // ****************************************************************************************************************************************************
-extern std::ofstream stream;
 extern int tuning_delta;
 extern int comm_sample_aggregation_mode;
 extern int comm_state_aggregation_mode;
@@ -170,9 +169,13 @@ extern std::vector<kernel> active_kernels;
 extern sample_propagation_forest spf;
 extern std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
 extern std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
-extern std::set<intptr_t> skip_ptr_set;
+extern int stop_criterion_mode;
+extern int sample_percentage;
+extern int debug_iter_count;
+extern std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
+extern std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
 
-extern std::ofstream stream_tune,stream_reconstruct;
+extern std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
 extern std::vector<double> intercept_overhead;
 extern std::vector<double> global_intercept_overhead;
 extern std::vector<double> global_comp_kernel_stats;

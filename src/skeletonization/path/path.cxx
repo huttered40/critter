@@ -270,6 +270,27 @@ void path::propagate_kernels(blocking& tracker){
   }
 }
 
+void path::kernel_select(){
+/*
+  std::sort(comm_kernel_select_sort_list.begin(),comm_kernel_select_sort_list.end(),[](const std::pair<comm_kernel_key,int>& a, const std::pair<comm_kernel_key,int>& b) { return a.second > b.second;});
+  std::sort(comp_kernel_select_sort_list.begin(),comp_kernel_select_sort_list.end(),[](const std::pair<comp_kernel_key,int>& a, const std::pair<comp_kernel_key,int>& b) { return a.second > b.second;});
+  for (int i=0; i<std::min((size_t)comm_kernel_select_size,comm_kernel_select_sort_list.size()); i++){
+    if (is_world_root){
+      auto& v_key = comm_kernel_select_sort_list[i].first;
+      auto& v_val = comm_kernel_select_sort_list[i].second;
+      std::cout << "Post-sort process 0 - (" << v_key.tag << "," << v_key.dim_sizes[0] << "," << v_key.dim_strides[0] << "," << v_key.msg_size << "," << v_key.partner_offset << ") - " << v_val << std::endl;
+    }
+  }
+  for (int i=0; i<std::min((size_t)comp_kernel_select_size,comp_kernel_select_sort_list.size()); i++){
+    if (is_world_root){
+      auto& v_key = comp_kernel_select_sort_list[i].first;
+      auto& v_val = comp_kernel_select_sort_list[i].second;
+      std::cout << "Post-sort process 0 - (" << v_key.tag << "," << v_key.param1 << "," << v_key.param2 << "," << v_key.param3 << "," << v_key.param4 << "," << v_key.param5 << ") - " << v_val << std::endl;
+    }
+  }
+*/
+}
+
 }
 }
 }

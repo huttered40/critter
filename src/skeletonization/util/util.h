@@ -10,6 +10,8 @@ namespace skeletonization{
 // ****************************************************************************************************************************************************
 extern std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 extern std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+extern std::vector<std::pair<comm_kernel_key,int>> comm_kernel_select_sort_list;
+extern std::vector<std::pair<comp_kernel_key,int>> comp_kernel_select_sort_list;
 extern std::vector<int> active_kernels;
 extern std::vector<comm_kernel_key> active_comm_kernel_keys;
 extern std::vector<comp_kernel_key> active_comp_kernel_keys;

@@ -48,18 +48,42 @@ inline double flop_generator(int id, double p1=0, double p2=0, double p3=0, doub
       flops = p1*p1;
       break;
     case 124:
-      flops = p1*p1;
+      flops = p1*(4.*p2+2) - 2.*p2*(p2+1);
       break;
     case 125:
-      flops = p1*p1;
+      flops = 2.*p1*p1;
       break;
     case 126:
-      flops = p1*p1;
+      flops = p1*(p1+1.);
       break;
     case 127:
-      flops = p1*(2.*p2+1) - p2*(p2+1);
+      flops = 2.*p1*p1 + p1;
       break;
     case 128:
+      flops = 2.*p1*p1;
+      break;
+    case 129:
+      flops = p1*(p1+1.);
+      break;
+    case 130:
+      flops = 2.*p1*p1 + p1;
+      break;
+    case 131:
+      flops = p1*p1;
+      break;
+    case 132:
+      flops = p1*p1;
+      break;
+    case 133:
+      flops = p1*p1;
+      break;
+    case 134:
+      flops = p1*p1;
+      break;
+    case 135:
+      flops = p1*(2.*p2+1) - p2*(p2+1);
+      break;
+    case 136:
       flops = p1*(2.*p2+1) - p2*(p2+1);
       break;
     case 150:

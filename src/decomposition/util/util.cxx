@@ -1,7 +1,6 @@
 #include <limits.h>
 
 #include "util.h"
-#include "../../discretization/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
 
@@ -252,40 +251,11 @@ void reset(){
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
   internal::bsp_counter=0;
 
-  for (auto it = replace_comp_map_local.begin(); it != replace_comp_map_local.end();){
-    // Check if the corresponding key in discretization mechanism has reached steady state
-    bool is_match = false;
-    if (discretization::comp_kernel_map.find(it->first) != discretization::comp_kernel_map.end()){
-      if (discretization::active_kernels[discretization::comp_kernel_map[it->first].val_index].global_steady_state == 1){
-        replace_comp_map_global[it->first] = it->second;
-        replace_comp_map_global[it->first].second /= replace_comp_map_global[it->first].first;
-        it = replace_comp_map_local.erase(it);
-        is_match = true;
-      }
-    }
-    if (!is_match) it++;
-  }
-  for (auto it = replace_comm_map_local.begin(); it != replace_comm_map_local.end();){
-    // Check if the corresponding key in discretization mechanism has reached steady state
-    bool is_match = false;
-    if (discretization::comm_kernel_map.find(it->first) != discretization::comm_kernel_map.end()){
-      if (discretization::active_kernels[discretization::comm_kernel_map[it->first].val_index].global_steady_state == 1){
-        replace_comm_map_global[it->first] = it->second;
-        replace_comm_map_global[it->first].second /= replace_comm_map_global[it->first].first;
-        it = replace_comm_map_local.erase(it);
-        is_match = true;
-      }
-    }
-    if (!is_match) it++;
-  }
-
-  for (auto it = replace_comp_map_global.begin(); it != replace_comp_map_global.end();){
-    it = replace_comp_map_global.erase(it);
-  }
-  for (auto it = replace_comm_map_global.begin(); it != replace_comm_map_global.end();){
-    it = replace_comm_map_global.erase(it);
-  }
-
+  replace_comp_map_local.clear();
+  replace_comm_map_local.clear();
+  replace_comp_map_global.clear();
+  replace_comm_map_global.clear();
+  
   wait_id=true;
 }
 
