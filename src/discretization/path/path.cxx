@@ -591,7 +591,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
 void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
                             MPI_Datatype t, MPI_Comm comm, MPI_Request* request, int user_tag, bool is_sender, int partner){
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
-  tracker.comp_time += itime;
+  tracker.comp_time = itime;
   critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time

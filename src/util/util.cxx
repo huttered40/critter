@@ -245,6 +245,7 @@ kernel_key_id& kernel_key_id::operator=(const kernel_key_id& _copy){
 
 int comm_kernel_select_size;
 int comp_kernel_select_size;
+int reset_matrices;
 int autotuning_debug;
 int bsp_counter;
 int reset_counter;

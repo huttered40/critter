@@ -8,7 +8,6 @@ namespace internal{
 
 void allocate(MPI_Comm comm);
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide);
-
 void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm);
 bool initiate_comp(size_t id, volatile double curtime, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
 void complete_comp(double errtime, size_t id, double flop_count, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
@@ -26,13 +25,11 @@ int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MP
 void propagate(MPI_Comm comm);
 void collect(MPI_Comm comm);
 void final_accumulate(MPI_Comm comm, double last_time);
-
+void set_reference_values();
 void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
-
 void write_file(int variantID, int print_mode, double overhead_time);
 void print(int variantID, int print_mode, double overhead_time);
-
 void clear(int tag_count, int* distribution_tags);
 void _finalize();
 

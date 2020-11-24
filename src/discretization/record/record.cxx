@@ -81,6 +81,7 @@ void record::set_kernel_statistics(){
       auto& key_list = active_comm_kernel_keys;
       auto& skel_kernel_list = skeletonization::active_kernels;
       auto& skel_key_list = skeletonization::active_comm_kernel_keys;
+      if (kernel_list[it.second.val_index].num_schedules == 0) continue;
       int skel_count = -1;
       if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
@@ -126,6 +127,7 @@ void record::set_kernel_statistics(){
       auto& key_list = active_comp_kernel_keys;
       auto& skel_kernel_list = skeletonization::active_kernels;
       auto& skel_key_list = skeletonization::active_comp_kernel_keys;
+      if (kernel_list[it.second.val_index].num_schedules == 0) continue;
       int skel_count = -1;
       if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
@@ -632,18 +634,18 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-2];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-3];
       stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-4];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::critical_path_costs[critter::internal::decomposition::num_critical_path_measures-5];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::max_per_process_costs[critter::internal::decomposition::num_per_process_measures-5];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critter::internal::decomposition::volume_costs[critter::internal::decomposition::num_volume_measures-5];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-4];
       stream_reconstruct << std::endl;
     }
   }

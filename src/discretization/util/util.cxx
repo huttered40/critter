@@ -61,6 +61,9 @@ size_t volume_costs_size;
 std::vector<double> critical_path_costs;
 std::vector<double> max_per_process_costs;
 std::vector<double> volume_costs;
+std::vector<double> critical_path_costs_ref;
+std::vector<double> max_per_process_costs_ref;
+std::vector<double> volume_costs_ref;
 std::vector<double_int> info_sender;
 std::vector<double_int> info_receiver;
 std::vector<double> nonblocking_eager_pad;
@@ -1303,6 +1306,9 @@ void allocate(MPI_Comm comm){
   critical_path_costs.resize(critical_path_costs_size);
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
+  critical_path_costs_ref.resize(critical_path_costs_size);
+  max_per_process_costs_ref.resize(per_process_costs_size);
+  volume_costs_ref.resize(volume_costs_size);
   new_cs.resize(critical_path_costs_size);
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
@@ -1571,9 +1577,14 @@ void final_accumulate(MPI_Comm comm, double last_time){
   discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]>0;
   discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14]>0;
   discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_kernels>0 || discretization::_MPI_Barrier.aggregate_comm_kernels>0;
+
+  if (is_world_root) stream << critical_path_costs[0] << " " << critical_path_costs[1] << " " << critical_path_costs[2] << " " << critical_path_costs[3] << std::endl;
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
+
+  if (is_world_root) stream << "In reset, comm_map size - " << comm_kernel_map.size() << ", comp_map size - " << comp_kernel_map.size() << std::endl;
+
   assert(internal_comm_info1.size() == 0);
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
@@ -1615,34 +1626,6 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
       set_kernel_state_global(it.second,false);
     }
     update_analysis=0;
-  }
-
-  // Print process 0's per-process comm/comp kernel count
-  for (auto it : critter::internal::decomposition::replace_comm_map_local){
-    if (is_world_root){
-      stream << "Process 0 (discretization::reset printing decomp values): (" << it.first.tag << "," << it.first.dim_sizes[0] << "," << it.first.dim_strides[0] << "," << it.first.msg_size << ","
-                << it.first.partner_offset << ") - " << it.second.first << " " << it.second.second << std::endl;
-    }
-  }
-  for (auto it : critter::internal::decomposition::replace_comp_map_local){
-    if (is_world_root){
-      stream << "Process 0 (discretization::reset printing decomp values): (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << ","
-                << it.first.param4 << "," << it.first.param5 << "," << it.first.flops << ") - " << it.second.first << " " << it.second.second << std::endl;
-    }
-  }
-  for (auto it : critter::internal::skeletonization::comm_kernel_map){
-    if (is_world_root){
-      stream << "Process 0 - (discretization::reset printing skel values): (" << it.first.tag << "," << it.first.dim_sizes[0] << "," << it.first.dim_strides[0] << "," << it.first.msg_size << "," << it.first.partner_offset << ") - "
-                << critter::internal::skeletonization::active_kernels[it.second.val_index] << std::endl;
-    }
-    //comm_kernel_select_sort_list.push_back(std::make_pair(it.first,active_kernels[it.second.val_index]));
-  }
-  for (auto it : critter::internal::skeletonization::comp_kernel_map){
-    if (is_world_root){
-      stream << "Process 0 - (discretization::reset printing skel values): (" << it.first.tag << "," << it.first.param1 << "," << it.first.param2 << "," << it.first.param3 << "," << it.first.param4 << "," << it.first.param5 << "," << it.first.flops << ") - "
-                << critter::internal::skeletonization::active_kernels[it.second.val_index] << std::endl;
-    }
-    //comp_kernel_select_sort_list.push_back(std::make_pair(it.first,active_kernels[it.second.val_index]));
   }
 }
 

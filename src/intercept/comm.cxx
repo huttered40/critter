@@ -60,7 +60,16 @@ void set_mode(int input_mode){
 }
 
 void set_debug(int debug_mode){
-  internal::autotuning_debug = debug_mode;
+  if (debug_mode != 0){
+    internal::autotuning_debug = debug_mode;
+    if (internal::mechanism == 1){
+      internal::discretization::tuning_delta=0.0;
+    }
+  }
+  else{
+     internal::autotuning_debug = 0;
+     internal::set_reference_values();
+  }
 }
 
 void set_mechanism(int input_mechanism){
@@ -152,6 +161,11 @@ void _init(int* argc, char*** argv){
     comp_kernel_select_size = atof(std::getenv("CRITTER_COMP_KERNEL_SELECT_SIZE"));
   } else{
     comp_kernel_select_size = 25;
+  }
+  if (std::getenv("CRITTER_RESET_MATRICES") != NULL){
+    reset_matrices = atof(std::getenv("CRITTER_RESET_MATRICES"));
+  } else{
+    reset_matrices = 1;
   }
 
   _MPI_Barrier__id = 0;

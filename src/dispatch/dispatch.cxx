@@ -251,6 +251,33 @@ void final_accumulate(MPI_Comm comm, double last_time){
   }
 }
 
+void set_reference_values(){
+  switch (mechanism){
+    case 0:
+      discretization::critical_path_costs_ref[0] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-5];
+      discretization::critical_path_costs_ref[1] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-3];
+      discretization::critical_path_costs_ref[2] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-2];
+      discretization::critical_path_costs_ref[3] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-1];
+      discretization::max_per_process_costs_ref[0] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-5];
+      discretization::max_per_process_costs_ref[1] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-3];
+      discretization::max_per_process_costs_ref[2] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-2];
+      discretization::max_per_process_costs_ref[3] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-1];
+      discretization::volume_costs_ref[0] = decomposition::volume_costs[decomposition::num_volume_measures-5];
+      discretization::volume_costs_ref[1] = decomposition::volume_costs[decomposition::num_volume_measures-3];
+      discretization::volume_costs_ref[2] = decomposition::volume_costs[decomposition::num_volume_measures-2];
+      discretization::volume_costs_ref[3] = decomposition::volume_costs[decomposition::num_volume_measures-1];
+      break;
+    case 1:
+      if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){ discretization::tuning_delta = atoi(std::getenv("CRITTER_AUTOTUNING_DELTA")); }
+      std::memcpy(&discretization::critical_path_costs_ref[0],&discretization::critical_path_costs[0],discretization::num_critical_path_measures*sizeof(double));
+      std::memcpy(&discretization::max_per_process_costs_ref[0],&discretization::max_per_process_costs[0],discretization::num_per_process_measures*sizeof(double));
+      std::memcpy(&discretization::volume_costs_ref[0],&discretization::volume_costs[0],discretization::num_volume_measures*sizeof(double));
+      break;
+    case 2:
+      break;
+  }
+}
+
 void open_symbol(const char* symbol, double curtime){
   switch (mechanism){
     case 0:
