@@ -268,10 +268,7 @@ void set_reference_values(){
       discretization::volume_costs_ref[3] = decomposition::volume_costs[decomposition::num_volume_measures-1];
       break;
     case 1:
-      if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){ discretization::tuning_delta = atoi(std::getenv("CRITTER_AUTOTUNING_DELTA")); }
-      std::memcpy(&discretization::critical_path_costs_ref[0],&discretization::critical_path_costs[0],discretization::num_critical_path_measures*sizeof(double));
-      std::memcpy(&discretization::max_per_process_costs_ref[0],&discretization::max_per_process_costs[0],discretization::num_per_process_measures*sizeof(double));
-      std::memcpy(&discretization::volume_costs_ref[0],&discretization::volume_costs[0],discretization::num_volume_measures*sizeof(double));
+      discretization::reference_transfer();
       break;
     case 2:
       break;

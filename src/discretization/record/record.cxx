@@ -11,6 +11,8 @@ namespace discretization{
 
 void write_comm_kernel_header(std::ofstream& _stream_, bool print_key = true){
   if (print_key){
+   _stream_ << std::left << std::setw(mode_1_width) << "reset_count";
+   _stream_ << std::left << std::setw(mode_1_width) << "reset_count";
    _stream_ << std::left << std::setw(mode_1_width) << "tag";
    _stream_ << std::left << std::setw(mode_1_width) << "cm_size1";
    _stream_ << std::left << std::setw(mode_1_width) << "cm_size2";
@@ -20,8 +22,6 @@ void write_comm_kernel_header(std::ofstream& _stream_, bool print_key = true){
    _stream_ << std::left << std::setw(mode_1_width) << "partner_offset";
   }
    _stream_ << std::left << std::setw(mode_1_width) << "skel_count";
-   _stream_ << std::left << std::setw(mode_1_width) << "decomp_time";
-   _stream_ << std::left << std::setw(mode_1_width) << "decomp_num_sched";
    _stream_ << std::left << std::setw(mode_1_width) << "total_exec_time";
    _stream_ << std::left << std::setw(mode_1_width) << "local_exec_time";
    _stream_ << std::left << std::setw(mode_1_width) << "num_k_sched";
@@ -43,6 +43,8 @@ void write_comm_kernel_header(std::ofstream& _stream_, bool print_key = true){
 }
 void write_comp_kernel_header(std::ofstream& _stream_, bool print_key = true){
   if (print_key){
+   _stream_ << std::left << std::setw(mode_1_width) << "reset_count";
+   _stream_ << std::left << std::setw(mode_1_width) << "reset_count";
    _stream_ << std::left << std::setw(mode_1_width) << "tag";
    _stream_ << std::left << std::setw(mode_1_width) << "param1";
    _stream_ << std::left << std::setw(mode_1_width) << "param2";
@@ -52,8 +54,6 @@ void write_comp_kernel_header(std::ofstream& _stream_, bool print_key = true){
    _stream_ << std::left << std::setw(mode_1_width) << "flops";
   }
    _stream_ << std::left << std::setw(mode_1_width) << "skel_count";
-   _stream_ << std::left << std::setw(mode_1_width) << "decomp_time";
-   _stream_ << std::left << std::setw(mode_1_width) << "decomp_num_sched";
    _stream_ << std::left << std::setw(mode_1_width) << "total_exec_time";
    _stream_ << std::left << std::setw(mode_1_width) << "local_exec_time";
    _stream_ << std::left << std::setw(mode_1_width) << "num_k_sched";
@@ -76,6 +76,11 @@ void write_comp_kernel_header(std::ofstream& _stream_, bool print_key = true){
 
 void record::set_kernel_statistics(){
   if (is_world_root){
+    int kk_count = 0;
+    int kk_total = 0;
+    for (auto& it : comm_kernel_map){
+      if (active_kernels[it.second.val_index].num_schedules > 0) kk_total++;
+    }
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
@@ -86,15 +91,8 @@ void record::set_kernel_statistics(){
       if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
       }
-      double decomp_time = -1;
-      int decomp_num_schedules = -1;
-      if (decomposition::replace_comm_map_local.find(it.first) != decomposition::replace_comm_map_local.end()){
-        decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
-        decomp_num_schedules = decomposition::replace_comm_map_local[it.first].first;
-      } else{
-        decomp_time = decomposition::replace_comm_map_global[it.first].second; // decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
-        decomp_num_schedules = decomposition::replace_comm_map_global[it.first].first; // decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
-      }
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << comm_kernel_counter++;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << clear_counter + (kk_count*1. / kk_total);
       stream_comm_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].tag;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].dim_sizes[0];
       stream_comm_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].dim_sizes[1];
@@ -103,8 +101,6 @@ void record::set_kernel_statistics(){
       stream_comm_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].msg_size;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].partner_offset;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << skel_count;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << decomp_time;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << decomp_num_schedules;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << kernel_list[it.second.val_index].total_exec_time;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << kernel_list[it.second.val_index].total_local_exec_time;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << kernel_list[it.second.val_index].num_schedules;
@@ -120,7 +116,30 @@ void record::set_kernel_statistics(){
       stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,it.second,comm_analysis_param);
       stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param);
       stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param)/discretization::get_estimate(it.second,comm_analysis_param);
+      assert(comm_kernel_ref_map.find(it.first) != comm_kernel_ref_map.end());
+      auto& ref_p = comm_kernel_ref_map[it.first];
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.total_exec_time;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.total_local_exec_time;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_schedules;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_schedules;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_schedules;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_scheduled_units;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_scheduled_units;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_scheduled_units;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.M1;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.M2;
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_estimate(ref_p,comm_analysis_param);
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_dev(ref_p,comm_analysis_param);
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,ref_p,comm_analysis_param);
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comm_analysis_param);
+      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comm_analysis_param)/discretization::get_estimate(ref_p,comm_analysis_param);
       stream_comm_kernel << std::endl;
+      kk_count++;
+    }
+    kk_count = 0;
+    kk_total = 0;
+    for (auto& it : comp_kernel_map){
+      if (active_kernels[it.second.val_index].num_schedules > 0) kk_total++;
     }
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
@@ -132,15 +151,8 @@ void record::set_kernel_statistics(){
       if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
       }
-      double decomp_time = -1;
-      int decomp_num_schedules = -1;
-      if (decomposition::replace_comp_map_local.find(it.first) != decomposition::replace_comp_map_local.end()){
-        decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
-        decomp_num_schedules = decomposition::replace_comp_map_local[it.first].first;
-      } else{
-        decomp_time = decomposition::replace_comp_map_global[it.first].second; // decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
-        decomp_num_schedules = decomposition::replace_comp_map_global[it.first].first; // decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
-      }
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << comp_kernel_counter++;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << clear_counter + (kk_count*1. / kk_total);
       stream_comp_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].tag;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].param1;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].param2;
@@ -149,8 +161,6 @@ void record::set_kernel_statistics(){
       stream_comp_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].param5;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << key_list[it.second.key_index].flops;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << skel_count;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << decomp_time;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << decomp_num_schedules;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << kernel_list[it.second.val_index].total_exec_time;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << kernel_list[it.second.val_index].total_local_exec_time;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << kernel_list[it.second.val_index].num_schedules;
@@ -166,7 +176,25 @@ void record::set_kernel_statistics(){
       stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,it.second,comp_analysis_param);
       stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param);
       stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param)/discretization::get_estimate(it.second,comp_analysis_param);
+      assert(comp_kernel_ref_map.find(it.first) != comp_kernel_ref_map.end());
+      auto& ref_p = comp_kernel_ref_map[it.first];
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.total_exec_time;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.total_local_exec_time;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_schedules;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_schedules;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_schedules;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_scheduled_units;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_scheduled_units;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_scheduled_units;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.M1;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.M2;
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_estimate(ref_p,comp_analysis_param);
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_dev(ref_p,comp_analysis_param);
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,ref_p,comp_analysis_param);
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comp_analysis_param);
+      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comp_analysis_param)/discretization::get_estimate(ref_p,comp_analysis_param);
       stream_comp_kernel << std::endl;
+      kk_count++;
     }
 
     if (stop_criterion_mode==2){
@@ -194,15 +222,6 @@ void record::set_kernel_statistics(){
         }
         double decomp_time = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].M1;
         int decomp_num_schedules = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].num_schedules;
-/*
-        if (decomposition::replace_comm_map_local.find(it.first) != decomposition::replace_comm_map_local.end()){
-          decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
-          decomp_num_schedules = decomposition::replace_comm_map_local[it.first].first;
-        } else{
-          decomp_time = decomposition::replace_comm_map_global[it.first].second; // decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
-          decomp_num_schedules = decomposition::replace_comm_map_global[it.first].first; // decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
-        }
-*/
         // Iterate over all entries in comm_kernel_list
         int s_count=0;
         double elasticity=0.;
@@ -230,8 +249,6 @@ void record::set_kernel_statistics(){
 
           stream_kernel << std::left << std::setw(mode_1_width) << s_count++;
           stream_kernel << std::left << std::setw(mode_1_width) << skel_count;
-          stream_kernel << std::left << std::setw(mode_1_width) << decomp_time;
-          stream_kernel << std::left << std::setw(mode_1_width) << decomp_num_schedules;
           stream_kernel << std::left << std::setw(mode_1_width) << iitt.total_exec_time;
           stream_kernel << std::left << std::setw(mode_1_width) << iitt.total_local_exec_time;
           stream_kernel << std::left << std::setw(mode_1_width) << iitt.num_schedules;
@@ -277,15 +294,6 @@ void record::set_kernel_statistics(){
         }
         double decomp_time = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].M1;
         int decomp_num_schedules = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].num_schedules;
-/*
-        if (decomposition::replace_comp_map_local.find(it.first) != decomposition::replace_comp_map_local.end()){
-          decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
-          decomp_num_schedules = decomposition::replace_comp_map_local[it.first].first;
-        } else{
-          decomp_time = decomposition::replace_comp_map_global[it.first].second; // decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
-          decomp_num_schedules = decomposition::replace_comp_map_global[it.first].first; // decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
-        }
-*/
         // Iterate over all entries in comp_kernel_list
         int s_count=0;
         double elasticity=0.;
@@ -308,11 +316,10 @@ void record::set_kernel_statistics(){
           double _fix_ = iitt.M1 - decomp_time;
           if (_fix_ < 0.) _fix_ *= -1;
           prev_prediction_accuracy = 1. - (_fix_/decomp_time);
+          prev_prediction_accuracy = std::max(prev_prediction_accuracy,0.);
 
           stream_kernel << std::left << std::setw(mode_1_width) << s_count++;
           stream_kernel << std::left << std::setw(mode_1_width) << skel_count;
-          stream_kernel << std::left << std::setw(mode_1_width) << decomp_time;
-          stream_kernel << std::left << std::setw(mode_1_width) << decomp_num_schedules;
           stream_kernel << std::left << std::setw(mode_1_width) << iitt.total_exec_time;
           stream_kernel << std::left << std::setw(mode_1_width) << iitt.total_local_exec_time;
           stream_kernel << std::left << std::setw(mode_1_width) << iitt.num_schedules;

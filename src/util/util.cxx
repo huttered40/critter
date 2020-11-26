@@ -249,6 +249,8 @@ int reset_matrices;
 int autotuning_debug;
 int bsp_counter;
 int reset_counter;
+int comp_kernel_counter;
+int comm_kernel_counter;
 int clear_counter;
 int communicator_count;
 int recv_kernel_override;

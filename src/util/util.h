@@ -103,6 +103,8 @@ extern int reset_matrices;
 extern int autotuning_debug;
 extern int bsp_counter;
 extern int reset_counter;
+extern int comp_kernel_counter;
+extern int comm_kernel_counter;
 extern int clear_counter;
 extern int communicator_count;
 extern int recv_kernel_override;

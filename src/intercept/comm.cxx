@@ -60,14 +60,13 @@ void set_mode(int input_mode){
 }
 
 void set_debug(int debug_mode){
+  internal::autotuning_debug = debug_mode;
   if (debug_mode != 0){
-    internal::autotuning_debug = debug_mode;
     if (internal::mechanism == 1){
-      internal::discretization::tuning_delta=0.0;
+      internal::discretization::kernel_error_limit=0;
     }
   }
   else{
-     internal::autotuning_debug = 0;
      internal::set_reference_values();
   }
 }
@@ -241,8 +240,9 @@ void _init(int* argc, char*** argv){
   _CAPITAL_cyctoblk__id = 301;
 
   autotuning_debug = 0;
-
   reset_counter = 0;
+  comp_kernel_counter = 0;
+  comm_kernel_counter = 0;
   clear_counter = 0;
 
   comp_kernel_key ex_1;

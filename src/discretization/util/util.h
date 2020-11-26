@@ -158,11 +158,14 @@ extern MPI_Datatype batch_type;
 extern size_t kernel_count_limit;
 extern double kernel_time_limit;
 extern double kernel_error_limit;
+extern double kernel_percentage_limit;
 extern int comp_kernel_transfer_id;
 extern int comm_kernel_transfer_id;
 extern int comp_kernel_buffer_id;
 extern std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 extern std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+extern std::map<comm_kernel_key,kernel> comm_kernel_ref_map;
+extern std::map<comp_kernel_key,kernel> comp_kernel_ref_map;
 extern std::vector<comm_kernel_key> active_comm_kernel_keys;
 extern std::vector<comp_kernel_key> active_comp_kernel_keys;
 extern std::vector<kernel> active_kernels;
@@ -315,7 +318,8 @@ void open_symbol(const char* symbol, double curtime);
 void close_symbol(const char* symbol, double curtime);
 void final_accumulate(MPI_Comm comm, double last_time);
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide);
-void clear(int tag_count, int* distribution_tags);
+void clear(int tag_count=0, int* distribution_tags=nullptr);
+void reference_transfer();
 void finalize();
 
 }
