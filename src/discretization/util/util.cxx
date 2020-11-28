@@ -38,7 +38,6 @@ sample_propagation_forest spf;
 std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
 std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
 int stop_criterion_mode;
-int sample_percentage;
 int debug_iter_count;
 std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
 std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
@@ -916,18 +915,17 @@ double get_confidence_interval(const comp_kernel_key& key, const intermediate_st
 }
 
 bool is_steady(const comm_kernel_key& key, const kernel& p, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
   if (stop_criterion_mode == 1){
-    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
     int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
     return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
             (p.num_schedules >= kernel_count_limit) &&
-            (p.num_schedules >= (kernel_percentage_limit * __skel__count)) &&
+            (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)) &&
             (p.total_exec_time >= kernel_time_limit);
   }
   else if (stop_criterion_mode == 0){
-//    assert(critter::internal::decomposition::replace_comm_map_local.find(key) != critter::internal::decomposition::replace_comm_map_local.end());
-    double target = (critter::internal::decomposition::replace_comm_map_local[key].first*debug_iter_count) * sample_percentage*.01;
-    if (p.num_schedules >= target) return true; else return false;
+    int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
+    return ((p.num_schedules>0) && (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)));
   }
   else if (stop_criterion_mode == 2){
     comm_kernel_list[key].push_back(p);
@@ -935,18 +933,17 @@ bool is_steady(const comm_kernel_key& key, const kernel& p, int analysis_param){
   }
 }
 bool is_steady(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
   if (stop_criterion_mode == 1){
-    if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
     int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
     return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
             (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
-            (active_kernels[index.val_index].num_schedules >= (kernel_percentage_limit * __skel__count)) &&
+            (active_kernels[index.val_index].num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)) &&
             (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
   }
   else if (stop_criterion_mode == 0){
-//    assert(critter::internal::decomposition::replace_comm_map_local.find(key) != critter::internal::decomposition::replace_comm_map_local.end());
-    double target = (critter::internal::decomposition::replace_comm_map_local[key].first*debug_iter_count) * sample_percentage*.01;
-    if (active_kernels[index.val_index].num_schedules >= target) return true; else return false;
+    int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
+    return ((active_kernels[index.val_index].num_schedules>0) && (active_kernels[index.val_index].num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)));
   }
   else if (stop_criterion_mode == 2){
     comm_kernel_list[key].push_back(active_kernels[index.val_index]);
@@ -954,36 +951,34 @@ bool is_steady(const comm_kernel_key& key, const kernel_key_id& index, int analy
   }
 }
 bool is_steady(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
   if (stop_criterion_mode == 1){
-    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
     int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
     return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
             (p.num_schedules >= kernel_count_limit) &&
-            (p.num_schedules >= (kernel_percentage_limit * __skel__count)) &&
+            (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)) &&
             (p.total_exec_time >= kernel_time_limit);
   }
   else if (stop_criterion_mode == 0){
-//    assert(critter::internal::decomposition::replace_comm_map_local.find(key) != critter::internal::decomposition::replace_comm_map_local.end());
-    double target = (critter::internal::decomposition::replace_comm_map_local[key].first*debug_iter_count) * sample_percentage*.01;
-    if (p.num_schedules >= target) return true; else return false;
+    int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
+    return ((p.num_schedules>0) && (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)));
   }
   else if (stop_criterion_mode == 2){
     return false;
   }
 }
 bool is_steady(const comp_kernel_key& key, const kernel& p, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
   if (stop_criterion_mode == 1){
-    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
     int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
     return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
             (p.num_schedules >= kernel_count_limit) &&
-            (p.num_schedules >= (kernel_percentage_limit * __skel__count)) &&
+            (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)) &&
             (p.total_exec_time >= kernel_time_limit);
   }
   else if (stop_criterion_mode == 0){
-//    assert(critter::internal::decomposition::replace_comp_map_local.find(key) != critter::internal::decomposition::replace_comp_map_local.end());
-    double target = (critter::internal::decomposition::replace_comp_map_local[key].first*debug_iter_count) * sample_percentage*.01;
-    if (p.num_schedules >= target) return true; else return false;
+    int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
+    return ((p.num_schedules>0) && (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)));
   }
   else if (stop_criterion_mode == 2){
     comp_kernel_list[key].push_back(p);
@@ -991,18 +986,17 @@ bool is_steady(const comp_kernel_key& key, const kernel& p, int analysis_param){
   }
 }
 bool is_steady(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
   if (stop_criterion_mode == 1){
-    if (sample_constraint_mode==-1) { assert(active_kernels[index.val_index].num_schedules < 2); return true; }
     int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
     return ((get_confidence_interval(key,index,analysis_param) / get_estimate(index,analysis_param)) < kernel_error_limit) &&
             (active_kernels[index.val_index].num_schedules >= kernel_count_limit) &&
-            (active_kernels[index.val_index].num_schedules >= (kernel_percentage_limit * __skel__count)) &&
+            (active_kernels[index.val_index].num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)) &&
             (active_kernels[index.val_index].total_exec_time >= kernel_time_limit);
   }
   else if (stop_criterion_mode == 0){
-//    assert(critter::internal::decomposition::replace_comp_map_local.find(key) != critter::internal::decomposition::replace_comp_map_local.end());
-    double target = (critter::internal::decomposition::replace_comp_map_local[key].first*debug_iter_count) * sample_percentage*.01;
-    if (active_kernels[index.val_index].num_schedules >= target) return true; else return false;
+    int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
+    return ((active_kernels[index.val_index].num_schedules>0) && (active_kernels[index.val_index].num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)));
   }
   else if (stop_criterion_mode == 2){
     comp_kernel_list[key].push_back(active_kernels[index.val_index]);
@@ -1010,18 +1004,17 @@ bool is_steady(const comp_kernel_key& key, const kernel_key_id& index, int analy
   }
 }
 bool is_steady(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param){
+  if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
   if (stop_criterion_mode == 1){
-    if (sample_constraint_mode==-1) { assert(p.num_schedules < 2); return true; }
     int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
     return ((get_confidence_interval(key,p,analysis_param) / get_estimate(p,analysis_param)) < kernel_error_limit) &&
             (p.num_schedules >= kernel_count_limit) &&
-            (p.num_schedules >= (kernel_percentage_limit * __skel__count)) &&
+            (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)) &&
             (p.total_exec_time >= kernel_time_limit);
   }
   else if (stop_criterion_mode == 0){
-//    assert(critter::internal::decomposition::replace_comp_map_local.find(key) != critter::internal::decomposition::replace_comp_map_local.end());
-    double target = (critter::internal::decomposition::replace_comp_map_local[key].first*debug_iter_count) * sample_percentage*.01;
-    if (p.num_schedules >= target) return true; else return false;
+    int __skel__count = (sample_constraint_mode == 3 ? get_skel_count(key) : 0);
+    return ((p.num_schedules>0) && (p.num_schedules >= (kernel_percentage_limit * __skel__count * debug_iter_count)));
   }
   else if (stop_criterion_mode == 2){
     return false;
@@ -1437,7 +1430,7 @@ void allocate(MPI_Comm comm){
   if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
     kernel_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
   } else{
-    kernel_error_limit = .5;
+    kernel_error_limit = 0;
   }
   if (std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT") != NULL){
     kernel_percentage_limit = atof(std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT"));
@@ -1459,17 +1452,13 @@ void allocate(MPI_Comm comm){
   } else{
     stop_criterion_mode = 1;// confidence interval length
   }
-  if (std::getenv("CRITTER_SAMPLE_PERCENTAGE") != NULL){
-    sample_percentage = atof(std::getenv("CRITTER_SAMPLE_PERCENTAGE"));
-  } else{
-    sample_percentage = 1;// confidence interval length
-  }
   if (std::getenv("CRITTER_DEBUG_ITER_COUNT") != NULL){
     debug_iter_count = atof(std::getenv("CRITTER_DEBUG_ITER_COUNT"));
   } else{
     debug_iter_count = 1;
   }
 
+  if (stop_criterion_mode==0) assert(sample_constraint_mode == 3);
 /*
   NOTE: Below was copied straight from decomposition. It needs modification.
   if (eager_p2p){
@@ -1594,6 +1583,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
     save_comp_kernel_stats[1] = global_comp_kernel_stats[3];
     save_comm_kernel_stats[0] = global_comm_kernel_stats[1];
     save_comm_kernel_stats[1] = global_comm_kernel_stats[3];
+  } else{
+    //.. write to a ref - 5 each for comm/comp, to be printed out to reconstruct.
   }
   PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
   discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]>0;
@@ -1687,6 +1678,8 @@ void clear(int tag_count, int* distribution_tags){
 
 void reference_transfer(){
   if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){ kernel_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT")); }
+  if (std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT") != NULL){ kernel_percentage_limit = atof(std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT")); }
+  if (std::getenv("CRITTER_STOP_CRIT_MODE") != NULL){ stop_criterion_mode = atof(std::getenv("CRITTER_STOP_CRIT_MODE")); }
   std::memcpy(&critical_path_costs_ref[0],&critical_path_costs[0],num_critical_path_measures*sizeof(double));
   std::memcpy(&max_per_process_costs_ref[0],&max_per_process_costs[0],num_per_process_measures*sizeof(double));
   std::memcpy(&volume_costs_ref[0],&volume_costs[0],num_volume_measures*sizeof(double));

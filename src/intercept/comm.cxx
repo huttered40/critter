@@ -64,6 +64,8 @@ void set_debug(int debug_mode){
   if (debug_mode != 0){
     if (internal::mechanism == 1){
       internal::discretization::kernel_error_limit=0;
+      internal::discretization::stop_criterion_mode = 1;
+      internal::discretization::kernel_percentage_limit=1;
     }
   }
   else{

@@ -173,7 +173,6 @@ extern sample_propagation_forest spf;
 extern std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
 extern std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
 extern int stop_criterion_mode;
-extern int sample_percentage;
 extern int debug_iter_count;
 extern std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
 extern std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
