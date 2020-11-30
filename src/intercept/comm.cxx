@@ -430,25 +430,7 @@ int allgather(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* r
     complete_comm(_MPI_Allgather__id);
   }
   else{
-/*
-    // debug
-    int commsize; MPI_Comm_size(comm,&commsize);
-    if (is_world_root) std::cout << "before allgather memset1 with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << " " << commsize << " " << std::endl;
-    double* _sendbuf = (double*)sendbuf;
-    double* _recvbuf = (double*)recvbuf;
-    for (int i=0; i<sendcount; i++){ double tmp = _sendbuf[i]; _sendbuf[i]=_recvbuf[i]; _sendbuf[i] = tmp; }
-    if (is_world_root) std::cout << "before allgather memset2 with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << std::endl;
-    for (int i=0; i<recvcount*commsize; i++){ _recvbuf[i] = 100.; }
-    if (is_world_root) std::cout << "after allgather memset2 with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << std::endl;
-    PMPI_Barrier(MPI_COMM_WORLD);
-    if (is_world_root) std::cout << "before allgather with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << std::endl;
-*/
     ret = PMPI_Allgather(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm);
-/*
-    PMPI_Barrier(MPI_COMM_WORLD);
-    // debug
-    if (is_world_root) std::cout << "after allgather with - " << sendbuf << " " << sendcount << " " << sendtype << " " << recvbuf << " " << recvcount << " " << recvtype << " " << comm << " " << bsp_counter << std::endl;
-*/
   }
   return ret;
 }

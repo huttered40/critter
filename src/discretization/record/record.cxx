@@ -148,6 +148,7 @@ void record::set_kernel_statistics(){
       auto& skel_kernel_list = skeletonization::active_kernels;
       auto& skel_key_list = skeletonization::active_comp_kernel_keys;
       if (kernel_list[it.second.val_index].num_schedules == 0) continue;
+      if (it.first.tag < 150) continue;// likely too many BLAS1/BLAS2 kernels to print. Just avoid.
       int skel_count = -1;
       if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
