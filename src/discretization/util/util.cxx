@@ -1703,6 +1703,8 @@ void finalize(){
       stream.close();
       stream_tune.close();
       stream_reconstruct.close();
+      stream_comm_kernel.close();
+      stream_comp_kernel.close();
     }
   }
 }

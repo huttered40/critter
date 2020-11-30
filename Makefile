@@ -9,7 +9,6 @@ lib/libcritter.a:\
 		obj/intercept_comp.o\
 		obj/intercept_comm.o\
 		obj/intercept_symbol.o\
-		obj/intercept_custom.o\
 		obj/decomposition_util_util.o\
 		obj/decomposition_record_record.o\
 		obj/decomposition_container_comm_tracker.o\
@@ -33,7 +32,6 @@ lib/libcritter.a:\
 					obj/intercept_comp.o\
 					obj/intercept_comm.o\
 					obj/intercept_symbol.o\
-					obj/intercept_custom.o\
 					obj/decomposition_util_util.o\
 					obj/decomposition_record_record.o\
 					obj/decomposition_container_comm_tracker.o\
@@ -68,9 +66,6 @@ obj/intercept_comm.o: src/intercept/comm.cxx
 
 obj/intercept_symbol.o: src/intercept/symbol.cxx
 	$(CXX) src/intercept/symbol.cxx -c -o obj/intercept_symbol.o $(CXXFLAGS)
-
-obj/intercept_custom.o: src/intercept/custom.cxx
-	$(CXX) src/intercept/custom.cxx -c -o obj/intercept_custom.o $(CXXFLAGS)
 
 obj/decomposition_util_util.o: src/decomposition/util/util.cxx
 	$(CXX) src/decomposition/util/util.cxx -c -o obj/decomposition_util_util.o $(CXXFLAGS)

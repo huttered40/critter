@@ -293,7 +293,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
     // If eager protocol is enabled, its assumed that any message latency the sender incurs is negligable, and thus the receiver incurs its true idle time above
     // Again, the gray-area is with Sendrecv variants, and we assume they are treated without eager protocol
-    if (!true_eager_p2p){
+    if (!true_eager_p2p && invoke_max_barrier==1){
       // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
       // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
       // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
@@ -354,7 +354,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
   tracker.synch_time = 0.;// might get updated below
 
-  if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
+  if ((track_synchronization) && ((partner1==-1) || (track_p2p_idle==1))){// if blocking collective, or if p2p and idle time is requested to be tracked
     assert(partner1 != MPI_ANY_SOURCE);
     if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
 
@@ -865,13 +865,13 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
     double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
     if (comm_info_it->second.first && comm_rank != comm_comm_it->second.second){
       PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-      PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-      PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
+      if (invoke_max_barrier) PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
+      if (track_synchronization) PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
     }
     else if (!comm_info_it->second.first && comm_rank != comm_comm_it->second.second){
       PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-      PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-      PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+      if (invoke_max_barrier) PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
+      if (track_synchronization) PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
     }
   }
   volatile double last_start_time = MPI_Wtime();
@@ -897,7 +897,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   //   if MPI_Waitany is used to close nonblocking requests on both the sender and receiver side, then we forfeit tracking of idle/synch
   //   time caused by blocking send/recv.
   // TODO: For that reason alone, it may make sense to remove the assert and inform the user about the possibility of a hang if disobeying our rules.
-  assert(track_p2p_idle==0);
+  assert(track_p2p_idle==0 && invoke_max_barrier==0 && track_synchronization==0 );
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
@@ -923,7 +923,7 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
   int ret = MPI_SUCCESS;
   wait_id=true;
   // Read comment in function above. Same ideas apply for Waitsome.
-  assert(track_p2p_idle==0);
+  assert(track_p2p_idle==0 && invoke_max_barrier==0 && track_synchronization==0 );
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(incount); for (int i=0;i<incount;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
@@ -978,17 +978,17 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       if (comm_info_it->second.first && comm_comm_it->second.second != -1){
         PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
           comm_comm_it->second.first, &internal_requests[3*i]);
-        if (eager_p2p==0) { PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+        if (eager_p2p==0 && invoke_max_barrier) { PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
           comm_comm_it->second.first, &internal_requests[3*i+1]); }
-        PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
+        if (track_synchronization) PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
           comm_comm_it->second.first, &internal_requests[3*i+2]);
       }
       else if (!comm_info_it->second.first && comm_comm_it->second.second != -1){
         PMPI_Irecv(&barrier_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
           comm_comm_it->second.first, &internal_requests[3*i]);
-        if (eager_p2p==0) { PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
+        if (eager_p2p==0 && invoke_max_barrier) { PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
           comm_comm_it->second.first, &internal_requests[3*i+1]); }
-        PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
+        if (track_synchronization) PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
           comm_comm_it->second.first, &internal_requests[3*i+2]);
       }
     }

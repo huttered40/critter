@@ -10,6 +10,8 @@ namespace decomposition{
 
 int replace_comp;
 int replace_comm;
+int invoke_max_barrier;
+int track_synchronization;
 std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_local;
 std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_local;
 std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_global;
@@ -105,6 +107,16 @@ void allocate(MPI_Comm comm){
   internal_tag5 = internal_tag+5;
   is_first_iter = true;
 
+  if (std::getenv("CRITTER_DECOMPOSITION_INVOKE_MAX_BARRIER") != NULL){
+    invoke_max_barrier = atoi(std::getenv("CRITTER_DECOMPOSITION_INVOKE_MAX_BARRIER"));
+  } else{
+    invoke_max_barrier = 0;
+  }
+  if (std::getenv("CRITTER_DECOMPOSITION_TRACK_SYNCHRONIZATION") != NULL){
+    track_synchronization = atoi(std::getenv("CRITTER_DECOMPOSITION_TRACK_SYNCHRONIZATION"));
+  } else{
+    track_synchronization = 0;
+  }
   if (std::getenv("CRITTER_DECOMPOSITION_COMP_REPLACE") != NULL){
     replace_comp = atoi(std::getenv("CRITTER_DECOMPOSITION_COMP_REPLACE"));
   } else{
@@ -144,7 +156,8 @@ void allocate(MPI_Comm comm){
     std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
     stream_name += "_decomposition.txt";
     if (is_world_root){
-      stream.open(stream_name.c_str(),std::ofstream::app);
+      stream.open(stream_name.c_str(),std::ofstream::out);
+      assert(stream.good());
     }
   }
   assert(_cost_models_.size()==2);

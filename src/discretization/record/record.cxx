@@ -116,24 +116,25 @@ void record::set_kernel_statistics(){
       stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,it.second,comm_analysis_param);
       stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param);
       stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comm_analysis_param)/discretization::get_estimate(it.second,comm_analysis_param);
-      assert(comm_kernel_ref_map.find(it.first) != comm_kernel_ref_map.end());
-      auto& ref_p = comm_kernel_ref_map[it.first];
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.total_exec_time;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.total_local_exec_time;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_schedules;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_schedules;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_schedules;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_scheduled_units;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_scheduled_units;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_scheduled_units;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.M1;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.M2;
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_estimate(ref_p,comm_analysis_param);
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_dev(ref_p,comm_analysis_param);
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,ref_p,comm_analysis_param);
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comm_analysis_param);
-      stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comm_analysis_param)/discretization::get_estimate(ref_p,comm_analysis_param);
-      stream_comm_kernel << std::endl;
+      if (comm_kernel_ref_map.find(it.first) != comm_kernel_ref_map.end()){
+        auto& ref_p = comm_kernel_ref_map[it.first];
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.total_exec_time;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.total_local_exec_time;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_schedules;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_schedules;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_schedules;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_scheduled_units;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_scheduled_units;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_scheduled_units;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.M1;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << ref_p.M2;
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_estimate(ref_p,comm_analysis_param);
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_dev(ref_p,comm_analysis_param);
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,ref_p,comm_analysis_param);
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comm_analysis_param);
+        stream_comm_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comm_analysis_param)/discretization::get_estimate(ref_p,comm_analysis_param);
+    }  
+    stream_comm_kernel << std::endl;
       kk_count++;
     }
     kk_count = 0;
@@ -176,23 +177,24 @@ void record::set_kernel_statistics(){
       stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,it.second,comp_analysis_param);
       stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param);
       stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,it.second,comp_analysis_param)/discretization::get_estimate(it.second,comp_analysis_param);
-      assert(comp_kernel_ref_map.find(it.first) != comp_kernel_ref_map.end());
-      auto& ref_p = comp_kernel_ref_map[it.first];
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.total_exec_time;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.total_local_exec_time;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_schedules;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_schedules;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_schedules;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_scheduled_units;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_scheduled_units;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_scheduled_units;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.M1;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.M2;
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_estimate(ref_p,comp_analysis_param);
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_dev(ref_p,comp_analysis_param);
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,ref_p,comp_analysis_param);
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comp_analysis_param);
-      stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comp_analysis_param)/discretization::get_estimate(ref_p,comp_analysis_param);
+      if (comp_kernel_ref_map.find(it.first) != comp_kernel_ref_map.end()){
+        auto& ref_p = comp_kernel_ref_map[it.first];
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.total_exec_time;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.total_local_exec_time;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_schedules;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_schedules;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_schedules;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_scheduled_units;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_local_scheduled_units;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.num_non_scheduled_units;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.M1;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << ref_p.M2;
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_estimate(ref_p,comp_analysis_param);
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_dev(ref_p,comp_analysis_param);
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_std_error(it.first,ref_p,comp_analysis_param);
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comp_analysis_param);
+        stream_comp_kernel << std::left << std::setw(mode_1_width) << discretization::get_confidence_interval(it.first,ref_p,comp_analysis_param)/discretization::get_estimate(ref_p,comp_analysis_param);
+      }
       stream_comp_kernel << std::endl;
       kk_count++;
     }

@@ -238,14 +238,12 @@ void _init(int* argc, char*** argv){
   _LAPACK_tpqrt__id = 207;
   _LAPACK_tpmqrt__id = 208;
 
-  _CAPITAL_blktocyc__id = 300;
-  _CAPITAL_cyctoblk__id = 301;
-
   autotuning_debug = 0;
   reset_counter = 0;
   comp_kernel_counter = 0;
   comm_kernel_counter = 0;
   clear_counter = 0;
+  symbol_id_count = 300;
 
   comp_kernel_key ex_1;
   MPI_Datatype comp_kernel_key_internal_type[2] = { MPI_INT, MPI_DOUBLE };

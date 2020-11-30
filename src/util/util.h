@@ -2,6 +2,7 @@
 #define CRITTER__UTIL__UTIL_H_
 
 #include <mpi.h>
+#include <functional>
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
@@ -195,11 +196,11 @@ extern size_t
 	_LAPACK_getri__id,
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
-extern size_t
-	_CAPITAL_blktocyc__id,
-	_CAPITAL_cyctoblk__id;
 extern MPI_Datatype comm_kernel_key_type;
 extern MPI_Datatype comp_kernel_key_type;
+extern std::map<std::string,int> symbol_id_map;
+extern std::function<void(void)> symbol_function;
+extern int symbol_id_count;
 
 // ****************************************************************************************************************************************************
 struct channel{

@@ -341,11 +341,11 @@ size_t
 	_LAPACK_getri__id,
 	_LAPACK_tpqrt__id,
 	_LAPACK_tpmqrt__id;
-size_t
-	_CAPITAL_blktocyc__id,
-	_CAPITAL_cyctoblk__id;
 MPI_Datatype comm_kernel_key_type;
 MPI_Datatype comp_kernel_key_type;
+std::map<std::string,int> symbol_id_map;
+std::function<void(void)> symbol_function;
+int symbol_id_count;
 
 std::map<MPI_Comm,solo_channel*> comm_channel_map;
 std::map<int,solo_channel*> p2p_channel_map;

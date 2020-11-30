@@ -9,6 +9,8 @@ namespace decomposition{
 
 extern int replace_comp;
 extern int replace_comm;
+extern int invoke_max_barrier;
+extern int track_synchronization;
 extern std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_local;
 extern std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_local;
 extern std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_global;

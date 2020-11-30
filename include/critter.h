@@ -9,6 +9,5 @@
 #include "critter_blas.h"
 #include "critter_lapack.h"
 #include "critter_mpi.h"
-#include "critter_custom.h"
 
 #endif /*CRITTER_H_*/

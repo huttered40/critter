@@ -33,4 +33,13 @@
     critter::internal::symbol_stop(#ARG);\
   } while (0);
 
+#define CRITTER_CONDITIONAL_VALUE_CAPTURE_START(ARG)\
+  auto _critter_lambda_##ARG = [=]{
+
+#define CRITTER_CONDITIONAL_REFERENCE_CAPTURE_START(ARG)\
+  auto _critter_lambda_##ARG = [&]{
+
+#define CRITTER_CONDITIONAL_STOP(ARG)\
+  }; critter::internal::symbol_conditional_start(#ARG, _critter_lambda_##ARG);
+
 #endif /*CRITTER_SYMBOL_H_*/
