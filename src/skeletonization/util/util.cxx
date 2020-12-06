@@ -18,6 +18,7 @@ std::vector<comp_kernel_key> active_comp_kernel_keys;
 volatile double comm_intercept_overhead_stage1;
 volatile double comm_intercept_overhead_stage2;
 volatile double comp_intercept_overhead;
+volatile double comp_start_time;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -39,6 +40,7 @@ int internal_tag3;
 int internal_tag4;
 int internal_tag5;
 bool is_first_iter;
+int skeleton_analytic;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -68,6 +70,13 @@ void allocate(MPI_Comm comm){
   volume_costs.resize(volume_costs_size);
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
+
+  if (std::getenv("SKELETON_ANALYTIC") != NULL){
+    skeleton_analytic = atoi(std::getenv("SKELETON_ANALYTIC"));
+    assert(skeleton_analytic==0 || skeleton_analytic==1);
+  } else{
+    skeleton_analytic = 1;
+  }
 }
 
 void open_symbol(const char* symbol, double curtime){}
@@ -75,6 +84,10 @@ void open_symbol(const char* symbol, double curtime){}
 void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
+
+  critical_path_costs[0]+=(last_time-computation_timer);	// update critical path runtime
+  volume_costs[0]+=(last_time-computation_timer);			// update per-process execution time
+
   max_per_process_costs = volume_costs;// copy over the per-process measurements that exist in volume_costs
   double temp_costs[5];
   for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];

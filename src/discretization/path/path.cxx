@@ -51,7 +51,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 }
 
 void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
-  volatile double comp_time = MPI_Wtime( ) - comp_start_time - errtime;	// complete computation time
+  volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
 
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.

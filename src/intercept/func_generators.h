@@ -160,7 +160,7 @@ inline int conditional_lapack_engine(int id, int guard, std::tuple<t1_types...>&
       if (mechanism == 0 && autotuning_debug==0) assert(func(std::get<index_list2>(args)...)==0);
       else{
         special_time = MPI_Wtime();
-        if (reset_matrices) { reset_matrix_generator::invoke(reset_lambdas...); }
+        if (reset_matrix) { reset_matrix_generator::invoke(reset_lambdas...); }
         special_time = MPI_Wtime() - special_time;
         assert(func(std::get<index_list2>(args)...)==0);
       }

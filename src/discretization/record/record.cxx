@@ -354,7 +354,6 @@ void record::set_tuning_statistics(){
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   {
     double total_scheduled_comm_time=0;
-    if (decomposition::replace_comm == 1){
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
@@ -367,12 +366,7 @@ void record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
-        double decomp_time = -1;
-        if (decomposition::replace_comm_map_local.find(it.first) != decomposition::replace_comm_map_local.end()){
-          decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
-        } else{
-          decomp_time = decomposition::replace_comm_map_global[it.first].second; // decomposition::replace_comm_map_global[it.first].first>0 ? decomposition::replace_comm_map_global[it.first].second : -1;
-        }
+        double decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
         stream << "Rank 0 Communication kernel (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << ")"
                << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << ")"
@@ -402,10 +396,8 @@ void record::set_tuning_statistics(){
       }
       total_scheduled_comm_time += kernel_list[it.second.val_index].total_local_exec_time;
     }
-    }
     if (world_rank==0) { stream << std::endl << std::endl; }
     double total_scheduled_comp_time=0;
-    if (decomposition::replace_comp == 1){
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comp_kernel_keys;
@@ -418,12 +410,7 @@ void record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
-        double decomp_time = -1;
-        if (decomposition::replace_comp_map_local.find(it.first) != decomposition::replace_comp_map_local.end()){
-          decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
-        } else{
-          decomp_time = decomposition::replace_comp_map_global[it.first].second;//decomposition::replace_comp_map_global[it.first].first>0 ? decomposition::replace_comp_map_global[it.first].second : -1;
-        }
+        double decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
          stream << "Rank 0 Computation kernel (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
                 << "," << key_list[it.second.key_index].param2
@@ -454,7 +441,6 @@ void record::set_tuning_statistics(){
                 << std::endl;
        }
       total_scheduled_comp_time += kernel_list[it.second.val_index].total_local_exec_time;
-    }
     }
     if (world_rank==0){
       stream << std::endl;

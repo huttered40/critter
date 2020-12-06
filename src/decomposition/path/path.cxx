@@ -57,18 +57,13 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
 void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
 
-  if ((autotuning_debug == 1) || (replace_comp == 1)){
+  if (autotuning_debug == 1){
     comp_kernel_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-    if (replace_comp_map_global.find(key) == replace_comp_map_global.end()){
-      if (replace_comp_map_local.find(key) == replace_comp_map_local.end()){
-        replace_comp_map_local[key] = std::make_pair(1,comp_time);
-      } else{
-        replace_comp_map_local[key].first++;
-        replace_comp_map_local[key].second += comp_time;
-      }
-    }
-    else{
-      comp_time = replace_comp_map_global[key].second;
+    if (replace_comp_map_local.find(key) == replace_comp_map_local.end()){
+      replace_comp_map_local[key] = std::make_pair(1,comp_time);
+    } else{
+      replace_comp_map_local[key].first++;
+      replace_comp_map_local[key].second += comp_time;
     }
   }
 
@@ -443,7 +438,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   int rank; MPI_Comm_rank(tracker.comm, &rank);
 
-  if ((autotuning_debug == 1) || (replace_comm == 1)){
+  if (autotuning_debug == 1){
     assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
     int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
     for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -451,16 +446,11 @@ void path::complete_comm(blocking& tracker, int recv_source){
       comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
     }
     comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    if (replace_comm_map_global.find(key) == replace_comm_map_global.end()){
-      if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
-        replace_comm_map_local[key] = std::make_pair(1,comm_time);
-      } else{
-        replace_comm_map_local[key].first++;
-        replace_comm_map_local[key].second += comm_time;
-      }
-    }
-    else{
-      comm_time = replace_comm_map_global[key].second;
+    if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
+      replace_comm_map_local[key] = std::make_pair(1,comm_time);
+    } else{
+      replace_comm_map_local[key].first++;
+      replace_comm_map_local[key].second += comm_time;
     }
   }
 
@@ -709,7 +699,7 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.synch_time=0;
 
   int rank; MPI_Comm_rank(tracker.comm, &rank);
-  if ((autotuning_debug == 1) || (replace_comm == 1)){
+  if (autotuning_debug == 1){
     assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
     int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
     for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -717,19 +707,13 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
       comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
     }
     comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    if (replace_comm_map_global.find(key) == replace_comm_map_global.end()){
-      if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
-        replace_comm_map_local[key] = std::make_pair(1,comm_time);
-      } else{
-        replace_comm_map_local[key].first++;
-        replace_comm_map_local[key].second += comm_time;
-      }
-    }
-    else{
-      comm_time = replace_comm_map_global[key].second;
+    if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
+      replace_comm_map_local[key] = std::make_pair(1,comm_time);
+    } else{
+      replace_comm_map_local[key].first++;
+      replace_comm_map_local[key].second += comm_time;
     }
   }
-
 
   // Both sender and receiver will now update its critical path with the data from the communication
   std::pair<double,double> cost_bsp  = tracker.cost_func_bsp(tracker.nbytes,tracker.comm_size);

@@ -146,6 +146,7 @@ struct intermediate_stats{
 
 // ****************************************************************************************************************************************************
 extern int tuning_delta;
+extern int reset_mode;
 extern int comm_sample_aggregation_mode;
 extern int comm_state_aggregation_mode;
 extern int comp_sample_aggregation_mode;
@@ -205,7 +206,7 @@ extern std::vector<double_int> info_sender;
 extern std::vector<double_int> info_receiver;
 extern std::vector<double> nonblocking_eager_pad;
 extern std::vector<char> eager_pad;
-extern double comp_start_time;
+extern volatile double comp_start_time;
 extern std::map<MPI_Request,std::pair<bool,int>> internal_comm_info1;
 extern std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_info2;
 extern std::map<MPI_Request,std::pair<double,double>> internal_comm_info3;

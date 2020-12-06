@@ -8,14 +8,10 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
-int replace_comp;
-int replace_comm;
 int invoke_max_barrier;
 int track_synchronization;
 std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_local;
 std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_local;
-std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_global;
-std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_global;
 std::ofstream stream;
 bool wait_id;
 int internal_tag;
@@ -107,25 +103,15 @@ void allocate(MPI_Comm comm){
   internal_tag5 = internal_tag+5;
   is_first_iter = true;
 
-  if (std::getenv("CRITTER_DECOMPOSITION_INVOKE_MAX_BARRIER") != NULL){
-    invoke_max_barrier = atoi(std::getenv("CRITTER_DECOMPOSITION_INVOKE_MAX_BARRIER"));
+  if (std::getenv("CRITTER_INVOKE_MAX_BARRIER") != NULL){
+    invoke_max_barrier = atoi(std::getenv("CRITTER_INVOKE_MAX_BARRIER"));
   } else{
     invoke_max_barrier = 0;
   }
-  if (std::getenv("CRITTER_DECOMPOSITION_TRACK_SYNCHRONIZATION") != NULL){
-    track_synchronization = atoi(std::getenv("CRITTER_DECOMPOSITION_TRACK_SYNCHRONIZATION"));
+  if (std::getenv("CRITTER_TRACK_SYNCHRONIZATION") != NULL){
+    track_synchronization = atoi(std::getenv("CRITTER_TRACK_SYNCHRONIZATION"));
   } else{
     track_synchronization = 0;
-  }
-  if (std::getenv("CRITTER_DECOMPOSITION_COMP_REPLACE") != NULL){
-    replace_comp = atoi(std::getenv("CRITTER_DECOMPOSITION_COMP_REPLACE"));
-  } else{
-    replace_comp = 0;
-  }
-  if (std::getenv("CRITTER_DECOMPOSITION_COMM_REPLACE") != NULL){
-    replace_comm = atoi(std::getenv("CRITTER_DECOMPOSITION_COMM_REPLACE"));
-  } else{
-    replace_comm = 0;
   }
   if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
     _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
@@ -202,9 +188,6 @@ void allocate(MPI_Comm comm){
   intercept_overhead.resize(3,0);
   global_intercept_overhead.resize(3,0);
 
-  replace_comp_map_global.clear();
-  replace_comm_map_global.clear();
-
   max_per_process_costs.resize(per_process_costs_size);
   volume_costs.resize(volume_costs_size);
   new_cs.resize(critical_path_costs_size);
@@ -266,8 +249,6 @@ void reset(){
 
   replace_comp_map_local.clear();
   replace_comm_map_local.clear();
-  replace_comp_map_global.clear();
-  replace_comm_map_global.clear();
   
   wait_id=true;
 }

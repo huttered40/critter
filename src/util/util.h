@@ -100,7 +100,7 @@ struct kernel_key_id{
 // ****************************************************************************************************************************************************
 extern int comm_kernel_select_size;
 extern int comp_kernel_select_size;
-extern int reset_matrices;
+extern int reset_matrix;
 extern int autotuning_debug;
 extern int bsp_counter;
 extern int reset_counter;

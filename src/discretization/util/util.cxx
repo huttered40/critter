@@ -11,6 +11,7 @@ namespace internal{
 namespace discretization{
 
 int tuning_delta;
+int reset_mode;
 int comm_sample_aggregation_mode;
 int comm_state_aggregation_mode;
 int comp_sample_aggregation_mode;
@@ -70,7 +71,7 @@ std::vector<double_int> info_sender;
 std::vector<double_int> info_receiver;
 std::vector<double> nonblocking_eager_pad;
 std::vector<char> eager_pad;
-double comp_start_time;
+volatile double comp_start_time;
 std::map<MPI_Request,std::pair<bool,int>> internal_comm_info1;
 std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_info2;
 std::map<MPI_Request,std::pair<double,double>> internal_comm_info3;
@@ -1347,11 +1348,25 @@ void allocate(MPI_Comm comm){
   } else{
     tuning_delta = 0;
   }
-  if (std::getenv("CRITTER_AUTOTUNING_COMM_SAMPLE_AGGREGATION_MODE") != NULL){
-    comm_sample_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMM_SAMPLE_AGGREGATION_MODE"));
-    assert(comm_sample_aggregation_mode>=0 && comm_sample_aggregation_mode<=1);
+  if (std::getenv("CRITTER_KERNEL_COUNT_LIMIT") != NULL){
+    kernel_count_limit = atoi(std::getenv("CRITTER_KERNEL_COUNT_LIMIT"));
   } else{
-    comm_sample_aggregation_mode = 0;
+    kernel_count_limit = 2;
+  }
+  if (std::getenv("CRITTER_KERNEL_TIME_LIMIT") != NULL){
+    kernel_time_limit = atof(std::getenv("CRITTER_KERNEL_TIME_LIMIT"));
+  } else{
+    kernel_time_limit = 0;
+  }
+  if (std::getenv("CRITTER_KERNEL_ERROR_LIMIT") != NULL){
+    kernel_error_limit = atof(std::getenv("CRITTER_KERNEL_ERROR_LIMIT"));
+  } else{
+    kernel_error_limit = 0;
+  }
+  if (std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT") != NULL){
+    kernel_percentage_limit = atof(std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT"));
+  } else{
+    kernel_percentage_limit = .001;
   }
   if (std::getenv("CRITTER_AUTOTUNING_COMM_STATE_AGGREGATION_MODE") != NULL){
     comm_state_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMM_STATE_AGGREGATION_MODE"));
@@ -1359,91 +1374,25 @@ void allocate(MPI_Comm comm){
   } else{
     comm_state_aggregation_mode = 0;
   }
-  if (std::getenv("CRITTER_AUTOTUNING_COMP_SAMPLE_AGGREGATION_MODE") != NULL){
-    comp_sample_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMP_SAMPLE_AGGREGATION_MODE"));
-    assert(comp_sample_aggregation_mode>=0 && comp_sample_aggregation_mode<=1);
-  } else{
-    comp_sample_aggregation_mode = 0;
-  }
   if (std::getenv("CRITTER_AUTOTUNING_COMP_STATE_AGGREGATION_MODE") != NULL){
     comp_state_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMP_STATE_AGGREGATION_MODE"));
     assert(comp_state_aggregation_mode>=0 && comp_state_aggregation_mode<=2);
   } else{
     comp_state_aggregation_mode = 0;
   }
-  assert(comm_state_aggregation_mode >= comm_sample_aggregation_mode);
-  assert(comp_state_aggregation_mode >= comp_sample_aggregation_mode);
   if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE") != NULL){
     sample_constraint_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE"));
     assert(sample_constraint_mode>=-1 && sample_constraint_mode<=3);
   } else{
     sample_constraint_mode = 0;
   }
-/*
-  if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_RESET_MODE") != NULL){
-    sample_reset_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_RESET_MODE"));
-    assert(sample_reset_mode>=0 && sample_reset_mode<=3);
-  } else{
-    sample_reset_mode = 0;
-  }
-*/
-  if (std::getenv("CRITTER_COMM_ENVELOPE_PARAM") != NULL){
-    comm_envelope_param = atoi(std::getenv("CRITTER_COMM_ENVELOPE_PARAM"));
-  } else{
-    comm_envelope_param = 0;
-  }
-  if (std::getenv("CRITTER_COMM_UNIT_PARAM") != NULL){
-    comm_unit_param = atoi(std::getenv("CRITTER_COMM_UNIT_PARAM"));
-  } else{
-    comm_unit_param = 0;
-  }
-  if (std::getenv("CRITTER_COMM_ANALYSIS_PARAM") != NULL){
-    comm_analysis_param = atoi(std::getenv("CRITTER_COMM_ANALYSIS_PARAM"));
-  } else{
-    comm_analysis_param = 0;
-  }
-  if (std::getenv("CRITTER_COMP_ENVELOPE_PARAM") != NULL){
-    comp_envelope_param = atoi(std::getenv("CRITTER_COMP_ENVELOPE_PARAM"));
-  } else{
-    comp_envelope_param = 0;
-  }
-  if (std::getenv("CRITTER_COMP_UNIT_PARAM") != NULL){
-    comp_unit_param = atoi(std::getenv("CRITTER_COMP_UNIT_PARAM"));
-  } else{
-    comp_unit_param = 0;
-  }
-  if (std::getenv("CRITTER_COMP_ANALYSIS_PARAM") != NULL){
-    comp_analysis_param = atoi(std::getenv("CRITTER_COMP_ANALYSIS_PARAM"));
-  } else{
-    comp_analysis_param = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_COUNT_LIMIT") != NULL){
-    kernel_count_limit = atoi(std::getenv("CRITTER_PATTERN_COUNT_LIMIT"));
-  } else{
-    kernel_count_limit = 2;
-  }
-  if (std::getenv("CRITTER_PATTERN_TIME_LIMIT") != NULL){
-    kernel_time_limit = atof(std::getenv("CRITTER_PATTERN_TIME_LIMIT"));
-  } else{
-    kernel_time_limit = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){
-    kernel_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT"));
-  } else{
-    kernel_error_limit = 0;
-  }
-  if (std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT") != NULL){
-    kernel_percentage_limit = atof(std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT"));
-  } else{
-    kernel_percentage_limit = .001;
-  }
-  if (std::getenv("CRITTER_COMP_KERNEL_TRANSFER_ID") != NULL){
-    comp_kernel_transfer_id = atof(std::getenv("CRITTER_COMP_KERNEL_TRANSFER_ID"));
+  if (std::getenv("CRITTER_COMP_KERNEL_TRANSFER_MODE") != NULL){
+    comp_kernel_transfer_id = atof(std::getenv("CRITTER_COMP_KERNEL_TRANSFER_MODE"));
   } else{
     comp_kernel_transfer_id = 0;
   }
-  if (std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID") != NULL){
-    comm_kernel_transfer_id = atof(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_ID"));
+  if (std::getenv("CRITTER_COMM_KERNEL_TRANSFER_MODE") != NULL){
+    comm_kernel_transfer_id = atof(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_MODE"));
   } else{
     comm_kernel_transfer_id = 0;
   }
@@ -1452,12 +1401,23 @@ void allocate(MPI_Comm comm){
   } else{
     stop_criterion_mode = 1;// confidence interval length
   }
-  if (std::getenv("CRITTER_DEBUG_ITER_COUNT") != NULL){
-    debug_iter_count = atof(std::getenv("CRITTER_DEBUG_ITER_COUNT"));
+  if (std::getenv("CRITTER_ITERATION_COUNT") != NULL){
+    debug_iter_count = atof(std::getenv("CRITTER_ITERATION_COUNT"));
   } else{
     debug_iter_count = 1;
   }
 
+  comm_sample_aggregation_mode = 0;
+  comp_sample_aggregation_mode = 0;
+  reset_mode = 0;
+  comm_envelope_param = 0;
+  comm_unit_param = 0;
+  comm_analysis_param = 0;
+  comp_envelope_param = 0;
+  comp_unit_param = 0;
+  comp_analysis_param = 0;
+  assert(comm_state_aggregation_mode >= comm_sample_aggregation_mode);
+  assert(comp_state_aggregation_mode >= comp_sample_aggregation_mode);
   if (stop_criterion_mode==0) assert(sample_constraint_mode == 3);
 /*
   NOTE: Below was copied straight from decomposition. It needs modification.
@@ -1677,8 +1637,8 @@ void clear(int tag_count, int* distribution_tags){
 }
 
 void reference_transfer(){
-  if (std::getenv("CRITTER_PATTERN_ERROR_LIMIT") != NULL){ kernel_error_limit = atof(std::getenv("CRITTER_PATTERN_ERROR_LIMIT")); }
-  if (std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT") != NULL){ kernel_percentage_limit = atof(std::getenv("CRITTER_PATTERN_PERCENTAGE_LIMIT")); }
+  if (std::getenv("CRITTER_KERNEL_ERROR_LIMIT") != NULL){ kernel_error_limit = atof(std::getenv("CRITTER_KERNEL_ERROR_LIMIT")); }
+  if (std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT") != NULL){ kernel_percentage_limit = atof(std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT")); }
   if (std::getenv("CRITTER_STOP_CRIT_MODE") != NULL){ stop_criterion_mode = atof(std::getenv("CRITTER_STOP_CRIT_MODE")); }
   std::memcpy(&critical_path_costs_ref[0],&critical_path_costs[0],num_critical_path_measures*sizeof(double));
   std::memcpy(&max_per_process_costs_ref[0],&max_per_process_costs[0],num_per_process_measures*sizeof(double));

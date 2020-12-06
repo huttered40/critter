@@ -18,6 +18,7 @@ extern std::vector<comp_kernel_key> active_comp_kernel_keys;
 extern volatile double comm_intercept_overhead_stage1;
 extern volatile double comm_intercept_overhead_stage2;
 extern volatile double comp_intercept_overhead;
+extern volatile double comp_start_time;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -39,6 +40,7 @@ extern int internal_tag3;
 extern int internal_tag4;
 extern int internal_tag5;
 extern bool is_first_iter;
+extern int skeleton_analytic;
 
 void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);

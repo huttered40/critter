@@ -97,9 +97,7 @@ void _init(int* argc, char*** argv){
   delete_comm = 1;
   request_id = 100;
   schedule_tag="";
-  if (std::getenv("CRITTER_SCHEDULE_TAG") != NULL){
-    schedule_tag = std::getenv("CRITTER_SCHEDULE_TAG");
-  }
+  track_p2p_idle = 1;
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
   } else{
@@ -135,11 +133,6 @@ void _init(int* argc, char*** argv){
   } else{
     track_p2p = 1;
   }
-  if (std::getenv("CRITTER_TRACK_P2P_IDLE") != NULL){
-    track_p2p_idle = atoi(std::getenv("CRITTER_TRACK_P2P_IDLE"));
-  } else{
-    track_p2p_idle = 1;
-  }
   if (std::getenv("CRITTER_EAGER_P2P") != NULL){
     eager_p2p = atoi(std::getenv("CRITTER_EAGER_P2P"));
   } else{
@@ -148,8 +141,8 @@ void _init(int* argc, char*** argv){
   if (std::getenv("CRITTER_DELETE_COMM") != NULL){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
   }
-  if (std::getenv("CRITTER_RECV_KERNEL_OVERRIDE") != NULL){
-    recv_kernel_override = atof(std::getenv("CRITTER_RECV_KERNEL_OVERRIDE"));
+  if (std::getenv("CRITTER_SEND_DEPENDENCY") != NULL){
+    recv_kernel_override = atof(std::getenv("CRITTER_SEND_DEPENDENCY"));
   } else{
     recv_kernel_override = 1;
   }
@@ -163,10 +156,10 @@ void _init(int* argc, char*** argv){
   } else{
     comp_kernel_select_size = 25;
   }
-  if (std::getenv("CRITTER_RESET_MATRICES") != NULL){
-    reset_matrices = atof(std::getenv("CRITTER_RESET_MATRICES"));
+  if (std::getenv("CRITTER_RESET_MATRIX") != NULL){
+    reset_matrix = atof(std::getenv("CRITTER_RESET_MATRIX"));
   } else{
-    reset_matrices = 1;
+    reset_matrix = 1;
   }
 
   _MPI_Barrier__id = 0;
