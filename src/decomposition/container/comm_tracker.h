@@ -106,6 +106,24 @@ public:
     nonblocking(nonblocking const& t);
 };
 
+struct nonblocking_info{
+  nonblocking_info(){}
+  nonblocking_info(bool _is_sender, int _partner, MPI_Comm _comm, double _nbytes, double _comm_size, nonblocking* _track){
+    this->is_sender = _is_sender;
+    this->partner = _partner;
+    this->comm = _comm;
+    this->nbytes = _nbytes;
+    this->comm_size = _comm_size;
+    this->track = _track;
+  }
+  bool is_sender;
+  int partner;
+  MPI_Comm comm;
+  double nbytes;
+  double comm_size;
+  nonblocking* track;
+};
+
 extern blocking
          _MPI_Send,
          _MPI_Ssend,
@@ -143,7 +161,7 @@ extern nonblocking
          _MPI_Ialltoallv;
 constexpr auto list_size=33;
 extern comm_tracker* list[list_size];
-extern std::map<MPI_Request,nonblocking*> internal_comm_track;
+extern std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 
 }
 }

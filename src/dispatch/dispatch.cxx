@@ -70,7 +70,11 @@ bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int p
       schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      if (skeleton_analytic){
+        schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      } else{
+        schedule_decision = decomposition::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      }
       break;
   }
   return schedule_decision;
@@ -85,7 +89,11 @@ void complete_comp(double errtime, size_t id, double flop_count,  int param1, in
       discretization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      skeletonization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      if (skeleton_analytic){
+        skeletonization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      } else{
+        decomposition::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      }
       break;
   }
 }
@@ -101,7 +109,11 @@ bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Dataty
       schedule_decision = discretization::path::initiate_comm(*(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      if (skeleton_analytic){
+        schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      } else{
+        schedule_decision = decomposition::path::initiate_comm(*(decomposition::blocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
+      }
       break;
   }
   return schedule_decision;
@@ -118,7 +130,11 @@ bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatyp
       schedule_decision = discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],curtime,nelem,t,cm,user_tag,is_sender,partner);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner);
+      if (skeleton_analytic){
+        schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner);
+      } else{
+        schedule_decision = decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner);
+      }
       break;
   }
   return schedule_decision;
@@ -133,7 +149,11 @@ void initiate_comm(size_t id, volatile double itime, int64_t nelem, MPI_Datatype
       discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],itime,nelem,t,cm,request,user_tag,is_sender,partner);
       break;
     case 2:
-      skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],itime,nelem,t,cm,request,is_sender,partner);
+      if (skeleton_analytic){
+        skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],itime,nelem,t,cm,request,is_sender,partner);
+      } else{
+        decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],itime,nelem,t,cm,request,is_sender,partner);
+      }
       break;
   }
 }
@@ -147,7 +167,11 @@ void complete_comm(size_t id, int recv_source){
       discretization::path::complete_comm(*(discretization::blocking*)discretization::list[id],recv_source);
       break;
     case 2:
-      skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id],recv_source);
+      if (skeleton_analytic){
+        skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id],recv_source);
+      } else{
+        decomposition::path::complete_comm(*(decomposition::blocking*)decomposition::list[id],recv_source);
+      }
       break;
   }
 }
@@ -159,7 +183,11 @@ int complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
     case 1:
       return discretization::path::complete_comm(curtime,request,status);
     case 2:
-      return skeletonization::path::complete_comm(curtime,request,status);
+      if (skeleton_analytic){
+        return skeletonization::path::complete_comm(curtime,request,status);
+      } else{
+        return decomposition::path::complete_comm(curtime,request,status);
+      }
   }
 }
 
@@ -168,11 +196,13 @@ int complete_comm(double curtime, int count, MPI_Request array_of_requests[], in
     case 0:
       return decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 1:
-      assert(0);	// Temporary
       return discretization::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 2:
-      assert(0);	// Temporary
-      return skeletonization::path::complete_comm(curtime,count,array_of_requests,indx,status);
+      if (skeleton_analytic){
+        return skeletonization::path::complete_comm(curtime,count,array_of_requests,indx,status);
+      } else{
+        return decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
+      }
   }
 }
 
@@ -181,11 +211,13 @@ int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], 
     case 0:
       return decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 1:
-      assert(0);	// Temporary
       return discretization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 2:
-      assert(0);	// Temporary
-      return skeletonization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      if (skeleton_analytic){
+        return skeletonization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      } else{
+        return decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      }
   }
 }
 
@@ -196,7 +228,11 @@ int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MP
     case 1:
       return discretization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
     case 2:
-      return skeletonization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
+      if (skeleton_analytic){
+        return skeletonization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
+      } else{
+        return decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
+      }
   }
 }
 
@@ -358,6 +394,85 @@ void print(int variantID, int print_mode, double overhead_time){
       skeletonization::record::print(variantID,print_mode,overhead_time);
       break;
   }
+}
+
+int get_critical_path_costs(){
+  switch (mechanism){
+    case 0:
+      return decomposition::num_critical_path_measures;
+    case 1:
+      return discretization::num_critical_path_measures;
+    case 2:
+      return skeletonization::num_critical_path_measures;
+  }
+  assert(-1);
+  return -1;
+}
+void get_critical_path_costs(double* costs){
+  switch (mechanism){
+    case 0:
+      std::memcpy(costs,&decomposition::critical_path_costs[0],sizeof(double)*decomposition::num_critical_path_measures);
+      break;
+    case 1:
+      std::memcpy(costs,&discretization::critical_path_costs[0],sizeof(double)*discretization::num_critical_path_measures);
+      break;
+    case 2:
+      std::memcpy(costs,&skeletonization::critical_path_costs[0],sizeof(double)*skeletonization::num_critical_path_measures);
+      break;
+  }
+  return;
+}
+int get_max_per_process_costs(){
+  switch (mechanism){
+    case 0:
+      return decomposition::num_per_process_measures;
+    case 1:
+      return discretization::num_per_process_measures;
+    case 2:
+      return skeletonization::num_per_process_measures;
+  }
+  assert(-1);
+  return -1;
+}
+void get_max_per_process_costs(double* costs){
+  switch (mechanism){
+    case 0:
+      std::memcpy(costs,&decomposition::max_per_process_costs[0],sizeof(double)*decomposition::num_per_process_measures);
+      break;
+    case 1:
+      std::memcpy(costs,&discretization::max_per_process_costs[0],sizeof(double)*discretization::num_per_process_measures);
+      break;
+    case 2:
+      std::memcpy(costs,&skeletonization::max_per_process_costs[0],sizeof(double)*skeletonization::num_per_process_measures);
+      break;
+  }
+  return;
+}
+int get_volumetric_costs(){
+  switch (mechanism){
+    case 0:
+      return decomposition::num_volume_measures;
+    case 1:
+      return discretization::num_volume_measures;
+    case 2:
+      return skeletonization::num_volume_measures;
+  }
+  assert(-1);
+  return -1;
+}
+void get_volumetric_costs(double* costs){
+  switch (mechanism){
+    case 0:
+      std::memcpy(costs,&decomposition::volume_costs[0],sizeof(double)*decomposition::num_volume_measures);
+      break;
+    case 1:
+      std::memcpy(costs,&discretization::volume_costs[0],sizeof(double)*discretization::num_volume_measures);
+      break;
+    case 2:
+      std::memcpy(costs,&skeletonization::volume_costs[0],sizeof(double)*skeletonization::num_volume_measures);
+      break;
+  }
+  return;
 }
 
 }

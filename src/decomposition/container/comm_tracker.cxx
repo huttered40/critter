@@ -5,7 +5,8 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
-std::map<MPI_Request,nonblocking*> internal_comm_track;
+std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
+
 blocking _MPI_Barrier("MPI_Barrier",0, 
                           [](int64_t n, int p){
                             return std::pair<double,double>(1.,0.);},

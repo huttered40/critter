@@ -11,7 +11,7 @@ namespace internal{
 namespace discretization{
 
 int tuning_delta;
-int reset_mode;
+int reset_distribution_mode;
 int comm_sample_aggregation_mode;
 int comm_state_aggregation_mode;
 int comp_sample_aggregation_mode;
@@ -69,13 +69,8 @@ std::vector<double> max_per_process_costs_ref;
 std::vector<double> volume_costs_ref;
 std::vector<double_int> info_sender;
 std::vector<double_int> info_receiver;
-std::vector<double> nonblocking_eager_pad;
 std::vector<char> eager_pad;
 volatile double comp_start_time;
-std::map<MPI_Request,std::pair<bool,int>> internal_comm_info1;
-std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_info2;
-std::map<MPI_Request,std::pair<double,double>> internal_comm_info3;
-std::map<MPI_Request,std::pair<int,int>> internal_comm_info5;
 std::vector<bool> decisions;
 std::map<std::string,std::vector<double>> save_info;
 std::vector<double> new_cs;
@@ -1348,6 +1343,11 @@ void allocate(MPI_Comm comm){
   } else{
     tuning_delta = 0;
   }
+  if (std::getenv("CRITTER_RESET_DISTRIBUTION") != NULL){
+    reset_distribution_mode = atoi(std::getenv("CRITTER_RESET_DISTRIBUTION"));
+  } else{
+    reset_distribution_mode = 0;
+  }
   if (std::getenv("CRITTER_KERNEL_COUNT_LIMIT") != NULL){
     kernel_count_limit = atoi(std::getenv("CRITTER_KERNEL_COUNT_LIMIT"));
   } else{
@@ -1409,7 +1409,6 @@ void allocate(MPI_Comm comm){
 
   comm_sample_aggregation_mode = 0;
   comp_sample_aggregation_mode = 0;
-  reset_mode = 0;
   comm_envelope_param = 0;
   comm_unit_param = 0;
   comm_analysis_param = 0;
@@ -1419,25 +1418,12 @@ void allocate(MPI_Comm comm){
   assert(comm_state_aggregation_mode >= comm_sample_aggregation_mode);
   assert(comp_state_aggregation_mode >= comp_sample_aggregation_mode);
   if (stop_criterion_mode==0) assert(sample_constraint_mode == 3);
-/*
-  NOTE: Below was copied straight from decomposition. It needs modification.
-  if (eager_p2p){
-    int eager_msg_sizes[5];
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[1]);
-    MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,comm,&eager_msg_sizes[2]);
-    MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,comm,&eager_msg_sizes[3]);
-    MPI_Pack_size(1,MPI_INT,comm,&eager_msg_sizes[4]);
-    int eager_pad_size = 5*MPI_BSEND_OVERHEAD;
-    for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
-    eager_pad.resize(eager_pad_size);
-  }
-*/
+
   int eager_msg_size;
   MPI_Pack_size(17,MPI_DOUBLE,comm,&eager_msg_size);
-  int nonblocking_eager_pad_size = MPI_BSEND_OVERHEAD;
-  nonblocking_eager_pad_size += eager_msg_size;
-  nonblocking_eager_pad.resize(nonblocking_eager_pad_size);
+  int eager_pad_size = MPI_BSEND_OVERHEAD;
+  eager_pad_size += eager_msg_size;
+  eager_pad.resize(eager_pad_size);
 }
 
 void open_symbol(const char* symbol, double curtime){}
@@ -1445,7 +1431,7 @@ void open_symbol(const char* symbol, double curtime){}
 void close_symbol(const char* symbol, double curtime){}
 
 void final_accumulate(MPI_Comm comm, double last_time){
-  assert(internal_comm_info1.size() == 0);
+  assert(nonblocking_internal_info.size() == 0);
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
@@ -1555,8 +1541,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
-
-  assert(internal_comm_info1.size() == 0);
+  assert(nonblocking_internal_info.size() == 0);
   memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
   memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
   memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
@@ -1604,7 +1589,7 @@ void clear(int tag_count, int* distribution_tags){
 
   comp_kernel_ref_map.clear();
   comm_kernel_ref_map.clear();
-  if (distribution_tags == nullptr){
+  if (reset_distribution_mode==0){
     // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
     // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
     // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used

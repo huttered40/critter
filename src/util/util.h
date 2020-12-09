@@ -108,7 +108,7 @@ extern int comp_kernel_counter;
 extern int comm_kernel_counter;
 extern int clear_counter;
 extern int communicator_count;
-extern int recv_kernel_override;
+extern int send_dependency;
 extern std::string schedule_tag;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
@@ -123,9 +123,9 @@ extern size_t track_blas3;
 extern size_t track_lapack;
 extern size_t track_collective;
 extern size_t track_p2p;
-extern size_t track_p2p_idle;
-extern size_t eager_p2p;
+extern size_t eager_limit;
 extern size_t delete_comm;
+extern int skeleton_analytic;
 extern int request_id;
 extern size_t
          _MPI_Send__id,

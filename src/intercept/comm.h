@@ -14,6 +14,13 @@ void set_mechanism(int input_mechanism=-1);
 void set_mode(int input_mode=0);
 void set_debug(int debug_mode);
 
+int get_critical_path_costs();
+void get_critical_path_costs(double* costs);
+int get_max_per_process_costs();
+void get_max_per_process_costs(double* costs);
+int get_volumetric_costs();
+void get_volumetric_costs(double* costs);
+
 namespace internal{
 
 int init(int* argc, char*** argv);

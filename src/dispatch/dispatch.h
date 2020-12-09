@@ -32,6 +32,12 @@ void write_file(int variantID, int print_mode, double overhead_time);
 void print(int variantID, int print_mode, double overhead_time);
 void clear(int tag_count, int* distribution_tags);
 void _finalize();
+int get_critical_path_costs();
+void get_critical_path_costs(double* costs);
+int get_max_per_process_costs();
+void get_max_per_process_costs(double* costs);
+int get_volumetric_costs();
+void get_volumetric_costs(double* costs);
 
 }
 }

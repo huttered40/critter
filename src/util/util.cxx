@@ -253,7 +253,7 @@ int comp_kernel_counter;
 int comm_kernel_counter;
 int clear_counter;
 int communicator_count;
-int recv_kernel_override;
+int send_dependency;
 std::string schedule_tag;
 volatile double computation_timer;
 std::vector<double> wall_timer;
@@ -268,9 +268,9 @@ size_t track_blas3;
 size_t track_lapack;
 size_t track_collective;
 size_t track_p2p;
-size_t track_p2p_idle;
-size_t eager_p2p;
+size_t eager_limit;
 size_t delete_comm;
+int skeleton_analytic;
 int request_id;
 size_t
          _MPI_Send__id,

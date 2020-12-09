@@ -102,7 +102,6 @@ void print_header(size_t num_inputs){
 }
 
 void record::write_file(int variantID, double overhead_time){
-  assert(internal_comm_info.size() == 0);
   int temp_mode=1;
   if (std::getenv("CRITTER_MODE") != NULL){
     temp_mode = atoi(std::getenv("CRITTER_MODE"));
@@ -203,7 +202,6 @@ void record::write_file(int variantID, double overhead_time){
 }
 
 void record::print(int variantID, double overhead_time){
-  assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   int temp_mode=1;
   if (std::getenv("CRITTER_MODE") != NULL){

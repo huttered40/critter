@@ -84,6 +84,25 @@ void set_mechanism(int input_mechanism){
   }
 }
 
+int get_critical_path_costs(){
+  return internal::get_critical_path_costs();
+}
+void get_critical_path_costs(double* costs){
+  return internal::get_critical_path_costs(costs);
+}
+int get_max_per_process_costs(){
+  return internal::get_max_per_process_costs();
+}
+void get_max_per_process_costs(double* costs){
+  return internal::get_max_per_process_costs(costs);
+}
+int get_volumetric_costs(){
+  return internal::get_volumetric_costs();
+}
+void get_volumetric_costs(double* costs){
+  return internal::get_volumetric_costs(costs);
+}
+
 namespace internal{
 
 // These routines aim to achieve agnosticity to mechanism.
@@ -97,7 +116,6 @@ void _init(int* argc, char*** argv){
   delete_comm = 1;
   request_id = 100;
   schedule_tag="";
-  track_p2p_idle = 1;
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
   } else{
@@ -133,18 +151,18 @@ void _init(int* argc, char*** argv){
   } else{
     track_p2p = 1;
   }
-  if (std::getenv("CRITTER_EAGER_P2P") != NULL){
-    eager_p2p = atoi(std::getenv("CRITTER_EAGER_P2P"));
+  if (std::getenv("CRITTER_EAGER_LIMIT") != NULL){
+    eager_limit = atoi(std::getenv("CRITTER_EAGER_LIMIT"));
   } else{
-    eager_p2p = 0;
+    eager_limit = 32768;
   }
   if (std::getenv("CRITTER_DELETE_COMM") != NULL){
     delete_comm = atoi(std::getenv("CRITTER_DELETE_COMM"));
   }
   if (std::getenv("CRITTER_SEND_DEPENDENCY") != NULL){
-    recv_kernel_override = atof(std::getenv("CRITTER_SEND_DEPENDENCY"));
+    send_dependency = atof(std::getenv("CRITTER_SEND_DEPENDENCY"));
   } else{
-    recv_kernel_override = 1;
+    send_dependency = 0;
   }
   if (std::getenv("CRITTER_COMM_KERNEL_SELECT_SIZE") != NULL){
     comm_kernel_select_size = atof(std::getenv("CRITTER_COMM_KERNEL_SELECT_SIZE"));
@@ -161,6 +179,13 @@ void _init(int* argc, char*** argv){
   } else{
     reset_matrix = 1;
   }
+  if (std::getenv("ANALYTIC_KERNEL_FREQUENCY") != NULL){
+    skeleton_analytic = atoi(std::getenv("ANALYTIC_KERNEL_FREQUENCY"));
+    assert(skeleton_analytic==0 || skeleton_analytic==1);
+  } else{
+    skeleton_analytic = 1;
+  }
+  assert(skeleton_analytic==1);// Temporary
 
   _MPI_Barrier__id = 0;
   _MPI_Bcast__id = 1;

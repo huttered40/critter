@@ -1,6 +1,5 @@
 #include "path.h"
 #include "../container/symbol_tracker.h"
-//#include "../../replay/path/path.h"
 #include "../../discretization/util/util.h"
 #include "../util/util.h"
 #include "../../util/util.h"
@@ -47,23 +46,22 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += last_symbol_time;
   }
 
-  bool schedule_decision = true;
-
   // start compunication timer for compunication routine
   comp_start_time = MPI_Wtime();
-  return schedule_decision;
+  return true;
 }
 
 void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
 
+  // Save kernel information
   if (autotuning_debug == 1){
     comp_kernel_key key(-1,id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
-    if (replace_comp_map_local.find(key) == replace_comp_map_local.end()){
-      replace_comp_map_local[key] = std::make_pair(1,comp_time);
+    if (comp_kernel_info.find(key) == comp_kernel_info.end()){
+      comp_kernel_info[key] = std::make_pair(1,comp_time);
     } else{
-      replace_comp_map_local[key].first++;
-      replace_comp_map_local[key].second += comp_time;
+      comp_kernel_info[key].first++;
+      comp_kernel_info[key].second += comp_time;
     }
   }
 
@@ -107,16 +105,6 @@ void path::complete_comp(double errtime, size_t id, double flop_count, int param
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
 }
 
-static void add_critical_path_data_op(int_int_double* in, int_int_double* inout, int* len, MPI_Datatype* dtype){
-  int_int_double* invec = in;
-  int_int_double* inoutvec = inout;
-  for (int i=0; i<*len; i++){
-    inoutvec[i].first = std::max(inoutvec[i].first,invec[i].first);
-    inoutvec[i].second = std::max(inoutvec[i].second,invec[i].second);
-    inoutvec[i].third = std::max(inoutvec[i].third,invec[i].third);
-  }
-}
-
 static void update_critical_path(double* in, double* inout, size_t len){
   assert(len == critical_path_costs_size);	// this assert prevents user from obtaining wrong output if MPI implementation cuts up the message.
   if (comm_path_select_size > 0){
@@ -143,71 +131,35 @@ static void propagate_critical_path_op(double* in, double* inout, int* len, MPI_
 }
 
 static void complete_timers(double* remote_path_data, size_t msg_id){
-  if (eager_p2p==0){
-    int* envelope_int[2] = { internal_timer_prop_int[4*msg_id+2], internal_timer_prop_int[4*msg_id+3] };
-    double* envelope_double[2] = { remote_path_data, internal_timer_prop_double[2*msg_id+1] };
-    char* envelope_char = internal_timer_prop_char[2*msg_id+1];
-    for (auto k=0; k<symbol_path_select_size; k++){
-      // Up until this very point, we had no idea whether we, or our partner rank, determined the path for a specific metric.
-      if (envelope_double[0][symbol_path_select_index[k]] > critical_path_costs[symbol_path_select_index[k]]){
-        int ftimer_size = *envelope_int[0];
-        int symbol_offset = 0;
-        for (int i=0; i<ftimer_size; i++){
-          auto reconstructed_symbol = std::string(envelope_char+symbol_offset,envelope_char+symbol_offset+envelope_int[1][i]);
-          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
-            symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
-            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
-          }
-          std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
-                      &envelope_double[1][(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
-                      sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
-          symbol_timers[reconstructed_symbol].has_been_processed = true;
-          symbol_offset += envelope_int[1][i];
+  // Note that only receives will enter this function anyways, so no need to branch
+  int* envelope_int[2] = { internal_timer_prop_int[2*msg_id], internal_timer_prop_int[2*msg_id+1] };
+  double* envelope_double[2] = { remote_path_data, internal_timer_prop_double[msg_id] };
+  char* envelope_char = internal_timer_prop_char[msg_id];
+  for (auto k=0; k<symbol_path_select_size; k++){
+    // Up until this very point, we had no idea whether we, or our partner rank, determined the path for a specific metric.
+    if (envelope_double[0][symbol_path_select_index[k]] > critical_path_costs[symbol_path_select_index[k]]){
+      int ftimer_size = *envelope_int[0];
+      int symbol_offset = 0;
+      for (int i=0; i<ftimer_size; i++){
+        auto reconstructed_symbol = std::string(envelope_char+symbol_offset,envelope_char+symbol_offset+envelope_int[1][i]);
+        if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
+          symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
+          symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
         }
-        // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
-        for (auto& it : symbol_timers){
-          if (it.second.has_been_processed){ it.second.has_been_processed = false; }
-          else{
-            it.second.cp_numcalls[k][0] = 0;
-            for (int j=0; j<num_per_process_measures; j++){
-              it.second.cp_incl_measure[k][j] = 0;
-              it.second.cp_excl_measure[k][j] = 0;
-            }
-          }
-        }
+        std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
+                    &envelope_double[1][(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
+                    sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
+        symbol_timers[reconstructed_symbol].has_been_processed = true;
+        symbol_offset += envelope_int[1][i];
       }
-    }
-  } else{
-    // Note that only receives will enter this function anyways, so no need to branch
-    int* envelope_int[2] = { internal_timer_prop_int[2*msg_id], internal_timer_prop_int[2*msg_id+1] };
-    double* envelope_double[2] = { remote_path_data, internal_timer_prop_double[msg_id] };
-    char* envelope_char = internal_timer_prop_char[msg_id];
-    for (auto k=0; k<symbol_path_select_size; k++){
-      // Up until this very point, we had no idea whether we, or our partner rank, determined the path for a specific metric.
-      if (envelope_double[0][symbol_path_select_index[k]] > critical_path_costs[symbol_path_select_index[k]]){
-        int ftimer_size = *envelope_int[0];
-        int symbol_offset = 0;
-        for (int i=0; i<ftimer_size; i++){
-          auto reconstructed_symbol = std::string(envelope_char+symbol_offset,envelope_char+symbol_offset+envelope_int[1][i]);
-          if (symbol_timers.find(reconstructed_symbol) == symbol_timers.end()){
-            symbol_timers[reconstructed_symbol] = symbol_tracker(reconstructed_symbol);
-            symbol_order[(symbol_timers.size()-1)] = reconstructed_symbol;
-          }
-          std::memcpy(symbol_timers[reconstructed_symbol].cp_numcalls[k],
-                      &envelope_double[1][(i*symbol_path_select_size+k)*(cp_symbol_class_count*num_per_process_measures+1)],
-                      sizeof(double)*(cp_symbol_class_count*num_per_process_measures+1));
-          symbol_timers[reconstructed_symbol].has_been_processed = true;
-          symbol_offset += envelope_int[1][i];
-        }
-        // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
-        for (auto& it : symbol_timers){
-          if (it.second.has_been_processed){ it.second.has_been_processed = false; }
-          else{
-            it.second.cp_numcalls[k][0] = 0;
-            for (int j=0; j<num_per_process_measures; j++){
-              it.second.cp_incl_measure[k][j] = 0;
-              it.second.cp_excl_measure[k][j] = 0;
-            }
+      // Now cycle through and find the symbols that were not processed and set their accumulated measures to 0
+      for (auto& it : symbol_timers){
+        if (it.second.has_been_processed){ it.second.has_been_processed = false; }
+        else{
+          it.second.cp_numcalls[k][0] = 0;
+          for (int j=0; j<num_per_process_measures; j++){
+            it.second.cp_incl_measure[k][j] = 0;
+            it.second.cp_excl_measure[k][j] = 0;
           }
         }
       }
@@ -241,80 +193,87 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
-
+  // Note that use of MPI_ANY_SOURCE may in fact be ok, but it has not been tested.
+  assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
   int rank; MPI_Comm_rank(comm, &rank);
-  // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
-  // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Receives would be expecting internal communications
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
-  if (true_eager_p2p){
-    MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+  MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+
+  // Save caller communication attributes into reference object for use in corresponding static method 'complete'
+  int word_size,np; MPI_Type_size(t, &word_size);
+  int64_t nbytes = word_size * nelem;
+  MPI_Comm_size(comm, &np);
+  tracker.nbytes = nbytes;
+  tracker.comm = comm;
+  tracker.comm_size = np;
+  tracker.is_sender = is_sender;
+  tracker.partner1 = partner1;
+  tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
+  tracker.synch_time = 0.;// might get updated below
+  tracker.barrier_time=0.;// might get updated below
+  // Below: tricky situation in which the receiver assumes eager protocol due to message size, but sender is synchronous.
+  if (tracker.tag == 15) assert(tracker.nbytes > eager_limit);
+  bool eager = ((tracker.partner1 != -1) && (tracker.tag!=13) && (tracker.tag!=14) && (tracker.tag!=15) && (tracker.nbytes <= eager_limit));
+
+  // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
+  // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
+  // Note that unlike the execution-time critical path, critical paths defined by other metrics besides execution-time can incur idle time.
+
+  // Note that the only reason we separate out the blocking p2p idle time communication is due to the possibility that the other side being nonblocking.
+  // Nonblocking sends can not utilize sendrecv because they may be embedded within a Waitall that does not guarantee ordering.
+  // To account for this for blocking sends, we use the synchronous send to avoid automatic eager-protocol (which would have allowed early exit from p2p barrier).
+  // The only reason we do not always issue a sendrecv with partners 1&2 is because of the possibility in which the other side issued a nonblocking communication request and our handling for idle time there
+  //   is for a nonblocking sender to issue a send and a nonblocking receiver to issue a recv, rather than both. This also is more aligned with a future goal of utilizing eager sends, which might be constitute a different mechanism.
+  // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
+  //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
+
+  volatile double init_time = MPI_Wtime();
+  if (partner1 == -1){
+    PMPI_Barrier(tracker.comm);
+    tracker.barrier_time = MPI_Wtime() - init_time;
+  }
+  else {
+    MPI_Request barrier_reqs[3]; int barrier_count=0;
+    char sbuf='H'; char rbuf='H';
+    if ((is_sender) && (rank != partner1)){
+      if (eager) { PMPI_Bsend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, tracker.comm); }
+      else       { PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++; }
+    }
+    if ((!is_sender) && (rank != partner1)){
+      PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag3, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    if ((partner2 != -1) && (rank != partner2)){
+      PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner2, internal_tag3, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
+    if (barrier_count>0) tracker.barrier_time = MPI_Wtime() - init_time;
   }
 
-  tracker.barrier_time=0.;// might get updated below
-  if ((partner1==-1) || (track_p2p_idle==1)){// if blocking collective, or if p2p and idle time is requested to be tracked
-    assert(partner1 != MPI_ANY_SOURCE);
-    if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
-
-    // Use a barrier or synchronous (rendezvous protocol) send/recv to track idle time (i.e. one process will be the latest to arrive at this segment of code, thus all other processes directly wait for it)
-    // This avoids corruption of communication time when processes are still waiting for the initial synchronization to proceed with the communication.
-    // Note that unlike the execution-time critical path, critical paths defined by other metrics besides execution-time can incur idle time.
-
-    // Note that the only reason we separate out the blocking p2p idle time communication is due to the possibility that the other side being nonblocking.
-    // Nonblocking sends can not utilize sendrecv because they may be embedded within a Waitall that does not guarantee ordering.
-    // To account for this for blocking sends, we use the synchronous send to avoid automatic eager-protocol (which would have allowed early exit from p2p barrier).
-    // The only reason we do not always issue a sendrecv with partners 1&2 is because of the possibility in which the other side issued a nonblocking communication request and our handling for idle time there
-    //   is for a nonblocking sender to issue a send and a nonblocking receiver to issue a recv, rather than both. This also is more aligned with a future goal of utilizing eager sends, which might be constitute a different mechanism.
-    // Note that we favor {Issend,Irecv} rather than {Ssend,Recv,Sendrecv} only because it simplifies logic when handling multiple possible two-sided p2p communication patterns.
-    //   A user Sendrecv cannot be handled with separate Send+recv because a Sendrecv is implemented via nonblocking p2p in all MPI implementations as it is a construct used in part to prevent deadlock.
-
-    volatile double init_time = MPI_Wtime();
-    if (partner1 == -1){ PMPI_Barrier(comm); }
+  if (invoke_max_barrier==1){
+    // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
+    // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
+    // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
+    double min_idle_time=tracker.barrier_time;
+    double recv_idle_time1=std::numeric_limits<double>::max();
+    double recv_idle_time2=std::numeric_limits<double>::max();
+    if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, tracker.comm); }
     else {
       MPI_Request barrier_reqs[3]; int barrier_count=0;
-      char sbuf='H'; char rbuf='H';
       if ((is_sender) && (rank != partner1)){
-        if (true_eager_p2p) { PMPI_Bsend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm); }
-        else                { PMPI_Issend(&sbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++; }
+        if (eager) { PMPI_Bsend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag3, tracker.comm); }
+        else PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
       }
       if ((!is_sender) && (rank != partner1)){
-        PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
+        PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
       }
       if ((partner2 != -1) && (rank != partner2)){
-        PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner2, internal_tag3, comm, &barrier_reqs[barrier_count]); barrier_count++;
+        PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
       }
       PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
+      min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
     }
-    tracker.barrier_time = MPI_Wtime() - init_time;
-
-    // If eager protocol is enabled, its assumed that any message latency the sender incurs is negligable, and thus the receiver incurs its true idle time above
-    // Again, the gray-area is with Sendrecv variants, and we assume they are treated without eager protocol
-    if (!true_eager_p2p && invoke_max_barrier==1){
-      // We need to subtract out the idle time of the path-root along the execution-time cp so that it appears as this path has no idle time.
-      // Ideally we would do this for the last process to enter this barrier (which would always determine the execution-time cp anyway, but would apply for a path defined by any metric in its distribution).
-      // This is more invasive for p2p, because it requires more handling on the nonblocking side in case of a nonblocking+blocking communication pattern.
-      // TODO: This might function within a new 2-stage mechanism, which is where I want to go next. I think its more efficient as well. See notes.
-      double min_idle_time=tracker.barrier_time;
-      double recv_idle_time1=std::numeric_limits<double>::max();
-      double recv_idle_time2=std::numeric_limits<double>::max();
-      if (partner1 == -1){ PMPI_Allreduce(MPI_IN_PLACE, &min_idle_time, 1, MPI_DOUBLE, MPI_MIN, comm); }
-      else {
-        MPI_Request barrier_reqs[3]; int barrier_count=0;
-        if ((is_sender) && (rank != partner1)){
-          PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-        }
-        if ((!is_sender) && (rank != partner1)){
-          PMPI_Irecv(&recv_idle_time1, 1, MPI_DOUBLE, partner1, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-        }
-        if ((partner2 != -1) && (rank != partner2)){
-          PMPI_Irecv(&recv_idle_time2, 1, MPI_DOUBLE, partner2, internal_tag4, comm, &barrier_reqs[barrier_count]); barrier_count++;
-        }
-        PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
-        min_idle_time = std::min(min_idle_time,std::min(recv_idle_time1,recv_idle_time2));
-      }
-      tracker.barrier_time -= min_idle_time;
-    }
-    for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-2*comm_path_select_size] += tracker.barrier_time; }
+    tracker.barrier_time -= min_idle_time;
   }
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-2*comm_path_select_size] += tracker.barrier_time; }
 
   critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path runtime
@@ -337,107 +296,93 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-3] += last_symbol_time;
   }
 
-  // Save caller communication attributes into reference object for use in corresponding static method 'complete'
-  int word_size,np; MPI_Type_size(t, &word_size);
-  int64_t nbytes = word_size * nelem;
-  MPI_Comm_size(comm, &np);
-  tracker.nbytes = nbytes;
-  tracker.comm = comm;
-  tracker.comm_size = np;
-  tracker.is_sender = is_sender;
-  tracker.partner1 = partner1;
-  tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
-  tracker.synch_time = 0.;// might get updated below
-
-  if ((track_synchronization) && ((partner1==-1) || (track_p2p_idle==1))){// if blocking collective, or if p2p and idle time is requested to be tracked
-    assert(partner1 != MPI_ANY_SOURCE);
-    if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
-
+  if (track_synchronization){
     // Use the user communication routine to measre synchronization time.
     // Note the following consequences of using a tiny 1-byte message (note that 0-byte is trivially handled by most MPI implementations) on measuring synchronization time:
     // 	1) The collective communication algorithm is likely different for small messages than large messages.
     // 	2) The eager sending protocol will be utilized, which would incur a potentially significant difference in synchronization time than if rendezvous protocol was invoked.
-    // 		On second thought. I will force usage of Ssend. TODO: Check whether this breaks any correctness semantics.
 
     // Special arrays for use in the collective -v routines as well as Reduce_scatter.
-    std::vector<int> counts(np,1); std::vector<int> disp(np,0);// TODO: could be moved as global variables
+    std::vector<int> counts(np,1); std::vector<int> disp(np,0);
     if (tracker.tag>=9 && tracker.tag<=12) for (int i=1; i<np; i++) disp[i]=disp[i-1]+1;
     // start synchronization timer for communication routine
     tracker.start_time = MPI_Wtime();
     switch (tracker.tag){
       case 0:
-        PMPI_Barrier(comm);
+        PMPI_Barrier(tracker.comm);
         break;
       case 1:
-        PMPI_Bcast(&synch_pad_send[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        PMPI_Bcast(&synch_pad_send[0], 1, MPI_CHAR, 0, tracker.comm);// arbitrary root 0
         break;
       case 2:
-        PMPI_Reduce(&synch_pad_send[0], &synch_pad_recv[0], 1, MPI_CHAR, MPI_MAX, 0, comm);// arbitrary root 0
+        PMPI_Reduce(&synch_pad_send[0], &synch_pad_recv[0], 1, MPI_CHAR, MPI_MAX, 0, tracker.comm);// arbitrary root 0
         break;
       case 3:
-        PMPI_Allreduce(MPI_IN_PLACE, &synch_pad_send[0], 1, MPI_CHAR, MPI_MAX, comm);
+        PMPI_Allreduce(MPI_IN_PLACE, &synch_pad_send[0], 1, MPI_CHAR, MPI_MAX, tracker.comm);
         break;
       case 4:
-        PMPI_Gather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        PMPI_Gather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, tracker.comm);// arbitrary root 0
         break;
       case 5:
-        PMPI_Allgather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, comm);
+        PMPI_Allgather(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, tracker.comm);
         break;
       case 6:
-        PMPI_Scatter(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        PMPI_Scatter(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, tracker.comm);// arbitrary root 0
         break;
       case 7:
-        PMPI_Reduce_scatter(&synch_pad_send[0], &synch_pad_recv[0], &counts[0], MPI_CHAR, MPI_MAX, comm);
+        PMPI_Reduce_scatter(&synch_pad_send[0], &synch_pad_recv[0], &counts[0], MPI_CHAR, MPI_MAX, tracker.comm);
         break;
       case 8:
-        PMPI_Alltoall(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, comm);
+        PMPI_Alltoall(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, tracker.comm);
         break;
       case 9:
-        PMPI_Gatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, 0, comm);// arbitrary root 0
+        PMPI_Gatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, 0, tracker.comm);// arbitrary root 0
         break;
       case 10:
-        PMPI_Allgatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, comm);
+        PMPI_Allgatherv(&synch_pad_send[0], 1, MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, tracker.comm);
         break;
       case 11:
-        PMPI_Scatterv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, comm);// arbitrary root 0
+        PMPI_Scatterv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], 1, MPI_CHAR, 0, tracker.comm);// arbitrary root 0
         break;
       case 12:
-        PMPI_Alltoallv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, comm);
+        PMPI_Alltoallv(&synch_pad_send[0], &counts[0], &disp[0], MPI_CHAR, &synch_pad_recv[0], &counts[0], &disp[0], MPI_CHAR, tracker.comm);
         break;
       case 13:
-        PMPI_Sendrecv(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, &synch_pad_recv[0], 1, MPI_CHAR, partner2, internal_tag, comm, MPI_STATUS_IGNORE);
+        PMPI_Sendrecv(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, &synch_pad_recv[0], 1, MPI_CHAR, partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
         break;
       case 14:
-        PMPI_Sendrecv_replace(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, partner2, internal_tag, comm, MPI_STATUS_IGNORE);
+        PMPI_Sendrecv_replace(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
         break;
       case 15:
-        PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
+        PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, tracker.comm);
         break;
       case 16:
-        if (true_eager_p2p) { PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm); }
-        else            { PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm); }// forced usage of synchronous send to avoid eager sends for large messages.
+        if (eager) { PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, tracker.comm); }
+        else       { PMPI_Ssend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, tracker.comm); }// forced usage of synchronous send to avoid eager sends for large messages.
         break;
       case 17:
-        PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner1, internal_tag, comm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner1, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
         break;
       case 32:
-        PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, comm);
+        PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner1, internal_tag, tracker.comm);
         break;
     }
-    tracker.synch_time = MPI_Wtime()-tracker.start_time;
+    if (!(is_sender && eager)) tracker.synch_time = MPI_Wtime()-tracker.start_time;
   }
 
-  bool schedule_decision = true;
+  void* temp_buf; int temp_size;
+  MPI_Buffer_detach(&temp_buf,&temp_size);
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
-  return schedule_decision;
+  return true;
 }
 
-// Used only for p2p communication. All blocking collectives use sychronous protocol
 void path::complete_comm(blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   int rank; MPI_Comm_rank(tracker.comm, &rank);
+  MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
 
+  // Save kernel information
   if (autotuning_debug == 1){
     assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
     int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
@@ -446,28 +391,22 @@ void path::complete_comm(blocking& tracker, int recv_source){
       comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
     }
     comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
-      replace_comm_map_local[key] = std::make_pair(1,comm_time);
+    if (comm_kernel_info.find(key) == comm_kernel_info.end()){
+      comm_kernel_info[key] = std::make_pair(1,comm_time);
     } else{
-      replace_comm_map_local[key].first++;
-      replace_comm_map_local[key].second += comm_time;
+      comm_kernel_info[key].first++;
+      comm_kernel_info[key].second += comm_time;
     }
   }
 
-  std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
+  std::pair<double,double> cost_bsp = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
   std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
   std::vector<std::pair<double,double>> costs = {cost_bsp,cost_alphabeta};
 
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
   if (recv_source != -1){
-    if ((tracker.tag == 13) || (tracker.tag == 14)){
-      tracker.partner2=recv_source;
-    }
-    else{
-      assert(tracker.tag==17);
-      tracker.partner1=recv_source;
-    }
+    if ((tracker.tag == 13) || (tracker.tag == 14)){ tracker.partner2=recv_source; }
+    else{ assert(tracker.tag==17); tracker.partner1=recv_source; }
   }
 
   // Decompose measurements along multiple paths by MPI routine.
@@ -590,6 +529,9 @@ void path::complete_comm(blocking& tracker, int recv_source){
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   propagate(tracker);
 
+  void* temp_buf; int temp_size;
+  MPI_Buffer_detach(&temp_buf,&temp_size);
+
   // Prepare to leave interception and re-enter user code by restarting computation timers.
   bsp_counter++;
   tracker.start_time = MPI_Wtime();
@@ -602,6 +544,10 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
 
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   tracker.comp_time = curtime - computation_timer;
+  // Note that use of MPI_ANY_SOURCE may in fact be ok, but it has not been tested.
+  assert(partner != MPI_ANY_SOURCE);
+  MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+
   critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;		// update critical path runtime
   volume_costs[num_volume_measures-3]        += tracker.comp_time;		// update local computation time
@@ -658,45 +604,55 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
   MPI_Type_size(t, &el_size);
   int64_t nbytes = el_size * nelem;
   MPI_Comm_size(comm, &p);
+  bool eager = tracker.nbytes <= eager_limit;
+  nonblocking_info msg_info(is_sender,partner,comm,(double)nbytes,(double)p,&tracker);
+  nonblocking_internal_info[*request] = msg_info;
 
-  internal_comm_info[*request] = std::make_pair(is_sender,0/*event_list_size++*/);
-  internal_comm_comm[*request] = std::make_pair(comm,partner);// Note 'partner' might be MPI_ANY_SOURCE
-  internal_comm_data[*request] = std::make_pair((double)nbytes,(double)p);
-  internal_comm_track[*request] = &tracker;
-
-  if (eager_p2p==1){
-    tracker.comm = comm;
-    tracker.is_sender = is_sender;
-    tracker.partner1 = partner;
-    tracker.partner2 = -1;
-    tracker.comm_size = p;
-    tracker.nbytes = nbytes;
-    propagate(tracker);
+  // Issue the barrier/max-barrier/synchronization calls, regardless of msg size
+  if (partner!=-1){// Branch protects against nonblocking collectives
+    int rank; MPI_Comm_rank(comm,&rank); 
+    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
+    if (is_sender && rank != partner){
+      PMPI_Bsend(&barrier_pad_send[0], 1, MPI_CHAR, partner, internal_tag3, comm);
+      if (invoke_max_barrier) PMPI_Bsend(&max_barrier_time, 1, MPI_DOUBLE, partner, internal_tag4, comm);
+      if (track_synchronization) PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner, internal_tag, comm);
+    }
+    else if (is_sender && rank != partner){
+      PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, partner, internal_tag3, comm, MPI_STATUS_IGNORE);
+      if (invoke_max_barrier) PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, partner, internal_tag4, comm, MPI_STATUS_IGNORE);
+      if (track_synchronization) PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner, internal_tag, comm, MPI_STATUS_IGNORE);
+    }
   }
 
+  tracker.comm = comm;
+  tracker.is_sender = is_sender;
+  tracker.partner1 = partner;
+  tracker.partner2 = -1;
+  tracker.comm_size = p;
+  tracker.nbytes = nbytes;
+  propagate(tracker);
+
+  // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
+  //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
+  void* temp_buf; int temp_size;
+  MPI_Buffer_detach(&temp_buf,&temp_size);
   tracker.start_time = MPI_Wtime();
   computation_timer = tracker.start_time;
   if (symbol_path_select_size>0 && symbol_stack.size()>0){ symbol_timers[symbol_stack.top()].start_timer.top() = tracker.start_time; }
 }
 
 void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
-  auto comm_info_it = internal_comm_info.find(*request);
-  auto comm_comm_it = internal_comm_comm.find(*request);
-  auto comm_data_it = internal_comm_data.find(*request);
-  auto comm_track_it = internal_comm_track.find(*request);
-  assert(comm_info_it != internal_comm_info.end());
-  assert(comm_comm_it != internal_comm_comm.end());
-  assert(comm_data_it != internal_comm_data.end());
-  assert(comm_track_it != internal_comm_track.end());
-  assert(comm_comm_it->second.first != 0);
+  auto info_it = nonblocking_internal_info.find(*request);
+  assert(info_it != nonblocking_internal_info.end());
 
-  tracker.is_sender = comm_info_it->second.first;
-  tracker.comm = comm_comm_it->second.first;
-  tracker.partner1 = comm_comm_it->second.second;
+  tracker.is_sender = info_it->second.is_sender;
+  tracker.comm = info_it->second.comm;
+  tracker.partner1 = info_it->second.partner;
   tracker.partner2 = -1;
-  tracker.nbytes = comm_data_it->second.first;
-  tracker.comm_size = comm_data_it->second.second;
+  tracker.nbytes = info_it->second.nbytes;
+  tracker.comm_size = info_it->second.comm_size;
   tracker.synch_time=0;
+  bool eager = tracker.nbytes <= eager_limit;
 
   int rank; MPI_Comm_rank(tracker.comm, &rank);
   if (autotuning_debug == 1){
@@ -707,18 +663,18 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
       comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
     }
     comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    if (replace_comm_map_local.find(key) == replace_comm_map_local.end()){
-      replace_comm_map_local[key] = std::make_pair(1,comm_time);
+    if (comm_kernel_info.find(key) == comm_kernel_info.end()){
+      comm_kernel_info[key] = std::make_pair(1,comm_time);
     } else{
-      replace_comm_map_local[key].first++;
-      replace_comm_map_local[key].second += comm_time;
+      comm_kernel_info[key].first++;
+      comm_kernel_info[key].second += comm_time;
     }
   }
 
   // Both sender and receiver will now update its critical path with the data from the communication
   std::pair<double,double> cost_bsp  = tracker.cost_func_bsp(tracker.nbytes,tracker.comm_size);
   std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes,tracker.comm_size);
-  if ((tracker.tag<20) && (wait_id)) cost_bsp.first=1.;	// this is usually zero, but we force it to be 1 in special circumstances (for nonblocking p2p with wait_id one)
+  if (is_first_request) cost_bsp.first=1.;	// this is usually zero, but we force it to be 1 in special circumstances (for nonblocking p2p with wait_id one)
   std::vector<std::pair<double,double>> costs = {cost_bsp,cost_alphabeta};
 
   // Update measurements that define the critical path for each metric.
@@ -825,46 +781,22 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_per_process_measures-1] += (comp_time+comm_time);
   }
 
-  if (eager_p2p==0) { propagate(tracker); }
-
-  internal_comm_info.erase(*request);
-  internal_comm_comm.erase(*request);
-  internal_comm_data.erase(*request);
-  internal_comm_track.erase(*request);
-
+  nonblocking_internal_info.erase(*request);
   tracker.start_time = MPI_Wtime();
 }
 
 int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   double comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
-  auto comm_track_it = internal_comm_track.find(*request);
-  assert(comm_track_it != internal_comm_track.end());
-  auto comm_info_it = internal_comm_info.find(*request);
-  auto comm_comm_it = internal_comm_comm.find(*request);
-  MPI_Request save_request = comm_info_it->first;
-  if ((comm_comm_it->second.second!=-1) && (track_p2p_idle==1)){// if p2p and idle time is requested to be tracked (first case prevents nonblocking collectives
-    assert(comm_comm_it->second.first != 0);
-    int comm_rank; MPI_Comm_rank(comm_comm_it->second.first,&comm_rank); 
-    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-    if (comm_info_it->second.first && comm_rank != comm_comm_it->second.second){
-      PMPI_Send(&barrier_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first);
-      if (invoke_max_barrier) PMPI_Send(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first);
-      if (track_synchronization) PMPI_Send(&synch_pad_send[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first);
-    }
-    else if (!comm_info_it->second.first && comm_rank != comm_comm_it->second.second){
-      PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-      if (invoke_max_barrier) PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-      if (track_synchronization) PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag, comm_comm_it->second.first, MPI_STATUS_IGNORE);
-    }
-  }
+  auto info_it = nonblocking_internal_info.find(*request);
+  assert(info_it != nonblocking_internal_info.end());
+  MPI_Request save_request = info_it->first;
   volatile double last_start_time = MPI_Wtime();
   ret = PMPI_Wait(request, status);
   double save_comm_time = MPI_Wtime() - last_start_time;
-  if (eager_p2p==1) { complete_path_update(); }
-  if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
-  complete_comm(*comm_track_it->second, &save_request, comp_time, save_comm_time);
-  if (eager_p2p==0) { complete_path_update(); }
+  complete_path_update();
+  if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = status->MPI_SOURCE; }
+  complete_comm(*info_it->second.track, &save_request, comp_time, save_comm_time);
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
   return ret;
@@ -880,21 +812,17 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   //   is used for both sender and receiver side, as idle/synch time are zero anyways. This decision is limiting in the sense that
   //   if MPI_Waitany is used to close nonblocking requests on both the sender and receiver side, then we forfeit tracking of idle/synch
   //   time caused by blocking send/recv.
-  // TODO: For that reason alone, it may make sense to remove the assert and inform the user about the possibility of a hang if disobeying our rules.
-  assert(track_p2p_idle==0 && invoke_max_barrier==0 && track_synchronization==0 );
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
   ret = PMPI_Waitany(count,array_of_requests,indx,status);
   double waitany_comm_time = MPI_Wtime() - last_start_time;
-  if (eager_p2p==1) { complete_path_update(); }
+  complete_path_update();
   MPI_Request request = pt[*indx];
-  auto comm_track_it = internal_comm_track.find(request);
-  auto comm_comm_it = internal_comm_comm.find(request);
-  assert(comm_track_it != internal_comm_track.end());
-  if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = status->MPI_SOURCE; }
-  complete_comm(*comm_track_it->second, &request, waitany_comp_time, waitany_comm_time);
-  if (eager_p2p==0) { complete_path_update(); }
+  auto info_it = nonblocking_internal_info.find(request);
+  assert(info_it != nonblocking_internal_info.end());
+  if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = status->MPI_SOURCE; }
+  complete_comm(*info_it->second.track, &request, waitany_comp_time, waitany_comm_time);
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
   return ret;
@@ -905,27 +833,22 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
 
   double waitsome_comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
-  wait_id=true;
-  // Read comment in function above. Same ideas apply for Waitsome.
-  assert(track_p2p_idle==0 && invoke_max_barrier==0 && track_synchronization==0 );
+  is_first_request=true;
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(incount); for (int i=0;i<incount;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
   ret = PMPI_Waitsome(incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   double waitsome_comm_time = MPI_Wtime() - last_start_time;
-  if (eager_p2p==1) { complete_path_update(); }
+  complete_path_update();
   for (int i=0; i<*outcount; i++){
     MPI_Request request = pt[(array_of_indices)[i]];
-    auto comm_track_it = internal_comm_track.find(request);
-    auto comm_comm_it = internal_comm_comm.find(request);
-    assert(comm_track_it != internal_comm_track.end());
-    if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
-    complete_comm(*comm_track_it->second, &request, waitsome_comp_time, waitsome_comm_time);
-    waitsome_comp_time=0;
-    waitsome_comm_time=0;
-    if (i==0){wait_id=false;}
+    auto info_it = nonblocking_internal_info.find(request);
+    assert(info_it != nonblocking_internal_info.end());
+    if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+    complete_comm(*info_it->second.track, &request, waitsome_comp_time, waitsome_comm_time);
+    waitsome_comp_time=0; waitsome_comm_time=0;
+    if (i==0){is_first_request=false;}
   }
-  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
   return ret;
@@ -934,80 +857,43 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
 int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   double waitall_comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
-  wait_id=true;
-  if (track_p2p_idle==1){// nonblocking collectives won't pass the if statements below anyway.
-    std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
-    if (count > barrier_pad_send.size()){
-      barrier_pad_send.resize(count);
-      barrier_pad_recv.resize(count);
-      synch_pad_send.resize(count);
-      synch_pad_recv.resize(count);
-    }
-    // Issue all barrier/synch communications at once because request order is not guaranteed to be sequenced together on all processes.
-    // Necessary to avoid corruption of idle time calculation that would occur if sending out in some sequence after each request is completed.
-    // Presumably the sending communications will utilize the eager protocol, but as the Waitall is issued immediately following the loop, its irrelevant.
-    // TODO: Staging nonblocking receives with nonblocking sends might be a problem because the Sends will likely use the eager protocol (since 1-byte messages),
-    //         while the Recvs will block until the message buffer is available. This will force the matching blocking receives of the nonblocking senders to possibely start counting communication time while
-    //         the sender is stuck in the Waitall loop with the other sends and receives, thus corrupting the measurement of communication time. I propose that the Sends issue their 3-messages together followed
-    //         by a Waitall. At this point, the choice is whether to issue the user-communication sends one-by-one via Waitany loop, issue the nonblocking recv 3-messages together followed by waitall,
-    //         or actually issue a Waitall for the user communication rather than a loop over Waits. I am now leaning towards supporting the user-communication Waitall instead, as that might be a source of overhead
-    //         with CTF. Each process can utilize its timer and record the same communication time, and then issue the exchange of path information via nonblocking communications.
-    double max_barrier_time = 0;// counter-intuitively, a blocking partner should determine the idle time
-    for (int i=0; i<count; i++){
-      auto comm_info_it = internal_comm_info.find(*(array_of_requests+i));
-      assert(comm_info_it != internal_comm_info.end());
-      auto comm_comm_it = internal_comm_comm.find(*(array_of_requests+i));
-      assert(comm_comm_it != internal_comm_comm.end());
-      assert(comm_comm_it->second.second != MPI_ANY_SOURCE);
-      if (comm_info_it->second.first && comm_comm_it->second.second != -1){
-        PMPI_Isend(&barrier_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
-          comm_comm_it->second.first, &internal_requests[3*i]);
-        if (eager_p2p==0 && invoke_max_barrier) { PMPI_Isend(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
-          comm_comm_it->second.first, &internal_requests[3*i+1]); }
-        if (track_synchronization) PMPI_Isend(&synch_pad_send[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
-          comm_comm_it->second.first, &internal_requests[3*i+2]);
-      }
-      else if (!comm_info_it->second.first && comm_comm_it->second.second != -1){
-        PMPI_Irecv(&barrier_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag3,
-          comm_comm_it->second.first, &internal_requests[3*i]);
-        if (eager_p2p==0 && invoke_max_barrier) { PMPI_Irecv(&max_barrier_time, 1, MPI_DOUBLE, comm_comm_it->second.second, internal_tag4,
-          comm_comm_it->second.first, &internal_requests[3*i+1]); }
-        if (track_synchronization) PMPI_Irecv(&synch_pad_recv[i], 1, MPI_CHAR, comm_comm_it->second.second, internal_tag,
-          comm_comm_it->second.first, &internal_requests[3*i+2]);
-      }
-    }
-    PMPI_Waitall(internal_requests.size(), &internal_requests[0], MPI_STATUSES_IGNORE);
-  }
+  is_first_request=true;
+  std::vector<MPI_Request> internal_requests(3*count,MPI_REQUEST_NULL);
+  // Issue all barrier/synch communications at once because request order is not guaranteed to be sequenced together on all processes.
+  // Necessary to avoid corruption of idle time calculation that would occur if sending out in some sequence after each request is completed.
+  // Presumably the sending communications will utilize the eager protocol, but as the Waitall is issued immediately following the loop, its irrelevant.
+  // TODO: Staging nonblocking receives with nonblocking sends might be a problem because the Sends will likely use the eager protocol (since 1-byte messages),
+  //         while the Recvs will block until the message buffer is available. This will force the matching blocking receives of the nonblocking senders to possibely start counting communication time while
+  //         the sender is stuck in the Waitall loop with the other sends and receives, thus corrupting the measurement of communication time. I propose that the Sends issue their 3-messages together followed
+  //         by a Waitall. At this point, the choice is whether to issue the user-communication sends one-by-one via Waitany loop, issue the nonblocking recv 3-messages together followed by waitall,
+  //         or actually issue a Waitall for the user communication rather than a loop over Waits. I am now leaning towards supporting the user-communication Waitall instead, as that might be a source of overhead
+  //         with CTF. Each process can utilize its timer and record the same communication time, and then issue the exchange of path information via nonblocking communications.
   // We must save the requests before the completition of a request by the MPI implementation because its tag is set to MPI_REQUEST_NULL and lost forever
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
   volatile double last_start_time = MPI_Wtime();
   ret = PMPI_Waitall(count,array_of_requests,array_of_statuses);
   double waitall_comm_time = MPI_Wtime() - last_start_time;
-  if (eager_p2p==1) { complete_path_update(); }
+  complete_path_update();
   for (int i=0; i<count; i++){
     MPI_Request request = pt[i];
-    auto comm_track_it = internal_comm_track.find(request);
-    auto comm_comm_it = internal_comm_comm.find(request);
-    assert(comm_track_it != internal_comm_track.end());
-    if (comm_comm_it->second.second == MPI_ANY_SOURCE) { comm_track_it->second->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
-    complete_comm(*comm_track_it->second, &request, waitall_comp_time, waitall_comm_time);
+    auto info_it = nonblocking_internal_info.find(request);
+    assert(info_it != nonblocking_internal_info.end());
+    if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+    complete_comm(*info_it->second.track, &request, waitall_comp_time, waitall_comm_time);
     // Although we have to exchange the path data for each request, we do not want to double-count the computation time nor the communicaion time
-    waitall_comp_time=0;
-    waitall_comm_time=0;
-    if (i==0){wait_id=false;}
+    waitall_comp_time=0; waitall_comm_time=0;
+    if (i==0){is_first_request=false;}
   }
-  wait_id=true;
-  if (eager_p2p==0) { complete_path_update(); }
   computation_timer = MPI_Wtime();
   if (symbol_path_select_size>0){ symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
   return ret;
 }
 
+// *****************************************************************************************************************************************************
 void path::propagate_symbols(nonblocking& tracker, int rank){
-  if (eager_p2p==0){
-    MPI_Request internal_request[8];
+  if (tracker.is_sender){
+    MPI_Request internal_request[4];
     int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
-    int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
     int ftimer_size = symbol_timers.size();
     int data_len_size = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size;
     int num_chars = 0;
@@ -1030,70 +916,28 @@ void path::propagate_symbols(nonblocking& tracker, int rank){
     PMPI_Isend(&send_envelope3[0],data_len_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
     PMPI_Isend(&send_envelope5[0],symbol_offset,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
 
+    for (int i=0; i<4; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
+    internal_timer_prop_int.push_back(send_envelope1);
+    internal_timer_prop_int.push_back(send_envelope2);
+    internal_timer_prop_double.push_back(send_envelope3);
+    internal_timer_prop_char.push_back(send_envelope5);
+  } else{
+    MPI_Request internal_request[4];
+    int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
     recv_envelope1 = (int*)malloc(sizeof(int));
     recv_envelope2 = (int*)malloc(sizeof(int)*(max_num_symbols));
     recv_envelope3 = (double*)malloc(sizeof(double)*symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols);
     recv_envelope5 = (char*)malloc(sizeof(char)*max_timer_name_length*max_num_symbols);
-    PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[4]);
-    PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[5]);
-    PMPI_Irecv(recv_envelope3,symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[6]);
-    PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[7]);
+    PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
+    PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
+    PMPI_Irecv(recv_envelope3,symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
+    PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
 
-    for (int i=0; i<8; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
-    internal_timer_prop_int.push_back(send_envelope1); internal_timer_prop_int.push_back(send_envelope2);
-    internal_timer_prop_int.push_back(recv_envelope1); internal_timer_prop_int.push_back(recv_envelope2);
-    internal_timer_prop_double.push_back(send_envelope3);
+    for (int i=0; i<4; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
+    internal_timer_prop_int.push_back(recv_envelope1);
+    internal_timer_prop_int.push_back(recv_envelope2);
     internal_timer_prop_double.push_back(recv_envelope3);
-    internal_timer_prop_char.push_back(send_envelope5); internal_timer_prop_char.push_back(recv_envelope5);
-  } else{
-    if (tracker.is_sender){
-      MPI_Request internal_request[4];
-      int* send_envelope1 = nullptr; int* send_envelope2 = nullptr; double* send_envelope3 = nullptr; char* send_envelope5 = nullptr;
-      int ftimer_size = symbol_timers.size();
-      int data_len_size = symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*ftimer_size;
-      int num_chars = 0;
-      for (int i=0; i<ftimer_size; i++) { num_chars += symbol_order[i].size(); }
-      send_envelope1 = (int*)malloc(sizeof(int)); *send_envelope1 = ftimer_size;
-      send_envelope2 = (int*)malloc(sizeof(int)*(ftimer_size));
-      send_envelope3 = (double*)malloc(sizeof(double)*data_len_size);
-      send_envelope5 = (char*)malloc(sizeof(char)*num_chars);
-      int symbol_offset = 0;
-      for (auto i=0; i<ftimer_size; i++){
-        send_envelope2[i] = symbol_order[i].size();
-        for (auto j=0; j<symbol_order[i].size(); j++){
-          send_envelope5[symbol_offset+j] = symbol_order[i][j];
-        }
-        symbol_offset += symbol_order[i].size();
-      }
-      std::memcpy(send_envelope3,&symbol_timer_pad_local_cp[0],sizeof(double)*data_len_size);
-      PMPI_Isend(&send_envelope1[0],1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
-      PMPI_Isend(&send_envelope2[0],ftimer_size,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
-      PMPI_Isend(&send_envelope3[0],data_len_size,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
-      PMPI_Isend(&send_envelope5[0],symbol_offset,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
-
-      for (int i=0; i<4; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
-      internal_timer_prop_int.push_back(send_envelope1);
-      internal_timer_prop_int.push_back(send_envelope2);
-      internal_timer_prop_double.push_back(send_envelope3);
-      internal_timer_prop_char.push_back(send_envelope5);
-    } else{
-      MPI_Request internal_request[4];
-      int* recv_envelope1 = nullptr; int* recv_envelope2 = nullptr; double* recv_envelope3 = nullptr; char* recv_envelope5 = nullptr;
-      recv_envelope1 = (int*)malloc(sizeof(int));
-      recv_envelope2 = (int*)malloc(sizeof(int)*(max_num_symbols));
-      recv_envelope3 = (double*)malloc(sizeof(double)*symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols);
-      recv_envelope5 = (char*)malloc(sizeof(char)*max_timer_name_length*max_num_symbols);
-      PMPI_Irecv(recv_envelope1,1,MPI_INT,tracker.partner1,internal_tag1,tracker.comm,&internal_request[0]);
-      PMPI_Irecv(recv_envelope2,max_num_symbols,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,&internal_request[1]);
-      PMPI_Irecv(recv_envelope3,symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,tracker.partner1,internal_tag3,tracker.comm,&internal_request[2]);
-      PMPI_Irecv(recv_envelope5,max_timer_name_length*max_num_symbols,MPI_CHAR,tracker.partner1,internal_tag5,tracker.comm,&internal_request[3]);
-
-      for (int i=0; i<4; i++) { internal_timer_prop_req.push_back(internal_request[i]); }
-      internal_timer_prop_int.push_back(recv_envelope1);
-      internal_timer_prop_int.push_back(recv_envelope2);
-      internal_timer_prop_double.push_back(recv_envelope3);
-      internal_timer_prop_char.push_back(recv_envelope5);
-    }
+    internal_timer_prop_char.push_back(recv_envelope5);
   }
 }
 
@@ -1103,7 +947,7 @@ void path::propagate_symbols(nonblocking& tracker, int rank){
    But, because that potential nonblocking partner does not have this knowledge, and thus posted both sends and recvs, the blocking partner also has to do so as well, even if its partner (unknown to him) used a blocking p2p routine.
 */
 void path::propagate_symbols(blocking& tracker, int rank){
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
+  bool eager = ((tracker.partner1 != -1) && (tracker.tag!=13) && (tracker.tag!=14) && (tracker.tag!=15) && (tracker.nbytes <= eager_limit));
   std::vector<int> ftimer_size_cp(symbol_path_select_size,0);
   int ftimer_size_ncp1=0;
   int ftimer_size_ncp2=0;
@@ -1202,7 +1046,7 @@ void path::propagate_symbols(blocking& tracker, int rank){
       }
     }
   }
-  else if (!true_eager_p2p){
+  else if (!eager){
     // This propagation for p2p user communication is agnostic (for now) to which process determines the root for a specific metric.
     //   Its simply an exchange. Note that this allows each process to only send the bare minimum. As an example, each process need only send
     //     a single integer representing its symbol size. There is no need to send symbol_path_select_size integers with the same value.
@@ -1397,9 +1241,8 @@ void path::propagate_symbols(blocking& tracker, int rank){
 void path::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
+  bool eager = ((tracker.partner1 != -1) && (tracker.tag!=13) && (tracker.tag!=14) && (tracker.tag!=15) && (tracker.nbytes <= eager_limit));
   if (symbol_path_select_size>0){
-    //TODO: Idea for 2-stage reduction: move this out of the mode>=2 if statement, and then after this, scan the critical_path_costs and zero out what is not defining a critical path and then post a MPI_Allreduce (via multi-root hack)
     for (int i=0; i<num_critical_path_measures; i++){
       info_sender[i].first = critical_path_costs[i];
       info_sender[i].second = rank;
@@ -1408,7 +1251,7 @@ void path::propagate(blocking& tracker){
       PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, MPI_MAXLOC, tracker.comm);
     }
     else{
-      if (!true_eager_p2p){
+      if (!eager && send_dependency){
         PMPI_Sendrecv(&info_sender[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag,
                       &info_receiver[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
         for (int i=0; i<num_critical_path_measures; i++){
@@ -1448,7 +1291,16 @@ void path::propagate(blocking& tracker){
   }
   else{
     // Note that a blocking sendrecv allows exchanges even when the other party issued a request via nonblocking communication, as the process with the nonblocking request posts both sends and receives.
-    if (true_eager_p2p){
+    if (!eager && (send_dependency || tracker.tag==13 || tracker.tag==14)){
+      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(),
+                    MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
+      if (tracker.partner2 != tracker.partner1){
+        PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner2, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+        update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
+      }
+    }
+    else{
       if (tracker.is_sender){
         PMPI_Bsend(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm);
       } else{
@@ -1456,60 +1308,32 @@ void path::propagate(blocking& tracker){
         update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
       }
     }
-    else{
-      PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(),
-                    MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-      update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-      if (tracker.partner2 != tracker.partner1){
-        // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
-        PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner2, internal_tag2, &new_cs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-        update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
-      }
-    }
   }
   if (symbol_path_select_size>0) { propagate_symbols(tracker,rank); }
-  if (true_eager_p2p){
-    void* temp_buf; int temp_size;
-    // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
-    //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
-    MPI_Buffer_detach(&temp_buf,&temp_size);
-  }
 }
 
 void path::propagate(nonblocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if (rank == tracker.partner1) { return; } 
   if (symbol_path_select_size>0){
+    if (tracker.partner1 == -1){ assert(0); }
     for (int i=0; i<num_critical_path_measures; i++){
       info_sender[i].first = critical_path_costs[i];
       info_sender[i].second = rank;
     }
-    if (tracker.partner1 == -1){ assert(0); }
-    else if (eager_p2p==0){
-      MPI_Request req1,req2;
+    if (tracker.is_sender){
+      MPI_Request req1;
       double_int* send_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
-      double_int* recv_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
       memcpy(&send_pathdata[0].first, &info_sender[0].first, num_critical_path_measures*sizeof(double_int));
       PMPI_Isend(&send_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req1);
-      PMPI_Irecv(&recv_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req2);
-      internal_timer_prop_req.push_back(req1); internal_timer_prop_req.push_back(req2);
-      internal_timer_prop_double_int.push_back(send_pathdata); internal_timer_prop_double_int.push_back(recv_pathdata);
-    }
-    else{
-      if (tracker.is_sender){
-        MPI_Request req1;
-        double_int* send_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
-        memcpy(&send_pathdata[0].first, &info_sender[0].first, num_critical_path_measures*sizeof(double_int));
-        PMPI_Isend(&send_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req1);
-        internal_timer_prop_req.push_back(req1);
-        internal_timer_prop_double_int.push_back(send_pathdata);
-      } else{
-        MPI_Request req1;
-        double_int* recv_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
-        PMPI_Irecv(&recv_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req1);
-        internal_timer_prop_req.push_back(req1);
-        internal_timer_prop_double_int.push_back(recv_pathdata);
-      }
+      internal_timer_prop_req.push_back(req1);
+      internal_timer_prop_double_int.push_back(send_pathdata);
+    } else{
+      MPI_Request req1;
+      double_int* recv_pathdata = (double_int*)malloc(num_critical_path_measures*sizeof(double_int));
+      PMPI_Irecv(&recv_pathdata[0].first, num_critical_path_measures, MPI_DOUBLE_INT, tracker.partner1, internal_tag, tracker.comm, &req1);
+      internal_timer_prop_req.push_back(req1);
+      internal_timer_prop_double_int.push_back(recv_pathdata);
     }
   }
   // Exchange the tracked routine critical path data
@@ -1522,18 +1346,6 @@ void path::propagate(nonblocking& tracker){
     //MPI_Op_free(&op);
     internal_comm_prop.push_back(std::make_pair(local_path_data,true));
     internal_comm_prop_req.push_back(req1);
-  }
-  else if (eager_p2p==0){
-    MPI_Request req1,req2;
-    double* local_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
-    std::memcpy(local_path_data, &critical_path_costs[0], critical_path_costs.size()*sizeof(double));
-    double* remote_path_data = (double*)malloc(critical_path_costs.size()*sizeof(double));
-    PMPI_Isend(local_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req1);
-    PMPI_Irecv(remote_path_data, critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, &req2);
-    internal_comm_prop.push_back(std::make_pair(local_path_data,true));
-    internal_comm_prop_req.push_back(req1);
-    internal_comm_prop.push_back(std::make_pair(remote_path_data,false));
-    internal_comm_prop_req.push_back(req2);
   }
   else{
     MPI_Request req1;

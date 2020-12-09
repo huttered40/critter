@@ -11,20 +11,13 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){}
 
 bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
   // Always skip, and update statistics in 'complete_comp'
-  if (skeleton_analytic){
-    return false;
-  }
-  double save_comp_time = curtime - computation_timer;
-  critical_path_costs[0] += save_comp_time;	// update critical path execution time
-  volume_costs[0]        += save_comp_time;		// update local execution time
-  volatile double overhead_start_time = MPI_Wtime();
-  // start compunication timer for compunication routine
-  comp_start_time = MPI_Wtime();
-  return true;
+  assert(skeleton_analytic==1);
+  return false;
 }
 
 void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
   volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
+  assert(skeleton_analytic==1);
   comp_kernel_key key(active_kernels.size(),id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
   if (comp_kernel_map.find(key) == comp_kernel_map.end()){
     active_comp_kernel_keys.push_back(key);
@@ -47,18 +40,13 @@ void path::complete_comp(double errtime, size_t id, double flop_count, int param
 
 bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                          bool is_sender, int partner1, int partner2){
+  assert(skeleton_analytic==1);
   assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
   critical_path_costs[0] += tracker.comp_time;	// update critical path execution time
   volume_costs[0]        += tracker.comp_time;		// update local execution time
-
-  int rank; MPI_Comm_rank(tracker.comm,&rank);
-  // We consider usage of Sendrecv variants to forfeit usage of eager internal communication.
-  // Note that the reason we can't force user Bsends to be 'true_eager_p2p' is because the corresponding Recvs would be expecting internal communications
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
-//  if (true_eager_p2p){ MPI_Buffer_attach(&eager_pad[0],eager_pad.size()); }
 
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
@@ -70,71 +58,18 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.is_sender = is_sender;
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
-  if (skeleton_analytic) return false;
-
-  // Non-optimized variant will always post barriers, although of course, just as with the optimized variant, the barriers only remove idle time
-  //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
-  //     critical path root is decided based on a reduction using 'critical_path_costs'. Therefore, no explicit barriers are invoked, instead relying on Allreduce
-  bool schedule_decision = true;
-  double reduced_info = critical_path_costs[0];
-  double reduced_info_foreign;
-  if (partner1 == -1){
-    PMPI_Allreduce(MPI_IN_PLACE, &reduced_info, 1, MPI_DOUBLE, MPI_MAX, tracker.comm);
-    critical_path_costs[0] = reduced_info;
-    tracker.barrier_time = reduced_info - critical_path_costs[0];
-  }
-  else{
-    if ((true_eager_p2p) && (rank != tracker.partner1)){
-      assert(0);// Not implemented yet. Does eager protocol even make sense, given these methods?
-    }
-    else if (!true_eager_p2p){
-      if ((recv_kernel_override) || ((tracker.tag >= 13) && (tracker.tag <= 14))){
-        PMPI_Sendrecv(&reduced_info, 1, MPI_DOUBLE, tracker.partner1, internal_tag2, &reduced_info_foreign, 1,
-                      MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-        critical_path_costs[0] = std::max(reduced_info,reduced_info_foreign);
-        tracker.barrier_time = std::max(reduced_info,reduced_info_foreign) - critical_path_costs[0];
-        if (tracker.partner2 != tracker.partner1){
-          assert(0);// TODO: Fix later
-          // This if-statement will never be breached if 'true_eager_p2p'=true anyways.
-          reduced_info = critical_path_costs[0];
-          PMPI_Sendrecv(&reduced_info, 1, MPI_DOUBLE, tracker.partner2, internal_tag2, &reduced_info_foreign, 1,
-                        MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          critical_path_costs[0] = std::max(reduced_info,reduced_info_foreign);
-          tracker.barrier_time = std::max(reduced_info,reduced_info_foreign) - critical_path_costs[0];
-        }
-      }
-      else{
-        MPI_Request barrier_reqs[2]; int barrier_count=0;
-        if ((is_sender) && (rank != partner1)){
-          if (true_eager_p2p) { /*PMPI_Bsend(&sbuf, 17, MPI_DOUBLE, partner1, internal_tag3, comm);*/ assert(0); }
-          else                { PMPI_Issend(&reduced_info, 1, MPI_DOUBLE, partner1, internal_tag2, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++; }
-        }
-        if ((!is_sender) && (rank != partner1)){
-          PMPI_Irecv(&reduced_info_foreign, 1, MPI_DOUBLE, partner1, internal_tag2, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
-        }
-        PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
-        if ((!is_sender) && (rank != partner1)){
-          critical_path_costs[0] = std::max(reduced_info,reduced_info_foreign);
-          tracker.barrier_time = std::max(reduced_info,reduced_info_foreign) - critical_path_costs[0];
-        }
-      }
-    }
-  }
-
-  // start communication timer for communication routine
-  tracker.start_time = MPI_Wtime();
-  return true;
+  return false;
 }
 
 void path::complete_comm(blocking& tracker, int recv_source){
   volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   volatile double overhead_start_time = MPI_Wtime();
+  assert(skeleton_analytic==1);
 
   std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
   std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
-  bool true_eager_p2p = ((eager_p2p == 1) && (tracker.tag!=13) && (tracker.tag!=14));
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
   if (recv_source != -1){
     if ((tracker.tag == 13) || (tracker.tag == 14)){ tracker.partner2=recv_source; }
@@ -154,31 +89,13 @@ void path::complete_comm(blocking& tracker, int recv_source){
     active_kernels.push_back(1);
     comm_kernel_map[key] = kernel_key_id(true,active_comm_kernel_keys.size()-1,active_kernels.size()-1,false);
   }
-  else{
-    active_kernels[comm_kernel_map[key].val_index]++;
-  }
+  else{ active_kernels[comm_kernel_map[key].val_index]++; }
 
-  if (skeleton_analytic){
-    critical_path_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
-    volume_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
-  } else{
-    critical_path_costs[0] += comm_time;
-    volume_costs[0] += (comm_time + tracker.barrier_time);
-    volume_costs[0] = volume_costs[num_volume_measures-1] > critical_path_costs[num_critical_path_measures-1]
-                          ? critical_path_costs[num_critical_path_measures-1] : volume_costs[num_volume_measures-1];
-  }
+  critical_path_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+  volume_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
 
   // Temporary
-  if (recv_kernel_override==1){
-    propagate_kernels(tracker);
-  }
-
-  if (true_eager_p2p){
-    void* temp_buf; int temp_size;
-    // Forces buffered messages to send. Ideally we should wait till the next invocation of 'path::initiate(blocking&,...)' to call this,
-    //   but to be safe and avoid stalls caused by MPI implementation not sending until this routine is called, we call it here.
-    MPI_Buffer_detach(&temp_buf,&temp_size);
-  }
+  if (send_dependency==1){ propagate_kernels(tracker); }
 
   // Prepare to leave interception and re-enter user code by restarting computation timers.
   comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
@@ -189,6 +106,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
 // Called by both nonblocking p2p and nonblocking collectives
 bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner){
   volatile double overhead_start_time = MPI_Wtime();
+  assert(skeleton_analytic==1);
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
   int64_t nbytes = word_size * nelem;
@@ -278,7 +196,7 @@ void path::propagate_kernels(blocking& tracker){
     if (max_val == min_val){ return; }
   }
   else{
-    if ((recv_kernel_override) || ((tracker.tag >= 13) && (tracker.tag <= 14))){
+    if ((send_dependency) || ((tracker.tag >= 13) && (tracker.tag <= 14))){
       PMPI_Sendrecv(&info_sender[0].first, 1, MPI_DOUBLE_INT, tracker.partner1, internal_tag,
                     &info_receiver[0].first, 1, MPI_DOUBLE_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
       if (info_sender[0].first>info_receiver[0].first){max_proc = rank;}

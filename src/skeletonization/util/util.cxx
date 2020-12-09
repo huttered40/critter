@@ -40,7 +40,6 @@ int internal_tag3;
 int internal_tag4;
 int internal_tag5;
 bool is_first_iter;
-int skeleton_analytic;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -71,12 +70,6 @@ void allocate(MPI_Comm comm){
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
 
-  if (std::getenv("SKELETON_ANALYTIC") != NULL){
-    skeleton_analytic = atoi(std::getenv("SKELETON_ANALYTIC"));
-    assert(skeleton_analytic==0 || skeleton_analytic==1);
-  } else{
-    skeleton_analytic = 1;
-  }
 }
 
 void open_symbol(const char* symbol, double curtime){}

@@ -10,10 +10,10 @@ namespace decomposition{
 
 int invoke_max_barrier;
 int track_synchronization;
-std::map<comp_kernel_key,std::pair<int,double>> replace_comp_map_local;
-std::map<comm_kernel_key,std::pair<int,double>> replace_comm_map_local;
+std::map<comp_kernel_key,std::pair<int,double>> comp_kernel_info;
+std::map<comm_kernel_key,std::pair<int,double>> comm_kernel_info;
 std::ofstream stream;
-bool wait_id;
+bool is_first_request;
 int internal_tag;
 int internal_tag1;
 int internal_tag2;
@@ -73,16 +73,16 @@ std::vector<double_int> info_sender;
 std::vector<double_int> info_receiver;
 std::vector<char> eager_pad;
 double comp_start_time;
-std::map<MPI_Request,std::pair<bool,int>> internal_comm_info;
-std::map<MPI_Request,std::pair<MPI_Comm,int>> internal_comm_comm;
-std::map<MPI_Request,std::pair<double,double>> internal_comm_data;
+
 std::vector<std::pair<double*,int>> internal_comm_prop;
 std::vector<MPI_Request> internal_comm_prop_req;
+
 std::vector<int*> internal_timer_prop_int;
 std::vector<double*> internal_timer_prop_double;
 std::vector<double_int*> internal_timer_prop_double_int;
 std::vector<char*> internal_timer_prop_char;
 std::vector<MPI_Request> internal_timer_prop_req;
+
 std::vector<bool> decisions;
 std::map<std::string,std::vector<double>> save_info;
 std::vector<double> new_cs;
@@ -211,24 +211,21 @@ void allocate(MPI_Comm comm){
   info_sender.resize(num_critical_path_measures);
   info_receiver.resize(num_critical_path_measures);
 
-  if (eager_p2p){
-    int eager_msg_sizes[8];
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[1]);
-    MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,comm,&eager_msg_sizes[2]);
-    MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,comm,&eager_msg_sizes[3]);
-    MPI_Pack_size(1,MPI_INT,comm,&eager_msg_sizes[4]);
-    MPI_Pack_size(max_num_symbols,MPI_INT,comm,&eager_msg_sizes[5]);
-    MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,comm,&eager_msg_sizes[6]);
-    MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,comm,&eager_msg_sizes[7]);
-    int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
-    for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
-    eager_pad.resize(eager_pad_size);
-  }
+  int eager_msg_sizes[8];
+  MPI_Pack_size(2,MPI_CHAR,comm,&eager_msg_sizes[0]);
+  MPI_Pack_size(1,MPI_DOUBLE,comm,&eager_msg_sizes[1]);
+  MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,comm,&eager_msg_sizes[2]);
+  MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,comm,&eager_msg_sizes[3]);
+  MPI_Pack_size(1,MPI_INT,comm,&eager_msg_sizes[4]);
+  MPI_Pack_size(max_num_symbols,MPI_INT,comm,&eager_msg_sizes[5]);
+  MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,comm,&eager_msg_sizes[6]);
+  MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,comm,&eager_msg_sizes[7]);
+  int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
+  for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
+  eager_pad.resize(eager_pad_size);
 }
 
 void reset(){
-  assert(internal_comm_info.size() == 0);
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
@@ -247,10 +244,10 @@ void reset(){
   memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
   internal::bsp_counter=0;
 
-  replace_comp_map_local.clear();
-  replace_comm_map_local.clear();
+  comp_kernel_info.clear();
+  comm_kernel_info.clear();
   
-  wait_id=true;
+  is_first_request=true;
 }
 
 void open_symbol(const char* symbol, double curtime){
@@ -273,7 +270,7 @@ void close_symbol(const char* symbol, double curtime){
 
 
 void final_accumulate(MPI_Comm comm, double last_time){
-  assert(internal_comm_info.size() == 0);
+  assert(nonblocking_internal_info.size() == 0);
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update computation time volume
@@ -281,7 +278,6 @@ void final_accumulate(MPI_Comm comm, double last_time){
   // update the computation time (i.e. time between last MPI synchronization point or comp kernel and this function invocation) along all paths decomposed by MPI communication routine
   // TODO: Why don't I apply the same update to max_per_process_costs?
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
-  wait_id=false;
 }
 
 

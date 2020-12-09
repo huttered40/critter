@@ -366,7 +366,7 @@ void record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
-        double decomp_time = decomposition::replace_comm_map_local[it.first].second / decomposition::replace_comm_map_local[it.first].first;
+        double decomp_time = decomposition::comm_kernel_info[it.first].second / decomposition::comm_kernel_info[it.first].first;
         stream << "Rank 0 Communication kernel (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << ")"
                << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << ")"
@@ -410,7 +410,7 @@ void record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
-        double decomp_time = decomposition::replace_comp_map_local[it.first].second / decomposition::replace_comp_map_local[it.first].first;
+        double decomp_time = decomposition::comp_kernel_info[it.first].second / decomposition::comp_kernel_info[it.first].first;
          stream << "Rank 0 Computation kernel (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
                 << "," << key_list[it.second.key_index].param2
@@ -572,8 +572,6 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_tune << std::left << std::setw(mode_1_width) << comp_kernel_transfer_id;
       stream_tune << std::left << std::setw(mode_1_width) << comm_kernel_transfer_id;
       stream_tune << std::left << std::setw(mode_1_width) << comp_kernel_buffer_id;
-      stream_tune << std::left << std::setw(mode_1_width) << decomposition::replace_comp;
-      stream_tune << std::left << std::setw(mode_1_width) << decomposition::replace_comm;
       stream_tune << std::left << std::setw(mode_1_width) << kernel_error_limit;
       stream_tune << std::left << std::setw(mode_1_width) << _wall_time;
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[0];
@@ -604,8 +602,6 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << comp_kernel_transfer_id;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_kernel_transfer_id;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comp_kernel_buffer_id;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << decomposition::replace_comp;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << decomposition::replace_comm;
       stream_reconstruct << std::left << std::setw(mode_1_width) << kernel_error_limit;
       stream_reconstruct << std::left << std::setw(mode_1_width) << local_comp_kernel_stats[0];
       stream_reconstruct << std::left << std::setw(mode_1_width) << local_comp_kernel_stats[1];

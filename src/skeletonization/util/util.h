@@ -40,7 +40,6 @@ extern int internal_tag3;
 extern int internal_tag4;
 extern int internal_tag5;
 extern bool is_first_iter;
-extern int skeleton_analytic;
 
 void allocate(MPI_Comm comm);
 void open_symbol(const char* symbol, double curtime);
