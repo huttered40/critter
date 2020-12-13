@@ -16,6 +16,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
   volume_costs[num_volume_measures-3]        += save_comp_time;		// update local computation time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += save_comp_time; }// update each metric's critical path's computation time
 
   generate_aggregate_channels(oldcomm,newcomm);
   PMPI_Barrier(oldcomm);
@@ -94,7 +95,7 @@ void path::complete_comp(double errtime, size_t id, double flop_count, int param
   critical_path_costs[num_critical_path_measures-1] += comp_time;
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += comp_time; }// update each metric's critical path's computation kernel time
   for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += comp_time; }// update each metric's critical path's computation time
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-comm_path_select_size*3-i] += flop_count; }// update each metric's critical path's computation time
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-3*comm_path_select_size-1-i] += flop_count; }// update each metric's critical path's computation time
 
   volume_costs[num_volume_measures-7] += flop_count;
   volume_costs[num_volume_measures-3] += comp_time;
@@ -259,7 +260,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     else {
       MPI_Request barrier_reqs[3]; int barrier_count=0;
       if ((is_sender) && (rank != partner1)){
-        if (eager) { PMPI_Bsend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag3, tracker.comm); }
+        if (eager) { PMPI_Bsend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, tracker.comm); }
         else PMPI_Issend(&min_idle_time, 1, MPI_DOUBLE, partner1, internal_tag4, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
       }
       if ((!is_sender) && (rank != partner1)){
@@ -692,7 +693,7 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   critical_path_costs[num_critical_path_measures-4] += 0.;				// update critical path synchronization time
   critical_path_costs[num_critical_path_measures-3] += comp_time;			// update critical path runtime
   critical_path_costs[num_critical_path_measures-1] += comp_time+comm_time;		// update critical path runtime
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i] += comp_time; }
+  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-1-i-comm_path_select_size] += comp_time; }
 
   volume_costs[num_volume_measures-5] += comm_time;				// update local communication time (not volume until after the completion of the program)
   volume_costs[num_volume_measures-4] += 0.;					// update local synchronization time

@@ -4,34 +4,10 @@
 #include "../src/intercept/symbol.h"
 
 #define CRITTER_START(ARG)\
-  do {\
-    critter::internal::symbol_start(#ARG);\
-    } while (0);
+    critter::internal::symbol_start(#ARG);
 
 #define CRITTER_STOP(ARG)\
-  do {\
-    critter::internal::symbol_stop(#ARG);\
-  } while (0);
-
-#define TAU_START(ARG)\
-  do {\
-    critter::internal::symbol_start(#ARG);\
-    } while (0);
-
-#define TAU_STOP(ARG)\
-  do {\
-    critter::internal::symbol_stop(#ARG);\
-  } while (0);
-
-#define TAU_FSTART(ARG)\
-  do {\
-    critter::internal::symbol_start(#ARG);\
-    } while (0);
-
-#define TAU_FSTOP(ARG)\
-  do {\
-    critter::internal::symbol_stop(#ARG);\
-  } while (0);
+    critter::internal::symbol_stop(#ARG);
 
 #define CRITTER_CONDITIONAL_VALUE_CAPTURE_START(ARG)\
   auto _critter_lambda_##ARG = [=]{

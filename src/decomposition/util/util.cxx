@@ -226,7 +226,6 @@ void allocate(MPI_Comm comm){
 }
 
 void reset(){
-  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));
   } else{

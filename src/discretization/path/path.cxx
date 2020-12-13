@@ -771,18 +771,34 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       comp_time=0;
     }
   }
-  while (true_count>0){
-    int indx; MPI_Status status;
-    volatile double start_comm_time = MPI_Wtime();
-    int _ret = PMPI_Waitany(count,array_of_requests,&indx,&status);
-    assert(_ret == MPI_SUCCESS);
-    double comm_time = MPI_Wtime() - start_comm_time;
-    auto info_it = nonblocking_internal_info.find(pt[indx]);
-    bool is_sender = info_it->second.is_sender;
-    if ((array_of_statuses != MPI_STATUS_IGNORE) && (!is_sender)){ array_of_statuses[indx] = status; }
-    true_count--;
-    complete_comm(*info_it->second.track, &pt[indx], comp_time, comm_time);
-    comp_time=0;
+  // If no requests are fake, issue the user communication the safe way.
+  if (true_count == count){
+    volatile double last_start_time = MPI_Wtime();
+    ret = PMPI_Waitall(count,array_of_requests,array_of_statuses);
+    double waitall_comm_time = MPI_Wtime() - last_start_time;
+    for (int i=0; i<count; i++){
+      MPI_Request request = pt[i];
+      auto info_it = nonblocking_internal_info.find(request);
+      assert(info_it != nonblocking_internal_info.end());
+      complete_comm(*info_it->second.track, &request, comp_time, waitall_comm_time/count);
+      // Although we have to exchange the path data for each request, we do not want to double-count the computation time nor the communicaion time
+      comp_time=0;
+    }
+  }
+  else{
+    while (true_count>0){
+      int indx; MPI_Status status;
+      volatile double start_comm_time = MPI_Wtime();
+      int _ret = PMPI_Waitany(count,array_of_requests,&indx,&status);
+      assert(_ret == MPI_SUCCESS);
+      double comm_time = MPI_Wtime() - start_comm_time;
+      auto info_it = nonblocking_internal_info.find(pt[indx]);
+      bool is_sender = info_it->second.is_sender;
+      if ((array_of_statuses != MPI_STATUS_IGNORE) && (!is_sender)){ array_of_statuses[indx] = status; }
+      true_count--;
+      complete_comm(*info_it->second.track, &pt[indx], comp_time, comm_time);
+      comp_time=0;
+    }
   }
   computation_timer = MPI_Wtime();
   return ret;
