@@ -547,7 +547,6 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   tracker.comp_time = curtime - computation_timer;
   // Note that use of MPI_ANY_SOURCE may in fact be ok, but it has not been tested.
   assert(partner != MPI_ANY_SOURCE);
-  MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
 
   critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;		// update critical path runtime
@@ -609,6 +608,7 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
   nonblocking_info msg_info(is_sender,partner,comm,(double)nbytes,(double)p,&tracker);
   nonblocking_internal_info[*request] = msg_info;
 
+  MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
   // Issue the barrier/max-barrier/synchronization calls, regardless of msg size
   if (partner!=-1){// Branch protects against nonblocking collectives
     int rank; MPI_Comm_rank(comm,&rank); 
@@ -618,7 +618,8 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
       if (invoke_max_barrier) PMPI_Bsend(&max_barrier_time, 1, MPI_DOUBLE, partner, internal_tag4, comm);
       if (track_synchronization) PMPI_Bsend(&synch_pad_send[0], 1, MPI_CHAR, partner, internal_tag, comm);
     }
-    else if (is_sender && rank != partner){
+    else if (!is_sender && rank != partner){
+      // The motivation behind use of PMPI_Recv here is that there is every chance that the Sender would have sent this already and its cheap to receive it right here and now.
       PMPI_Recv(&barrier_pad_recv[0], 1, MPI_CHAR, partner, internal_tag3, comm, MPI_STATUS_IGNORE);
       if (invoke_max_barrier) PMPI_Recv(&max_barrier_time, 1, MPI_DOUBLE, partner, internal_tag4, comm, MPI_STATUS_IGNORE);
       if (track_synchronization) PMPI_Recv(&synch_pad_recv[0], 1, MPI_CHAR, partner, internal_tag, comm, MPI_STATUS_IGNORE);
@@ -1292,7 +1293,7 @@ void path::propagate(blocking& tracker){
   }
   else{
     // Note that a blocking sendrecv allows exchanges even when the other party issued a request via nonblocking communication, as the process with the nonblocking request posts both sends and receives.
-    if (!eager && (send_dependency || tracker.tag==13 || tracker.tag==14)){
+    if (!eager && send_dependency){
       PMPI_Sendrecv(&critical_path_costs[0], critical_path_costs.size(), MPI_DOUBLE, tracker.partner1, internal_tag2, &new_cs[0], critical_path_costs.size(),
                     MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       update_critical_path(&new_cs[0],&critical_path_costs[0],critical_path_costs_size);
