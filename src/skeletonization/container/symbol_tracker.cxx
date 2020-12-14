@@ -9,9 +9,9 @@ std::unordered_map<std::string,symbol_tracker> symbol_timers;
 
 symbol_tracker::symbol_tracker(std::string name_){}
 
-void symbol_tracker::start(double save_time){}
+void symbol_tracker::start(float save_time){}
 
-void symbol_tracker::stop(double save_time){}
+void symbol_tracker::stop(float save_time){}
 
 }
 }

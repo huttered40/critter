@@ -9,10 +9,9 @@ namespace decomposition{
 
 extern int replace_comp;
 extern int replace_comm;
-extern int invoke_max_barrier;
 extern int track_synchronization;
-extern std::map<comp_kernel_key,std::pair<int,double>> comp_kernel_info;
-extern std::map<comm_kernel_key,std::pair<int,double>> comm_kernel_info;
+extern std::map<comp_kernel_key,std::pair<int,float>> comp_kernel_info;
+extern std::map<comm_kernel_key,std::pair<int,float>> comm_kernel_info;
 extern std::ofstream stream;
 extern bool is_first_request;
 extern size_t mode_1_width;
@@ -42,18 +41,18 @@ extern std::vector<char> symbol_pad_ncp2;
 extern std::vector<int> symbol_len_pad_cp;
 extern std::vector<int> symbol_len_pad_ncp1;
 extern std::vector<int> symbol_len_pad_ncp2;
-extern std::vector<double> symbol_timer_pad_local_cp;
-extern std::vector<double> symbol_timer_pad_global_cp;
-extern std::vector<double> symbol_timer_pad_global_cp2;
-extern std::vector<double> symbol_timer_pad_local_pp;
-extern std::vector<double> symbol_timer_pad_global_pp;
-extern std::vector<double> symbol_timer_pad_local_vol;
-extern std::vector<double> symbol_timer_pad_global_vol;
+extern std::vector<float> symbol_timer_pad_local_cp;
+extern std::vector<float> symbol_timer_pad_global_cp;
+extern std::vector<float> symbol_timer_pad_global_cp2;
+extern std::vector<float> symbol_timer_pad_local_pp;
+extern std::vector<float> symbol_timer_pad_global_pp;
+extern std::vector<float> symbol_timer_pad_local_vol;
+extern std::vector<float> symbol_timer_pad_global_vol;
 extern std::stack<std::string> symbol_stack;
 extern std::vector<std::string> symbol_order;
 extern std::vector<int> symbol_path_select_index;
-extern std::vector<double> intercept_overhead;
-extern std::vector<double> global_intercept_overhead;
+extern std::vector<float> intercept_overhead;
+extern std::vector<float> global_intercept_overhead;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
@@ -63,34 +62,34 @@ extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           
 extern size_t critical_path_costs_size;
 extern size_t per_process_costs_size;
 extern size_t volume_costs_size;
-extern std::vector<double> critical_path_costs;
-extern std::vector<double> max_per_process_costs;
-extern std::vector<double> volume_costs;
+extern std::vector<float> critical_path_costs;
+extern std::vector<float> max_per_process_costs;
+extern std::vector<float> volume_costs;
 extern std::vector<char> synch_pad_send;
 extern std::vector<char> synch_pad_recv;
 extern std::vector<char> barrier_pad_send;
 extern std::vector<char> barrier_pad_recv;
-extern std::vector<double_int> info_sender;
-extern std::vector<double_int> info_receiver;
+extern std::vector<float_int> info_sender;
+extern std::vector<float_int> info_receiver;
 extern std::vector<char> eager_pad;
-extern double comp_start_time;
+extern float comp_start_time;
 
-extern std::vector<std::pair<double*,int>> internal_comm_prop;
+extern std::vector<std::pair<float*,int>> internal_comm_prop;
 extern std::vector<MPI_Request> internal_comm_prop_req;
 extern std::vector<int*> internal_timer_prop_int;
-extern std::vector<double*> internal_timer_prop_double;
-extern std::vector<double_int*> internal_timer_prop_double_int;
+extern std::vector<float*> internal_timer_prop_float;
+extern std::vector<float_int*> internal_timer_prop_float_int;
 extern std::vector<char*> internal_timer_prop_char;
 extern std::vector<MPI_Request> internal_timer_prop_req;
 extern std::vector<bool> decisions;
-extern std::map<std::string,std::vector<double>> save_info;
-extern std::vector<double> new_cs;
+extern std::map<std::string,std::vector<float>> save_info;
+extern std::vector<float> new_cs;
 
 void allocate(MPI_Comm comm);
 void reset();
-void open_symbol(const char* symbol, double curtime);
-void close_symbol(const char* symbol, double curtime);
-void final_accumulate(MPI_Comm comm, double last_time);
+void open_symbol(const char* symbol, float curtime);
+void close_symbol(const char* symbol, float curtime);
+void final_accumulate(MPI_Comm comm, float last_time);
 void clear();
 void finalize();
 

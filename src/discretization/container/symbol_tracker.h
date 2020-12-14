@@ -13,8 +13,8 @@ class symbol_tracker{
     symbol_tracker() {}
     symbol_tracker(std::string name_);
     bool operator<(const symbol_tracker& w) const ;
-    void start(double save_time);
-    void stop(double save_time);
+    void start(float save_time);
+    void stop(float save_time);
 };
 
 extern std::unordered_map<std::string,symbol_tracker> symbol_timers;

@@ -9,14 +9,14 @@ namespace skeletonization{
 
 void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){}
 
-bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
+bool path::initiate_comp(size_t id, volatile float curtime, float flop_count, int param1, int param2, int param3, int param4, int param5){
   // Always skip, and update statistics in 'complete_comp'
   assert(skeleton_analytic==1);
   return false;
 }
 
-void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
-  volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
+void path::complete_comp(float errtime, size_t id, float flop_count, int param1, int param2, int param3, int param4, int param5){
+  volatile float comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
   assert(skeleton_analytic==1);
   comp_kernel_key key(active_kernels.size(),id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
   if (comp_kernel_map.find(key) == comp_kernel_map.end()){
@@ -38,7 +38,7 @@ void path::complete_comp(double errtime, size_t id, double flop_count, int param
   computation_timer = MPI_Wtime();
 }
 
-bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+bool path::initiate_comm(blocking& tracker, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                          bool is_sender, int partner1, int partner2){
   assert(skeleton_analytic==1);
   assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
@@ -62,12 +62,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 }
 
 void path::complete_comm(blocking& tracker, int recv_source){
-  volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
-  volatile double overhead_start_time = MPI_Wtime();
+  volatile float comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
+  volatile float overhead_start_time = MPI_Wtime();
   assert(skeleton_analytic==1);
 
-  std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
-  std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
+  std::pair<float,float> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
+  std::pair<float,float> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
@@ -104,8 +104,8 @@ void path::complete_comm(blocking& tracker, int recv_source){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner){
-  volatile double overhead_start_time = MPI_Wtime();
+bool path::initiate_comm(nonblocking& tracker, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner){
+  volatile float overhead_start_time = MPI_Wtime();
   assert(skeleton_analytic==1);
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
@@ -118,8 +118,8 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   tracker.partner1 = partner;
   tracker.partner2 = -1;
 
-  std::pair<double,double> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
-  std::pair<double,double> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
+  std::pair<float,float> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
+  std::pair<float,float> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
@@ -149,7 +149,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
+void path::initiate_comm(nonblocking& tracker, volatile float itime, int64_t nelem,
                          MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
   // No-op - this function should never be invoked.
   assert(0);
@@ -157,20 +157,20 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
 
 void path::complete_comm(nonblocking& tracker, MPI_Request* request){}
 
-int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
+int path::complete_comm(float curtime, MPI_Request* request, MPI_Status* status){
   return MPI_SUCCESS;
 }
 
-int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int path::complete_comm(float curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   return MPI_SUCCESS;
 }
 
-int path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+int path::complete_comm(float curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
   return MPI_SUCCESS;
 }
 
-int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int path::complete_comm(float curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   return MPI_SUCCESS;
 }
 
@@ -186,10 +186,10 @@ void path::propagate_kernels(blocking& tracker){
   info_sender[0].first = critical_path_costs[0];
   info_sender[0].second = rank;
   if (tracker.partner1 == -1){
-    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_DOUBLE_INT, MPI_MAXLOC, tracker.comm);
+    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_FLOAT_INT, MPI_MAXLOC, tracker.comm);
     max_proc = info_receiver[0].second;
     max_val = info_receiver[0].first;
-    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_DOUBLE_INT, MPI_MINLOC, tracker.comm);
+    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_FLOAT_INT, MPI_MINLOC, tracker.comm);
     min_proc = info_receiver[0].second;
     min_val = info_receiver[0].first;
     // This only works for blocking. This won't even work for blocking+nonblocking (isend+recv)
@@ -197,8 +197,8 @@ void path::propagate_kernels(blocking& tracker){
   }
   else{
     if ((send_dependency) || ((tracker.tag >= 13) && (tracker.tag <= 14))){
-      PMPI_Sendrecv(&info_sender[0].first, 1, MPI_DOUBLE_INT, tracker.partner1, internal_tag,
-                    &info_receiver[0].first, 1, MPI_DOUBLE_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(&info_sender[0].first, 1, MPI_FLOAT_INT, tracker.partner1, internal_tag,
+                    &info_receiver[0].first, 1, MPI_FLOAT_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
       if (info_sender[0].first>info_receiver[0].first){max_proc = rank;}
       else if (info_sender[0].first==info_receiver[0].first){ max_proc = std::min(rank,tracker.partner1); }
       max_val = std::max(info_sender[0].first, info_receiver[0].first);
@@ -211,11 +211,11 @@ void path::propagate_kernels(blocking& tracker){
     else{
       // Here, knowledge of max/min proc and val is not important. We know the sender will receive additional information from the sender, and vice versa.
       if ((tracker.is_sender) && (rank != tracker.partner1)){
-        if (0/*true_eager_p2p*/) { /*PMPI_Bsend(&sbuf, 17, MPI_DOUBLE, partner1, internal_tag3, comm);*/ assert(0); }
-        else                { PMPI_Ssend(&info_sender[0].first, 1, MPI_DOUBLE_INT, tracker.partner1, internal_tag2, tracker.comm); }
+        if (0/*true_eager_p2p*/) { /*PMPI_Bsend(&sbuf, 17, MPI_FLOAT, partner1, internal_tag3, comm);*/ assert(0); }
+        else                { PMPI_Ssend(&info_sender[0].first, 1, MPI_FLOAT_INT, tracker.partner1, internal_tag2, tracker.comm); }
       }
       if ((!tracker.is_sender) && (rank != tracker.partner1)){
-        PMPI_Recv(&info_receiver[0].first, 1, MPI_DOUBLE_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&info_receiver[0].first, 1, MPI_FLOAT_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       }
     }
   }

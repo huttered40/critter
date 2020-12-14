@@ -44,13 +44,13 @@ symbol_tracker::symbol_tracker(std::string name_){
     this->cp_exclusive_contributions[i] = &symbol_timer_pad_local_cp[cp_offset+2*num_per_process_measures+1+path_select_offset*i];
     this->cp_exclusive_measure[i] = &symbol_timer_pad_local_cp[cp_offset+3*num_per_process_measures+1+path_select_offset*i];
   }
-  memset(&symbol_timer_pad_local_cp[cp_offset],0,sizeof(double)*symbol_path_select_size*path_select_offset);
-  memset(&symbol_timer_pad_local_pp[cp_offset],0,sizeof(double)*(pp_symbol_class_count*num_per_process_measures+1));
-  memset(&symbol_timer_pad_local_vol[vol_offset],0,sizeof(double)*(vol_symbol_class_count*num_volume_measures+1));
+  memset(&symbol_timer_pad_local_cp[cp_offset],0,sizeof(float)*symbol_path_select_size*path_select_offset);
+  memset(&symbol_timer_pad_local_pp[cp_offset],0,sizeof(float)*(pp_symbol_class_count*num_per_process_measures+1));
+  memset(&symbol_timer_pad_local_vol[vol_offset],0,sizeof(float)*(vol_symbol_class_count*num_volume_measures+1));
   this->has_been_processed = false;
 }
 
-void symbol_tracker::start(double save_time){
+void symbol_tracker::start(float save_time){
   if (symbol_path_select_size==0) return;
   if (symbol_stack.size()>0){
     auto last_symbol_time = save_time-symbol_timers[symbol_stack.top()].start_timer.top();
@@ -75,10 +75,10 @@ void symbol_tracker::start(double save_time){
   }
   symbol_stack.push(this->name);
   computation_timer = MPI_Wtime();
-  this->start_timer.push((double)computation_timer);
+  this->start_timer.push((float)computation_timer);
 }
 
-void symbol_tracker::stop(double save_time){
+void symbol_tracker::stop(float save_time){
   if (symbol_path_select_size==0) return;
   assert(this->start_timer.size()>0);
   auto last_symbol_time = save_time-this->start_timer.top();
@@ -104,9 +104,9 @@ void symbol_tracker::stop(double save_time){
     }
   }
   for (auto j=0; j<symbol_path_select_size; j++){
-    memset(this->cp_exclusive_measure[j],0,sizeof(double)*num_per_process_measures);
+    memset(this->cp_exclusive_measure[j],0,sizeof(float)*num_per_process_measures);
   }
-  memset(this->pp_exclusive_measure,0,sizeof(double)*num_per_process_measures);
+  memset(this->pp_exclusive_measure,0,sizeof(float)*num_per_process_measures);
   auto save_symbol = symbol_stack.top();
   this->start_timer.pop(); symbol_stack.pop();
   if (symbol_stack.size() > 0 && (save_symbol != symbol_stack.top())){
@@ -121,9 +121,9 @@ void symbol_tracker::stop(double save_time){
       this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
     }
     for (auto j=0; j<symbol_path_select_size; j++){
-      memset(this->cp_exclusive_contributions[j],0,sizeof(double)*num_per_process_measures);
+      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_per_process_measures);
     }
-    memset(this->pp_exclusive_contributions,0,sizeof(double)*num_per_process_measures);
+    memset(this->pp_exclusive_contributions,0,sizeof(float)*num_per_process_measures);
   } else if (symbol_stack.size() == 0){
     for (auto j=0; j<symbol_path_select_size; j++){
       for (auto i=0; i<num_per_process_measures; i++){
@@ -134,9 +134,9 @@ void symbol_tracker::stop(double save_time){
       this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
     }
     for (auto j=0; j<symbol_path_select_size; j++){
-      memset(this->cp_exclusive_contributions[j],0,sizeof(double)*num_per_process_measures);
+      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_per_process_measures);
     }
-    memset(this->pp_exclusive_contributions,0,sizeof(double)*num_per_process_measures);
+    memset(this->pp_exclusive_contributions,0,sizeof(float)*num_per_process_measures);
   }
   critical_path_costs[num_critical_path_measures-3] += (save_time - computation_timer);		// update critical path computation time
   critical_path_costs[num_critical_path_measures-1] += (save_time - computation_timer);		// update critical path runtime

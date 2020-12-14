@@ -8,9 +8,9 @@ namespace critter{
 namespace internal{
 namespace skeletonization{
 
-void record::write_file(int variantID, int print_mode, double overhead_time){}
+void record::write_file(int variantID, int print_mode, float overhead_time){}
 
-void record::print(int variantID, int print_mode, double overhead_time){}
+void record::print(int variantID, int print_mode, float overhead_time){}
 
 }
 }

@@ -10,7 +10,7 @@ namespace discretization{
 void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
-  double save_comp_time = MPI_Wtime() - computation_timer;
+  float save_comp_time = MPI_Wtime() - computation_timer;
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
   critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
@@ -21,10 +21,10 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   computation_timer = MPI_Wtime();
 }
 
-bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, int param1, int param2, int param3, int param4, int param5){
+bool path::initiate_comp(size_t id, volatile float curtime, float flop_count, int param1, int param2, int param3, int param4, int param5){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
-  double save_comp_time = curtime - computation_timer;
+  float save_comp_time = curtime - computation_timer;
   critical_path_costs[num_critical_path_measures-1] += save_comp_time;	// update critical path execution time
   critical_path_costs[num_critical_path_measures-3] += save_comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += save_comp_time;		// update local execution time
@@ -32,7 +32,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
-  volatile double overhead_start_time = MPI_Wtime();
+  volatile float overhead_start_time = MPI_Wtime();
 
   bool schedule_decision = true;
   if (!(tuning_delta==0 || tuning_delta==2)){// these tuning_deltas (0, 2) signify unconditional scheduling of computation kernels
@@ -50,13 +50,13 @@ bool path::initiate_comp(size_t id, volatile double curtime, double flop_count, 
   return schedule_decision;
 }
 
-void path::complete_comp(double errtime, size_t id, double flop_count, int param1, int param2, int param3, int param4, int param5){
-  volatile double comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
+void path::complete_comp(float errtime, size_t id, float flop_count, int param1, int param2, int param3, int param4, int param5){
+  volatile float comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
 
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return; }
-  volatile double overhead_start_time = MPI_Wtime();
+  volatile float overhead_start_time = MPI_Wtime();
 
   if (!(tuning_delta==0 || tuning_delta==2)){// these deltas (0, 2) signify unconditional scheduling of computation kernels
     comp_kernel_key key(active_kernels.size(),id,flop_count,param1,param2,param3,param4,param5);// 'active_kernels.size()' argument is arbitrary, does not influence overloaded operators
@@ -118,13 +118,13 @@ void path::complete_comp(double errtime, size_t id, double flop_count, int param
   computation_timer = MPI_Wtime();
 }
 
-bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+bool path::initiate_comm(blocking& tracker, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                          bool is_sender, int partner1, int partner2){
   assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
-  volatile double overhead_start_time = MPI_Wtime();
+  volatile float overhead_start_time = MPI_Wtime();
   critical_path_costs[num_critical_path_measures-1] += tracker.comp_time;	// update critical path execution time
   critical_path_costs[num_critical_path_measures-3] += tracker.comp_time;	// update critical path computation time
   volume_costs[num_volume_measures-1]        += tracker.comp_time;		// update local execution time
@@ -159,9 +159,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
   //     critical path root is decided based on a reduction using 'critical_path_costs'. Therefore, no explicit barriers are invoked, instead relying on Allreduce
   bool schedule_decision = true;
-  double reduced_info[17] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
+  float reduced_info[17] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
                             critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,bsp_counter};
-  double reduced_info_foreign[17] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  float reduced_info_foreign[17] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
   // Assume that the communicator of either collective/p2p is registered via comm_split, and that its described using a max of 3 dimension tuples.
   assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
@@ -230,7 +230,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   if (partner1 == -1){
-    PMPI_Allreduce(MPI_IN_PLACE, &reduced_info[0], 17, MPI_DOUBLE, MPI_MAX, tracker.comm);
+    PMPI_Allreduce(MPI_IN_PLACE, &reduced_info[0], 17, MPI_FLOAT, MPI_MAX, tracker.comm);
     tracker.barrier_time = reduced_info[3] - critical_path_costs[num_critical_path_measures-1];
     for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = reduced_info[i]; }
     schedule_decision = (reduced_info[4] == 0 ? true : false);
@@ -263,16 +263,16 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
   else{
     if (!eager && (send_dependency || tracker.tag==13 || tracker.tag==14)){
-      PMPI_Sendrecv(&reduced_info[0], 17, MPI_DOUBLE, tracker.partner1, internal_tag2, &reduced_info_foreign[0], 17,
-                    MPI_DOUBLE, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      PMPI_Sendrecv(&reduced_info[0], 17, MPI_FLOAT, tracker.partner1, internal_tag2, &reduced_info_foreign[0], 17,
+                    MPI_FLOAT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       tracker.barrier_time = std::max(reduced_info[3],reduced_info_foreign[3]) - critical_path_costs[num_critical_path_measures-1];
       for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
       schedule_decision = (reduced_info[4] == 0) && (reduced_info_foreign[4] == 0);// If either are 1, then we don't schedule
       bsp_counter = std::max(reduced_info[16],reduced_info_foreign[16]);
       if (tracker.partner2 != tracker.partner1){
         for (auto i=0; i<num_critical_path_measures; i++){ reduced_info[i] = critical_path_costs[i]; }
-        PMPI_Sendrecv(&reduced_info[0], 17, MPI_DOUBLE, tracker.partner2, internal_tag2, &reduced_info_foreign[0], 17,
-                      MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+        PMPI_Sendrecv(&reduced_info[0], 17, MPI_FLOAT, tracker.partner2, internal_tag2, &reduced_info_foreign[0], 17,
+                      MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
         tracker.barrier_time = std::max(reduced_info[3],reduced_info_foreign[3]) - critical_path_costs[num_critical_path_measures-1];
         for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
         schedule_decision = schedule_decision && (reduced_info[4] == 0) && (reduced_info_foreign[4] == 0);
@@ -280,10 +280,10 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
     else{
       if ((is_sender) && (rank != partner1)){
-        PMPI_Bsend(&reduced_info[0], 17, MPI_DOUBLE, partner1, internal_tag2, comm);
+        PMPI_Bsend(&reduced_info[0], 17, MPI_FLOAT, partner1, internal_tag2, comm);
       }
       if ((!is_sender) && (rank != partner1)){
-        PMPI_Recv(&reduced_info_foreign[0], 17, MPI_DOUBLE, partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&reduced_info_foreign[0], 17, MPI_FLOAT, partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       }
       if ((!is_sender) && (rank != partner1)){
         schedule_decision = (reduced_info_foreign[4] == 0);// If either are 1, then we don't schedule
@@ -310,11 +310,11 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
 // Used only for p2p communication. All blocking collectives use sychronous protocol
 void path::complete_comm(blocking& tracker, int recv_source){
-  volatile double comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
+  volatile float comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return; }
-  volatile double overhead_start_time = MPI_Wtime();
+  volatile float overhead_start_time = MPI_Wtime();
   MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
@@ -447,7 +447,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem,
+bool path::initiate_comm(nonblocking& tracker, volatile float curtime, int64_t nelem,
                          MPI_Datatype t, MPI_Comm comm, int user_tag, bool is_sender, int partner){
   assert(partner != MPI_ANY_SOURCE);
   if (request_id == INT_MAX) request_id = 100;// reset to avoid overflow. Rare case.
@@ -464,7 +464,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
 
   // At this point, 'critical_path_costs' tells me the process's time up until now. A barrier won't suffice when kernels are conditionally scheduled.
   int rank; MPI_Comm_rank(comm, &rank);
-  volatile double overhead_start_time = MPI_Wtime();
+  volatile float overhead_start_time = MPI_Wtime();
 
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
@@ -486,9 +486,9 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   //   from corrupting communication time measurements. The process that enters barrier last is not necessarily the critical path root. The
   //     critical path root is decided based on a reduction using 'critical_path_costs'. Therefore, no explicit barriers are invoked, instead relying on Allreduce
   bool schedule_decision = true;
-  double reduced_info[17] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
+  float reduced_info[17] = {critical_path_costs[num_critical_path_measures-4],critical_path_costs[num_critical_path_measures-3],
                             critical_path_costs[num_critical_path_measures-2],critical_path_costs[num_critical_path_measures-1],0,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,bsp_counter};
-  double reduced_info_foreign[17] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+  float reduced_info_foreign[17] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
   // Assume that the communicator of either collective/p2p is registered via comm_split, and that its described using a max of 3 dimension tuples.
   assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
@@ -524,13 +524,14 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   else{
     if (is_sender){
       MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
-      PMPI_Bsend(&reduced_info[0],17,MPI_DOUBLE,tracker.partner1,internal_tag2,tracker.comm);
+      PMPI_Bsend(&reduced_info[0],17,MPI_FLOAT,tracker.partner1,internal_tag2,tracker.comm);
       void* temp_buf; int temp_size;
       MPI_Buffer_detach(&temp_buf,&temp_size);
     } else{
-      PMPI_Recv(&reduced_info_foreign[0], 17, MPI_DOUBLE, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      //TODO: note that this is not be the best place to propagate critical path information. Ideally I call an Irecv here as done in decomposition
+      //      however, I need the information as to whether to post the Irecv right now. This is a flaw of course.
+      PMPI_Recv(&reduced_info_foreign[0], 17, MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       schedule_decision = reduced_info_foreign[4] == 0;
-      //TODO: note that this might not be the best place to propagate critical path information.
       for (auto i=0; i<num_critical_path_measures; i++){ critical_path_costs[i] = std::max(reduced_info[i],reduced_info_foreign[i]); }
        bsp_counter = std::max(reduced_info[16],reduced_info_foreign[16]);
     }
@@ -539,7 +540,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   if (!schedule_decision){
     while (1){
       if ((nonblocking_internal_info.find(request_id) == nonblocking_internal_info.end()) && (request_id != MPI_REQUEST_NULL)){
-        nonblocking_info msg_info(false,is_sender,partner,comm,(double)nbytes,(double)nelem,(double)np,user_tag,&tracker);
+        nonblocking_info msg_info(false,is_sender,partner,comm,(float)nbytes,(float)nelem,(float)np,user_tag,&tracker);
         nonblocking_internal_info[request_id] = msg_info;
         break;
       }
@@ -554,7 +555,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
+void path::initiate_comm(nonblocking& tracker, volatile float itime, int64_t nelem,
                             MPI_Datatype t, MPI_Comm comm, MPI_Request* request, int user_tag, bool is_sender, int partner){
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   tracker.comp_time = itime;
@@ -570,12 +571,12 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
 
   // These asserts are to prevent the situation in which my synthetic request_id and that of the MPI implementation collide
   assert(nonblocking_internal_info.find(*request) == nonblocking_internal_info.end());
-  nonblocking_info msg_info(true,is_sender,partner,comm,(double)nbytes,(double)nelem,(double)p,user_tag,&tracker);
+  nonblocking_info msg_info(true,is_sender,partner,comm,(float)nbytes,(float)nelem,(float)p,user_tag,&tracker);
   nonblocking_internal_info[*request] = msg_info;
   computation_timer = tracker.start_time;
 }
 
-void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+void path::complete_comm(nonblocking& tracker, MPI_Request* request, float comp_time, float comm_time){
   auto info_it = nonblocking_internal_info.find(*request);
   assert(info_it != nonblocking_internal_info.end());
 
@@ -686,16 +687,16 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.start_time = MPI_Wtime();
 }
 
-int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
-  double comp_time = curtime - computation_timer;
+int path::complete_comm(float curtime, MPI_Request* request, MPI_Status* status){
+  float comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
-  double save_comm_time = 0;
+  float save_comm_time = 0;
   assert(nonblocking_internal_info.find(*request) != nonblocking_internal_info.end());
   auto info_it = nonblocking_internal_info.find(*request);
   MPI_Request save_request = info_it->first;
   int schedule_decision = info_it->second.is_active;
   if (schedule_decision == 1){
-    volatile double last_start_time = MPI_Wtime();
+    volatile float last_start_time = MPI_Wtime();
     ret = PMPI_Wait(request, status);
     save_comm_time = MPI_Wtime() - last_start_time;
     complete_comm(*info_it->second.track, &save_request, comp_time, save_comm_time);
@@ -707,10 +708,10 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
   return ret;
 }
 
-int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
-  double comp_time = curtime - computation_timer;
+int path::complete_comm(float curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+  float comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
-  double save_comm_time = 0;
+  float save_comm_time = 0;
   std::vector<MPI_Request> pt(count);
   int num_skips=0; int last_skip;
   for (int i=0;i<count;i++){
@@ -722,7 +723,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     }
   }
   if (num_skips < pt.size()){
-    volatile double last_start_time = MPI_Wtime();
+    volatile float last_start_time = MPI_Wtime();
     ret = PMPI_Waitany(count,array_of_requests,indx,status);
     save_comm_time = MPI_Wtime() - last_start_time;
     auto info_it = nonblocking_internal_info.find((array_of_requests)[*indx]);
@@ -736,7 +737,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   return ret;
 }
 
-int path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+int path::complete_comm(float curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
   int indx; MPI_Status stat;
   int ret = complete_comm(curtime,incount,array_of_requests,&indx,&stat);
@@ -746,8 +747,8 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
   return ret;
 }
 
-int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
-  double comp_time = curtime - computation_timer;
+int path::complete_comm(float curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+  float comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
   int true_count = count;
   std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
@@ -773,25 +774,25 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   }
   // If no requests are fake, issue the user communication the safe way.
   if (true_count == count){
-    volatile double last_start_time = MPI_Wtime();
+    volatile float last_start_time = MPI_Wtime();
     ret = PMPI_Waitall(count,array_of_requests,array_of_statuses);
-    double waitall_comm_time = MPI_Wtime() - last_start_time;
+    float waitall_comm_time = MPI_Wtime() - last_start_time;
     for (int i=0; i<count; i++){
       MPI_Request request = pt[i];
       auto info_it = nonblocking_internal_info.find(request);
       assert(info_it != nonblocking_internal_info.end());
       complete_comm(*info_it->second.track, &request, comp_time, waitall_comm_time/count);
-      // Although we have to exchange the path data for each request, we do not want to double-count the computation time nor the communicaion time
+      // Although we have to exchange the path data for each request, we do not want to float-count the computation time nor the communicaion time
       comp_time=0;
     }
   }
   else{
     while (true_count>0){
       int indx; MPI_Status status;
-      volatile double start_comm_time = MPI_Wtime();
+      volatile float start_comm_time = MPI_Wtime();
       int _ret = PMPI_Waitany(count,array_of_requests,&indx,&status);
       assert(_ret == MPI_SUCCESS);
-      double comm_time = MPI_Wtime() - start_comm_time;
+      float comm_time = MPI_Wtime() - start_comm_time;
       auto info_it = nonblocking_internal_info.find(pt[indx]);
       bool is_sender = info_it->second.is_sender;
       if ((array_of_statuses != MPI_STATUS_IGNORE) && (!is_sender)){ array_of_statuses[indx] = status; }
@@ -854,8 +855,8 @@ void path::comp_state_aggregation(blocking& tracker){
       for (auto i=0; i<tracker.save_comp_key.size(); i++){
         auto& key = tracker.save_comp_key[i];
         if (save_comp_kernels.find(key) != save_comp_kernels.end()){
-          double ci_local = get_error_estimate(key,save_comp_kernels[key],comp_analysis_param);
-          double ci_foreign = get_error_estimate(key,foreign_active_kernels[i],comp_analysis_param);
+          float ci_local = get_error_estimate(key,save_comp_kernels[key],comp_analysis_param);
+          float ci_foreign = get_error_estimate(key,foreign_active_kernels[i],comp_analysis_param);
           if (ci_foreign < ci_local){
             save_comp_kernels[key] = foreign_active_kernels[i];
           }
@@ -977,8 +978,8 @@ void path::comm_state_aggregation(blocking& tracker){
       for (auto i=0; i<tracker.save_comm_key.size(); i++){
         auto& key = tracker.save_comm_key[i];
         if (save_comm_kernels.find(key) != save_comm_kernels.end()){
-          double ci_local = get_error_estimate(key,save_comm_kernels[key],comm_analysis_param);
-          double ci_foreign = get_error_estimate(key,foreign_active_kernels[i],comm_analysis_param);
+          float ci_local = get_error_estimate(key,save_comm_kernels[key],comm_analysis_param);
+          float ci_foreign = get_error_estimate(key,foreign_active_kernels[i],comm_analysis_param);
           if (ci_foreign < ci_local){
             save_comm_kernels[key] = foreign_active_kernels[i];
           }

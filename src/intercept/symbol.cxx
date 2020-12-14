@@ -4,9 +4,9 @@
 
 namespace critter{
 
-void symbol_invoke(const char* symbol, double flops, int param1, int param2, int param3, int param4, int param5){
+void symbol_invoke(const char* symbol, float flops, int param1, int param2, int param3, int param4, int param5){
   if (internal::mode){
-    volatile double curtime = MPI_Wtime();
+    volatile float curtime = MPI_Wtime();
     std::string _symbol_ = symbol;
     assert(internal::symbol_id_map.find(_symbol_) != internal::symbol_id_map.end());
     bool schedule_decision = internal::initiate_comp(internal::symbol_id_map[_symbol_],curtime,flops,param1,param2,param3,param4,param5);
@@ -24,14 +24,14 @@ namespace internal{
 
 void symbol_start(const char* symbol){
   if (mode){
-    volatile double save_time = MPI_Wtime();
+    volatile float save_time = MPI_Wtime();
     open_symbol(symbol,save_time);
   }
 }
 
 void symbol_stop(const char* symbol){
   if (mode){
-    volatile double save_time = MPI_Wtime();
+    volatile float save_time = MPI_Wtime();
     close_symbol(symbol,save_time);
   }
 }

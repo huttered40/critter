@@ -17,9 +17,9 @@ static int lcm(int a, int b){
   return a*b / gcd(a,b);
 }
 
-static double truncate(double val, int unit_param){
+static float truncate(float val, int unit_param){
   if (unit_param==0) return val;
-  // returns the next highest power of 2 as a double
+  // returns the next highest power of 2 as a float
   if (val==0) return 0;
   // I'm counting on the int64_t to hold sufficiently large number, especially to store the flop_count exactly.
   int64_t v = val;
@@ -32,7 +32,7 @@ static double truncate(double val, int unit_param){
   v |= v >> 32;
   v++;
   if (unit_param==1){
-    return (double)v;
+    return (float)v;
   }
   else{
     int pos=0; int64_t temp = v;
@@ -40,16 +40,16 @@ static double truncate(double val, int unit_param){
       pos++; temp>>=1;
     }
     pos--;
-    if (pos%unit_param==0) { return (double)v; }
+    if (pos%unit_param==0) { return (float)v; }
     for (int z = pos%unit_param; z<unit_param; z++){
       v<<=1;
     }
-    return (double)v;
+    return (float)v;
   }
 }
-static double truncate(int v, int unit_param){
+static float truncate(int v, int unit_param){
   if (unit_param==0) return v;
-  // returns the next highest power of 2 as a double
+  // returns the next highest power of 2 as a float
   if (v==0) return 0;
   v--;
   v |= v >> 1;
@@ -67,11 +67,11 @@ static double truncate(int v, int unit_param){
       pos++; temp>>=1;
     }
     pos--;
-    if (pos%unit_param==0) { return (double)v; }
+    if (pos%unit_param==0) { return (float)v; }
     for (int z = pos%unit_param; z<unit_param; z++){
       v<<=1;
     }
-    return (double)v;
+    return (float)v;
   }
 }
 
@@ -83,7 +83,7 @@ int comp_unit_param;
 int comm_analysis_param;
 int comp_analysis_param;
 // ****************************************************************************************************************************************************
-comm_kernel_key::comm_kernel_key(int _rank, int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner){
+comm_kernel_key::comm_kernel_key(int _rank, int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], float _msg_size, int _partner){
   this->kernel_index = _kernel_index;
   // Envelope (non-message-size) parameterization specification
   this->tag = _tag;
@@ -108,7 +108,7 @@ comm_kernel_key::comm_kernel_key(int _rank, int _kernel_index, int _tag, int _di
 }
 
 // This constructor is used when transferring ownership of kernels following path propagation.
-comm_kernel_key::comm_kernel_key(int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset){
+comm_kernel_key::comm_kernel_key(int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], float _msg_size, int _partner_offset){
   this->kernel_index = _kernel_index;
   this->tag = _tag;
   if (_dim_sizes != nullptr) std::memcpy(&this->dim_sizes[0],&_dim_sizes[0],2*sizeof(int));
@@ -164,7 +164,7 @@ bool operator<(const comm_kernel_key& ref1, const comm_kernel_key& ref2){
 }
 
 // ****************************************************************************************************************************************************
-comp_kernel_key::comp_kernel_key(int _kernel_index, int _tag, double _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
+comp_kernel_key::comp_kernel_key(int _kernel_index, int _tag, float _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
   this->kernel_index = _kernel_index;
   this->tag = _tag;
   this->param1 = truncate(_param1,comp_unit_param);
@@ -255,13 +255,13 @@ int clear_counter;
 int communicator_count;
 int send_dependency;
 std::string schedule_tag;
-volatile double computation_timer;
-std::vector<double> wall_timer;
-double _wall_time;
+volatile float computation_timer;
+std::vector<float> wall_timer;
+float _wall_time;
 size_t auto_capture;
 bool is_world_root;
 size_t mechanism,mode,stack_id;
-double scratch_pad;
+float scratch_pad;
 size_t track_blas1;
 size_t track_blas2;
 size_t track_blas3;

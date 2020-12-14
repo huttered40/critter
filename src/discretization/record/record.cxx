@@ -223,20 +223,20 @@ void record::set_kernel_statistics(){
         if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
           skel_count = skeletonization::active_kernels[skeletonization::comm_kernel_map[it.first].val_index];
         }
-        double decomp_time = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].M1;
+        float decomp_time = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].M1;
         int decomp_num_schedules = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].num_schedules;
         // Iterate over all entries in comm_kernel_list
         int s_count=0;
-        double elasticity=0.;
-        double prev_num_samples = -1;
-        double prev_prediction_accuracy = -1;
+        float elasticity=0.;
+        float prev_num_samples = -1;
+        float prev_prediction_accuracy = -1;
         for (auto& iitt : comm_kernel_list[it.first]){
           if (s_count>0){
-            double curr_num_samples = iitt.num_schedules;
-            double _fix_ = iitt.M1 - decomp_time;
+            float curr_num_samples = iitt.num_schedules;
+            float _fix_ = iitt.M1 - decomp_time;
             if (_fix_ < 0.) _fix_ *= -1;
-            double curr_prediction_accuracy = 1. - (_fix_/decomp_time);
-            curr_prediction_accuracy = std::max(curr_prediction_accuracy,0.);
+            float curr_prediction_accuracy = 1. - (_fix_/decomp_time);
+            curr_prediction_accuracy = std::max(curr_prediction_accuracy,(float)0.);
             if (prev_prediction_accuracy == 0){
               elasticity = curr_prediction_accuracy / ((curr_num_samples - prev_num_samples)/prev_num_samples);
             } else{
@@ -245,10 +245,10 @@ void record::set_kernel_statistics(){
             }
           }
           prev_num_samples = iitt.num_schedules;
-          double _fix_ = iitt.M1 - decomp_time;
+          float _fix_ = iitt.M1 - decomp_time;
           if (_fix_ < 0.) _fix_ *= -1;
           prev_prediction_accuracy = 1. - (_fix_/decomp_time);
-          prev_prediction_accuracy = std::max(prev_prediction_accuracy,0.);
+          prev_prediction_accuracy = std::max(prev_prediction_accuracy,(float)0.);
 
           stream_kernel << std::left << std::setw(mode_1_width) << s_count++;
           stream_kernel << std::left << std::setw(mode_1_width) << skel_count;
@@ -295,19 +295,19 @@ void record::set_kernel_statistics(){
         if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
           skel_count = skeletonization::active_kernels[skeletonization::comp_kernel_map[it.first].val_index];
         }
-        double decomp_time = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].M1;
+        float decomp_time = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].M1;
         int decomp_num_schedules = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].num_schedules;
         // Iterate over all entries in comp_kernel_list
         int s_count=0;
-        double elasticity=0.;
-        double prev_num_samples = -1;
-        double prev_prediction_accuracy = -1;
+        float elasticity=0.;
+        float prev_num_samples = -1;
+        float prev_prediction_accuracy = -1;
         for (auto& iitt : comp_kernel_list[it.first]){
           if (s_count>0){
-            double curr_num_samples = iitt.num_schedules;
-            double _fix_ = iitt.M1 - decomp_time;
+            float curr_num_samples = iitt.num_schedules;
+            float _fix_ = iitt.M1 - decomp_time;
             if (_fix_ < 0.) _fix_ *= -1;
-            double curr_prediction_accuracy = 1. - (_fix_/decomp_time);
+            float curr_prediction_accuracy = 1. - (_fix_/decomp_time);
             if (prev_prediction_accuracy == 0){
               elasticity = curr_prediction_accuracy / ((curr_num_samples - prev_num_samples)/prev_num_samples);
             } else{
@@ -316,10 +316,10 @@ void record::set_kernel_statistics(){
             }
           }
           prev_num_samples = iitt.num_schedules;
-          double _fix_ = iitt.M1 - decomp_time;
+          float _fix_ = iitt.M1 - decomp_time;
           if (_fix_ < 0.) _fix_ *= -1;
           prev_prediction_accuracy = 1. - (_fix_/decomp_time);
-          prev_prediction_accuracy = std::max(prev_prediction_accuracy,0.);
+          prev_prediction_accuracy = std::max(prev_prediction_accuracy,(float)0.);
 
           stream_kernel << std::left << std::setw(mode_1_width) << s_count++;
           stream_kernel << std::left << std::setw(mode_1_width) << skel_count;
@@ -353,7 +353,7 @@ void record::set_tuning_statistics(){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   {
-    double total_scheduled_comm_time=0;
+    float total_scheduled_comm_time=0;
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
@@ -366,7 +366,7 @@ void record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
-        double decomp_time = decomposition::comm_kernel_info[it.first].second / decomposition::comm_kernel_info[it.first].first;
+        float decomp_time = decomposition::comm_kernel_info[it.first].second / decomposition::comm_kernel_info[it.first].first;
         stream << "Rank 0 Communication kernel (" << key_list[it.second.key_index].tag
                << ",(" << key_list[it.second.key_index].dim_sizes[0] << "," << key_list[it.second.key_index].dim_sizes[1] << ")"
                << ",(" << key_list[it.second.key_index].dim_strides[0] << "," << key_list[it.second.key_index].dim_strides[1] << ")"
@@ -397,7 +397,7 @@ void record::set_tuning_statistics(){
       total_scheduled_comm_time += kernel_list[it.second.val_index].total_local_exec_time;
     }
     if (world_rank==0) { stream << std::endl << std::endl; }
-    double total_scheduled_comp_time=0;
+    float total_scheduled_comp_time=0;
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comp_kernel_keys;
@@ -410,7 +410,7 @@ void record::set_tuning_statistics(){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
-        double decomp_time = decomposition::comp_kernel_info[it.first].second / decomposition::comp_kernel_info[it.first].first;
+        float decomp_time = decomposition::comp_kernel_info[it.first].second / decomposition::comp_kernel_info[it.first].first;
          stream << "Rank 0 Computation kernel (" << it.first.tag
                 << "," << key_list[it.second.key_index].param1
                 << "," << key_list[it.second.key_index].param2
@@ -453,7 +453,7 @@ void record::set_tuning_statistics(){
   }
 }
 
-void record::write_file(int variantID, int print_mode, double overhead_time){
+void record::write_file(int variantID, int print_mode, float overhead_time){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
 
@@ -548,7 +548,7 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
 
   // To simplify interface, 'update_analysis' is used to differentiate between printing tuning data and reconstruct data
   if (print_mode==0){
-    std::vector<double> tuning_data(13);
+    std::vector<float> tuning_data(13);
     tuning_data[0] = global_comp_kernel_stats[0];
     tuning_data[1] = global_comp_kernel_stats[1];
     tuning_data[2] = global_comp_kernel_stats[2];
@@ -650,7 +650,7 @@ void record::write_file(int variantID, int print_mode, double overhead_time){
   is_first_iter = false;// set here only beause this routine is called directly after 'invoke' on std::ostream
 }
 
-void record::print(int variantID, int print_mode, double overhead_time){}
+void record::print(int variantID, int print_mode, float overhead_time){}
 
 }
 }

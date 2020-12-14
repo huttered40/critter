@@ -9,8 +9,8 @@ namespace discretization{
 
 class record{
 public:
-  static void write_file(int variantID, int print_mode, double overhead_time);
-  static void print(int variantID, int print_mode, double overhead_time);
+  static void write_file(int variantID, int print_mode, float overhead_time);
+  static void print(int variantID, int print_mode, float overhead_time);
 
 private:
   static void set_tuning_statistics();

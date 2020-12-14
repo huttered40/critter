@@ -7,7 +7,7 @@ namespace critter{
 
 void start(bool schedule_kernels_override = true, bool force_steady_statistical_data_overide = false);
 void stop();
-void record(int variantID=-1, int print_mode=1, double overhead_time=0.);
+void record(int variantID=-1, int print_mode=1, float overhead_time=0.);
 void clear(int mode=0, int tag_count=0, int* distribution_tags = nullptr);
 
 void set_mechanism(int input_mechanism=-1);
@@ -15,11 +15,11 @@ void set_mode(int input_mode=0);
 void set_debug(int debug_mode);
 
 int get_critical_path_costs();
-void get_critical_path_costs(double* costs);
+void get_critical_path_costs(float* costs);
 int get_max_per_process_costs();
-void get_max_per_process_costs(double* costs);
+void get_max_per_process_costs(float* costs);
 int get_volumetric_costs();
-void get_volumetric_costs(double* costs);
+void get_volumetric_costs(float* costs);
 
 namespace internal{
 

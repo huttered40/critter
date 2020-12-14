@@ -15,17 +15,17 @@ class comm_tracker{
     /* \brief integer tag of MPI routine */
     int tag;
     /* \brief function for cost model of MPI routine in bsp cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
-    std::function< std::pair<double,double>(int64_t,int) > cost_func_bsp;
+    std::function< std::pair<float,float>(int64_t,int) > cost_func_bsp;
     /* \brief function for cost model of MPI routine in alpha-beta cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
-    std::function< std::pair<double,double>(int64_t,int) > cost_func_alphabeta;
+    std::function< std::pair<float,float>(int64_t,int) > cost_func_alphabeta;
     /* \brief duration of computation time for each call made locally, used to save the local computation time between calls to ::start and ::stop variants */
-    double comp_time;
+    float comp_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile double start_time;
+    volatile float start_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile double synch_time;
+    volatile float synch_time;
     /* \brief save barrier time across start_synch */
-    volatile double barrier_time;
+    volatile float barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm comm;
     /* \brief partner with which start() was last called */
@@ -59,10 +59,10 @@ public:
      * \param[in] cost_func_alphabeta function for alpha-beta cost model of MPI routine assuming (synchronization-efficient collective communication algorithms)
      */
     blocking(std::string name, int tag,
-            std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
-            std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
+            std::function< std::pair<float,float>(int64_t,int)> 
+              cost_func_bsp = [](int64_t n, int p){ return std::pair<float,float>(1.,n); },
+            std::function< std::pair<float,float>(int64_t,int)> 
+              cost_func_alphabeta = [](int64_t n, int p){ return std::pair<float,float>(1.,n); }
             );
     /** \brief copy constructor */
     blocking(blocking const& t);
@@ -78,10 +78,10 @@ public:
      * \param[in] cost_func_alphabeta function for alpha-beta cost model of MPI routine assuming (synchronization-efficient collective communication algorithms)
      */
     nonblocking(std::string name, int tag,
-            std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_bsp = [](int64_t n, int p){ return std::pair<double,double>(1.,n); },
-            std::function< std::pair<double,double>(int64_t,int)> 
-              cost_func_alphabeta = [](int64_t n, int p){ return std::pair<double,double>(1.,n); }
+            std::function< std::pair<float,float>(int64_t,int)> 
+              cost_func_bsp = [](int64_t n, int p){ return std::pair<float,float>(1.,n); },
+            std::function< std::pair<float,float>(int64_t,int)> 
+              cost_func_alphabeta = [](int64_t n, int p){ return std::pair<float,float>(1.,n); }
                );
     /** \brief copy constructor */
     nonblocking(nonblocking const& t);
@@ -89,7 +89,7 @@ public:
 
 struct nonblocking_info{
   nonblocking_info(){}
-  nonblocking_info(bool _is_active, bool _is_sender, int _partner, MPI_Comm _comm, double _nbytes, double _num_elems, double _comm_size, int _tag, nonblocking* _track){
+  nonblocking_info(bool _is_active, bool _is_sender, int _partner, MPI_Comm _comm, float _nbytes, float _num_elems, float _comm_size, int _tag, nonblocking* _track){
     this->is_active = _is_active;
     this->is_sender = _is_sender;
     this->partner = _partner;
@@ -104,9 +104,9 @@ struct nonblocking_info{
   bool is_sender;
   int partner;
   MPI_Comm comm;
-  double nbytes;
-  double num_elems;
-  double comm_size;
+  float nbytes;
+  float num_elems;
+  float comm_size;
   int tag;
   nonblocking* track;
 };

@@ -10,14 +10,14 @@ namespace decomposition{
 void volumetric::collect(MPI_Comm cm){
   // First compute per-process max
   int rank; MPI_Comm_rank(cm,&rank);
-  double_int buffer[num_per_process_measures];
+  float_int buffer[num_per_process_measures];
   for (size_t i=0; i<num_per_process_measures; i++){
     max_per_process_costs[i] = volume_costs[i];
     buffer[i].first          = volume_costs[i];
     buffer[i].second         = rank;
   }
-  PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_DOUBLE, MPI_MAX, cm);
-  PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_DOUBLE_INT, MPI_MAXLOC, cm);
+  PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[0], num_per_process_measures, MPI_FLOAT, MPI_MAX, cm);
+  PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_per_process_measures, MPI_FLOAT_INT, MPI_MAXLOC, cm);
   size_t save=0;
   for (size_t i=0; i<comm_path_select.size(); i++){// don't consider idle time an option
     if (comm_path_select[i] == '0') continue;
@@ -36,13 +36,13 @@ void volumetric::collect(MPI_Comm cm){
         max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+4)+j] = 0.;
       }
     }
-    PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+4)], num_tracker_per_process_measures*list_size+4, MPI_DOUBLE, MPI_MAX, cm);
+    PMPI_Allreduce(MPI_IN_PLACE, &max_per_process_costs[num_per_process_measures+save*(num_tracker_per_process_measures*list_size+4)], num_tracker_per_process_measures*list_size+4, MPI_FLOAT, MPI_MAX, cm);
     save++;
   }
   // For now, buffer[num_per_process_measures-1].second holds the rank of the process with the max per-process runtime
   if (mode && symbol_path_select_size>0){
     // copy data to volume buffers to avoid corruption
-    std::memcpy(&symbol_timer_pad_local_vol[0], &symbol_timer_pad_local_pp[0], (vol_symbol_class_count*num_volume_measures+1)*max_num_symbols*sizeof(double));
+    std::memcpy(&symbol_timer_pad_local_vol[0], &symbol_timer_pad_local_pp[0], (vol_symbol_class_count*num_volume_measures+1)*max_num_symbols*sizeof(float));
 
     int per_process_runtime_root_rank = buffer[num_per_process_measures-1].second;
     // We consider only critical path runtime
@@ -70,11 +70,11 @@ void volumetric::collect(MPI_Comm cm){
       num_chars += symbol_len_pad_cp[i];
     }
     if (rank == per_process_runtime_root_rank){
-      PMPI_Bcast(&symbol_timer_pad_local_pp[0],(pp_symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_DOUBLE,rank,cm);
+      PMPI_Bcast(&symbol_timer_pad_local_pp[0],(pp_symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_FLOAT,rank,cm);
       PMPI_Bcast(&symbol_pad_cp[0],num_chars,MPI_CHAR,rank,cm);
     }
     else{
-      PMPI_Bcast(&symbol_timer_pad_global_pp[0],(pp_symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_DOUBLE,per_process_runtime_root_rank,cm);
+      PMPI_Bcast(&symbol_timer_pad_global_pp[0],(pp_symbol_class_count*num_per_process_measures+1)*ftimer_size,MPI_FLOAT,per_process_runtime_root_rank,cm);
       PMPI_Bcast(&symbol_pad_cp[0],num_chars,MPI_CHAR,per_process_runtime_root_rank,cm);
       int symbol_offset = 0;
       for (int i=0; i<ftimer_size; i++){
@@ -109,7 +109,7 @@ void volumetric::collect(MPI_Comm cm){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   if (mode){
-    PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_DOUBLE, MPI_SUM, cm);
+    PMPI_Allreduce(MPI_IN_PLACE, &volume_costs[0], volume_costs.size(), MPI_FLOAT, MPI_SUM, cm);
     for (int i=0; i<volume_costs.size(); i++){ volume_costs[i] /= (1.*world_size); }
   }
   if (mode && symbol_path_select_size>0){
@@ -135,7 +135,7 @@ void volumetric::collect(MPI_Comm cm){
         for (auto i=0; i<ftimer_size; i++){
           num_chars += symbol_len_pad_cp[i];
         }
-        PMPI_Send(&symbol_timer_pad_local_vol[0],(vol_symbol_class_count*num_volume_measures+1)*ftimer_size,MPI_DOUBLE,partner,internal_tag2,cm);
+        PMPI_Send(&symbol_timer_pad_local_vol[0],(vol_symbol_class_count*num_volume_measures+1)*ftimer_size,MPI_FLOAT,partner,internal_tag2,cm);
         PMPI_Send(&symbol_pad_cp[0],num_chars,MPI_CHAR,partner,internal_tag3,cm);
         break;
       }
@@ -148,7 +148,7 @@ void volumetric::collect(MPI_Comm cm){
         for (auto i=0; i<ftimer_size_foreign; i++){
           num_chars += symbol_len_pad_cp[i];
         }
-        PMPI_Recv(&symbol_timer_pad_global_vol[0],(vol_symbol_class_count*num_volume_measures+1)*ftimer_size_foreign,MPI_DOUBLE,partner,internal_tag2,cm, MPI_STATUS_IGNORE);
+        PMPI_Recv(&symbol_timer_pad_global_vol[0],(vol_symbol_class_count*num_volume_measures+1)*ftimer_size_foreign,MPI_FLOAT,partner,internal_tag2,cm, MPI_STATUS_IGNORE);
         PMPI_Recv(&symbol_pad_cp[0],num_chars,MPI_CHAR,partner, internal_tag3,cm, MPI_STATUS_IGNORE);
         int symbol_offset = 0;
         for (int i=0; i<ftimer_size_foreign; i++){

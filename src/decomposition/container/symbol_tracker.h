@@ -12,25 +12,25 @@ class symbol_tracker{
   public:
     symbol_tracker() {}
     symbol_tracker(std::string name_);
-    void stop(double save_time);
-    void start(double save_time);
+    void stop(float save_time);
+    void start(float save_time);
     bool operator<(const symbol_tracker& w) const ;
 
     std::string name;
-    std::stack<double> start_timer;
-    std::vector<double*> cp_exclusive_contributions;
-    double* pp_exclusive_contributions;
-    std::vector<double*> cp_exclusive_measure;
-    double* pp_exclusive_measure;
-    std::vector<double*> cp_numcalls;
-    double* pp_numcalls;
-    double* vol_numcalls;
-    std::vector<double*> cp_incl_measure;
-    std::vector<double*> cp_excl_measure;
-    double* pp_incl_measure;
-    double* pp_excl_measure;
-    double* vol_incl_measure;
-    double* vol_excl_measure;
+    std::stack<float> start_timer;
+    std::vector<float*> cp_exclusive_contributions;
+    float* pp_exclusive_contributions;
+    std::vector<float*> cp_exclusive_measure;
+    float* pp_exclusive_measure;
+    std::vector<float*> cp_numcalls;
+    float* pp_numcalls;
+    float* vol_numcalls;
+    std::vector<float*> cp_incl_measure;
+    std::vector<float*> cp_excl_measure;
+    float* pp_incl_measure;
+    float* pp_excl_measure;
+    float* vol_incl_measure;
+    float* vol_excl_measure;
     bool has_been_processed;
 };
 

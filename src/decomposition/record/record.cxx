@@ -101,13 +101,13 @@ void print_header(size_t num_inputs){
   }
 }
 
-void record::write_file(int variantID, double overhead_time){
+void record::write_file(int variantID, float overhead_time){
   int temp_mode=1;
   if (std::getenv("CRITTER_MODE") != NULL){
     temp_mode = atoi(std::getenv("CRITTER_MODE"));
   }
   if (temp_mode==0){
-    double _wall_time = wall_timer[wall_timer.size()-1];
+    float _wall_time = wall_timer[wall_timer.size()-1];
     _wall_time -= overhead_time;
     PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
     if (is_world_root){
@@ -201,7 +201,7 @@ void record::write_file(int variantID, double overhead_time){
   is_first_iter = false;// set here only beause this routine is called directly after 'invoke' on std::ostream
 }
 
-void record::print(int variantID, double overhead_time){
+void record::print(int variantID, float overhead_time){
   int world_size; MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   int temp_mode=1;
   if (std::getenv("CRITTER_MODE") != NULL){
@@ -405,17 +405,17 @@ void record::print(int variantID, double overhead_time){
     if (is_world_root){
       for (auto z=0; z<symbol_path_select_size; z++){
         std::cout << "***********************************************************************************************************************";
-        std::vector<std::pair<std::string,std::array<double,6>>> sort_info(symbol_timers.size());
+        std::vector<std::pair<std::string,std::array<float,6>>> sort_info(symbol_timers.size());
         for (int i=symbol_path_select.size(); i>=0; i--){// We just iterate over all measures regardless of whether they are set or not.
           sort_info.clear(); sort_info.resize(symbol_timers.size());
           // Reset symbol timers and sort
           size_t j=0;
-          double cp_ref,pp_ref,vol_ref;
+          float cp_ref,pp_ref,vol_ref;
           for (auto& it : symbol_timers){
             if (it.second.start_timer.size() != 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
-              sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{it.second.cp_numcalls[z][0],it.second.cp_excl_measure[z][i],*it.second.pp_numcalls,it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_excl_measure[i]/world_size});
+              sort_info[j++] = std::make_pair(it.second.name,std::array<float,6>{it.second.cp_numcalls[z][0],it.second.cp_excl_measure[z][i],*it.second.pp_numcalls,it.second.pp_excl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_excl_measure[i]/world_size});
           }
-          std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
+          std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<float,6>>& vec1, std::pair<std::string,std::array<float,6>>& vec2){return vec1.second[1] > vec2.second[1];});
           if (i==2*cost_model_size){
             cp_ref = 1;	//TODO: A bit of a struggle if comm_path_select != symbol_path_select.
           } else if (i>2*cost_model_size){
@@ -441,9 +441,9 @@ void record::print(int variantID, double overhead_time){
           std::cout << std::left << std::setw(mode_2_width) << "cp-excl (%)";
           std::cout << std::left << std::setw(mode_2_width) << "pp-excl (%)";
           std::cout << std::left << std::setw(mode_2_width) << "vol-excl (%)";
-          double cp_total_exclusive = 0.;
-          double pp_total_exclusive = 0.;
-          double vol_total_exclusive = 0.;
+          float cp_total_exclusive = 0.;
+          float pp_total_exclusive = 0.;
+          float vol_total_exclusive = 0.;
           for (auto& it : sort_info){
             std::cout << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
             std::cout << std::left << std::setw(mode_2_width) << it.second[0];
@@ -476,9 +476,9 @@ void record::print(int variantID, double overhead_time){
           j=0;
           for (auto& it : symbol_timers){
             assert(it.second.start_timer.size() == 0);
-            sort_info[j++] = std::make_pair(it.second.name,std::array<double,6>{it.second.cp_numcalls[z][0],it.second.cp_incl_measure[z][i],*it.second.pp_numcalls,it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_incl_measure[i]/world_size});
+            sort_info[j++] = std::make_pair(it.second.name,std::array<float,6>{it.second.cp_numcalls[z][0],it.second.cp_incl_measure[z][i],*it.second.pp_numcalls,it.second.pp_incl_measure[i],*it.second.vol_numcalls/world_size,it.second.vol_incl_measure[i]/world_size});
           }
-          std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<double,6>>& vec1, std::pair<std::string,std::array<double,6>>& vec2){return vec1.second[1] > vec2.second[1];});
+          std::sort(sort_info.begin(),sort_info.end(),[](std::pair<std::string,std::array<float,6>>& vec1, std::pair<std::string,std::array<float,6>>& vec2){return vec1.second[1] > vec2.second[1];});
           if (i==2*cost_model_size){
             cp_ref = 100.;
           } else if (i>2*cost_model_size){
@@ -504,9 +504,9 @@ void record::print(int variantID, double overhead_time){
           std::cout << std::left << std::setw(mode_2_width) << "cp-incl (%)";
           std::cout << std::left << std::setw(mode_2_width) << "pp-incl (%)";
           std::cout << std::left << std::setw(mode_2_width) << "vol-incl (%)";
-          double cp_total_inclusive = 0.;
-          double pp_total_inclusive = 0.;
-          double vol_total_inclusive = 0.;
+          float cp_total_inclusive = 0.;
+          float pp_total_inclusive = 0.;
+          float vol_total_inclusive = 0.;
           for (auto& it : sort_info){
             std::cout << "\n" << std::left << std::setw(max_timer_name_length) << it.first;
             std::cout << std::left << std::setw(mode_2_width) << it.second[0];

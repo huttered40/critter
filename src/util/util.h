@@ -39,8 +39,8 @@ struct kernel_key{};
 // ****************************************************************************************************************************************************
 struct comm_kernel_key : public kernel_key{
 
-  comm_kernel_key(int _rank=-1, int _kernel_index=-1, int _tag=-1, int _dim_sizes[2]=nullptr, int _dim_strides[2]=nullptr, double _msg_size=-1, int _partner=-1);
-  comm_kernel_key(int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], double _msg_size, int _partner_offset);
+  comm_kernel_key(int _rank=-1, int _kernel_index=-1, int _tag=-1, int _dim_sizes[2]=nullptr, int _dim_strides[2]=nullptr, float _msg_size=-1, int _partner=-1);
+  comm_kernel_key(int _kernel_index, int _tag, int _dim_sizes[2], int _dim_strides[2], float _msg_size, int _partner_offset);
   comm_kernel_key(const comm_kernel_key& _copy);
   comm_kernel_key& operator=(const comm_kernel_key& _copy);
   friend bool operator==(const comm_kernel_key& ref1, const comm_kernel_key& ref2);
@@ -51,14 +51,14 @@ struct comm_kernel_key : public kernel_key{
   int dim_strides[2];// Allow up to 2 dimensions
   int partner_offset;
   int kernel_index;
-  double msg_size;
+  float msg_size;
 };
 
 
 // ****************************************************************************************************************************************************
 struct comp_kernel_key : public kernel_key{
 
-  comp_kernel_key(int _kernel_index=-1, int _tag=-1, double _flops=-1, int =-1, int _param2=-1, int _param3=-1, int _param4=-1, int _param5=-1);
+  comp_kernel_key(int _kernel_index=-1, int _tag=-1, float _flops=-1, int =-1, int _param2=-1, int _param3=-1, int _param4=-1, int _param5=-1);
   comp_kernel_key(const comp_kernel_key& _copy);
   comp_kernel_key& operator=(const comp_kernel_key& _copy);
   friend bool operator==(const comp_kernel_key& ref1, const comp_kernel_key& ref2);
@@ -67,20 +67,20 @@ struct comp_kernel_key : public kernel_key{
   int tag;
   int param1,param2,param3,param4,param5;
   int kernel_index;
-  double flops;
+  float flops;
 };
 
 
 // ****************************************************************************************************************************************************
-struct double_int{
-  double_int(){first=0; second=0;}
-  double_int(double one, int two){first=one; second=two;}
-  double first; int second;
+struct float_int{
+  float_int(){first=0; second=0;}
+  float_int(float one, int two){first=one; second=two;}
+  float first; int second;
 };
-struct int_int_double{
-  int_int_double(){first=0; second=0; third=0;}
-  int_int_double(int one, int two, double three){first=one; second=two; third=three;}
-  int first; int second; double third;
+struct int_int_float{
+  int_int_float(){first=0; second=0; third=0;}
+  int_int_float(int one, int two, float three){first=one; second=two; third=three;}
+  int first; int second; float third;
 };
 
 // ****************************************************************************************************************************************************
@@ -110,13 +110,13 @@ extern int clear_counter;
 extern int communicator_count;
 extern int send_dependency;
 extern std::string schedule_tag;
-extern volatile double computation_timer;
-extern std::vector<double> wall_timer;
-extern double _wall_time;
+extern volatile float computation_timer;
+extern std::vector<float> wall_timer;
+extern float _wall_time;
 extern size_t auto_capture;
 extern bool is_world_root;
 extern size_t mechanism,mode,stack_id;
-extern double scratch_pad;
+extern float scratch_pad;
 extern size_t track_blas1;
 extern size_t track_blas2;
 extern size_t track_blas3;

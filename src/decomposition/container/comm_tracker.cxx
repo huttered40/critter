@@ -9,201 +9,201 @@ std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 
 blocking _MPI_Barrier("MPI_Barrier",0, 
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,0.);},
+                            return std::pair<float,float>(1.,0.);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),0.);}
+                            return std::pair<float,float>(log2((float)p),0.);}
                         );
 blocking _MPI_Bcast("MPI_Bcast",1,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
+                            return std::pair<float,float>(2.*log2((float)p),2.*n);}
                       );
 blocking _MPI_Reduce("MPI_Reduce",2, 
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
+                            return std::pair<float,float>(2.*log2((float)p),2.*n);}
                        );
 blocking _MPI_Allreduce("MPI_Allreduce",3,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}, 
+                            return std::pair<float,float>(1.,n);}, 
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
+                            return std::pair<float,float>(2.*log2((float)p),2.*n);}
                           );
 blocking _MPI_Gather("MPI_Gather",4,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                        );
 blocking _MPI_Allgather("MPI_Allgather",5,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                           );
 blocking _MPI_Scatter("MPI_Scatter",6,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                         );
 blocking _MPI_Reduce_scatter("MPI_Reduce_scatter",7,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                                );
 blocking _MPI_Alltoall("MPI_Alltoall",8,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
+                            return std::pair<float,float>(log2((float)p),log2((float)p)*n);}
                          );
 blocking _MPI_Gatherv("MPI_Gatherv",9,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                         );
 blocking _MPI_Allgatherv("MPI_Allgatherv",10,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                            );
 blocking _MPI_Scatterv("MPI_Scatterv",11,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                          );
 blocking _MPI_Alltoallv("MPI_Alltoallv",12,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                           return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
+                           return std::pair<float,float>(log2((float)p),log2((float)p)*n);}
                           );
 blocking _MPI_Sendrecv("MPI_Sendrecv",13,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                       );
 blocking _MPI_Sendrecv_replace("MPI_Sendrecv_replace",14,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                               );
 blocking _MPI_Ssend("MPI_Ssend",15,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                       );
 blocking _MPI_Send("MPI_Send",16,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                   );
 blocking _MPI_Recv("MPI_Recv",17,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                   );
 nonblocking _MPI_Isend("MPI_Isend",18,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                       );
 nonblocking _MPI_Irecv("MPI_Irecv",19,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                       );
 nonblocking _MPI_Ibcast("MPI_Ibcast",20,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
+                            return std::pair<float,float>(2.*log2((float)p),2.*n);}
                        );
 nonblocking _MPI_Iallreduce("MPI_Iallreduce",21,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
+                            return std::pair<float,float>(2.*log2((float)p),2.*n);}
                            );
 nonblocking _MPI_Ireduce("MPI_Ireduce",22,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(2.*log2((double)p),2.*n);}
+                            return std::pair<float,float>(2.*log2((float)p),2.*n);}
                         );
 nonblocking _MPI_Igather("MPI_Igather",23,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                         );
 nonblocking _MPI_Igatherv("MPI_Igatherv",24,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                          );
 nonblocking _MPI_Iallgather("MPI_Iallgather",25,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                            );
 nonblocking _MPI_Iallgatherv("MPI_Iallgatherv",26,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                             );
 nonblocking _MPI_Iscatter("MPI_Iscatter",27,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                          );
 nonblocking _MPI_Iscatterv("MPI_Iscatterv",28,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                           );
 nonblocking _MPI_Ireduce_scatter("MPI_Ireduce_scatter",29,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),n);}
+                            return std::pair<float,float>(log2((float)p),n);}
                                 );
 nonblocking _MPI_Ialltoall("MPI_Ialltoall",30,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
+                            return std::pair<float,float>(log2((float)p),log2((float)p)*n);}
                           );
 nonblocking _MPI_Ialltoallv("MPI_Ialltoallv",31,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(log2((double)p),log2((double)p)*n);}
+                            return std::pair<float,float>(log2((float)p),log2((float)p)*n);}
                            );
 blocking _MPI_Bsend("MPI_Bsend",32,
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);},
+                            return std::pair<float,float>(1.,n);},
                           [](int64_t n, int p){
-                            return std::pair<double,double>(1.,n);}
+                            return std::pair<float,float>(1.,n);}
                       );
 
 comm_tracker* list[list_size] = {
@@ -272,7 +272,7 @@ void comm_tracker::set_cost_pointers(){
 void comm_tracker::set_volume_costs(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if (*this->my_comm_time != 0){
-    std::vector<double> vec(num_tracker_volume_measures);
+    std::vector<float> vec(num_tracker_volume_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]=='1'){
@@ -290,7 +290,7 @@ void comm_tracker::set_volume_costs(){
 void comm_tracker::set_header(){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if (*this->my_comm_time != 0){
-    std::vector<double> vec(1);
+    std::vector<float> vec(1);
     save_info[this->name] = std::move(vec);
   }
 }
@@ -298,7 +298,7 @@ void comm_tracker::set_header(){
 void comm_tracker::set_critical_path_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if ((*this->my_comm_time != 0) && (comm_path_select_size>0)){
-    std::vector<double> vec(num_tracker_critical_path_measures);
+    std::vector<float> vec(num_tracker_critical_path_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]=='1'){
@@ -316,7 +316,7 @@ void comm_tracker::set_critical_path_costs(size_t idx){
 void comm_tracker::set_per_process_costs(size_t idx){
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if ((*this->my_comm_time != 0) && (comm_path_select_size>0)){
-    std::vector<double> vec(num_tracker_per_process_measures);
+    std::vector<float> vec(num_tracker_per_process_measures);
     int save=0;
     for (int j=0; j<cost_models.size(); j++){
       if (cost_models[j]=='1'){
@@ -332,8 +332,8 @@ void comm_tracker::set_per_process_costs(size_t idx){
   }
 }
 
-blocking::blocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta){
+blocking::blocking(std::string name_, int tag, std::function<std::pair<float,float>(int64_t,int)> cost_func_bsp,
+                                             std::function<std::pair<float,float>(int64_t,int)> cost_func_alphabeta){
   this->cost_func_bsp              = cost_func_bsp;
   this->cost_func_alphabeta = cost_func_alphabeta;
   this->name = std::move(name_);
@@ -349,8 +349,8 @@ blocking::blocking(blocking const& t){
   this->is_sender = t.is_sender;
 }
 
-nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<double,double>(int64_t,int)> cost_func_bsp,
-                                             std::function<std::pair<double,double>(int64_t,int)> cost_func_alphabeta){
+nonblocking::nonblocking(std::string name_, int tag, std::function<std::pair<float,float>(int64_t,int)> cost_func_bsp,
+                                             std::function<std::pair<float,float>(int64_t,int)> cost_func_alphabeta){
   this->cost_func_bsp                 = cost_func_bsp;
   this->cost_func_alphabeta = cost_func_alphabeta;
   this->name = std::move(name_);

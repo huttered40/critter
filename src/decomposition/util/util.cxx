@@ -8,10 +8,9 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
-int invoke_max_barrier;
 int track_synchronization;
-std::map<comp_kernel_key,std::pair<int,double>> comp_kernel_info;
-std::map<comm_kernel_key,std::pair<int,double>> comm_kernel_info;
+std::map<comp_kernel_key,std::pair<int,float>> comp_kernel_info;
+std::map<comm_kernel_key,std::pair<int,float>> comm_kernel_info;
 std::ofstream stream;
 bool is_first_request;
 int internal_tag;
@@ -41,18 +40,18 @@ std::vector<char> symbol_pad_ncp2;
 std::vector<int> symbol_len_pad_cp;
 std::vector<int> symbol_len_pad_ncp1;
 std::vector<int> symbol_len_pad_ncp2;
-std::vector<double> symbol_timer_pad_local_cp;
-std::vector<double> symbol_timer_pad_global_cp;
-std::vector<double> symbol_timer_pad_global_cp2;
-std::vector<double> symbol_timer_pad_local_pp;
-std::vector<double> symbol_timer_pad_global_pp;
-std::vector<double> symbol_timer_pad_local_vol;
-std::vector<double> symbol_timer_pad_global_vol;
+std::vector<float> symbol_timer_pad_local_cp;
+std::vector<float> symbol_timer_pad_global_cp;
+std::vector<float> symbol_timer_pad_global_cp2;
+std::vector<float> symbol_timer_pad_local_pp;
+std::vector<float> symbol_timer_pad_global_pp;
+std::vector<float> symbol_timer_pad_local_vol;
+std::vector<float> symbol_timer_pad_global_vol;
 std::stack<std::string> symbol_stack;
 std::vector<std::string> symbol_order;
 std::vector<int> symbol_path_select_index;
-std::vector<double> intercept_overhead;
-std::vector<double> global_intercept_overhead;
+std::vector<float> intercept_overhead;
+std::vector<float> global_intercept_overhead;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
@@ -62,30 +61,30 @@ size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTim
 size_t critical_path_costs_size;
 size_t per_process_costs_size;
 size_t volume_costs_size;
-std::vector<double> critical_path_costs;
-std::vector<double> max_per_process_costs;
-std::vector<double> volume_costs;
+std::vector<float> critical_path_costs;
+std::vector<float> max_per_process_costs;
+std::vector<float> volume_costs;
 std::vector<char> synch_pad_send;
 std::vector<char> synch_pad_recv;
 std::vector<char> barrier_pad_send;
 std::vector<char> barrier_pad_recv;
-std::vector<double_int> info_sender;
-std::vector<double_int> info_receiver;
+std::vector<float_int> info_sender;
+std::vector<float_int> info_receiver;
 std::vector<char> eager_pad;
-double comp_start_time;
+float comp_start_time;
 
-std::vector<std::pair<double*,int>> internal_comm_prop;
+std::vector<std::pair<float*,int>> internal_comm_prop;
 std::vector<MPI_Request> internal_comm_prop_req;
 
 std::vector<int*> internal_timer_prop_int;
-std::vector<double*> internal_timer_prop_double;
-std::vector<double_int*> internal_timer_prop_double_int;
+std::vector<float*> internal_timer_prop_float;
+std::vector<float_int*> internal_timer_prop_float_int;
 std::vector<char*> internal_timer_prop_char;
 std::vector<MPI_Request> internal_timer_prop_req;
 
 std::vector<bool> decisions;
-std::map<std::string,std::vector<double>> save_info;
-std::vector<double> new_cs;
+std::map<std::string,std::vector<float>> save_info;
+std::vector<float> new_cs;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -103,11 +102,6 @@ void allocate(MPI_Comm comm){
   internal_tag5 = internal_tag+5;
   is_first_iter = true;
 
-  if (std::getenv("CRITTER_INVOKE_MAX_BARRIER") != NULL){
-    invoke_max_barrier = atoi(std::getenv("CRITTER_INVOKE_MAX_BARRIER"));
-  } else{
-    invoke_max_barrier = 0;
-  }
   if (std::getenv("CRITTER_TRACK_SYNCHRONIZATION") != NULL){
     track_synchronization = atoi(std::getenv("CRITTER_TRACK_SYNCHRONIZATION"));
   } else{
@@ -127,16 +121,6 @@ void allocate(MPI_Comm comm){
     _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
   } else{
     _comm_path_select_ = "0000000000";
-  }
-  if (std::getenv("CRITTER_MAX_NUM_SYMBOLS") != NULL){
-    max_num_symbols = atoi(std::getenv("CRITTER_MAX_NUM_SYMBOLS"));
-  } else{
-    max_num_symbols = 15;
-  }
-  if (std::getenv("CRITTER_MAX_SYMBOL_LENGTH") != NULL){
-    max_timer_name_length = atoi(std::getenv("CRITTER_MAX_SYMBOL_LENGTH"));
-  } else{
-    max_timer_name_length = 25;
   }
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
     std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
@@ -234,13 +218,13 @@ void reset(){
 
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
   save_info.clear();
-  memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
-  memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
-  memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
-  memset(&symbol_timer_pad_local_cp[0],0,sizeof(double)*symbol_timer_pad_local_cp.size());
-  memset(&symbol_timer_pad_local_pp[0],0,sizeof(double)*symbol_timer_pad_local_pp.size());
-  memset(&symbol_timer_pad_local_vol[0],0,sizeof(double)*symbol_timer_pad_local_vol.size());
-  memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
+  memset(&critical_path_costs[0],0,sizeof(float)*critical_path_costs.size());
+  memset(&max_per_process_costs[0],0,sizeof(float)*max_per_process_costs.size());
+  memset(&volume_costs[0],0,sizeof(float)*volume_costs.size());
+  memset(&symbol_timer_pad_local_cp[0],0,sizeof(float)*symbol_timer_pad_local_cp.size());
+  memset(&symbol_timer_pad_local_pp[0],0,sizeof(float)*symbol_timer_pad_local_pp.size());
+  memset(&symbol_timer_pad_local_vol[0],0,sizeof(float)*symbol_timer_pad_local_vol.size());
+  memset(&intercept_overhead[0],0,sizeof(float)*intercept_overhead.size());
   internal::bsp_counter=0;
 
   comp_kernel_info.clear();
@@ -249,7 +233,7 @@ void reset(){
   is_first_request=true;
 }
 
-void open_symbol(const char* symbol, double curtime){
+void open_symbol(const char* symbol, float curtime){
   if (symbol_timers.find(symbol) == symbol_timers.end()){
     symbol_timers[symbol] = symbol_tracker(symbol);
     if (symbol_timers.size() < max_num_symbols) symbol_order[symbol_timers.size()-1] = std::string(symbol);
@@ -260,7 +244,7 @@ void open_symbol(const char* symbol, double curtime){
   }
 }
 
-void close_symbol(const char* symbol, double curtime){
+void close_symbol(const char* symbol, float curtime){
   if (symbol_timers.find(symbol) == symbol_timers.end()){ assert(0); }
   else{
     symbol_timers[symbol].stop(curtime);
@@ -268,7 +252,7 @@ void close_symbol(const char* symbol, double curtime){
 }
 
 
-void final_accumulate(MPI_Comm comm, double last_time){
+void final_accumulate(MPI_Comm comm, float last_time){
   assert(nonblocking_internal_info.size() == 0);
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime

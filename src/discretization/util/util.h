@@ -53,11 +53,11 @@ struct kernel_batch{
   int channel_count;
   int num_schedules;
   int num_local_schedules;
-  double num_scheduled_units;
-  double num_local_scheduled_units;
-  double total_exec_time;
-  double total_local_exec_time;
-  double M1,M2;
+  float num_scheduled_units;
+  float num_local_scheduled_units;
+  float total_exec_time;
+  float total_local_exec_time;
+  float M1,M2;
   std::set<channel*> registered_channels;
 };
 
@@ -75,9 +75,9 @@ struct kernel_batch_propagate{
   int hash_id;
   int channel_count;
   int num_schedules;
-  double num_scheduled_units;
-  double total_exec_time;
-  double M1,M2;
+  float num_scheduled_units;
+  float total_exec_time;
+  float M1,M2;
 };
 
 // ****************************************************************************************************************************************************
@@ -100,12 +100,12 @@ struct kernel{
   int num_schedules;
   int num_non_schedules;
   int num_local_schedules;
-  double num_scheduled_units;
-  double num_non_scheduled_units;
-  double num_local_scheduled_units;
-  double M1,M2;
-  double total_exec_time;
-  double total_local_exec_time;
+  float num_scheduled_units;
+  float num_non_scheduled_units;
+  float num_local_scheduled_units;
+  float M1,M2;
+  float total_exec_time;
+  float total_local_exec_time;
   std::set<channel*> registered_channels;
 };
 
@@ -122,11 +122,11 @@ struct kernel_propagate{
   int hash_id;
   int num_schedules;
   int num_local_schedules;
-  double num_scheduled_units;
-  double num_local_scheduled_units;
-  double M1,M2;
-  double total_exec_time;
-  double total_local_exec_time;
+  float num_scheduled_units;
+  float num_local_scheduled_units;
+  float M1,M2;
+  float total_exec_time;
+  float total_local_exec_time;
 };
 
 
@@ -137,11 +137,11 @@ struct intermediate_stats{
 
   int num_schedules;
   int num_local_schedules;
-  double M1,M2;
-  double num_scheduled_units;
-  double num_local_scheduled_units;
-  double total_exec_time;
-  double total_local_exec_time;
+  float M1,M2;
+  float num_scheduled_units;
+  float num_local_scheduled_units;
+  float total_exec_time;
+  float total_local_exec_time;
 };
 
 // ****************************************************************************************************************************************************
@@ -157,9 +157,9 @@ extern int update_analysis;
 extern MPI_Datatype kernel_type;
 extern MPI_Datatype batch_type;
 extern size_t kernel_count_limit;
-extern double kernel_time_limit;
-extern double kernel_error_limit;
-extern double kernel_percentage_limit;
+extern float kernel_time_limit;
+extern float kernel_error_limit;
+extern float kernel_percentage_limit;
 extern int comp_kernel_transfer_id;
 extern int comm_kernel_transfer_id;
 extern int comp_kernel_buffer_id;
@@ -179,14 +179,14 @@ extern std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
 extern std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
 
 extern std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
-extern std::vector<double> intercept_overhead;
-extern std::vector<double> global_intercept_overhead;
-extern std::vector<double> global_comp_kernel_stats;
-extern std::vector<double> global_comm_kernel_stats;
-extern std::vector<double> local_comp_kernel_stats;
-extern std::vector<double> local_comm_kernel_stats;
-extern std::vector<double> save_comp_kernel_stats;
-extern std::vector<double> save_comm_kernel_stats;
+extern std::vector<float> intercept_overhead;
+extern std::vector<float> global_intercept_overhead;
+extern std::vector<float> global_comp_kernel_stats;
+extern std::vector<float> global_comm_kernel_stats;
+extern std::vector<float> local_comp_kernel_stats;
+extern std::vector<float> local_comm_kernel_stats;
+extern std::vector<float> save_comp_kernel_stats;
+extern std::vector<float> save_comm_kernel_stats;
 extern size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 extern size_t num_per_process_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 extern size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -196,20 +196,20 @@ extern size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           
 extern size_t critical_path_costs_size;
 extern size_t per_process_costs_size;
 extern size_t volume_costs_size;
-extern std::vector<double> critical_path_costs;
-extern std::vector<double> max_per_process_costs;
-extern std::vector<double> volume_costs;
-extern std::vector<double> critical_path_costs_ref;
-extern std::vector<double> max_per_process_costs_ref;
-extern std::vector<double> volume_costs_ref;
-extern std::vector<double_int> info_sender;
-extern std::vector<double_int> info_receiver;
-extern std::vector<double> nonblocking_eager_pad;
+extern std::vector<float> critical_path_costs;
+extern std::vector<float> max_per_process_costs;
+extern std::vector<float> volume_costs;
+extern std::vector<float> critical_path_costs_ref;
+extern std::vector<float> max_per_process_costs_ref;
+extern std::vector<float> volume_costs_ref;
+extern std::vector<float_int> info_sender;
+extern std::vector<float_int> info_receiver;
+extern std::vector<float> nonblocking_eager_pad;
 extern std::vector<char> eager_pad;
-extern volatile double comp_start_time;
+extern volatile float comp_start_time;
 extern std::vector<bool> decisions;
-extern std::map<std::string,std::vector<double>> save_info;
-extern std::vector<double> new_cs;
+extern std::map<std::string,std::vector<float>> save_info;
+extern std::vector<float> new_cs;
 extern size_t mode_1_width;
 extern size_t mode_2_width;
 extern int internal_tag;
@@ -227,73 +227,73 @@ bool is_key_skipable(const comp_kernel_key& key);
 int get_skel_count(const comm_kernel_key& key);
 int get_skel_count(const comp_kernel_key& key);
 
-double get_estimate(const kernel& p, int analysis_param, double unit_count=1.);
-double get_estimate(const kernel_propagate& p, int analysis_param, double unit_count=1.);
-double get_estimate(const kernel_key_id& index, int analysis_param, double unit_count=1.);
-double get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches, int analysis_param, double unit_count);
-double get_estimate(const intermediate_stats& p, int analysis_param, double unit_count=1.);
+float get_estimate(const kernel& p, int analysis_param, float unit_count=1.);
+float get_estimate(const kernel_propagate& p, int analysis_param, float unit_count=1.);
+float get_estimate(const kernel_key_id& index, int analysis_param, float unit_count=1.);
+float get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches, int analysis_param, float unit_count);
+float get_estimate(const intermediate_stats& p, int analysis_param, float unit_count=1.);
 
-double get_arithmetic_mean(const kernel& p);
-double get_arithmetic_mean(const kernel_propagate& p);
-double get_arithmetic_mean(const kernel_key_id& index);
-double get_arithmetic_mean(const intermediate_stats& p);
+float get_arithmetic_mean(const kernel& p);
+float get_arithmetic_mean(const kernel_propagate& p);
+float get_arithmetic_mean(const kernel_key_id& index);
+float get_arithmetic_mean(const intermediate_stats& p);
 
-double get_harmonic_mean(const kernel& p);
-double get_harmonic_mean(const kernel_propagate& p);
-double get_harmonic_mean(const kernel_key_id& index);
-double get_harmonic_mean(const intermediate_stats& p);
+float get_harmonic_mean(const kernel& p);
+float get_harmonic_mean(const kernel_propagate& p);
+float get_harmonic_mean(const kernel_key_id& index);
+float get_harmonic_mean(const intermediate_stats& p);
 
-double get_variance(const kernel& p, int analysis_param);
-double get_variance(const kernel_propagate& p, int analysis_param);
-double get_variance(const kernel_key_id& index, int analysis_param);
-double get_variance(const intermediate_stats& p, int analysis_param);
+float get_variance(const kernel& p, int analysis_param);
+float get_variance(const kernel_propagate& p, int analysis_param);
+float get_variance(const kernel_key_id& index, int analysis_param);
+float get_variance(const intermediate_stats& p, int analysis_param);
 
-double get_std_dev(const kernel& p, int analysis_param);
-double get_std_dev(const kernel_propagate& p, int analysis_param);
-double get_std_dev(const kernel_key_id& index, int analysis_param);
-double get_std_dev(const intermediate_stats& p, int analysis_param);
+float get_std_dev(const kernel& p, int analysis_param);
+float get_std_dev(const kernel_propagate& p, int analysis_param);
+float get_std_dev(const kernel_key_id& index, int analysis_param);
+float get_std_dev(const intermediate_stats& p, int analysis_param);
 
 int get_std_error_count(const kernel& p);
 int get_std_error_count(const kernel_propagate& p);
 int get_std_error_count(const kernel_key_id& index);
 int get_std_error_count(const intermediate_stats& p);
 
-double get_std_error(const comm_kernel_key& key, const kernel& p, int analysis_param);
-double get_std_error(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param);
-double get_std_error(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
-double get_std_error(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param);
-double get_std_error(const comp_kernel_key& key, const kernel& p, int analysis_param);
-double get_std_error(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param);
-double get_std_error(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
-double get_std_error(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param);
+float get_std_error(const comm_kernel_key& key, const kernel& p, int analysis_param);
+float get_std_error(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param);
+float get_std_error(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
+float get_std_error(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param);
+float get_std_error(const comp_kernel_key& key, const kernel& p, int analysis_param);
+float get_std_error(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param);
+float get_std_error(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
+float get_std_error(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param);
 
-double get_confidence_interval(const comm_kernel_key& key, const kernel& p, int analysis_param, double level = .95);
-double get_confidence_interval(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param, double level = .95);
-double get_confidence_interval(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param, double level = .95);
-double get_confidence_interval(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param, double level = .95);
-double get_confidence_interval(const comp_kernel_key& key, const kernel& p, int analysis_param, double level = .95);
-double get_confidence_interval(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param, double level = .95);
-double get_confidence_interval(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param, double level = .95);
-double get_confidence_interval(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param, double level = .95);
+float get_confidence_interval(const comm_kernel_key& key, const kernel& p, int analysis_param, float level = .95);
+float get_confidence_interval(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param, float level = .95);
+float get_confidence_interval(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param, float level = .95);
+float get_confidence_interval(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param, float level = .95);
+float get_confidence_interval(const comp_kernel_key& key, const kernel& p, int analysis_param, float level = .95);
+float get_confidence_interval(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param, float level = .95);
+float get_confidence_interval(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param, float level = .95);
+float get_confidence_interval(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param, float level = .95);
 
 bool is_steady(const kernel& p, int analysis_param);
 bool is_steady(const kernel_key_id& index, int analysis_param);
 bool is_steady(const intermediate_stats& p, int analysis_param);
 
-double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
-double get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
-double get_error_estimate(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param);
-double get_error_estimate(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param);
+float get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
+float get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
+float get_error_estimate(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param);
+float get_error_estimate(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param);
 
 bool steady_test(const comm_kernel_key& key, const kernel& p, int analysis_param);
 bool steady_test(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param);
 bool steady_test(const comp_kernel_key& key, const kernel& p, int analysis_param);
 bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param);
 
-void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_time, double unit_count);
-void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(kernel& p, int analysis_param, volatile float exec_time, float unit_count);
+void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile float exec_time, float unit_count);
 void update_kernel_stats(kernel& dest, const kernel& src, int analysis_param);
-void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile double exec_time, double unit_count);
+void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile float exec_time, float unit_count);
 void update_kernel_stats(kernel& dest, const kernel_batch& src, int analysis_param);
 void update_kernel_stats(kernel_batch& dest, const kernel_batch& src, int analysis_param);
 void update_kernel_stats(const kernel_key_id& index, const intermediate_stats& stats);
@@ -310,9 +310,9 @@ void set_kernel_state_global(const kernel_key_id& index, bool schedule_decision)
 void merge_batches(std::vector<kernel_batch>& batches, int analysis_param);
 
 void allocate(MPI_Comm comm);
-void open_symbol(const char* symbol, double curtime);
-void close_symbol(const char* symbol, double curtime);
-void final_accumulate(MPI_Comm comm, double last_time);
+void open_symbol(const char* symbol, float curtime);
+void close_symbol(const char* symbol, float curtime);
+void final_accumulate(MPI_Comm comm, float last_time);
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide);
 void clear(int tag_count=0, int* distribution_tags=nullptr);
 void reference_transfer();

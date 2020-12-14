@@ -15,10 +15,10 @@ std::vector<std::pair<comp_kernel_key,int>> comp_kernel_select_sort_list;
 std::vector<int> active_kernels;
 std::vector<comm_kernel_key> active_comm_kernel_keys;
 std::vector<comp_kernel_key> active_comp_kernel_keys;
-volatile double comm_intercept_overhead_stage1;
-volatile double comm_intercept_overhead_stage2;
-volatile double comp_intercept_overhead;
-volatile double comp_start_time;
+volatile float comm_intercept_overhead_stage1;
+volatile float comm_intercept_overhead_stage2;
+volatile float comp_intercept_overhead;
+volatile float comp_start_time;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -28,11 +28,11 @@ size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTim
 size_t critical_path_costs_size;
 size_t per_process_costs_size;
 size_t volume_costs_size;
-std::vector<double> critical_path_costs;
-std::vector<double> max_per_process_costs;
-std::vector<double> volume_costs;
-std::vector<double_int> info_sender;
-std::vector<double_int> info_receiver;
+std::vector<float> critical_path_costs;
+std::vector<float> max_per_process_costs;
+std::vector<float> volume_costs;
+std::vector<float_int> info_sender;
+std::vector<float_int> info_receiver;
 int internal_tag;
 int internal_tag1;
 int internal_tag2;
@@ -72,17 +72,17 @@ void allocate(MPI_Comm comm){
 
 }
 
-void open_symbol(const char* symbol, double curtime){}
+void open_symbol(const char* symbol, float curtime){}
 
-void close_symbol(const char* symbol, double curtime){}
+void close_symbol(const char* symbol, float curtime){}
 
-void final_accumulate(MPI_Comm comm, double last_time){
+void final_accumulate(MPI_Comm comm, float last_time){
 
   critical_path_costs[0]+=(last_time-computation_timer);	// update critical path runtime
   volume_costs[0]+=(last_time-computation_timer);			// update per-process execution time
 
   max_per_process_costs = volume_costs;// copy over the per-process measurements that exist in volume_costs
-  double temp_costs[5];
+  float temp_costs[5];
   for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];
   for (auto i=0; i<max_per_process_costs.size(); i++) temp_costs[critical_path_costs.size()+i] = max_per_process_costs[i];
   temp_costs[critical_path_costs.size()+max_per_process_costs.size()] = comm_intercept_overhead_stage1;
@@ -114,9 +114,9 @@ void final_accumulate(MPI_Comm comm, double last_time){
 }
 
 void reset(){
-  memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
-  memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
-  memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
+  memset(&critical_path_costs[0],0,sizeof(float)*critical_path_costs.size());
+  memset(&max_per_process_costs[0],0,sizeof(float)*max_per_process_costs.size());
+  memset(&volume_costs[0],0,sizeof(float)*volume_costs.size());
   active_kernels.clear();
   active_comm_kernel_keys.clear();
   active_comp_kernel_keys.clear();

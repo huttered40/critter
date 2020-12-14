@@ -22,9 +22,9 @@ int update_analysis;
 MPI_Datatype kernel_type;
 MPI_Datatype batch_type;
 size_t kernel_count_limit;
-double kernel_time_limit;
-double kernel_error_limit;
-double kernel_percentage_limit;
+float kernel_time_limit;
+float kernel_error_limit;
+float kernel_percentage_limit;
 int comp_kernel_transfer_id;
 int comm_kernel_transfer_id;
 int comp_kernel_buffer_id;
@@ -44,14 +44,14 @@ std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
 std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
 
 std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
-std::vector<double> intercept_overhead;
-std::vector<double> global_intercept_overhead;
-std::vector<double> global_comp_kernel_stats;
-std::vector<double> global_comm_kernel_stats;
-std::vector<double> local_comp_kernel_stats;
-std::vector<double> local_comm_kernel_stats;
-std::vector<double> save_comp_kernel_stats;
-std::vector<double> save_comm_kernel_stats;
+std::vector<float> intercept_overhead;
+std::vector<float> global_intercept_overhead;
+std::vector<float> global_comp_kernel_stats;
+std::vector<float> global_comm_kernel_stats;
+std::vector<float> local_comp_kernel_stats;
+std::vector<float> local_comm_kernel_stats;
+std::vector<float> save_comp_kernel_stats;
+std::vector<float> save_comm_kernel_stats;
 size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
 size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
 size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
@@ -61,19 +61,19 @@ size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTim
 size_t critical_path_costs_size;
 size_t per_process_costs_size;
 size_t volume_costs_size;
-std::vector<double> critical_path_costs;
-std::vector<double> max_per_process_costs;
-std::vector<double> volume_costs;
-std::vector<double> critical_path_costs_ref;
-std::vector<double> max_per_process_costs_ref;
-std::vector<double> volume_costs_ref;
-std::vector<double_int> info_sender;
-std::vector<double_int> info_receiver;
+std::vector<float> critical_path_costs;
+std::vector<float> max_per_process_costs;
+std::vector<float> volume_costs;
+std::vector<float> critical_path_costs_ref;
+std::vector<float> max_per_process_costs_ref;
+std::vector<float> volume_costs_ref;
+std::vector<float_int> info_sender;
+std::vector<float_int> info_receiver;
 std::vector<char> eager_pad;
-volatile double comp_start_time;
+volatile float comp_start_time;
 std::vector<bool> decisions;
-std::map<std::string,std::vector<double>> save_info;
-std::vector<double> new_cs;
+std::map<std::string,std::vector<float>> save_info;
+std::vector<float> new_cs;
 size_t mode_1_width;
 size_t mode_2_width;
 int internal_tag;
@@ -590,11 +590,11 @@ void intermediate_stats::generate(const kernel& p, const std::vector<kernel_batc
   this->total_exec_time = p.total_exec_time;
   this->total_local_exec_time = p.total_local_exec_time;
   for (auto i=0; i<active_batches.size(); i++){
-    double M1_2 = active_batches[i].M1;
-    double M2_2 = active_batches[i].M2;
+    float M1_2 = active_batches[i].M1;
+    float M2_2 = active_batches[i].M2;
     int n2 = active_batches[i].num_schedules;
     //assert(n2>0);
-    double delta = this->M1 - M1_2;
+    float delta = this->M1 - M1_2;
     this->M1 = (this->num_schedules*this->M1 + n2*M1_2)/(this->num_schedules+n2);
     this->M2 = this->M2 + M2_2 + delta/(this->num_schedules+n2)*delta*(this->num_schedules*n2);
     this->num_schedules += n2;
@@ -636,28 +636,28 @@ int get_skel_count(const comp_kernel_key& key){
 }
 
 
-double get_estimate(const kernel& p, int analysis_param, double unit_count){
+float get_estimate(const kernel& p, int analysis_param, float unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(p);
   } else{
     return unit_count*get_harmonic_mean(p);
   }
 }
-double get_estimate(const kernel_propagate& p, int analysis_param, double unit_count){
+float get_estimate(const kernel_propagate& p, int analysis_param, float unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(p);
   } else{
     return unit_count*get_harmonic_mean(p);
   }
 }
-double get_estimate(const kernel_key_id& index, int analysis_param, double unit_count){
+float get_estimate(const kernel_key_id& index, int analysis_param, float unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(index);
   } else{
     return unit_count*get_harmonic_mean(index);
   }
 }
-double get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches, int analysis_param, double unit_count){
+float get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>& active_batches, int analysis_param, float unit_count){
   auto stats = intermediate_stats(index,active_batches);
   if (analysis_param == 0){// arithmetic mean
     return stats.M1;
@@ -665,7 +665,7 @@ double get_estimate(const kernel_key_id& index, const std::vector<kernel_batch>&
     return unit_count*(1./stats.M1);
   }
 }
-double get_estimate(const intermediate_stats& p, int analysis_param, double unit_count){
+float get_estimate(const intermediate_stats& p, int analysis_param, float unit_count){
   if (analysis_param == 0){// arithmetic mean
     return get_arithmetic_mean(p);
   } else{
@@ -673,41 +673,41 @@ double get_estimate(const intermediate_stats& p, int analysis_param, double unit
   }
 }
 
-double get_arithmetic_mean(const kernel& p){
+float get_arithmetic_mean(const kernel& p){
   // returns arithmetic mean
   return p.M1;
 }
-double get_arithmetic_mean(const kernel_propagate& p){
+float get_arithmetic_mean(const kernel_propagate& p){
   // returns arithmetic mean
   return p.M1;
 }
-double get_arithmetic_mean(const kernel_key_id& index){
+float get_arithmetic_mean(const kernel_key_id& index){
   // returns arithmetic mean
   return active_kernels[index.val_index].M1;
 }
-double get_arithmetic_mean(const intermediate_stats& p){
+float get_arithmetic_mean(const intermediate_stats& p){
   // returns arithmetic mean
   return p.M1;
 }
 
-double get_harmonic_mean(const kernel& p){
+float get_harmonic_mean(const kernel& p){
   // returns arithmetic mean
   return 1./p.M1;
 }
-double get_harmonic_mean(const kernel_propagate& p){
+float get_harmonic_mean(const kernel_propagate& p){
   // returns arithmetic mean
   return 1./p.M1;
 }
-double get_harmonic_mean(const kernel_key_id& index){
+float get_harmonic_mean(const kernel_key_id& index){
   // returns arithmetic mean
   return 1./active_kernels[index.val_index].M1;
 }
-double get_harmonic_mean(const intermediate_stats& p){
+float get_harmonic_mean(const intermediate_stats& p){
   // returns arithmetic mean
   return 1./p.M1;
 }
 
-double get_variance(const kernel& p, int analysis_param){
+float get_variance(const kernel& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
   if (n<=1) return 1000000.;
@@ -717,7 +717,7 @@ double get_variance(const kernel& p, int analysis_param){
     return 1./p.M2 / (n-1.);
   }
 }
-double get_variance(const kernel_propagate& p, int analysis_param){
+float get_variance(const kernel_propagate& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
   if (n<=1) return 1000000.;
@@ -727,7 +727,7 @@ double get_variance(const kernel_propagate& p, int analysis_param){
     return 1./p.M2 / (n-1.);
   }
 }
-double get_variance(const kernel_key_id& index, int analysis_param){
+float get_variance(const kernel_key_id& index, int analysis_param){
   // returns variance
   size_t n = active_kernels[index.val_index].num_schedules;
   if (n<=1) return 1000000.;
@@ -737,7 +737,7 @@ double get_variance(const kernel_key_id& index, int analysis_param){
     return 1./active_kernels[index.val_index].M2 / (n-1.);
   }
 }
-double get_variance(const intermediate_stats& p, int analysis_param){
+float get_variance(const intermediate_stats& p, int analysis_param){
   // returns variance
   size_t n = p.num_schedules;
   if (n<=1) return 1000000.;
@@ -748,19 +748,19 @@ double get_variance(const intermediate_stats& p, int analysis_param){
   }
 }
 
-double get_std_dev(const kernel& p, int analysis_param){
+float get_std_dev(const kernel& p, int analysis_param){
   // returns variance
   return pow(get_variance(p,analysis_param),1./2.);
 }
-double get_std_dev(const kernel_propagate& p, int analysis_param){
+float get_std_dev(const kernel_propagate& p, int analysis_param){
   // returns variance
   return pow(get_variance(p,analysis_param),1./2.);
 }
-double get_std_dev(const kernel_key_id& index, int analysis_param){
+float get_std_dev(const kernel_key_id& index, int analysis_param){
   // returns variance
   return pow(get_variance(index,analysis_param),1./2.);
 }
-double get_std_dev(const intermediate_stats& p, int analysis_param){
+float get_std_dev(const intermediate_stats& p, int analysis_param){
   // returns variance
   return pow(get_variance(p,analysis_param),1./2.);
 }
@@ -828,84 +828,84 @@ int get_std_error_count(const intermediate_stats& p){
 }
 
 // Standard error calculation takes into account execution path analysis
-double get_std_error(const comm_kernel_key& key, const kernel& p, int analysis_param){
+float get_std_error(const comm_kernel_key& key, const kernel& p, int analysis_param){
   // returns standard error
   int n = get_std_error_count(p);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comp_kernel_key& key, const kernel& p, int analysis_param){
+float get_std_error(const comp_kernel_key& key, const kernel& p, int analysis_param){
   // returns standard error
   int n = get_std_error_count(p);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param){
+float get_std_error(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param){
   // returns standard error
   int n = get_std_error_count(p);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param){
+float get_std_error(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param){
   // returns standard error
   int n = get_std_error_count(p);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
+float get_std_error(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   // returns standard error
   int n = get_std_error_count(index);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
+float get_std_error(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   // returns standard error
   int n = get_std_error_count(index);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(index,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param){
+float get_std_error(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param){
   // returns standard error
   int n = get_std_error_count(p);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
-double get_std_error(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param){
+float get_std_error(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param){
   // returns standard error
   int n = get_std_error_count(p);
   if (sample_constraint_mode == 3) n = get_skel_count(key);
   return get_std_dev(p,analysis_param) / pow(n*1.,1./2.);
 }
 
-double get_confidence_interval(const comm_kernel_key& key, const kernel& p, int analysis_param, double level){
+float get_confidence_interval(const comm_kernel_key& key, const kernel& p, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param, double level){
+float get_confidence_interval(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param, double level){
+float get_confidence_interval(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,index,analysis_param);
 }
-double get_confidence_interval(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param, double level){
+float get_confidence_interval(const comm_kernel_key& key, const intermediate_stats& p, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const comp_kernel_key& key, const kernel& p, int analysis_param, double level){
+float get_confidence_interval(const comp_kernel_key& key, const kernel& p, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param, double level){
+float get_confidence_interval(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,p,analysis_param);
 }
-double get_confidence_interval(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param, double level){
+float get_confidence_interval(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,index,analysis_param);
 }
-double get_confidence_interval(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param, double level){
+float get_confidence_interval(const comp_kernel_key& key, const intermediate_stats& p, int analysis_param, float level){
   // returns confidence interval length with 95% confidence level
   return 1.96*get_std_error(key,p,analysis_param);
 }
@@ -1017,20 +1017,20 @@ bool is_steady(const comp_kernel_key& key, const intermediate_stats& p, int anal
   }
 }
 
-double get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
+float get_error_estimate(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   auto& active_batches = comm_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
   return get_confidence_interval(key,stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
-double get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
+float get_error_estimate(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   auto& active_batches = comp_batch_map[key];
   auto stats = intermediate_stats(index,active_batches);
   return get_confidence_interval(key,stats,analysis_param) / (get_estimate(stats,analysis_param));
 }
-double get_error_estimate(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param){
+float get_error_estimate(const comm_kernel_key& key, const kernel_propagate& p, int analysis_param){
   return get_confidence_interval(key,p,analysis_param) / (get_estimate(p,analysis_param));
 }
-double get_error_estimate(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param){
+float get_error_estimate(const comp_kernel_key& key, const kernel_propagate& p, int analysis_param){
   return get_confidence_interval(key,p,analysis_param) / (get_estimate(p,analysis_param));
 }
 
@@ -1067,7 +1067,7 @@ bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int ana
   }
 }
 
-void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_time, double unit_count){
+void update_kernel_stats(kernel& p, int analysis_param, volatile float exec_time, float unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
   if (p.global_steady_state == 0){
@@ -1080,13 +1080,13 @@ void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_tim
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = p.num_schedules-1;
     size_t n = p.num_schedules;
-    double x;
+    float x;
     if (analysis_param == 0){x = exec_time; }	// prep for arithmetic mean
     else                   {x = (unit_count>0 ? unit_count : 1.)/exec_time; }	// prep for harmonic mean
-    double delta = x - p.M1;
-    double delta_n = delta / n;
-    double delta_n2 = delta_n*delta_n;
-    double term1 = delta*delta_n*n1;
+    float delta = x - p.M1;
+    float delta_n = delta / n;
+    float delta_n2 = delta_n*delta_n;
+    float term1 = delta*delta_n*n1;
     p.M1 += delta_n;
     p.M2 += term1;
   }
@@ -1095,7 +1095,7 @@ void update_kernel_stats(kernel& p, int analysis_param, volatile double exec_tim
     p.num_non_scheduled_units += unit_count;
   }
 }
-void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile double exec_time, double unit_count){
+void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatile float exec_time, float unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
   if (active_kernels[index.val_index].global_steady_state == 0){
@@ -1108,13 +1108,13 @@ void update_kernel_stats(const kernel_key_id& index, int analysis_param, volatil
     // Online computation of up to 4th-order central moments using compunication time samples
     size_t n1 = active_kernels[index.val_index].num_schedules-1;
     size_t n = active_kernels[index.val_index].num_schedules;
-    double x;
+    float x;
     if (analysis_param == 0){x = exec_time; }	// prep for arithmetic mean
     else                   {x = (unit_count>0 ? unit_count : 1.)/exec_time; }	// prep for harmonic mean
-    double delta = x - active_kernels[index.val_index].M1;
-    double delta_n = delta / n;
-    double delta_n2 = delta_n*delta_n;
-    double term1 = delta*delta_n*n1;
+    float delta = x - active_kernels[index.val_index].M1;
+    float delta_n = delta / n;
+    float delta_n2 = delta_n*delta_n;
+    float term1 = delta*delta_n*n1;
     active_kernels[index.val_index].M1 += delta_n;
     active_kernels[index.val_index].M2 += term1;
   }
@@ -1129,7 +1129,7 @@ void update_kernel_stats(kernel& dest, const kernel& src, int analysis_param){
   // Online computation of up to 4th-order central moments using compunication time samples
   size_t n1 = dest.num_schedules;
   size_t n2 = src.num_schedules;
-  double delta = dest.M1 - src.M1;
+  float delta = dest.M1 - src.M1;
   dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
@@ -1142,7 +1142,7 @@ void update_kernel_stats(kernel& dest, const kernel& src, int analysis_param){
   dest.total_local_exec_time += src.total_local_exec_time;
 }
 
-void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile double exec_time, double unit_count){
+void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile float exec_time, float unit_count){
   if (update_analysis == 0) return;// no updating of analysis -- useful when leveraging data post-autotuning phase
   if (exec_time == 0) { exec_time=1.e-9; }
   batch.num_schedules++;
@@ -1154,13 +1154,13 @@ void update_kernel_stats(kernel_batch& batch, int analysis_param, volatile doubl
   // Online computation of up to 4th-order central moments using compunication time samples
   size_t n1 = batch.num_schedules-1;
   size_t n = batch.num_schedules;
-  double x;
+  float x;
   if (analysis_param == 0){x = exec_time; }	// prep for arithmetic mean
   else                   {x = (unit_count>0 ? unit_count : 1.)/exec_time; }	// prep for harmonic mean
-  double delta = x - batch.M1;
-  double delta_n = delta / n;
-  double delta_n2 = delta_n*delta_n;
-  double term1 = delta*delta_n*n1;
+  float delta = x - batch.M1;
+  float delta_n = delta / n;
+  float delta_n2 = delta_n*delta_n;
+  float term1 = delta*delta_n*n1;
   batch.M1 += delta_n;
   batch.M2 += term1;
 }
@@ -1170,7 +1170,7 @@ void update_kernel_stats(kernel& dest, const kernel_batch& src, int analysis_par
   // Online computation of up to 4th-order central moments using compunication time samples
   size_t n1 = dest.num_schedules;
   size_t n2 = src.num_schedules;
-  double delta = dest.M1 - src.M1;
+  float delta = dest.M1 - src.M1;
   dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
@@ -1186,7 +1186,7 @@ void update_kernel_stats(kernel_batch& dest, const kernel_batch& src, int analys
   // Online computation of up to 4th-order central moments using compunication time samples
   size_t n1 = dest.num_schedules;
   size_t n2 = src.num_schedules;
-  double delta = dest.M1 - src.M1;
+  float delta = dest.M1 - src.M1;
   dest.M1 = (n1*dest.M1 + n2*src.M1)/(n1+n2);
   dest.M2 = dest.M2 + src.M2 + delta/(n1+n2)*delta*(n1*n2);
   dest.num_schedules += src.num_schedules;
@@ -1426,11 +1426,11 @@ void allocate(MPI_Comm comm){
   eager_pad.resize(eager_pad_size);
 }
 
-void open_symbol(const char* symbol, double curtime){}
+void open_symbol(const char* symbol, float curtime){}
 
-void close_symbol(const char* symbol, double curtime){}
+void close_symbol(const char* symbol, float curtime){}
 
-void final_accumulate(MPI_Comm comm, double last_time){
+void final_accumulate(MPI_Comm comm, float last_time){
   assert(nonblocking_internal_info.size() == 0);
   critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
   critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
@@ -1439,7 +1439,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
 
   _wall_time = wall_timer[wall_timer.size()-1];
 
-  double temp_costs[4+4+3+5+5+2+3+3];
+  float temp_costs[4+4+3+5+5+2+3+3];
   for (int i=0; i<18; i++){ temp_costs[11+i]=0; }
 
   discretization::_MPI_Barrier.comm = MPI_COMM_WORLD;
@@ -1542,13 +1542,13 @@ void final_accumulate(MPI_Comm comm, double last_time){
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
   assert(nonblocking_internal_info.size() == 0);
-  memset(&critical_path_costs[0],0,sizeof(double)*critical_path_costs.size());
-  memset(&max_per_process_costs[0],0,sizeof(double)*max_per_process_costs.size());
-  memset(&volume_costs[0],0,sizeof(double)*volume_costs.size());
+  memset(&critical_path_costs[0],0,sizeof(float)*critical_path_costs.size());
+  memset(&max_per_process_costs[0],0,sizeof(float)*max_per_process_costs.size());
+  memset(&volume_costs[0],0,sizeof(float)*volume_costs.size());
   internal::bsp_counter=0;
-  memset(&intercept_overhead[0],0,sizeof(double)*intercept_overhead.size());
-  memset(&local_comp_kernel_stats[0],0,sizeof(double)*local_comp_kernel_stats.size());
-  memset(&local_comm_kernel_stats[0],0,sizeof(double)*local_comm_kernel_stats.size());
+  memset(&intercept_overhead[0],0,sizeof(float)*intercept_overhead.size());
+  memset(&local_comp_kernel_stats[0],0,sizeof(float)*local_comp_kernel_stats.size());
+  memset(&local_comm_kernel_stats[0],0,sizeof(float)*local_comm_kernel_stats.size());
 
   // This reset will no longer reset the kernel state, but will reset the schedule counters
   for (auto& it : comp_kernel_map){
@@ -1625,9 +1625,9 @@ void reference_transfer(){
   if (std::getenv("CRITTER_KERNEL_ERROR_LIMIT") != NULL){ kernel_error_limit = atof(std::getenv("CRITTER_KERNEL_ERROR_LIMIT")); }
   if (std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT") != NULL){ kernel_percentage_limit = atof(std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT")); }
   if (std::getenv("CRITTER_STOP_CRIT_MODE") != NULL){ stop_criterion_mode = atof(std::getenv("CRITTER_STOP_CRIT_MODE")); }
-  std::memcpy(&critical_path_costs_ref[0],&critical_path_costs[0],num_critical_path_measures*sizeof(double));
-  std::memcpy(&max_per_process_costs_ref[0],&max_per_process_costs[0],num_per_process_measures*sizeof(double));
-  std::memcpy(&volume_costs_ref[0],&volume_costs[0],num_volume_measures*sizeof(double));
+  std::memcpy(&critical_path_costs_ref[0],&critical_path_costs[0],num_critical_path_measures*sizeof(float));
+  std::memcpy(&max_per_process_costs_ref[0],&max_per_process_costs[0],num_per_process_measures*sizeof(float));
+  std::memcpy(&volume_costs_ref[0],&volume_costs[0],num_volume_measures*sizeof(float));
   for (auto& it : comp_kernel_map){
     comp_kernel_ref_map[it.first] = active_kernels[it.second.val_index];
     active_kernels[it.second.val_index].clear_distribution();

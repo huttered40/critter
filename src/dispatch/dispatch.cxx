@@ -60,7 +60,7 @@ void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   }
 }
 
-bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+bool initiate_comp(size_t id, volatile float curtime, float flop_count,  int param1, int param2, int param3, int param4, int param5){
   bool schedule_decision;
   switch (mechanism){
     case 0:
@@ -80,7 +80,7 @@ bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int p
   return schedule_decision;
 }
 
-void complete_comp(double errtime, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+void complete_comp(float errtime, size_t id, float flop_count,  int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
@@ -98,7 +98,7 @@ void complete_comp(double errtime, size_t id, double flop_count,  int param1, in
   }
 }
 
-bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+bool initiate_comm(size_t id, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender, int partner1, int partner2){
   bool schedule_decision;
   switch (mechanism){
@@ -119,7 +119,7 @@ bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Dataty
   return schedule_decision;
 }
 
-bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int user_tag,
+bool inspect_comm(size_t id, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int user_tag,
               bool is_sender, int partner){
   bool schedule_decision;
   switch (mechanism){
@@ -140,7 +140,7 @@ bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatyp
   return schedule_decision;
 }
 
-void initiate_comm(size_t id, volatile double itime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, int user_tag, bool is_sender, int partner){
+void initiate_comm(size_t id, volatile float itime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, int user_tag, bool is_sender, int partner){
   switch (mechanism){
     case 0:
       decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],itime,nelem,t,cm,request,is_sender,partner);
@@ -176,7 +176,7 @@ void complete_comm(size_t id, int recv_source){
   }
 }
 
-int complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
+int complete_comm(float curtime, MPI_Request* request, MPI_Status* status){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,request,status);
@@ -191,7 +191,7 @@ int complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   }
 }
 
-int complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int complete_comm(float curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
@@ -206,7 +206,7 @@ int complete_comm(double curtime, int count, MPI_Request array_of_requests[], in
   }
 }
 
-int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+int complete_comm(float curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
@@ -221,7 +221,7 @@ int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], 
   }
 }
 
-int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int complete_comm(float curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
@@ -243,10 +243,10 @@ void propagate(MPI_Comm comm){
       decomposition::path::propagate(decomposition::_MPI_Barrier);
       break;
     case 1:
-      // Do nothing: 4-double reduction is performed in 'discretization::final_accumulate'
+      // Do nothing: 4-float reduction is performed in 'discretization::final_accumulate'
       break;
     case 2:
-      // Do nothing: 4-double reduction is performed in 'discretization::final_accumulate'
+      // Do nothing: 4-float reduction is performed in 'discretization::final_accumulate'
       break;
   }
 }
@@ -265,7 +265,7 @@ void collect(MPI_Comm comm){
   }
 }
 
-void final_accumulate(MPI_Comm comm, double last_time){
+void final_accumulate(MPI_Comm comm, float last_time){
   switch (mechanism){
     case 0:
       decomposition::final_accumulate(comm,last_time);
@@ -311,7 +311,7 @@ void set_reference_values(){
   }
 }
 
-void open_symbol(const char* symbol, double curtime){
+void open_symbol(const char* symbol, float curtime){
   switch (mechanism){
     case 0:
       decomposition::open_symbol(symbol,curtime);
@@ -325,7 +325,7 @@ void open_symbol(const char* symbol, double curtime){
   }
 }
 
-void close_symbol(const char* symbol, double curtime){
+void close_symbol(const char* symbol, float curtime){
   switch (mechanism){
     case 0:
       decomposition::close_symbol(symbol,curtime);
@@ -367,7 +367,7 @@ void _finalize(){
   }
 }
 
-void write_file(int variantID, int print_mode, double overhead_time){
+void write_file(int variantID, int print_mode, float overhead_time){
   if (std::getenv("CRITTER_VIZ_FILE") == NULL) return;
   switch (mechanism){
     case 0:
@@ -382,7 +382,7 @@ void write_file(int variantID, int print_mode, double overhead_time){
   }
 }
 
-void print(int variantID, int print_mode, double overhead_time){
+void print(int variantID, int print_mode, float overhead_time){
   switch (mechanism){
     case 0:
       decomposition::record::print(variantID,overhead_time);
@@ -408,16 +408,16 @@ int get_critical_path_costs(){
   assert(-1);
   return -1;
 }
-void get_critical_path_costs(double* costs){
+void get_critical_path_costs(float* costs){
   switch (mechanism){
     case 0:
-      std::memcpy(costs,&decomposition::critical_path_costs[0],sizeof(double)*decomposition::num_critical_path_measures);
+      std::memcpy(costs,&decomposition::critical_path_costs[0],sizeof(float)*decomposition::num_critical_path_measures);
       break;
     case 1:
-      std::memcpy(costs,&discretization::critical_path_costs[0],sizeof(double)*discretization::num_critical_path_measures);
+      std::memcpy(costs,&discretization::critical_path_costs[0],sizeof(float)*discretization::num_critical_path_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::critical_path_costs[0],sizeof(double)*skeletonization::num_critical_path_measures);
+      std::memcpy(costs,&skeletonization::critical_path_costs[0],sizeof(float)*skeletonization::num_critical_path_measures);
       break;
   }
   return;
@@ -434,16 +434,16 @@ int get_max_per_process_costs(){
   assert(-1);
   return -1;
 }
-void get_max_per_process_costs(double* costs){
+void get_max_per_process_costs(float* costs){
   switch (mechanism){
     case 0:
-      std::memcpy(costs,&decomposition::max_per_process_costs[0],sizeof(double)*decomposition::num_per_process_measures);
+      std::memcpy(costs,&decomposition::max_per_process_costs[0],sizeof(float)*decomposition::num_per_process_measures);
       break;
     case 1:
-      std::memcpy(costs,&discretization::max_per_process_costs[0],sizeof(double)*discretization::num_per_process_measures);
+      std::memcpy(costs,&discretization::max_per_process_costs[0],sizeof(float)*discretization::num_per_process_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::max_per_process_costs[0],sizeof(double)*skeletonization::num_per_process_measures);
+      std::memcpy(costs,&skeletonization::max_per_process_costs[0],sizeof(float)*skeletonization::num_per_process_measures);
       break;
   }
   return;
@@ -460,16 +460,16 @@ int get_volumetric_costs(){
   assert(-1);
   return -1;
 }
-void get_volumetric_costs(double* costs){
+void get_volumetric_costs(float* costs){
   switch (mechanism){
     case 0:
-      std::memcpy(costs,&decomposition::volume_costs[0],sizeof(double)*decomposition::num_volume_measures);
+      std::memcpy(costs,&decomposition::volume_costs[0],sizeof(float)*decomposition::num_volume_measures);
       break;
     case 1:
-      std::memcpy(costs,&discretization::volume_costs[0],sizeof(double)*discretization::num_volume_measures);
+      std::memcpy(costs,&discretization::volume_costs[0],sizeof(float)*discretization::num_volume_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::volume_costs[0],sizeof(double)*skeletonization::num_volume_measures);
+      std::memcpy(costs,&skeletonization::volume_costs[0],sizeof(float)*skeletonization::num_volume_measures);
       break;
   }
   return;

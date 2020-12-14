@@ -26,8 +26,8 @@ public:
   }
 };
 
-inline double flop_generator(int id, double p1=0, double p2=0, double p3=0, double p4=0, double p5=0){
-  double flops=0;
+inline float flop_generator(int id, float p1=0, float p2=0, float p3=0, float p4=0, float p5=0){
+  float flops=0;
   switch (id){
     case 100:
       flops = 2.*p1;
@@ -137,8 +137,8 @@ template<typename func_type, typename... t1_types, typename... t2_types, size_t.
 inline void conditional_blas_engine(int id, int guard, std::tuple<t1_types...>&& t1, std::tuple<t2_types...>&& t2,
                              IndexPack<index_list...>, func_type* func, arg_types... args){
   if (mode && guard){
-    volatile double curtime = MPI_Wtime();
-    double flops = flop_generator(id,std::get<index_list>(t1)...);
+    volatile float curtime = MPI_Wtime();
+    float flops = flop_generator(id,std::get<index_list>(t1)...);
     bool schedule_decision = initiate_comp(id,curtime,flops,std::get<index_list>(t2)...);
     if (schedule_decision) func(args...);
     complete_comp(0,id,flops,std::get<index_list>(t2)...);
@@ -152,9 +152,9 @@ inline int conditional_lapack_engine(int id, int guard, std::tuple<t1_types...>&
                               IndexPack<index_list1...>, func_type* func, std::tuple<arg_types...>&& args, IndexPack<index_list2...>,
                               TupleTypes&&... reset_lambdas){
   if (mode && guard){
-    volatile double curtime = MPI_Wtime();
-    double flops = flop_generator(id,std::get<index_list1>(t1)...);
-    double special_time=0;
+    volatile float curtime = MPI_Wtime();
+    float flops = flop_generator(id,std::get<index_list1>(t1)...);
+    float special_time=0;
     bool schedule_decision = initiate_comp(id,curtime,flops,std::get<index_list1>(t2)...);
     if (schedule_decision){
       if (mechanism == 0 && autotuning_debug==0) assert(func(std::get<index_list2>(args)...)==0);
@@ -175,10 +175,10 @@ inline int conditional_lapack_engine(int id, int guard, std::tuple<t1_types...>&
 template<typename T, typename func_type>
 int conditional_lapack_engine_tpqrt_(func_type* func, int matrix_layout, int m , int n , int l , int nb , T* a , int lda , T* b , int ldb , T* t , int ldt){
   if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _l = l;
-    double flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
-    double special_time=0;
+    volatile float curtime = MPI_Wtime();
+    float _m = m; float _n = n; float _l = l;
+    float flops = 2.*_m*_n*_l;//Note: this is an educated guess. There is no information on this flop count
+    float special_time=0;
     bool schedule_decision = initiate_comp(_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
     if (schedule_decision){
       if (mechanism == 0 && autotuning_debug==0) assert(func(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
@@ -209,10 +209,10 @@ template<typename T, typename func_type>
 int conditional_lapack_engine_tpmqrt_(func_type* func, int matrix_layout, char side , char trans , int m , int n , int k , int l , int nb , const T* v ,
                int ldv , const T* t , int ldt , T* a , int lda , T* b , int ldb){
   if (mode && track_lapack){
-    volatile double curtime = MPI_Wtime();
-    double _m = m; double _n = n; double _k = k;
-    double flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
-    double special_time=0;
+    volatile float curtime = MPI_Wtime();
+    float _m = m; float _n = n; float _k = k;
+    float flops = 2.*_m*_n*_k;//Note: this is an educated guess. There is no information on this flop count
+    float special_time=0;
     bool schedule_decision = initiate_comp(_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
     if (schedule_decision){
       if (mechanism == 0 && autotuning_debug==0) assert(func(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
