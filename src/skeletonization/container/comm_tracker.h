@@ -19,13 +19,13 @@ class comm_tracker{
     /* \brief function for cost model of MPI routine in alpha-beta cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<float,float>(int64_t,int) > cost_func_alphabeta;
     /* \brief duration of computation time for each call made locally, used to save the local computation time between calls to ::start and ::stop variants */
-    float comp_time;
+    double comp_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile float start_time;
+    volatile double start_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile float synch_time;
+    volatile double synch_time;
     /* \brief save barrier time across start_synch */
-    volatile float barrier_time;
+    volatile double barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm comm;
     /* \brief partner with which start() was last called */
@@ -82,6 +82,35 @@ public:
     nonblocking(nonblocking const& t);
 };
 
+struct nonblocking_info{
+  nonblocking_info(){}
+  nonblocking_info(float* _path_data, MPI_Request _barrier_req, MPI_Request _prop_req, bool _is_active,
+                   bool _is_sender, int _partner, MPI_Comm _comm, float _nbytes,
+                   float _comm_size, int _tag, nonblocking* _track){
+    this->path_data = _path_data;
+    this->barrier_req = _barrier_req;
+    this->prop_req = _prop_req;
+    this->is_active = _is_active;
+    this->is_sender = _is_sender;
+    this->partner = _partner;
+    this->comm = _comm;
+    this->nbytes = _nbytes;
+    this->comm_size = _comm_size;
+    this->tag = _tag;
+    this->track = _track;
+  }
+  float* path_data;
+  MPI_Request barrier_req,prop_req;
+  bool is_active;
+  bool is_sender;
+  int partner;
+  MPI_Comm comm;
+  float nbytes;
+  float comm_size;
+  int tag;
+  nonblocking* track;
+};
+
 extern blocking
          _MPI_Send,
          _MPI_Ssend,
@@ -119,7 +148,7 @@ extern nonblocking
          _MPI_Ialltoallv;
 constexpr auto list_size=33;
 extern comm_tracker* list[list_size];
-extern std::map<MPI_Request,nonblocking*> internal_comm_track;
+extern std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 
 }
 }

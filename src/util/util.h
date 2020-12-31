@@ -98,8 +98,6 @@ struct kernel_key_id{
 };
 
 // ****************************************************************************************************************************************************
-extern int comm_kernel_select_size;
-extern int comp_kernel_select_size;
 extern int reset_matrix;
 extern int autotuning_debug;
 extern int bsp_counter;
@@ -108,11 +106,9 @@ extern int comp_kernel_counter;
 extern int comm_kernel_counter;
 extern int clear_counter;
 extern int communicator_count;
-extern int send_dependency;
-extern std::string schedule_tag;
-extern volatile float computation_timer;
-extern std::vector<float> wall_timer;
-extern float _wall_time;
+extern volatile double computation_timer;
+extern std::vector<double> wall_timer;
+extern double _wall_time;
 extern size_t auto_capture;
 extern bool is_world_root;
 extern size_t mechanism,mode,stack_id;
@@ -125,7 +121,8 @@ extern size_t track_collective;
 extern size_t track_p2p;
 extern size_t eager_limit;
 extern size_t delete_comm;
-extern int skeleton_analytic;
+extern int comm_kernel_select_count;
+extern int comp_kernel_select_count;
 extern int request_id;
 extern size_t
          _MPI_Send__id,

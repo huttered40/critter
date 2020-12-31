@@ -60,7 +60,7 @@ void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   }
 }
 
-bool initiate_comp(size_t id, volatile float curtime, float flop_count,  int param1, int param2, int param3, int param4, int param5){
+bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   bool schedule_decision;
   switch (mechanism){
     case 0:
@@ -70,17 +70,13 @@ bool initiate_comp(size_t id, volatile float curtime, float flop_count,  int par
       schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      if (skeleton_analytic){
-        schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
-      } else{
-        schedule_decision = decomposition::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
-      }
+      schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
   }
   return schedule_decision;
 }
 
-void complete_comp(float errtime, size_t id, float flop_count,  int param1, int param2, int param3, int param4, int param5){
+void complete_comp(double errtime, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:
       decomposition::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
@@ -89,16 +85,12 @@ void complete_comp(float errtime, size_t id, float flop_count,  int param1, int 
       discretization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      if (skeleton_analytic){
-        skeletonization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
-      } else{
-        decomposition::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
-      }
+      skeletonization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
   }
 }
 
-bool initiate_comm(size_t id, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
+bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm,
               bool is_sender, int partner1, int partner2){
   bool schedule_decision;
   switch (mechanism){
@@ -109,17 +101,13 @@ bool initiate_comm(size_t id, volatile float curtime, int64_t nelem, MPI_Datatyp
       schedule_decision = discretization::path::initiate_comm(*(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
     case 2:
-      if (skeleton_analytic){
-        schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
-      } else{
-        schedule_decision = decomposition::path::initiate_comm(*(decomposition::blocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
-      }
+      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,partner2);
       break;
   }
   return schedule_decision;
 }
 
-bool inspect_comm(size_t id, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int user_tag,
+bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, int user_tag,
               bool is_sender, int partner){
   bool schedule_decision;
   switch (mechanism){
@@ -130,17 +118,13 @@ bool inspect_comm(size_t id, volatile float curtime, int64_t nelem, MPI_Datatype
       schedule_decision = discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],curtime,nelem,t,cm,user_tag,is_sender,partner);
       break;
     case 2:
-      if (skeleton_analytic){
-        schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner);
-      } else{
-        schedule_decision = decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],curtime,nelem,t,cm,is_sender,partner);
-      }
+      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],curtime,nelem,t,cm,user_tag,is_sender,partner);
       break;
   }
   return schedule_decision;
 }
 
-void initiate_comm(size_t id, volatile float itime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, int user_tag, bool is_sender, int partner){
+void initiate_comm(size_t id, volatile double itime, int64_t nelem, MPI_Datatype t, MPI_Comm cm, MPI_Request* request, int user_tag, bool is_sender, int partner){
   switch (mechanism){
     case 0:
       decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],itime,nelem,t,cm,request,is_sender,partner);
@@ -149,11 +133,7 @@ void initiate_comm(size_t id, volatile float itime, int64_t nelem, MPI_Datatype 
       discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],itime,nelem,t,cm,request,user_tag,is_sender,partner);
       break;
     case 2:
-      if (skeleton_analytic){
-        skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],itime,nelem,t,cm,request,is_sender,partner);
-      } else{
-        decomposition::path::initiate_comm(*(decomposition::nonblocking*)decomposition::list[id],itime,nelem,t,cm,request,is_sender,partner);
-      }
+      skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],itime,nelem,t,cm,request,user_tag,is_sender,partner);
       break;
   }
 }
@@ -167,72 +147,52 @@ void complete_comm(size_t id, int recv_source){
       discretization::path::complete_comm(*(discretization::blocking*)discretization::list[id],recv_source);
       break;
     case 2:
-      if (skeleton_analytic){
-        skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id],recv_source);
-      } else{
-        decomposition::path::complete_comm(*(decomposition::blocking*)decomposition::list[id],recv_source);
-      }
+      skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id],recv_source);
       break;
   }
 }
 
-int complete_comm(float curtime, MPI_Request* request, MPI_Status* status){
+int complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,request,status);
     case 1:
       return discretization::path::complete_comm(curtime,request,status);
     case 2:
-      if (skeleton_analytic){
-        return skeletonization::path::complete_comm(curtime,request,status);
-      } else{
-        return decomposition::path::complete_comm(curtime,request,status);
-      }
+      return skeletonization::path::complete_comm(curtime,request,status);
   }
 }
 
-int complete_comm(float curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+int complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 1:
       return discretization::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 2:
-      if (skeleton_analytic){
-        return skeletonization::path::complete_comm(curtime,count,array_of_requests,indx,status);
-      } else{
-        return decomposition::path::complete_comm(curtime,count,array_of_requests,indx,status);
-      }
+      return skeletonization::path::complete_comm(curtime,count,array_of_requests,indx,status);
   }
 }
 
-int complete_comm(float curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 1:
       return discretization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 2:
-      if (skeleton_analytic){
-        return skeletonization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
-      } else{
-        return decomposition::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
-      }
+      return skeletonization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   }
 }
 
-int complete_comm(float curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
   switch (mechanism){
     case 0:
       return decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
     case 1:
       return discretization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
     case 2:
-      if (skeleton_analytic){
-        return skeletonization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
-      } else{
-        return decomposition::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
-      }
+      return skeletonization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
   }
 }
 
@@ -240,13 +200,20 @@ void propagate(MPI_Comm comm){
   switch (mechanism){
     case 0:
       decomposition::_MPI_Barrier.comm = comm;
+      decomposition::_MPI_Barrier.partner1 = -1;
+      decomposition::_MPI_Barrier.partner2 = -1;
       decomposition::path::propagate(decomposition::_MPI_Barrier);
       break;
     case 1:
-      // Do nothing: 4-float reduction is performed in 'discretization::final_accumulate'
+      // Do nothing: final reduction is performed in 'discretization::final_accumulate'
       break;
     case 2:
-      // Do nothing: 4-float reduction is performed in 'discretization::final_accumulate'
+      if (skeletonization::skeleton_type==0){
+        skeletonization::_MPI_Barrier.comm = comm;
+        skeletonization::_MPI_Barrier.partner1 = -1;
+        skeletonization::_MPI_Barrier.partner2 = -1;
+        skeletonization::path::propagate_kernels(skeletonization::_MPI_Barrier);
+      }
       break;
   }
 }
@@ -265,7 +232,7 @@ void collect(MPI_Comm comm){
   }
 }
 
-void final_accumulate(MPI_Comm comm, float last_time){
+void final_accumulate(MPI_Comm comm, double last_time){
   switch (mechanism){
     case 0:
       decomposition::final_accumulate(comm,last_time);
@@ -281,8 +248,10 @@ void final_accumulate(MPI_Comm comm, float last_time){
       break;
     case 2:
       skeletonization::final_accumulate(comm,last_time);
+      skeletonization::_MPI_Barrier.comm = comm;
+      skeletonization::_MPI_Barrier.partner1 = -1;
+      skeletonization::_MPI_Barrier.partner2 = -1;
       skeletonization::path::propagate_kernels(skeletonization::_MPI_Barrier);
-      //skeletonization::path::kernel_select();
       break;
   }
 }
@@ -290,18 +259,30 @@ void final_accumulate(MPI_Comm comm, float last_time){
 void set_reference_values(){
   switch (mechanism){
     case 0:
-      discretization::critical_path_costs_ref[0] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-5];
-      discretization::critical_path_costs_ref[1] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-3];
-      discretization::critical_path_costs_ref[2] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-2];
-      discretization::critical_path_costs_ref[3] = decomposition::critical_path_costs[decomposition::num_critical_path_measures-1];
-      discretization::max_per_process_costs_ref[0] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-5];
-      discretization::max_per_process_costs_ref[1] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-3];
-      discretization::max_per_process_costs_ref[2] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-2];
-      discretization::max_per_process_costs_ref[3] = decomposition::max_per_process_costs[decomposition::num_per_process_measures-1];
-      discretization::volume_costs_ref[0] = decomposition::volume_costs[decomposition::num_volume_measures-5];
-      discretization::volume_costs_ref[1] = decomposition::volume_costs[decomposition::num_volume_measures-3];
-      discretization::volume_costs_ref[2] = decomposition::volume_costs[decomposition::num_volume_measures-2];
-      discretization::volume_costs_ref[3] = decomposition::volume_costs[decomposition::num_volume_measures-1];
+      break;
+    case 1:
+      discretization::reference_initiate();
+      break;
+    case 2:
+      break;
+  }
+}
+
+void save_reference_values(){
+  switch (mechanism){
+    case 0:
+      discretization::cp_costs_ref[0] = decomposition::cp_costs[decomposition::num_cp_measures-5];
+      discretization::cp_costs_ref[1] = decomposition::cp_costs[decomposition::num_cp_measures-3];
+      discretization::cp_costs_ref[2] = decomposition::cp_costs[decomposition::num_cp_measures-2];
+      discretization::cp_costs_ref[3] = decomposition::cp_costs[decomposition::num_cp_measures-1];
+      discretization::max_pp_costs_ref[0] = decomposition::max_pp_costs[decomposition::num_pp_measures-5];
+      discretization::max_pp_costs_ref[1] = decomposition::max_pp_costs[decomposition::num_pp_measures-3];
+      discretization::max_pp_costs_ref[2] = decomposition::max_pp_costs[decomposition::num_pp_measures-2];
+      discretization::max_pp_costs_ref[3] = decomposition::max_pp_costs[decomposition::num_pp_measures-1];
+      discretization::vol_costs_ref[0] = decomposition::vol_costs[decomposition::num_vol_measures-5];
+      discretization::vol_costs_ref[1] = decomposition::vol_costs[decomposition::num_vol_measures-3];
+      discretization::vol_costs_ref[2] = decomposition::vol_costs[decomposition::num_vol_measures-2];
+      discretization::vol_costs_ref[3] = decomposition::vol_costs[decomposition::num_vol_measures-1];
       break;
     case 1:
       discretization::reference_transfer();
@@ -311,7 +292,21 @@ void set_reference_values(){
   }
 }
 
-void open_symbol(const char* symbol, float curtime){
+void init_symbol(std::vector<std::string>& symbols){
+  switch (mechanism){
+    case 0:
+      decomposition::init_symbol(symbols);
+      break;
+    case 1:
+      discretization::init_symbol(symbols);
+      break;
+    case 2:
+      skeletonization::init_symbol(symbols);
+      break;
+  }
+}
+
+void open_symbol(const char* symbol, double curtime){
   switch (mechanism){
     case 0:
       decomposition::open_symbol(symbol,curtime);
@@ -325,7 +320,7 @@ void open_symbol(const char* symbol, float curtime){
   }
 }
 
-void close_symbol(const char* symbol, float curtime){
+void close_symbol(const char* symbol, double curtime){
   switch (mechanism){
     case 0:
       decomposition::close_symbol(symbol,curtime);
@@ -367,7 +362,7 @@ void _finalize(){
   }
 }
 
-void write_file(int variantID, int print_mode, float overhead_time){
+void write_file(int variantID, int print_mode, double overhead_time){
   if (std::getenv("CRITTER_VIZ_FILE") == NULL) return;
   switch (mechanism){
     case 0:
@@ -382,7 +377,7 @@ void write_file(int variantID, int print_mode, float overhead_time){
   }
 }
 
-void print(int variantID, int print_mode, float overhead_time){
+void print(int variantID, int print_mode, double overhead_time){
   switch (mechanism){
     case 0:
       decomposition::record::print(variantID,overhead_time);
@@ -399,11 +394,11 @@ void print(int variantID, int print_mode, float overhead_time){
 int get_critical_path_costs(){
   switch (mechanism){
     case 0:
-      return decomposition::num_critical_path_measures;
+      return decomposition::num_cp_measures;
     case 1:
-      return discretization::num_critical_path_measures;
+      return discretization::num_cp_measures;
     case 2:
-      return skeletonization::num_critical_path_measures;
+      return skeletonization::num_cp_measures;
   }
   assert(-1);
   return -1;
@@ -411,13 +406,13 @@ int get_critical_path_costs(){
 void get_critical_path_costs(float* costs){
   switch (mechanism){
     case 0:
-      std::memcpy(costs,&decomposition::critical_path_costs[0],sizeof(float)*decomposition::num_critical_path_measures);
+      std::memcpy(costs,&decomposition::cp_costs[0],sizeof(float)*decomposition::num_cp_measures);
       break;
     case 1:
-      std::memcpy(costs,&discretization::critical_path_costs[0],sizeof(float)*discretization::num_critical_path_measures);
+      std::memcpy(costs,&discretization::cp_costs[0],sizeof(float)*discretization::num_cp_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::critical_path_costs[0],sizeof(float)*skeletonization::num_critical_path_measures);
+      std::memcpy(costs,&skeletonization::cp_costs[0],sizeof(float)*skeletonization::num_cp_measures);
       break;
   }
   return;
@@ -425,11 +420,11 @@ void get_critical_path_costs(float* costs){
 int get_max_per_process_costs(){
   switch (mechanism){
     case 0:
-      return decomposition::num_per_process_measures;
+      return decomposition::num_pp_measures;
     case 1:
-      return discretization::num_per_process_measures;
+      return discretization::num_pp_measures;
     case 2:
-      return skeletonization::num_per_process_measures;
+      return skeletonization::num_pp_measures;
   }
   assert(-1);
   return -1;
@@ -437,13 +432,13 @@ int get_max_per_process_costs(){
 void get_max_per_process_costs(float* costs){
   switch (mechanism){
     case 0:
-      std::memcpy(costs,&decomposition::max_per_process_costs[0],sizeof(float)*decomposition::num_per_process_measures);
+      std::memcpy(costs,&decomposition::max_pp_costs[0],sizeof(float)*decomposition::num_pp_measures);
       break;
     case 1:
-      std::memcpy(costs,&discretization::max_per_process_costs[0],sizeof(float)*discretization::num_per_process_measures);
+      std::memcpy(costs,&discretization::max_pp_costs[0],sizeof(float)*discretization::num_pp_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::max_per_process_costs[0],sizeof(float)*skeletonization::num_per_process_measures);
+      std::memcpy(costs,&skeletonization::max_pp_costs[0],sizeof(float)*skeletonization::num_pp_measures);
       break;
   }
   return;
@@ -451,11 +446,11 @@ void get_max_per_process_costs(float* costs){
 int get_volumetric_costs(){
   switch (mechanism){
     case 0:
-      return decomposition::num_volume_measures;
+      return decomposition::num_vol_measures;
     case 1:
-      return discretization::num_volume_measures;
+      return discretization::num_vol_measures;
     case 2:
-      return skeletonization::num_volume_measures;
+      return skeletonization::num_vol_measures;
   }
   assert(-1);
   return -1;
@@ -463,13 +458,13 @@ int get_volumetric_costs(){
 void get_volumetric_costs(float* costs){
   switch (mechanism){
     case 0:
-      std::memcpy(costs,&decomposition::volume_costs[0],sizeof(float)*decomposition::num_volume_measures);
+      std::memcpy(costs,&decomposition::vol_costs[0],sizeof(float)*decomposition::num_vol_measures);
       break;
     case 1:
-      std::memcpy(costs,&discretization::volume_costs[0],sizeof(float)*discretization::num_volume_measures);
+      std::memcpy(costs,&discretization::vol_costs[0],sizeof(float)*discretization::num_vol_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::volume_costs[0],sizeof(float)*skeletonization::num_volume_measures);
+      std::memcpy(costs,&skeletonization::vol_costs[0],sizeof(float)*skeletonization::num_vol_measures);
       break;
   }
   return;

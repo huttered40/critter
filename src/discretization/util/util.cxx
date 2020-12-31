@@ -10,26 +10,30 @@ namespace critter{
 namespace internal{
 namespace discretization{
 
-int tuning_delta;
-int reset_distribution_mode;
-int comm_sample_aggregation_mode;
-int comm_state_aggregation_mode;
-int comp_sample_aggregation_mode;
-int comp_state_aggregation_mode;
-int sample_constraint_mode;
-int schedule_kernels;
-int update_analysis;
-MPI_Datatype kernel_type;
-MPI_Datatype batch_type;
-size_t kernel_count_limit;
-float kernel_time_limit;
-float kernel_error_limit;
-float kernel_percentage_limit;
-int comp_kernel_transfer_id;
-int comm_kernel_transfer_id;
-int comp_kernel_buffer_id;
+std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
+int tuning_delta,reset_distribution_mode;
+int sample_constraint_mode,schedule_kernels,update_analysis;
+int stop_criterion_mode,debug_iter_count;
+int comp_kernel_transfer_id,comm_kernel_transfer_id;
+int delay_state_update;
+int comm_sample_aggregation_mode,comm_state_aggregation_mode;
+int comp_sample_aggregation_mode,comp_state_aggregation_mode;
+float kernel_time_limit,kernel_error_limit,kernel_percentage_limit;
+float* save_path_data;
+MPI_Request save_prop_req;
+volatile double comp_start_time;
+size_t kernel_count_limit,mode_1_width,mode_2_width;
+size_t num_cp_measures,num_pp_measures;
+size_t num_vol_measures,num_tracker_cp_measures;
+size_t num_tracker_pp_measures,num_tracker_vol_measures;
+size_t cp_costs_size,pp_costs_size,vol_costs_size;
+int internal_tag,internal_tag1,internal_tag2,internal_tag3,internal_tag4,internal_tag5;
+bool is_first_iter;
+MPI_Datatype kernel_type,batch_type;
 std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
+std::map<comm_kernel_key,kernel> comm_kernel_save_map;
+std::map<comp_kernel_key,kernel> comp_kernel_save_map;
 std::map<comm_kernel_key,kernel> comm_kernel_ref_map;
 std::map<comp_kernel_key,kernel> comp_kernel_ref_map;
 std::vector<comm_kernel_key> active_comm_kernel_keys;
@@ -38,12 +42,8 @@ std::vector<kernel> active_kernels;
 sample_propagation_forest spf;
 std::map<comm_kernel_key,std::vector<kernel_batch>> comm_batch_map;
 std::map<comp_kernel_key,std::vector<kernel_batch>> comp_batch_map;
-int stop_criterion_mode;
-int debug_iter_count;
 std::map<comm_kernel_key,std::vector<kernel>> comm_kernel_list;
 std::map<comp_kernel_key,std::vector<kernel>> comp_kernel_list;
-
-std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
 std::vector<float> intercept_overhead;
 std::vector<float> global_intercept_overhead;
 std::vector<float> global_comp_kernel_stats;
@@ -52,37 +52,15 @@ std::vector<float> local_comp_kernel_stats;
 std::vector<float> local_comm_kernel_stats;
 std::vector<float> save_comp_kernel_stats;
 std::vector<float> save_comm_kernel_stats;
-size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
-size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t critical_path_costs_size;
-size_t per_process_costs_size;
-size_t volume_costs_size;
-std::vector<float> critical_path_costs;
-std::vector<float> max_per_process_costs;
-std::vector<float> volume_costs;
-std::vector<float> critical_path_costs_ref;
-std::vector<float> max_per_process_costs_ref;
-std::vector<float> volume_costs_ref;
-std::vector<float_int> info_sender;
-std::vector<float_int> info_receiver;
+std::vector<float> cp_costs;
+std::vector<float> cp_costs_foreign;
+std::vector<float> max_pp_costs;
+std::vector<float> vol_costs;
+std::vector<float> cp_costs_ref;
+std::vector<float> max_pp_costs_ref;
+std::vector<float> vol_costs_ref;
 std::vector<char> eager_pad;
-volatile float comp_start_time;
-std::vector<bool> decisions;
 std::map<std::string,std::vector<float>> save_info;
-std::vector<float> new_cs;
-size_t mode_1_width;
-size_t mode_2_width;
-int internal_tag;
-int internal_tag1;
-int internal_tag2;
-int internal_tag3;
-int internal_tag4;
-int internal_tag5;
-bool is_first_iter;
 
 // ****************************************************************************************************************************************************
 kernel::kernel(channel* node){
@@ -552,30 +530,6 @@ void sample_propagation_forest::insert_node(solo_channel* node){
     parent->children.push_back(std::vector<solo_channel*>());
     parent->children[parent->children.size()-1].push_back(node);
   }
-
-  // sanity check for right now
-  int world_comm_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_comm_rank);
-  if (world_comm_rank==8){
-    std::cout << "parent of node{ (" << node->local_hash_tag << "," << node->global_hash_tag << "," << node->offset;
-    for (auto i=0; i<node->id.size(); i++){
-      std::cout << ") (" << node->id[i].first << "," << node->id[i].second << ")";
-    }
-    std::cout << " } is { (" << parent->local_hash_tag << "," << parent->global_hash_tag << "," << parent->offset;
-    for (auto i=0; i<parent->id.size(); i++){
-      std::cout << ") (" << parent->id[i].first << "," << parent->id[i].second << ")";
-    }
-    std::cout << " }\n";
-    for (auto i=0; i<parent->children.size(); i++){
-      std::cout << "\tsubtree " << i << " contains " << parent->children[i].size() << " children\n";
-      for (auto j=0; j<parent->children[i].size(); j++){
-        std::cout << "\t\tchild " << j << " is { (" << parent->children[i][j]->local_hash_tag << "," << parent->children[i][j]->global_hash_tag << "," << parent->children[i][j]->offset;
-        for (auto k=0; k<parent->children[i][j]->id.size(); k++){
-          std::cout << ") (" << parent->children[i][j]->id[k].first << " " << parent->children[i][j]->id[k].second << ")";
-        }
-        std::cout << " }\n";
-      }
-    }
-  }
 }
 
 
@@ -775,7 +729,7 @@ int get_std_error_count(const kernel& p){
     case 1:
       n = p.num_local_schedules; break;
     case 2:
-      n = p.num_schedules; break;
+      n = p.num_local_schedules; break;
   }
   n = std::max(1,n);
   return n;
@@ -790,7 +744,7 @@ int get_std_error_count(const kernel_propagate& p){
     case 1:
       n = p.num_local_schedules; break;
     case 2:
-      n = p.num_schedules; break;
+      n = p.num_local_schedules; break;
   }
   n = std::max(1,n);
   return n;
@@ -805,7 +759,7 @@ int get_std_error_count(const kernel_key_id& index){
     case 1:
       n = active_kernels[index.val_index].num_local_schedules; break;
     case 2:
-      n = active_kernels[index.val_index].num_schedules; break;
+      n = active_kernels[index.val_index].num_local_schedules; break;
   }
   n = std::max(1,n);
   return n;
@@ -821,7 +775,7 @@ int get_std_error_count(const intermediate_stats& p){
     case 1:
       n = p.num_local_schedules; break;
     case 2:
-      n = p.num_schedules; break;
+      n = p.num_local_schedules; break;
   }
   n = std::max(1,n);
   return n;
@@ -1040,15 +994,7 @@ bool steady_test(const comm_kernel_key& key, const kernel& p, int analysis_param
 }
 bool steady_test(const comm_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (comm_sample_aggregation_mode == 0 || comm_batch_map.find(key) == comm_batch_map.end()){
-    return is_steady(key,index,analysis_param);
-  }
-  else if (comm_sample_aggregation_mode == 1){
-    //TODO: We may not want to allow this
-    auto& active_batches = comm_batch_map[key];
-    auto stats = intermediate_stats(index,active_batches);
-    return is_steady(key,stats,analysis_param);
-  }
+  return is_steady(key,index,analysis_param);
 }
 bool steady_test(const comp_kernel_key& key, const kernel& p, int analysis_param){
   if (!is_key_skipable(key)) return false;
@@ -1056,15 +1002,7 @@ bool steady_test(const comp_kernel_key& key, const kernel& p, int analysis_param
 }
 bool steady_test(const comp_kernel_key& key, const kernel_key_id& index, int analysis_param){
   if (!is_key_skipable(key)) return false;
-  if (comp_sample_aggregation_mode == 0 || comp_batch_map.find(key) == comp_batch_map.end()){
-    return is_steady(key,index,analysis_param);
-  }
-  else if (comp_sample_aggregation_mode == 1){
-    //TODO: We may not want to allow this
-    auto& active_batches = comp_batch_map[key];
-    auto stats = intermediate_stats(index,active_batches);
-    return is_steady(key,stats,analysis_param);
-  }
+  return is_steady(key,index,analysis_param);
 }
 
 void update_kernel_stats(kernel& p, int analysis_param, volatile float exec_time, float unit_count){
@@ -1261,15 +1199,11 @@ void merge_batches(std::vector<kernel_batch>& batches, int analysis_param){
 
 
 void allocate(MPI_Comm comm){
-  mode_1_width = 25;
-  mode_2_width = 15;
+  mode_1_width = 25; mode_2_width = 15;
   communicator_count=INT_MIN;// to avoid conflict with p2p, which could range from (-p,p)
-  internal_tag = 31133;
-  internal_tag1 = internal_tag+1;
-  internal_tag2 = internal_tag+2;
-  internal_tag3 = internal_tag+3;
-  internal_tag4 = internal_tag+4;
-  internal_tag5 = internal_tag+5;
+  internal_tag = 31133; internal_tag1 = internal_tag+1;
+  internal_tag2 = internal_tag+2; internal_tag3 = internal_tag+3;
+  internal_tag4 = internal_tag+4; internal_tag5 = internal_tag+5;
   is_first_iter = true;
   intercept_overhead.resize(3,0);
   global_intercept_overhead.resize(3,0);
@@ -1283,39 +1217,11 @@ void allocate(MPI_Comm comm){
   generate_initial_aggregate();
 
   kernel_propagate ex_3;
-  MPI_Datatype kernel_internal_type[2] = { MPI_INT, MPI_DOUBLE };
+  MPI_Datatype kernel_internal_type[2] = { MPI_INT, MPI_FLOAT };
   int kernel_internal_block_len[2] = { 3,6 };
   MPI_Aint kernel_internal_disp[2] = { (char*)&ex_3.hash_id-(char*)&ex_3, (char*)&ex_3.num_scheduled_units-(char*)&ex_3 };
   PMPI_Type_create_struct(2,kernel_internal_block_len,kernel_internal_disp,kernel_internal_type,&kernel_type);
   PMPI_Type_commit(&kernel_type);
-
-  kernel_batch_propagate ex_4;
-  MPI_Datatype batch_internal_type[2] = { MPI_INT, MPI_DOUBLE };
-  int batch_internal_block_len[2] = { 3,4 };
-  MPI_Aint batch_internal_disp[2] = { (char*)&ex_4.hash_id-(char*)&ex_4, (char*)&ex_4.num_scheduled_units-(char*)&ex_4 };
-  PMPI_Type_create_struct(2,batch_internal_block_len,batch_internal_disp,batch_internal_type,&batch_type);
-  PMPI_Type_commit(&batch_type);
-
-  //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
-
-  // Communication kernel time, computation kernel time, computation time, execution time
-  num_critical_path_measures 		= 4;
-  num_per_process_measures 		= 4;
-  num_volume_measures 			= 4;
-
-  critical_path_costs_size            	= num_critical_path_measures;
-  per_process_costs_size              	= num_per_process_measures;
-  volume_costs_size                   	= num_volume_measures;
-
-  critical_path_costs.resize(critical_path_costs_size);
-  max_per_process_costs.resize(per_process_costs_size);
-  volume_costs.resize(volume_costs_size);
-  critical_path_costs_ref.resize(critical_path_costs_size);
-  max_per_process_costs_ref.resize(per_process_costs_size);
-  volume_costs_ref.resize(volume_costs_size);
-  new_cs.resize(critical_path_costs_size);
-  info_sender.resize(num_critical_path_measures);
-  info_receiver.resize(num_critical_path_measures);
 
   // Reset these global variables, as some are updated by function arguments for convenience
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
@@ -1337,105 +1243,135 @@ void allocate(MPI_Comm comm){
       stream_comp_kernel.open(stream_comp_kernel_name.c_str(),std::ofstream::app);
     }
   }
-  if (std::getenv("CRITTER_AUTOTUNING_DELTA") != NULL){
-    tuning_delta = atoi(std::getenv("CRITTER_AUTOTUNING_DELTA"));
+  if (std::getenv("CRITTER_DELTA") != NULL){
+    tuning_delta = atoi(std::getenv("CRITTER_DELTA"));
     assert(tuning_delta>=0 && tuning_delta<=3);// tuning_delta==0 requires decomposition mechanism
   } else{
     tuning_delta = 0;
   }
-  if (std::getenv("CRITTER_RESET_DISTRIBUTION") != NULL){
-    reset_distribution_mode = atoi(std::getenv("CRITTER_RESET_DISTRIBUTION"));
+  if (std::getenv("CRITTER_RESET_KERNEL_DISTRIBUTION") != NULL){
+    reset_distribution_mode = atoi(std::getenv("CRITTER_RESET_KERNEL_DISTRIBUTION"));
+    assert(reset_distribution_mode >=0 && reset_distribution_mode <=1);
   } else{
-    reset_distribution_mode = 0;
+    reset_distribution_mode = 1;
   }
   if (std::getenv("CRITTER_KERNEL_COUNT_LIMIT") != NULL){
     kernel_count_limit = atoi(std::getenv("CRITTER_KERNEL_COUNT_LIMIT"));
+    assert(kernel_count_limit >= 1);
   } else{
     kernel_count_limit = 2;
   }
   if (std::getenv("CRITTER_KERNEL_TIME_LIMIT") != NULL){
     kernel_time_limit = atof(std::getenv("CRITTER_KERNEL_TIME_LIMIT"));
+    assert(kernel_time_limit >= 0.);
   } else{
     kernel_time_limit = 0;
   }
   if (std::getenv("CRITTER_KERNEL_ERROR_LIMIT") != NULL){
     kernel_error_limit = atof(std::getenv("CRITTER_KERNEL_ERROR_LIMIT"));
+    assert(kernel_error_limit >= 0.);
   } else{
     kernel_error_limit = 0;
   }
   if (std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT") != NULL){
     kernel_percentage_limit = atof(std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT"));
+    assert(kernel_percentage_limit >= 0.);
   } else{
     kernel_percentage_limit = .001;
   }
-  if (std::getenv("CRITTER_AUTOTUNING_COMM_STATE_AGGREGATION_MODE") != NULL){
-    comm_state_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMM_STATE_AGGREGATION_MODE"));
+  if (std::getenv("CRITTER_COMM_STATE_AGGREGATION_MODE") != NULL){
+    comm_state_aggregation_mode = atoi(std::getenv("CRITTER_COMM_STATE_AGGREGATION_MODE"));
     assert(comm_state_aggregation_mode>=0 && comm_state_aggregation_mode<=2);
   } else{
     comm_state_aggregation_mode = 0;
   }
-  if (std::getenv("CRITTER_AUTOTUNING_COMP_STATE_AGGREGATION_MODE") != NULL){
-    comp_state_aggregation_mode = atoi(std::getenv("CRITTER_AUTOTUNING_COMP_STATE_AGGREGATION_MODE"));
+  if (std::getenv("CRITTER_COMP_STATE_AGGREGATION_MODE") != NULL){
+    comp_state_aggregation_mode = atoi(std::getenv("CRITTER_COMP_STATE_AGGREGATION_MODE"));
     assert(comp_state_aggregation_mode>=0 && comp_state_aggregation_mode<=2);
   } else{
     comp_state_aggregation_mode = 0;
   }
-  if (std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE") != NULL){
-    sample_constraint_mode = atoi(std::getenv("CRITTER_AUTOTUNING_SAMPLE_CONSTRAINT_MODE"));
-    assert(sample_constraint_mode>=-1 && sample_constraint_mode<=3);
-  } else{
-    sample_constraint_mode = 0;
-  }
   if (std::getenv("CRITTER_COMP_KERNEL_TRANSFER_MODE") != NULL){
-    comp_kernel_transfer_id = atof(std::getenv("CRITTER_COMP_KERNEL_TRANSFER_MODE"));
+    comp_kernel_transfer_id = atoi(std::getenv("CRITTER_COMP_KERNEL_TRANSFER_MODE"));
+    assert(comp_kernel_transfer_id >=0 && comp_kernel_transfer_id <=1);
   } else{
     comp_kernel_transfer_id = 0;
   }
   if (std::getenv("CRITTER_COMM_KERNEL_TRANSFER_MODE") != NULL){
-    comm_kernel_transfer_id = atof(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_MODE"));
+    comm_kernel_transfer_id = atoi(std::getenv("CRITTER_COMM_KERNEL_TRANSFER_MODE"));
+    assert(comm_kernel_transfer_id >=0 && comm_kernel_transfer_id <=1);
   } else{
     comm_kernel_transfer_id = 0;
   }
+  if (std::getenv("CRITTER_SAMPLE_CONSTRAINT_MODE") != NULL){
+    sample_constraint_mode = atoi(std::getenv("CRITTER_SAMPLE_CONSTRAINT_MODE"));
+    assert(sample_constraint_mode>=-1 && sample_constraint_mode<=3);
+  } else{
+    sample_constraint_mode = 0;
+  }
   if (std::getenv("CRITTER_STOP_CRIT_MODE") != NULL){
     stop_criterion_mode = atof(std::getenv("CRITTER_STOP_CRIT_MODE"));
+    assert(stop_criterion_mode >=0 && stop_criterion_mode <= 2);
   } else{
     stop_criterion_mode = 1;// confidence interval length
   }
-  if (std::getenv("CRITTER_ITERATION_COUNT") != NULL){
-    debug_iter_count = atof(std::getenv("CRITTER_ITERATION_COUNT"));
+  if (std::getenv("CRITTER_DELAY_STATE_UPDATE") != NULL){
+    delay_state_update = atof(std::getenv("CRITTER_DELAY_STATE_UPDATE"));
+    assert(delay_state_update >= 0 && delay_state_update <= 1);
   } else{
-    debug_iter_count = 1;
+    delay_state_update = 0;
   }
 
-  comm_sample_aggregation_mode = 0;
-  comp_sample_aggregation_mode = 0;
   comm_envelope_param = 0;
   comm_unit_param = 0;
   comm_analysis_param = 0;
   comp_envelope_param = 0;
   comp_unit_param = 0;
   comp_analysis_param = 0;
-  assert(comm_state_aggregation_mode >= comm_sample_aggregation_mode);
-  assert(comp_state_aggregation_mode >= comp_sample_aggregation_mode);
+  debug_iter_count = 1;
+  // If user wants percentage-based stopping criterion, force knowledge of kernel frequency via skeletonization
   if (stop_criterion_mode==0) assert(sample_constraint_mode == 3);
 
+  // Communication kernel time, computation kernel time, computation time, execution time
+  num_cp_measures = 4;
+  num_pp_measures = 4;
+  num_vol_measures = 4;
+
+  // 8 key members in 'comp_kernel' and 8 key members in 'comm_kernel'
+  // +1 for each is the schedule count itself
+  cp_costs_size = num_cp_measures + 13;
+  if (sample_constraint_mode == 2) cp_costs_size += 9*comp_kernel_select_count + 9*comm_kernel_select_count;
+  pp_costs_size = num_pp_measures;
+  vol_costs_size = num_vol_measures;
+
+  cp_costs.resize(cp_costs_size);
+  cp_costs_foreign.resize(cp_costs_size);
+  max_pp_costs.resize(pp_costs_size);
+  vol_costs.resize(vol_costs_size);
+  cp_costs_ref.resize(cp_costs_size);
+  max_pp_costs_ref.resize(pp_costs_size);
+  vol_costs_ref.resize(vol_costs_size);
+
+
   int eager_msg_size;
-  MPI_Pack_size(17,MPI_DOUBLE,comm,&eager_msg_size);
+  MPI_Pack_size(cp_costs_size,MPI_FLOAT,comm,&eager_msg_size);
   int eager_pad_size = MPI_BSEND_OVERHEAD;
   eager_pad_size += eager_msg_size;
   eager_pad.resize(eager_pad_size);
 }
 
-void open_symbol(const char* symbol, float curtime){}
+void init_symbol(std::vector<std::string>& symbols){}
 
-void close_symbol(const char* symbol, float curtime){}
+void open_symbol(const char* symbol, double curtime){}
 
-void final_accumulate(MPI_Comm comm, float last_time){
+void close_symbol(const char* symbol, double curtime){}
+
+void final_accumulate(MPI_Comm comm, double last_time){
   assert(nonblocking_internal_info.size() == 0);
-  critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
-  critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
-  volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update per-process execution time
-  volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update per-process execution time
+  cp_costs[num_cp_measures-1]+=(last_time-computation_timer);	// update critical path runtime
+  cp_costs[num_cp_measures-3]+=(last_time-computation_timer);	// update critical path computation time
+  vol_costs[num_vol_measures-1]+=(last_time-computation_timer);			// update per-process execution time
+  vol_costs[num_vol_measures-3]+=(last_time-computation_timer);			// update per-process execution time
 
   _wall_time = wall_timer[wall_timer.size()-1];
 
@@ -1443,109 +1379,93 @@ void final_accumulate(MPI_Comm comm, float last_time){
   for (int i=0; i<18; i++){ temp_costs[11+i]=0; }
 
   discretization::_MPI_Barrier.comm = MPI_COMM_WORLD;
+  discretization::_MPI_Barrier.partner1 = -1;
+  discretization::_MPI_Barrier.partner2 = -1;
   discretization::_MPI_Barrier.save_comp_key.clear();
   discretization::_MPI_Barrier.save_comm_key.clear();
   for (auto& it : comp_kernel_map){
     if ((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comp_key.push_back(it.first);
-      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]++;
+      temp_costs[num_cp_measures+num_vol_measures+13]++;
     }
 
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3] += active_kernels[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4] += active_kernels[it.second.val_index].num_non_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5] += active_kernels[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6] += active_kernels[it.second.val_index].num_non_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7] += active_kernels[it.second.val_index].total_local_exec_time;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15] += active_kernels[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16] += active_kernels[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17] += active_kernels[it.second.val_index].total_local_exec_time;
-    // Invalid assert-> this case is possible assert(comp_batch_map.find(it.first) != comp_batch_map.end());
-    // if (comp_batch_map[it.first].size() == 0) continue;
-    // Complete any active and incomplete batches. Liquidate them into the pathset.
-    if (comp_sample_aggregation_mode == 1){
-      auto stats = intermediate_stats(it.second,comp_batch_map[it.first]);
-      update_kernel_stats(comp_kernel_map[it.first],stats);
-      comp_batch_map[it.first].clear();
-    }
+    temp_costs[num_cp_measures+num_vol_measures+3] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[num_cp_measures+num_vol_measures+4] += active_kernels[it.second.val_index].num_non_schedules;
+    temp_costs[num_cp_measures+num_vol_measures+5] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[num_cp_measures+num_vol_measures+6] += active_kernels[it.second.val_index].num_non_scheduled_units;
+    temp_costs[num_cp_measures+num_vol_measures+7] += active_kernels[it.second.val_index].total_local_exec_time;
+    temp_costs[num_cp_measures+num_vol_measures+15] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[num_cp_measures+num_vol_measures+16] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[num_cp_measures+num_vol_measures+17] += active_kernels[it.second.val_index].total_local_exec_time;
   }
   for (auto& it : comm_kernel_map){
     if ((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1)){
       discretization::_MPI_Barrier.save_comm_key.push_back(it.first);
-      temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14]++;
+      temp_costs[num_cp_measures+num_vol_measures+14]++;
     }
 
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8] += active_kernels[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9] += active_kernels[it.second.val_index].num_non_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10] += active_kernels[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11] += active_kernels[it.second.val_index].num_non_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12] += active_kernels[it.second.val_index].total_local_exec_time;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18] += active_kernels[it.second.val_index].num_local_schedules;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19] += active_kernels[it.second.val_index].num_local_scheduled_units;
-    temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20] += active_kernels[it.second.val_index].total_local_exec_time;
-    // Invalid assert-> this case is possible assert(comm_batch_map.find(it.first) != comm_batch_map.end());
-    //if (comm_batch_map[it.first].size() == 0) continue;
-    // Complete any active and incomplete batches. Liquidate them into the pathset.
-    if (comm_sample_aggregation_mode == 1){
-      auto stats = intermediate_stats(it.second,comm_batch_map[it.first]);
-      update_kernel_stats(comm_kernel_map[it.first],stats);
-      comm_batch_map[it.first].clear();
-    }
+    temp_costs[num_cp_measures+num_vol_measures+8] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[num_cp_measures+num_vol_measures+9] += active_kernels[it.second.val_index].num_non_schedules;
+    temp_costs[num_cp_measures+num_vol_measures+10] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[num_cp_measures+num_vol_measures+11] += active_kernels[it.second.val_index].num_non_scheduled_units;
+    temp_costs[num_cp_measures+num_vol_measures+12] += active_kernels[it.second.val_index].total_local_exec_time;
+    temp_costs[num_cp_measures+num_vol_measures+18] += active_kernels[it.second.val_index].num_local_schedules;
+    temp_costs[num_cp_measures+num_vol_measures+19] += active_kernels[it.second.val_index].num_local_scheduled_units;
+    temp_costs[num_cp_measures+num_vol_measures+20] += active_kernels[it.second.val_index].total_local_exec_time;
   }
 
-  max_per_process_costs = volume_costs;// copy over the per-process measurements that exist in volume_costs
-  for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];
-  for (auto i=0; i<max_per_process_costs.size(); i++) temp_costs[critical_path_costs.size()+i] = max_per_process_costs[i];
-  temp_costs[critical_path_costs.size()+max_per_process_costs.size()] = intercept_overhead[0];
-  temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1] = intercept_overhead[1];
-  temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2] = intercept_overhead[2];
-  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],4+4+3+5+5+2+3+3,MPI_DOUBLE,MPI_MAX,comm);
-  for (auto i=0; i<critical_path_costs.size(); i++) critical_path_costs[i] = temp_costs[i];
-  for (auto i=0; i<max_per_process_costs.size(); i++) max_per_process_costs[i] = temp_costs[critical_path_costs.size()+i];
+  max_pp_costs = vol_costs;// copy over the per-process measurements that exist in vol_costs
+  for (auto i=0; i<num_cp_measures; i++) temp_costs[i] = cp_costs[i];
+  for (auto i=0; i<max_pp_costs.size(); i++) temp_costs[num_cp_measures+i] = max_pp_costs[i];
+  temp_costs[num_cp_measures+num_vol_measures] = intercept_overhead[0];
+  temp_costs[num_cp_measures+num_vol_measures+1] = intercept_overhead[1];
+  temp_costs[num_cp_measures+num_vol_measures+2] = intercept_overhead[2];
+  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],4+4+3+5+5+2+3+3,MPI_FLOAT,MPI_MAX,comm);
+  for (auto i=0; i<num_cp_measures; i++) cp_costs[i] = temp_costs[i];
+  for (auto i=0; i<max_pp_costs.size(); i++) max_pp_costs[i] = temp_costs[num_cp_measures+i];
   if (autotuning_debug == 0){
-    global_intercept_overhead[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()];
-    global_intercept_overhead[1] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1];
-    global_intercept_overhead[2] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2];
-    global_comp_kernel_stats[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+3];
-    global_comp_kernel_stats[1] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+4];
-    global_comp_kernel_stats[2] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+5];
-    global_comp_kernel_stats[3] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+6];
-    global_comp_kernel_stats[4] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+7];
-    global_comm_kernel_stats[0] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+8];
-    global_comm_kernel_stats[1] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+9];
-    global_comm_kernel_stats[2] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+10];
-    global_comm_kernel_stats[3] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+11];
-    global_comm_kernel_stats[4] += temp_costs[critical_path_costs.size()+max_per_process_costs.size()+12];
-    local_comp_kernel_stats[0] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+15];
+    global_intercept_overhead[0] += temp_costs[num_cp_measures+num_vol_measures];
+    global_intercept_overhead[1] += temp_costs[num_cp_measures+num_vol_measures+1];
+    global_intercept_overhead[2] += temp_costs[num_cp_measures+num_vol_measures+2];
+    global_comp_kernel_stats[0] += temp_costs[num_cp_measures+num_vol_measures+3];
+    global_comp_kernel_stats[1] = temp_costs[num_cp_measures+num_vol_measures+4];
+    global_comp_kernel_stats[2] += temp_costs[num_cp_measures+num_vol_measures+5];
+    global_comp_kernel_stats[3] = temp_costs[num_cp_measures+num_vol_measures+6];
+    global_comp_kernel_stats[4] += temp_costs[num_cp_measures+num_vol_measures+7];
+    global_comm_kernel_stats[0] += temp_costs[num_cp_measures+num_vol_measures+8];
+    global_comm_kernel_stats[1] = temp_costs[num_cp_measures+num_vol_measures+9];
+    global_comm_kernel_stats[2] += temp_costs[num_cp_measures+num_vol_measures+10];
+    global_comm_kernel_stats[3] = temp_costs[num_cp_measures+num_vol_measures+11];
+    global_comm_kernel_stats[4] += temp_costs[num_cp_measures+num_vol_measures+12];
+    local_comp_kernel_stats[0] = temp_costs[num_cp_measures+num_vol_measures+15];
     local_comp_kernel_stats[1] = global_comp_kernel_stats[1] - save_comp_kernel_stats[0];
-    local_comp_kernel_stats[2] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+16];
+    local_comp_kernel_stats[2] = temp_costs[num_cp_measures+num_vol_measures+16];
     local_comp_kernel_stats[3] = global_comp_kernel_stats[3] - save_comp_kernel_stats[1];
-    local_comp_kernel_stats[4] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+17];
-    local_comm_kernel_stats[0] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+18];
+    local_comp_kernel_stats[4] = temp_costs[num_cp_measures+num_vol_measures+17];
+    local_comm_kernel_stats[0] = temp_costs[num_cp_measures+num_vol_measures+18];
     local_comm_kernel_stats[1] = global_comm_kernel_stats[1] - save_comm_kernel_stats[0];
-    local_comm_kernel_stats[2] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+19];
+    local_comm_kernel_stats[2] = temp_costs[num_cp_measures+num_vol_measures+19];
     local_comm_kernel_stats[3] = global_comm_kernel_stats[3] - save_comm_kernel_stats[1];
-    local_comm_kernel_stats[4] = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+20];
+    local_comm_kernel_stats[4] = temp_costs[num_cp_measures+num_vol_measures+20];
     save_comp_kernel_stats[0] = global_comp_kernel_stats[1];
     save_comp_kernel_stats[1] = global_comp_kernel_stats[3];
     save_comm_kernel_stats[0] = global_comm_kernel_stats[1];
     save_comm_kernel_stats[1] = global_comm_kernel_stats[3];
-  } else{
-    //.. write to a ref - 5 each for comm/comp, to be printed out to reconstruct.
   }
-  PMPI_Allreduce(MPI_IN_PLACE,&volume_costs[0],volume_costs.size(),MPI_DOUBLE,MPI_SUM,comm);
-  discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+13]>0;
-  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+14]>0;
+  PMPI_Allreduce(MPI_IN_PLACE,&vol_costs[0],vol_costs.size(),MPI_FLOAT,MPI_SUM,comm);
+  discretization::_MPI_Barrier.aggregate_comp_kernels = temp_costs[num_cp_measures+num_vol_measures+13]>0;
+  discretization::_MPI_Barrier.aggregate_comm_kernels = temp_costs[num_cp_measures+num_vol_measures+14]>0;
   discretization::_MPI_Barrier.should_propagate = discretization::_MPI_Barrier.aggregate_comp_kernels>0 || discretization::_MPI_Barrier.aggregate_comm_kernels>0;
-
-  if (is_world_root) stream << critical_path_costs[0] << " " << critical_path_costs[1] << " " << critical_path_costs[2] << " " << critical_path_costs[3] << std::endl;
+  // Just don't propagate the final kernels.
 }
 
 void reset(bool schedule_kernels_override, bool force_steady_statistical_data_overide){
   assert(nonblocking_internal_info.size() == 0);
-  memset(&critical_path_costs[0],0,sizeof(float)*critical_path_costs.size());
-  memset(&max_per_process_costs[0],0,sizeof(float)*max_per_process_costs.size());
-  memset(&volume_costs[0],0,sizeof(float)*volume_costs.size());
-  internal::bsp_counter=0;
+  memset(&cp_costs[0],0,sizeof(float)*cp_costs.size());
+  memset(&cp_costs_foreign[0],0,sizeof(float)*cp_costs.size());
+  memset(&max_pp_costs[0],0,sizeof(float)*max_pp_costs.size());
+  memset(&vol_costs[0],0,sizeof(float)*vol_costs.size());
+  bsp_counter=0;
   memset(&intercept_overhead[0],0,sizeof(float)*intercept_overhead.size());
   memset(&local_comp_kernel_stats[0],0,sizeof(float)*local_comp_kernel_stats.size());
   memset(&local_comm_kernel_stats[0],0,sizeof(float)*local_comm_kernel_stats.size());
@@ -1559,12 +1479,14 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
   }
 
   if (std::getenv("CRITTER_MODE") != NULL){
-    internal::mode = atoi(std::getenv("CRITTER_MODE"));
+    mode = atoi(std::getenv("CRITTER_MODE"));
+    assert(mode >=0 && mode <=1);
   } else{
-    internal::mode = 1;
+    mode = 1;
   }
   if (std::getenv("CRITTER_SCHEDULE_KERNELS") != NULL){
     schedule_kernels = atoi(std::getenv("CRITTER_SCHEDULE_KERNELS"));
+    assert(schedule_kernels >=0 && schedule_kernels <=1);
   } else{
     schedule_kernels = 1;
   }
@@ -1589,7 +1511,7 @@ void clear(int tag_count, int* distribution_tags){
 
   comp_kernel_ref_map.clear();
   comm_kernel_ref_map.clear();
-  if (reset_distribution_mode==0){
+  if (reset_distribution_mode==1){
     // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
     // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
     // The kernel keys don't really need to be updated/cleared if the active/steady buffer logic isn't being used
@@ -1621,20 +1543,46 @@ void clear(int tag_count, int* distribution_tags){
   }
 }
 
+void reference_initiate(){
+  kernel_error_limit=0;
+  stop_criterion_mode = 1;
+  kernel_percentage_limit=1;
+  for (auto& it : comp_kernel_map){
+    comp_kernel_save_map[it.first] = active_kernels[it.second.val_index];
+  }
+  for (auto& it : comm_kernel_map){
+    comm_kernel_save_map[it.first] = active_kernels[it.second.val_index];
+  }
+}
+
 void reference_transfer(){
   if (std::getenv("CRITTER_KERNEL_ERROR_LIMIT") != NULL){ kernel_error_limit = atof(std::getenv("CRITTER_KERNEL_ERROR_LIMIT")); }
   if (std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT") != NULL){ kernel_percentage_limit = atof(std::getenv("CRITTER_KERNEL_PERCENTAGE_LIMIT")); }
   if (std::getenv("CRITTER_STOP_CRIT_MODE") != NULL){ stop_criterion_mode = atof(std::getenv("CRITTER_STOP_CRIT_MODE")); }
-  std::memcpy(&critical_path_costs_ref[0],&critical_path_costs[0],num_critical_path_measures*sizeof(float));
-  std::memcpy(&max_per_process_costs_ref[0],&max_per_process_costs[0],num_per_process_measures*sizeof(float));
-  std::memcpy(&volume_costs_ref[0],&volume_costs[0],num_volume_measures*sizeof(float));
+  std::memcpy(&cp_costs_ref[0],&cp_costs[0],num_cp_measures*sizeof(float));
+  std::memcpy(&max_pp_costs_ref[0],&max_pp_costs[0],num_pp_measures*sizeof(float));
+  std::memcpy(&vol_costs_ref[0],&vol_costs[0],num_vol_measures*sizeof(float));
   for (auto& it : comp_kernel_map){
     comp_kernel_ref_map[it.first] = active_kernels[it.second.val_index];
-    active_kernels[it.second.val_index].clear_distribution();
+    if (comp_kernel_save_map.find(it.first) != comp_kernel_save_map.end()){
+      active_kernels[it.second.val_index] = comp_kernel_save_map[it.first];
+    } else{
+      active_kernels[it.second.val_index].reset();
+      active_kernels[it.second.val_index].clear_distribution();
+      active_kernels[it.second.val_index].num_non_schedules = 0;
+      active_kernels[it.second.val_index].num_non_scheduled_units = 0;
+    }
   }
   for (auto& it : comm_kernel_map){
     comm_kernel_ref_map[it.first] = active_kernels[it.second.val_index];
-    active_kernels[it.second.val_index].clear_distribution();
+    if (comm_kernel_save_map.find(it.first) != comm_kernel_save_map.end()){
+      active_kernels[it.second.val_index] = comm_kernel_save_map[it.first];
+    } else{
+      active_kernels[it.second.val_index].reset();
+      active_kernels[it.second.val_index].clear_distribution();
+      active_kernels[it.second.val_index].num_non_schedules = 0;
+      active_kernels[it.second.val_index].num_non_scheduled_units = 0;
+    }
   }
 }
 

@@ -8,38 +8,31 @@ namespace critter{
 namespace internal{
 namespace skeletonization{
 
+int skeleton_type;
 std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;
 std::map<comp_kernel_key,kernel_key_id> comp_kernel_map;
-std::vector<std::pair<comm_kernel_key,int>> comm_kernel_select_sort_list;
-std::vector<std::pair<comp_kernel_key,int>> comp_kernel_select_sort_list;
 std::vector<int> active_kernels;
 std::vector<comm_kernel_key> active_comm_kernel_keys;
 std::vector<comp_kernel_key> active_comp_kernel_keys;
-volatile float comm_intercept_overhead_stage1;
-volatile float comm_intercept_overhead_stage2;
-volatile float comp_intercept_overhead;
-volatile float comp_start_time;
-size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, RunTime
-size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, RunTime
-size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t critical_path_costs_size;
-size_t per_process_costs_size;
-size_t volume_costs_size;
-std::vector<float> critical_path_costs;
-std::vector<float> max_per_process_costs;
-std::vector<float> volume_costs;
+volatile double comm_intercept_overhead_stage1;
+volatile double comm_intercept_overhead_stage2;
+volatile double comp_intercept_overhead;
+volatile double comp_start_time;
+size_t num_cp_measures,num_pp_measures;
+size_t num_vol_measures,num_tracker_cp_measures;
+size_t num_tracker_pp_measures,num_tracker_vol_measures;
+size_t cp_costs_size,pp_costs_size,vol_costs_size;
+std::vector<float> cp_costs;
+std::vector<float> cp_costs_foreign;
+std::vector<float> max_pp_costs;
+std::vector<float> vol_costs;
 std::vector<float_int> info_sender;
 std::vector<float_int> info_receiver;
-int internal_tag;
-int internal_tag1;
-int internal_tag2;
-int internal_tag3;
-int internal_tag4;
-int internal_tag5;
-bool is_first_iter;
+int internal_tag,internal_tag1,internal_tag2,internal_tag3;
+int internal_tag4, internal_tag5;
+bool is_first_request,is_first_iter;
+std::vector<char> eager_pad;
+char barrier_pad_send,barrier_pad_recv;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
@@ -55,77 +48,65 @@ void allocate(MPI_Comm comm){
   comm_intercept_overhead_stage2=0;
   comp_intercept_overhead=0;
 
-  // Communication kernel time, computation kernel time, computation time, execution time
-  num_critical_path_measures 		= 1;
-  num_per_process_measures 		= 1;
-  num_volume_measures 			= 1;
+  if (std::getenv("CRITTER_SKELETON_TYPE") != NULL){
+    skeleton_type = atoi(std::getenv("CRITTER_SKELETON_TYPE"));
+    assert(skeleton_type==0 || skeleton_type==1);
+  } else{
+    skeleton_type = 1;// analytic
+  }
 
-  critical_path_costs_size            	= num_critical_path_measures;
-  per_process_costs_size              	= num_per_process_measures;
-  volume_costs_size                   	= num_volume_measures;
+  // Estimated execution cost
+  num_cp_measures = 1;
+  num_pp_measures = 1;
+  num_vol_measures = 1;
 
-  critical_path_costs.resize(critical_path_costs_size);
-  max_per_process_costs.resize(per_process_costs_size);
-  volume_costs.resize(volume_costs_size);
-  info_sender.resize(num_critical_path_measures);
-  info_receiver.resize(num_critical_path_measures);
+  // 8 key members in 'comp_kernel' and 8 key members in 'comm_kernel'
+  // +1 for each is the schedule count itself
+  cp_costs_size = num_cp_measures + 9*comp_kernel_select_count + 9*comm_kernel_select_count;
+  pp_costs_size = num_pp_measures;
+  vol_costs_size = num_vol_measures;
 
+  cp_costs.resize(cp_costs_size);
+  cp_costs_foreign.resize(cp_costs_size);
+  max_pp_costs.resize(pp_costs_size);
+  vol_costs.resize(vol_costs_size);
+
+  int eager_msg_size[2];
+  MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_size[0]);
+  MPI_Pack_size(cp_costs_size,MPI_FLOAT,comm,&eager_msg_size[1]);
+  int eager_pad_size = 2*MPI_BSEND_OVERHEAD;
+  eager_pad_size += (eager_msg_size[0]+eager_msg_size[1]);
+  assert(eager_pad_size <= eager_limit);
+  eager_pad.resize(eager_pad_size);
 }
 
-void open_symbol(const char* symbol, float curtime){}
+void init_symbol(std::vector<std::string>& symbols){}
 
-void close_symbol(const char* symbol, float curtime){}
+void open_symbol(const char* symbol, double curtime){}
 
-void final_accumulate(MPI_Comm comm, float last_time){
+void close_symbol(const char* symbol, double curtime){}
 
-  critical_path_costs[0]+=(last_time-computation_timer);	// update critical path runtime
-  volume_costs[0]+=(last_time-computation_timer);			// update per-process execution time
+void final_accumulate(MPI_Comm comm, double last_time){
 
-  max_per_process_costs = volume_costs;// copy over the per-process measurements that exist in volume_costs
-  float temp_costs[5];
-  for (auto i=0; i<critical_path_costs.size(); i++) temp_costs[i] = critical_path_costs[i];
-  for (auto i=0; i<max_per_process_costs.size(); i++) temp_costs[critical_path_costs.size()+i] = max_per_process_costs[i];
-  temp_costs[critical_path_costs.size()+max_per_process_costs.size()] = comm_intercept_overhead_stage1;
-  temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1] = comm_intercept_overhead_stage2;
-  temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2] = comp_intercept_overhead;
-  PMPI_Allreduce(MPI_IN_PLACE,&temp_costs[0],5,MPI_DOUBLE,MPI_MAX,comm);
-  for (auto i=0; i<critical_path_costs.size(); i++) critical_path_costs[i] = temp_costs[i];
-  for (auto i=0; i<max_per_process_costs.size(); i++) max_per_process_costs[i] = temp_costs[critical_path_costs.size()+i];
-  comm_intercept_overhead_stage1 = temp_costs[critical_path_costs.size()+max_per_process_costs.size()];
-  comm_intercept_overhead_stage2 = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+1];
-  comp_intercept_overhead = temp_costs[critical_path_costs.size()+max_per_process_costs.size()+2];
+  if (skeleton_type==0){
+    cp_costs[0] += (last_time-computation_timer);
+    vol_costs[0] += (last_time-computation_timer);
+  }
 
-  skeletonization::_MPI_Barrier.comm = MPI_COMM_WORLD;
-  skeletonization::_MPI_Barrier.partner1 = -1;
-  skeletonization::_MPI_Barrier.partner2 = -1;
-/*
-  Note: the idea below is if one wants to incrementally reduce each kernel's confidence interval length, without having to "cheat"
-        and use the per-process count (which usually sufficies).
-  After every process owns the same information (the kernel count along the analytical cp),
-     iterate over the comp map and the comm map separately and pick out the kernels that have the most kernels or the most cost.
-     Perhaps leave that choice for an environment variable?
-     Write to two new maps that will be referenced in discretization if scm==3, to propagate kernel information at the reduction,
-       with no need to propagate kernel key information because the order is fixed right here.
-    scm==1 uses pp information for each kernel, and scm==3 should use cp information for each kernel.
-  Just as a judgement call, we only want to propagate the kernel count, and nothing else.
-    We want to limit the samples that make up the distributions themselves to per-process ones,
-    even if the kernel count along the cp no longer matches the number of kernel schedules local to a processor.
-*/
+  max_pp_costs = vol_costs;// copy over the per-process measurements that exist in vol_costs
 }
 
 void reset(){
-  memset(&critical_path_costs[0],0,sizeof(float)*critical_path_costs.size());
-  memset(&max_per_process_costs[0],0,sizeof(float)*max_per_process_costs.size());
-  memset(&volume_costs[0],0,sizeof(float)*volume_costs.size());
+  memset(&cp_costs[0],0,sizeof(float)*cp_costs.size());
+  memset(&cp_costs_foreign[0],0,sizeof(float)*cp_costs.size());
+  memset(&max_pp_costs[0],0,sizeof(float)*max_pp_costs.size());
+  memset(&vol_costs[0],0,sizeof(float)*vol_costs.size());
   active_kernels.clear();
   active_comm_kernel_keys.clear();
   active_comp_kernel_keys.clear();
   comm_kernel_map.clear();
   comp_kernel_map.clear();
   internal::bsp_counter=0;
-
-  comm_kernel_select_sort_list.clear();
-  comp_kernel_select_sort_list.clear();
 
   if (std::getenv("CRITTER_MODE") != NULL){
     internal::mode = atoi(std::getenv("CRITTER_MODE"));

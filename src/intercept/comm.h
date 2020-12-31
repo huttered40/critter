@@ -2,12 +2,15 @@
 #define CRITTER__INTERCEPT__COMM_H_
 
 #include <mpi.h>
+#include <vector>
+#include <string>
 
 namespace critter{
 
+void init(std::vector<std::string>& symbols);
 void start(bool schedule_kernels_override = true, bool force_steady_statistical_data_overide = false);
 void stop();
-void record(int variantID=-1, int print_mode=1, float overhead_time=0.);
+void record(int variantID=-1, int print_mode=1, double overhead_time=0.);
 void clear(int mode=0, int tag_count=0, int* distribution_tags = nullptr);
 
 void set_mechanism(int input_mechanism=-1);

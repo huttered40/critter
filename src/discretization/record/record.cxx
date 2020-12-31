@@ -458,7 +458,7 @@ void record::write_file(int variantID, int print_mode, float overhead_time){
   int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
 
   _wall_time -= overhead_time;
-  PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+  PMPI_Allreduce(MPI_IN_PLACE,&_wall_time,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD);
 
   if (world_rank==0){
     if (is_first_iter){
@@ -470,9 +470,6 @@ void record::write_file(int variantID, int print_mode, float overhead_time){
       stream_tune << std::left << std::setw(mode_1_width) << "SampleConstraintMode";
       stream_tune << std::left << std::setw(mode_1_width) << "CompKernelTransfer";
       stream_tune << std::left << std::setw(mode_1_width) << "CommKernelTransfer";
-      stream_tune << std::left << std::setw(mode_1_width) << "CompKernelBuffer";
-      stream_tune << std::left << std::setw(mode_1_width) << "CompReplace";
-      stream_tune << std::left << std::setw(mode_1_width) << "CommReplace";
       stream_tune << std::left << std::setw(mode_1_width) << "ErrorLimit";
       stream_tune << std::left << std::setw(mode_1_width) << "TuningTime";
       stream_tune << std::left << std::setw(mode_1_width) << "MaxCompKs";
@@ -499,9 +496,6 @@ void record::write_file(int variantID, int print_mode, float overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << "SampleConstraintMode";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CompKernelTransfer";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "CommKernelTransfer";
-      stream_reconstruct << std::left << std::setw(mode_1_width) << "CompKernelBuffer";
-      stream_reconstruct << std::left << std::setw(mode_1_width) << "CompReplace";
-      stream_reconstruct << std::left << std::setw(mode_1_width) << "CommReplace";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "ErrorLimit";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "MaxCompKs";
       stream_reconstruct << std::left << std::setw(mode_1_width) << "MaxCompKSkips";
@@ -571,7 +565,6 @@ void record::write_file(int variantID, int print_mode, float overhead_time){
       stream_tune << std::left << std::setw(mode_1_width) << sample_constraint_mode;
       stream_tune << std::left << std::setw(mode_1_width) << comp_kernel_transfer_id;
       stream_tune << std::left << std::setw(mode_1_width) << comm_kernel_transfer_id;
-      stream_tune << std::left << std::setw(mode_1_width) << comp_kernel_buffer_id;
       stream_tune << std::left << std::setw(mode_1_width) << kernel_error_limit;
       stream_tune << std::left << std::setw(mode_1_width) << _wall_time;
       stream_tune << std::left << std::setw(mode_1_width) << tuning_data[0];
@@ -601,7 +594,6 @@ void record::write_file(int variantID, int print_mode, float overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << sample_constraint_mode;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comp_kernel_transfer_id;
       stream_reconstruct << std::left << std::setw(mode_1_width) << comm_kernel_transfer_id;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << comp_kernel_buffer_id;
       stream_reconstruct << std::left << std::setw(mode_1_width) << kernel_error_limit;
       stream_reconstruct << std::left << std::setw(mode_1_width) << local_comp_kernel_stats[0];
       stream_reconstruct << std::left << std::setw(mode_1_width) << local_comp_kernel_stats[1];
@@ -614,30 +606,30 @@ void record::write_file(int variantID, int print_mode, float overhead_time){
       stream_reconstruct << std::left << std::setw(mode_1_width) << local_comm_kernel_stats[3];
       stream_reconstruct << std::left << std::setw(mode_1_width) << local_comm_kernel_stats[4];
       stream_reconstruct << std::left << std::setw(mode_1_width) << _wall_time;
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs[num_critical_path_measures-4];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs[num_per_process_measures-4];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs[num_volume_measures-4];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << critical_path_costs_ref[num_critical_path_measures-4];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << max_per_process_costs_ref[num_per_process_measures-4];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-1];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-2];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-3];
-      stream_reconstruct << std::left << std::setw(mode_1_width) << volume_costs_ref[num_volume_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs[num_cp_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs[num_cp_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs[num_cp_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs[num_cp_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs[num_pp_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs[num_pp_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs[num_pp_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs[num_pp_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs[num_vol_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs[num_vol_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs[num_vol_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs[num_vol_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs_ref[num_cp_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs_ref[num_cp_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs_ref[num_cp_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << cp_costs_ref[num_cp_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs_ref[num_pp_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs_ref[num_pp_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs_ref[num_pp_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << max_pp_costs_ref[num_pp_measures-4];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs_ref[num_vol_measures-1];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs_ref[num_vol_measures-2];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs_ref[num_vol_measures-3];
+      stream_reconstruct << std::left << std::setw(mode_1_width) << vol_costs_ref[num_vol_measures-4];
       stream_reconstruct << std::endl;
     }
   }

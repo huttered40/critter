@@ -7,17 +7,73 @@ namespace critter{
 namespace internal{
 namespace skeletonization{
 
-void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){}
-
-bool path::initiate_comp(size_t id, volatile float curtime, float flop_count, int param1, int param2, int param3, int param4, int param5){
-  // Always skip, and update statistics in 'complete_comp'
-  assert(skeleton_analytic==1);
-  return false;
+static void update_frequency(float* in, float* inout, size_t len){
+  assert(len == cp_costs_size);	// this assert prevents user from obtaining wrong output if MPI implementation cuts up the message.
+  if (in[0] > inout[0]){
+    std::memcpy(inout,in,len*sizeof(float));
+  }
+}
+static void propagate_cp_op(float* in, float* inout, int* len, MPI_Datatype* dtype){
+  update_frequency(in,inout,static_cast<size_t>(*len));
 }
 
-void path::complete_comp(float errtime, size_t id, float flop_count, int param1, int param2, int param3, int param4, int param5){
-  volatile float comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
-  assert(skeleton_analytic==1);
+static void kernel_update(float* read_ptr){
+  // Leave the un-updated kernels alone, just use the per-process count
+  // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
+  for (auto i=0; i<comp_kernel_select_count; i++){
+    auto offset = i*9;
+    if (read_ptr[offset] == -1) break;
+    comp_kernel_key id(-1,(int)read_ptr[offset],read_ptr[offset+7],
+                          (int)read_ptr[offset+1],(int)read_ptr[offset+2],(int)read_ptr[offset+3],
+                          (int)read_ptr[offset+4],(int)read_ptr[offset+5]);
+    // Don't bother adding new kernels unseen by the current processor.
+    // Kernels un-updated will use per-process count as an approximation
+    if (comp_kernel_map.find(id) != comp_kernel_map.end()){
+      active_kernels[comp_kernel_map[id].val_index] = read_ptr[offset+8];
+    }
+  }
+  for (auto i=0; i<comm_kernel_select_count; i++){
+    auto offset = comp_kernel_select_count*9+i*9;
+    if (read_ptr[offset] == -1) break;
+    comm_kernel_key id(-1,(int)read_ptr[offset],(int*)&read_ptr[offset+1],
+                       (int*)&read_ptr[offset+3],read_ptr[offset+7],
+                       (int)read_ptr[offset+5]); 
+    // Don't bother adding new kernels unseen by the current processor.
+    // Kernels un-updated will use per-process count as an approximation
+    if (comm_kernel_map.find(id) != comm_kernel_map.end()){
+      active_kernels[comm_kernel_map[id].val_index] = read_ptr[offset+8];
+    }
+  }
+}
+
+void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
+  auto save_comp_time = MPI_Wtime() - computation_timer;
+  if (mode==1 && skeleton_type==0){
+    cp_costs[0] += save_comp_time;
+    vol_costs[0] += save_comp_time;
+  }
+
+  generate_aggregate_channels(oldcomm,newcomm);
+  PMPI_Barrier(oldcomm);
+  if (mode==1){
+    computation_timer = MPI_Wtime();
+  }
+}
+
+bool path::initiate_comp(size_t id, volatile double curtime, float flop_count, int param1, int param2, int param3, int param4, int param5){
+  // Always skip, and update statistics in 'complete_comp'
+  auto save_comp_time = curtime - computation_timer;
+  if (skeleton_type==0){
+    cp_costs[0] += save_comp_time;
+    vol_costs[0] += save_comp_time;
+  }
+  comp_start_time = MPI_Wtime();
+  if (skeleton_type){ return false; }
+  else{ return true; }
+}
+
+void path::complete_comp(double errtime, size_t id, float flop_count, int param1, int param2, int param3, int param4, int param5){
+  volatile auto comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
   comp_kernel_key key(active_kernels.size(),id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
   if (comp_kernel_map.find(key) == comp_kernel_map.end()){
     active_comp_kernel_keys.push_back(key);
@@ -28,26 +84,26 @@ void path::complete_comp(float errtime, size_t id, float flop_count, int param1,
     active_kernels[comp_kernel_map[key].val_index]++;
   }
 
-  if (skeleton_analytic){
-    critical_path_costs[num_critical_path_measures-1] += flop_count;	// execution cost
-    volume_costs[num_volume_measures-1] += flop_count;			// execution cost
+  if (skeleton_type){
+    cp_costs[0] += flop_count;
+    vol_costs[0] += flop_count;
   } else{
-    critical_path_costs[0] += comp_time;	// execution time
-    volume_costs[0] += comp_time;			// execution time
+    cp_costs[0] += comp_time;
+    vol_costs[0] += comp_time;
   }
   computation_timer = MPI_Wtime();
 }
 
-bool path::initiate_comm(blocking& tracker, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                          bool is_sender, int partner1, int partner2){
-  assert(skeleton_analytic==1);
   assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
-  // Save and accumulate the computation time between last communication routine as both execution-time and computation time
-  //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
-  critical_path_costs[0] += tracker.comp_time;	// update critical path execution time
-  volume_costs[0]        += tracker.comp_time;		// update local execution time
+  if (skeleton_type==0){
+    cp_costs[0] += tracker.comp_time;
+    vol_costs[0] += tracker.comp_time;
+  }
 
+  int rank; MPI_Comm_rank(comm, &rank);
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
   int word_size,np; MPI_Type_size(t, &word_size);
   int64_t nbytes = word_size * nelem;
@@ -58,23 +114,41 @@ bool path::initiate_comm(blocking& tracker, volatile float curtime, int64_t nele
   tracker.is_sender = is_sender;
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
-  return false;
+
+  // Must post these barriers to identify the rank that enters last
+  volatile auto init_time = MPI_Wtime();
+  if (partner1 == -1){
+    PMPI_Barrier(tracker.comm);
+  }
+  else {
+    MPI_Request barrier_reqs[3]; int barrier_count=0;
+    char sbuf='H'; char rbuf='H';
+    if ((is_sender) && (rank != partner1)){
+      MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+      PMPI_Bsend(&sbuf, 1, MPI_CHAR, partner1, internal_tag1, tracker.comm);
+      void* temp_buf; int temp_size;
+      MPI_Buffer_detach(&temp_buf,&temp_size);
+    }
+    if ((!is_sender) && (rank != partner1)){
+      PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner1, internal_tag1, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    if ((partner2 != -1) && (rank != partner2)){
+      PMPI_Irecv(&rbuf, 1, MPI_CHAR, partner2, internal_tag1, tracker.comm, &barrier_reqs[barrier_count]); barrier_count++;
+    }
+    PMPI_Waitall(barrier_count,&barrier_reqs[0],MPI_STATUSES_IGNORE);
+  }
+
+  // No reason to post barrier because we are not interested in decomposing the execution time
+  tracker.start_time = MPI_Wtime();
+  if (skeleton_type){ return false; }
+  else{ return true; }
 }
 
 void path::complete_comm(blocking& tracker, int recv_source){
-  volatile float comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
-  volatile float overhead_start_time = MPI_Wtime();
-  assert(skeleton_analytic==1);
-
-  std::pair<float,float> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
+  volatile auto comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   std::pair<float,float> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
-  // We handle wildcard sources (for MPI_Recv variants) only after the user communication.
-  if (recv_source != -1){
-    if ((tracker.tag == 13) || (tracker.tag == 14)){ tracker.partner2=recv_source; }
-    else{ assert(tracker.tag==17); tracker.partner1=recv_source; }
-  }
   int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
   assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
   for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -91,23 +165,26 @@ void path::complete_comm(blocking& tracker, int recv_source){
   }
   else{ active_kernels[comm_kernel_map[key].val_index]++; }
 
-  critical_path_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
-  volume_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+  if (skeleton_type==0){
+    cp_costs[0] += comm_time;
+    vol_costs[0] += comm_time;
+    vol_costs[0] = vol_costs[0] > cp_costs[0] ? cp_costs[0] : vol_costs[0];
+  } else{
+    cp_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+    vol_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+  }
 
-  // Temporary
-  if (send_dependency==1){ propagate_kernels(tracker); }
-
-  // Prepare to leave interception and re-enter user code by restarting computation timers.
-  comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
-  tracker.start_time = MPI_Wtime();
-  computation_timer = tracker.start_time;
+  //propagate_kernels(tracker);
+  computation_timer = MPI_Wtime();
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-bool path::initiate_comm(nonblocking& tracker, volatile float curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner){
-  volatile float overhead_start_time = MPI_Wtime();
-  assert(skeleton_analytic==1);
+bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, int user_tag, bool is_sender, int partner){
+
+  tracker.comp_time = curtime - computation_timer;
+  assert(partner != MPI_ANY_SOURCE);
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
+  int rank; MPI_Comm_rank(comm,&rank); 
   int word_size,np; MPI_Type_size(t, &word_size);
   int64_t nbytes = word_size * nelem;
   MPI_Comm_size(comm, &np);
@@ -118,10 +195,96 @@ bool path::initiate_comm(nonblocking& tracker, volatile float curtime, int64_t n
   tracker.partner1 = partner;
   tracker.partner2 = -1;
 
-  std::pair<float,float> cost_bsp    = tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size);
+  if (skeleton_type==0){
+    cp_costs[0] += tracker.comp_time;
+    vol_costs[0] += tracker.comp_time;
+  } else if (rank != partner){
+    MPI_Request barrier_req = MPI_REQUEST_NULL;// Only necessary for nonblocking receives
+    if (partner!=-1){// Branch protects against nonblocking collectives
+      if (is_sender){
+        MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+        PMPI_Bsend(&barrier_pad_send, 1, MPI_CHAR, partner, internal_tag1, comm);
+        void* temp_buf; int temp_size;
+        MPI_Buffer_detach(&temp_buf,&temp_size);
+      }
+      else{
+        PMPI_Irecv(&barrier_pad_recv, 1, MPI_CHAR, partner, internal_tag1, comm, &barrier_req);
+      }
+    } else{
+      PMPI_Iallreduce(&barrier_pad_send, &barrier_pad_recv, 1, MPI_CHAR, MPI_MAX, comm, &barrier_req);
+    }
+    MPI_Request prop_req = MPI_REQUEST_NULL;
+    float* path_data = nullptr;
+    propagate_kernels(tracker,path_data,&prop_req);
+    while (1){
+      if (request_id == INT_MAX) request_id = 100;// reset to avoid overflow. rare case.
+      if ((nonblocking_internal_info.find(request_id) == nonblocking_internal_info.end()) && (request_id != MPI_REQUEST_NULL)){
+        nonblocking_info msg_info(path_data,barrier_req,prop_req,false,is_sender,partner,comm,(float)nbytes,(float)np,user_tag,&tracker);
+        nonblocking_internal_info[request_id] = msg_info;
+        break;
+      }
+      request_id++;
+    }
+  }
+
+  computation_timer = MPI_Wtime();
+  if (skeleton_type){ return false; }
+  else{ return true; }
+}
+
+// Called by both nonblocking p2p and nonblocking collectives
+void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
+                         MPI_Datatype t, MPI_Comm comm, MPI_Request* request, int user_tag, bool is_sender, int partner){
+  // Note: this function is invoked only when skeleton_type==0
+  assert(skeleton_type == 0);
+  MPI_Request barrier_req = MPI_REQUEST_NULL;// Only necessary for nonblocking receives
+  cp_costs[0] += itime;
+  vol_costs[0] += itime;
+  int rank; MPI_Comm_rank(comm,&rank); 
+  int word_size,np; MPI_Type_size(t, &word_size);
+  int64_t nbytes = word_size * nelem;
+  MPI_Comm_size(comm, &np);
+  if (rank == partner){
+    computation_timer = MPI_Wtime();
+    return;
+  }
+  // Issue the barrier call, regardless of msg size
+  // Note that this is only necessary due to blocking+nonblocking p2p communication
+  // Therefore, nonblocking collectives need not participate in the barrier call
+  if (partner!=-1 && rank != partner){// Branch protects against nonblocking collectives
+    if (is_sender){
+      MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+      PMPI_Bsend(&barrier_pad_send, 1, MPI_CHAR, partner, internal_tag1, comm);
+      void* temp_buf; int temp_size;
+      MPI_Buffer_detach(&temp_buf,&temp_size);
+    }
+    else{
+      PMPI_Irecv(&barrier_pad_recv, 1, MPI_CHAR, partner, internal_tag1, comm, &barrier_req);
+    }
+  } else{
+    PMPI_Iallreduce(&barrier_pad_send, &barrier_pad_recv, 1, MPI_CHAR, MPI_MAX, comm, &barrier_req);
+  }
+  MPI_Request prop_req = MPI_REQUEST_NULL;
+  float* path_data = nullptr;
+  propagate_kernels(tracker,path_data,&prop_req);
+  nonblocking_info msg_info(path_data,barrier_req,prop_req,true,is_sender,partner,comm,(float)nbytes,(float)np,user_tag,&tracker);
+  nonblocking_internal_info[*request] = msg_info;
+  computation_timer = MPI_Wtime();
+}
+
+void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+  auto info_it = nonblocking_internal_info.find(*request);
+  assert(info_it != nonblocking_internal_info.end());
+  tracker.is_sender = info_it->second.is_sender;
+  tracker.comm = info_it->second.comm;
+  tracker.partner1 = info_it->second.partner;
+  tracker.partner2 = -1;
+  tracker.nbytes = info_it->second.nbytes;
+  tracker.comm_size = info_it->second.comm_size;
+  tracker.synch_time=0;
+  int rank; MPI_Comm_rank(tracker.comm,&rank);
   std::pair<float,float> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
 
-  int rank; MPI_Comm_rank(tracker.comm,&rank);
   int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
   assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
   for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
@@ -140,177 +303,313 @@ bool path::initiate_comm(nonblocking& tracker, volatile float curtime, int64_t n
     active_kernels[comm_kernel_map[key].val_index]++;
   }
 
-  critical_path_costs[num_critical_path_measures-1] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
-  volume_costs[num_volume_measures-1] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
-
-  //propagate_kernels(tracker);
-  comm_intercept_overhead_stage2 += MPI_Wtime() - overhead_start_time;
-  return false;
+  if (skeleton_type==0){
+    cp_costs[0] += comp_time+comm_time;
+    vol_costs[0] += comp_time+comm_time;
+    vol_costs[0] = vol_costs[0] > cp_costs[0] ? cp_costs[0] : vol_costs[0];
+  } else{
+    cp_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+    vol_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
+  }
+  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
+  nonblocking_internal_info.erase(*request);
 }
 
-// Called by both nonblocking p2p and nonblocking collectives
-void path::initiate_comm(nonblocking& tracker, volatile float itime, int64_t nelem,
-                         MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner){
-  // No-op - this function should never be invoked.
-  assert(0);
+int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status){
+  auto comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
+  assert(nonblocking_internal_info.find(*request) != nonblocking_internal_info.end());
+  auto info_it = nonblocking_internal_info.find(*request);
+  auto save_r = info_it->first;
+  // If the request is active, that must mean that skeleton_type==0
+  if (info_it->second.is_active == 1){
+    volatile auto last_start_time = MPI_Wtime();
+    ret = PMPI_Wait(request, status);
+    auto save_comm_time = MPI_Wtime() - last_start_time;
+    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+    if (rank != info_it->second.partner){
+      // If receiver or collective, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
+        PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        kernel_update(&info_it->second.path_data[1]);
+        free(info_it->second.path_data);
+      }
+      complete_comm(*info_it->second.track, &save_r, comp_time, save_comm_time);
+    }
+  } else{
+    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+    if (rank != info_it->second.partner){
+      // If receiver or collective, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
+        PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        kernel_update(&info_it->second.path_data[1]);
+        free(info_it->second.path_data);
+        if (status != MPI_STATUS_IGNORE){
+          status->MPI_SOURCE = info_it->second.partner;
+          status->MPI_TAG = info_it->second.tag;
+        }
+      }
+      complete_comm(*info_it->second.track, &save_r, comp_time, (float)1000000.);
+    }
+    *request = MPI_REQUEST_NULL;
+  }
+  computation_timer = MPI_Wtime();
+  return ret;
 }
 
-void path::complete_comm(nonblocking& tracker, MPI_Request* request){}
-
-int path::complete_comm(float curtime, MPI_Request* request, MPI_Status* status){
-  return MPI_SUCCESS;
+int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
+  auto comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
+  if (skeleton_type == 0){
+    std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
+    volatile auto last_start_time = MPI_Wtime();
+    ret = PMPI_Waitany(count,array_of_requests,indx,status);
+    auto waitany_comm_time = MPI_Wtime() - last_start_time;
+    MPI_Request request = pt[*indx];
+    auto info_it = nonblocking_internal_info.find(request);
+    assert(info_it != nonblocking_internal_info.end());
+    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+    if (rank != info_it->second.partner){
+      // If receiver or collective, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
+        PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        kernel_update(&info_it->second.path_data[1]);
+        free(info_it->second.path_data);
+      }
+      complete_comm(*info_it->second.track, &request, comp_time, waitany_comm_time);
+    }
+  } else{
+    int save_request_index=-1;
+    // Find the last open fake request
+    for (auto i=0; i<count; i++) if (array_of_requests[i] != MPI_REQUEST_NULL) { save_request_index = i; }
+    assert(save_request_index >= 0);
+    auto info_it = nonblocking_internal_info.find(array_of_requests[save_request_index]);
+    assert(info_it != nonblocking_internal_info.end());
+    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+    if (rank != info_it->second.partner){
+      // If receiver or collective, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
+        PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        kernel_update(&info_it->second.path_data[1]);
+        free(info_it->second.path_data);
+        if (status != MPI_STATUS_IGNORE){
+          status->MPI_SOURCE = info_it->second.partner;
+          status->MPI_TAG = info_it->second.tag;
+        }
+      }
+      complete_comm(*info_it->second.track, &array_of_requests[save_request_index], comp_time, (float)1000000.);
+    }
+    array_of_requests[save_request_index] = MPI_REQUEST_NULL;
+  }
+  computation_timer = MPI_Wtime();
+  return ret;
 }
 
-int path::complete_comm(float curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status){
-  return MPI_SUCCESS;
-}
-
-int path::complete_comm(float curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+int path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[]){
-  return MPI_SUCCESS;
+  int indx; MPI_Status stat;
+  int ret = complete_comm(curtime,incount,array_of_requests,&indx,&stat);
+  if (array_of_statuses != MPI_STATUSES_IGNORE) array_of_statuses[indx] = stat;
+  array_of_indices[0] = indx;
+  *outcount=1;
+  computation_timer = MPI_Wtime();
+  return ret;
 }
 
-int path::complete_comm(float curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
-  return MPI_SUCCESS;
+int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]){
+  auto comp_time = curtime - computation_timer;
+  int ret = MPI_SUCCESS;
+  is_first_request=true;
+  if (skeleton_type==0){
+    std::vector<MPI_Request> pt(count); for (int i=0;i<count;i++){pt[i]=(array_of_requests)[i];}
+    volatile auto last_start_time = MPI_Wtime();
+    ret = PMPI_Waitall(count,array_of_requests,array_of_statuses);
+    auto waitall_comm_time = MPI_Wtime() - last_start_time;
+    for (int i=0; i<count; i++){
+      auto info_it = nonblocking_internal_info.find(pt[i]);
+      assert(info_it != nonblocking_internal_info.end());
+      int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+      if (rank != info_it->second.partner){
+        // If receiver or collective, complete the barrier and the path data propagation
+        if (!info_it->second.is_sender || info_it->second.partner==-1){
+          assert(info_it->second.path_data != nullptr);
+          MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
+          PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+          if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          kernel_update(&info_it->second.path_data[1]);
+          free(info_it->second.path_data);
+        }
+        complete_comm(*info_it->second.track, &pt[i], comp_time, waitall_comm_time);
+        // Although we have to exchange the path data for each request, we do not want to float-count the computation time nor the communicaion time
+        comp_time=0; waitall_comm_time=0; is_first_request=false;
+      }
+    }
+  } else{
+    for (int i=0; i<count; i++){
+      auto info_it = nonblocking_internal_info.find(array_of_requests[i]);
+      assert(info_it != nonblocking_internal_info.end());
+      int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+      if (rank != info_it->second.partner){
+        // If receiver or collective, complete the barrier and the path data propagation
+        if (!info_it->second.is_sender || info_it->second.partner==-1){
+          assert(info_it->second.path_data != nullptr);
+          MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
+          PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+          update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          kernel_update(&info_it->second.path_data[1]);
+          free(info_it->second.path_data);
+          if (array_of_statuses != MPI_STATUSES_IGNORE){
+            array_of_statuses[i].MPI_SOURCE = info_it->second.partner;
+            array_of_statuses[i].MPI_TAG = info_it->second.tag;
+          }
+        }
+        complete_comm(*info_it->second.track, &array_of_requests[i], comp_time, (float)100000.);
+        comp_time=0; is_first_request=false;
+      }
+      array_of_requests[i] = MPI_REQUEST_NULL;
+    }
+  }
+  computation_timer = MPI_Wtime();
+  return ret;
 }
 
 void path::propagate_kernels(blocking& tracker){
-  // Use info_receiver[last].second when deciding who to issue 3 broadcasts from
-  // First need to broadcast the size of each of the 3 broadcasts so that the receiving buffers can prepare the size of their receiving buffers
-  // Only the active kernels need propagating. Steady-state are treated differently depending on the communicator.
   int rank; MPI_Comm_rank(tracker.comm,&rank);
+  if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
 
-  // Attain the min and max costs to determine whether or not to propogate the root's kernel counts to the rest of the processors
-  int max_proc,max_val;
-  int min_proc,min_val;
-  info_sender[0].first = critical_path_costs[0];
-  info_sender[0].second = rank;
+  // Fill in -1 first because the number of distinct kernels might be less than 'comm_kernel_select_count',
+  //   just to avoid confusion. A -1 tag clearly means that the kernel is void
+  memset(&cp_costs[1],-1,sizeof(float)*(cp_costs.size()-1));
+  // Iterate over first 'comp_kernel_select_count' keys
+  int count=0;
+  for (auto it : comp_kernel_map){
+    if (comp_kernel_select_count==0) break;
+    auto offset = 1+9*count;
+    cp_costs[offset] = it.first.tag;
+    cp_costs[offset+1] = it.first.param1;
+    cp_costs[offset+2] = it.first.param2;
+    cp_costs[offset+3] = it.first.param3;
+    cp_costs[offset+4] = it.first.param4;
+    cp_costs[offset+5] = it.first.param5;
+    cp_costs[offset+6] = it.first.kernel_index;
+    cp_costs[offset+7] = it.first.flops;
+    cp_costs[offset+8] = active_kernels[it.second.val_index];
+    count++; if (count==comp_kernel_select_count) break;
+  }
+  count=0;
+  for (auto it : comm_kernel_map){
+    if (comm_kernel_select_count==0) break;
+    auto offset = 1+9*comp_kernel_select_count+count*9;
+    cp_costs[offset] = it.first.tag;
+    cp_costs[offset+1] = it.first.dim_sizes[0];
+    cp_costs[offset+2] = it.first.dim_sizes[1];
+    cp_costs[offset+3] = it.first.dim_strides[0];
+    cp_costs[offset+4] = it.first.dim_strides[1];
+    cp_costs[offset+5] = it.first.partner_offset;
+    cp_costs[offset+6] = it.first.kernel_index;
+    cp_costs[offset+7] = it.first.msg_size;
+    cp_costs[offset+8] = active_kernels[it.second.val_index];
+    count++; if (count==comm_kernel_select_count) break;
+  }
+
+  // Exchange the tracked routine critical path data
   if (tracker.partner1 == -1){
-    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_FLOAT_INT, MPI_MAXLOC, tracker.comm);
-    max_proc = info_receiver[0].second;
-    max_val = info_receiver[0].first;
-    PMPI_Allreduce(&info_sender[0].first, &info_receiver[0].first, 1, MPI_FLOAT_INT, MPI_MINLOC, tracker.comm);
-    min_proc = info_receiver[0].second;
-    min_val = info_receiver[0].first;
-    // This only works for blocking. This won't even work for blocking+nonblocking (isend+recv)
-    if (max_val == min_val){ return; }
-  }
-  else{
-    if ((send_dependency) || ((tracker.tag >= 13) && (tracker.tag <= 14))){
-      PMPI_Sendrecv(&info_sender[0].first, 1, MPI_FLOAT_INT, tracker.partner1, internal_tag,
-                    &info_receiver[0].first, 1, MPI_FLOAT_INT, tracker.partner2, internal_tag, tracker.comm, MPI_STATUS_IGNORE);
-      if (info_sender[0].first>info_receiver[0].first){max_proc = rank;}
-      else if (info_sender[0].first==info_receiver[0].first){ max_proc = std::min(rank,tracker.partner1); }
-      max_val = std::max(info_sender[0].first, info_receiver[0].first);
-      if (info_sender[0].first<info_receiver[0].first){min_proc = rank;}
-      else if (info_sender[0].first==info_receiver[0].first){ min_proc = std::min(rank,tracker.partner1); }
-      min_val = std::min(info_sender[0].first, info_receiver[0].first);
-      // This only works for blocking. This won't even work for blocking+nonblocking (isend+recv)
-      if (max_val == min_val){ return; }
-    }
-    else{
-      // Here, knowledge of max/min proc and val is not important. We know the sender will receive additional information from the sender, and vice versa.
-      if ((tracker.is_sender) && (rank != tracker.partner1)){
-        if (0/*true_eager_p2p*/) { /*PMPI_Bsend(&sbuf, 17, MPI_FLOAT, partner1, internal_tag3, comm);*/ assert(0); }
-        else                { PMPI_Ssend(&info_sender[0].first, 1, MPI_FLOAT_INT, tracker.partner1, internal_tag2, tracker.comm); }
-      }
-      if ((!tracker.is_sender) && (rank != tracker.partner1)){
-        PMPI_Recv(&info_receiver[0].first, 1, MPI_FLOAT_INT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-      }
-    }
-  }
-
-  int size_array[3] = {0,0,0};
-  if (rank == max_proc){
-    size_array[0] = active_comm_kernel_keys.size();
-    size_array[1] = active_comp_kernel_keys.size();
-    size_array[2] = active_kernels.size();
-  }
-  if (tracker.partner1 == -1){
-    PMPI_Bcast(&size_array[0],3,MPI_INT,max_proc,tracker.comm);
-    if (rank != max_proc){
-        active_comm_kernel_keys.resize(size_array[0]);
-        active_comp_kernel_keys.resize(size_array[1]);
-        active_kernels.resize(size_array[2]);
-    }
-    PMPI_Bcast(&active_comm_kernel_keys[0],size_array[0],comm_kernel_key_type,max_proc,tracker.comm);
-    PMPI_Bcast(&active_comp_kernel_keys[0],size_array[1],comp_kernel_key_type,max_proc,tracker.comm);
-    PMPI_Bcast(&active_kernels[0],size_array[2],MPI_INT,max_proc,tracker.comm);
-    // receivers update their maps and data structures. Yes, this is costly, but I guess this is what has to happen.
-    // basically everything is set via the broadcasts themselves, except for the two maps.
-  }
-  else{
-    // We leverage the fact that we know the path-defining process rank
-    //TODO: Note this will not work if process sendrecvs to itself. It only works for CholInv because the cp cost is the same and so it returns before
-    //        reaching this part.
-    if (rank == max_proc){
-      PMPI_Send(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
-      PMPI_Send(&active_comm_kernel_keys[0],size_array[0],comm_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm);
-      PMPI_Send(&active_comp_kernel_keys[0],size_array[1],comp_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm);
-      PMPI_Send(&active_kernels[0],size_array[2],MPI_INT,tracker.partner1,internal_tag2,tracker.comm);
+    MPI_Op op;
+    MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op);
+    PMPI_Allreduce(&cp_costs[0], &cp_costs_foreign[0], cp_costs.size(), MPI_FLOAT, op, tracker.comm);
+    MPI_Op_free(&op);
+  } else{
+    if (tracker.is_sender){
+      MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+      PMPI_Bsend(&cp_costs[0], cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm);
+      void* temp_buf; int temp_size;
+      MPI_Buffer_detach(&temp_buf,&temp_size);
     } else{
-      //TODO: I want to keep both variants. The first is easy to rewrite, just take from above.
-      PMPI_Recv(&size_array[0],3,MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      active_comm_kernel_keys.resize(size_array[0]);
-      active_comp_kernel_keys.resize(size_array[1]);
-      active_kernels.resize(size_array[2]);
-      PMPI_Recv(&active_comm_kernel_keys[0],size_array[0],comm_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      PMPI_Recv(&active_comp_kernel_keys[0],size_array[1],comp_kernel_key_type,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
-      PMPI_Recv(&active_kernels[0],size_array[2],MPI_INT,tracker.partner1,internal_tag2,tracker.comm,MPI_STATUS_IGNORE);
+      PMPI_Recv(&cp_costs_foreign[0], cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
+    }
+    if (tracker.partner2 != tracker.partner1){
+      PMPI_Recv(&cp_costs_foreign[0], cp_costs.size(), MPI_FLOAT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
     }
   }
 
-  comm_kernel_map.clear();
-  comp_kernel_map.clear();
-
-  // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
-  for (auto i=0; i<active_comm_kernel_keys.size(); i++){
-    comm_kernel_key id(active_comm_kernel_keys[i].kernel_index,active_comm_kernel_keys[i].tag,active_comm_kernel_keys[i].dim_sizes,
-                        active_comm_kernel_keys[i].dim_strides,active_comm_kernel_keys[i].msg_size,active_comm_kernel_keys[i].partner_offset); 
-    if (comm_kernel_map.find(id) == comm_kernel_map.end()){
-      comm_kernel_map[id] = kernel_key_id(true, i, active_comm_kernel_keys[i].kernel_index, false);
-    } else{
-      comm_kernel_map[id].is_active = true;	// always assumed true
-      comm_kernel_map[id].key_index = i;
-      comm_kernel_map[id].val_index = active_comm_kernel_keys[i].kernel_index;
-      comm_kernel_map[id].is_updated = false;
-    }
-  }
-
-  for (auto i=0; i<active_comp_kernel_keys.size(); i++){
-    comp_kernel_key id(active_comp_kernel_keys[i].kernel_index,active_comp_kernel_keys[i].tag,active_comp_kernel_keys[i].flops,
-                               active_comp_kernel_keys[i].param1,active_comp_kernel_keys[i].param2,active_comp_kernel_keys[i].param3,
-                               active_comp_kernel_keys[i].param4,active_comp_kernel_keys[i].param5); 
-    if (comp_kernel_map.find(id) == comp_kernel_map.end()){
-      comp_kernel_map[id] = kernel_key_id(true, i, active_comp_kernel_keys[i].kernel_index,false);
-    } else{
-      comp_kernel_map[id].is_active = true;	// always assumed true
-      comp_kernel_map[id].key_index = i;
-      comp_kernel_map[id].val_index = active_comp_kernel_keys[i].kernel_index;
-      comp_kernel_map[id].is_updated = false;
-    }
-  }
+  // Senders can leave early
+  if (tracker.partner1 != -1 && tracker.is_sender && tracker.partner2 == tracker.partner1) return;
+  // Receivers always update their kernel maps
+  kernel_update(&cp_costs_foreign[1]);
 }
 
-void path::kernel_select(){
-/*
-  std::sort(comm_kernel_select_sort_list.begin(),comm_kernel_select_sort_list.end(),[](const std::pair<comm_kernel_key,int>& a, const std::pair<comm_kernel_key,int>& b) { return a.second > b.second;});
-  std::sort(comp_kernel_select_sort_list.begin(),comp_kernel_select_sort_list.end(),[](const std::pair<comp_kernel_key,int>& a, const std::pair<comp_kernel_key,int>& b) { return a.second > b.second;});
-  for (int i=0; i<std::min((size_t)comm_kernel_select_size,comm_kernel_select_sort_list.size()); i++){
-    if (is_world_root){
-      auto& v_key = comm_kernel_select_sort_list[i].first;
-      auto& v_val = comm_kernel_select_sort_list[i].second;
-      std::cout << "Post-sort process 0 - (" << v_key.tag << "," << v_key.dim_sizes[0] << "," << v_key.dim_strides[0] << "," << v_key.msg_size << "," << v_key.partner_offset << ") - " << v_val << std::endl;
+void path::propagate_kernels(nonblocking& tracker, float*& path_data, MPI_Request* prop_req){
+  int rank; MPI_Comm_rank(tracker.comm,&rank);
+  if (rank == tracker.partner1) { return; } 
+
+  // Fill in -1 first because the number of distinct kernels might be less than 'com*_kernel_select_count',
+  //   just to avoid confusion. A -1 tag clearly means that the kernel is void
+  memset(&cp_costs[1],-1,sizeof(float)*(cp_costs.size()-1));
+  // Iterate over map
+  int count=0;
+  for (auto it : comp_kernel_map){
+    if (comp_kernel_select_count==0) break;
+    auto offset = 1+9*count;
+    cp_costs[offset] = it.first.tag;
+    cp_costs[offset+1] = it.first.param1;
+    cp_costs[offset+2] = it.first.param2;
+    cp_costs[offset+3] = it.first.param3;
+    cp_costs[offset+4] = it.first.param4;
+    cp_costs[offset+5] = it.first.param5;
+    cp_costs[offset+6] = it.first.kernel_index;
+    cp_costs[offset+7] = it.first.flops;
+    cp_costs[offset+8] = active_kernels[it.second.val_index];
+    count++; if (count==comp_kernel_select_count) break;
+  }
+  count=0;
+  for (auto it : comm_kernel_map){
+    if (comm_kernel_select_count==0) break;
+    auto offset = 1+9*comp_kernel_select_count+9*count;
+    cp_costs[offset] = it.first.tag;
+    cp_costs[offset+1] = it.first.dim_sizes[0];
+    cp_costs[offset+2] = it.first.dim_sizes[1];
+    cp_costs[offset+3] = it.first.dim_strides[0];
+    cp_costs[offset+4] = it.first.dim_strides[1];
+    cp_costs[offset+5] = it.first.partner_offset;
+    cp_costs[offset+6] = it.first.kernel_index;
+    cp_costs[offset+7] = it.first.msg_size;
+    cp_costs[offset+8] = active_kernels[it.second.val_index];
+    count++; if (count==comm_kernel_select_count) break;
+  }
+
+  // Exchange the tracked routine critical path data
+  if (tracker.partner1 == -1){
+    MPI_Op op;
+    MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op);
+    path_data = (float*)malloc(cp_costs.size()*sizeof(float));
+    std::memcpy(path_data, &cp_costs[0], cp_costs.size()*sizeof(float));
+    PMPI_Iallreduce(MPI_IN_PLACE, path_data, cp_costs.size(), MPI_FLOAT, op, tracker.comm, prop_req);
+    //MPI_Op_free(&op);
+  } else{
+    if (tracker.is_sender){
+      MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
+      PMPI_Bsend(&cp_costs[0], cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm);
+      void* temp_buf; int temp_size;
+      MPI_Buffer_detach(&temp_buf,&temp_size);
+    } else{
+      path_data = (float*)malloc(cp_costs.size()*sizeof(float));
+      PMPI_Irecv(path_data, cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, prop_req);
     }
   }
-  for (int i=0; i<std::min((size_t)comp_kernel_select_size,comp_kernel_select_sort_list.size()); i++){
-    if (is_world_root){
-      auto& v_key = comp_kernel_select_sort_list[i].first;
-      auto& v_val = comp_kernel_select_sort_list[i].second;
-      std::cout << "Post-sort process 0 - (" << v_key.tag << "," << v_key.param1 << "," << v_key.param2 << "," << v_key.param3 << "," << v_key.param4 << "," << v_key.param5 << ") - " << v_val << std::endl;
-    }
-  }
-*/
 }
 
 }

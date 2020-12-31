@@ -243,8 +243,6 @@ kernel_key_id& kernel_key_id::operator=(const kernel_key_id& _copy){
 }
 
 
-int comm_kernel_select_size;
-int comp_kernel_select_size;
 int reset_matrix;
 int autotuning_debug;
 int bsp_counter;
@@ -253,11 +251,9 @@ int comp_kernel_counter;
 int comm_kernel_counter;
 int clear_counter;
 int communicator_count;
-int send_dependency;
-std::string schedule_tag;
-volatile float computation_timer;
-std::vector<float> wall_timer;
-float _wall_time;
+volatile double computation_timer;
+std::vector<double> wall_timer;
+double _wall_time;
 size_t auto_capture;
 bool is_world_root;
 size_t mechanism,mode,stack_id;
@@ -270,7 +266,8 @@ size_t track_collective;
 size_t track_p2p;
 size_t eager_limit;
 size_t delete_comm;
-int skeleton_analytic;
+int comm_kernel_select_count;
+int comp_kernel_select_count;
 int request_id;
 size_t
          _MPI_Send__id,

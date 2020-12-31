@@ -8,119 +8,85 @@ namespace critter{
 namespace internal{
 namespace decomposition{
 
-int track_synchronization;
-std::map<comp_kernel_key,std::pair<int,float>> comp_kernel_info;
-std::map<comm_kernel_key,std::pair<int,float>> comm_kernel_info;
 std::ofstream stream;
-bool is_first_request;
-int internal_tag;
-int internal_tag1;
-int internal_tag2;
-int internal_tag3;
-int internal_tag4;
-int internal_tag5;
-size_t mode_1_width;
-size_t mode_2_width;
-bool is_first_iter;
-size_t cp_symbol_class_count;
-size_t pp_symbol_class_count;
-size_t vol_symbol_class_count;
-size_t max_num_symbols;
-size_t max_timer_name_length;
-std::string _cost_models_,_symbol_path_select_,_comm_path_select_;
-size_t cost_model_size;
-size_t symbol_path_select_size;
-size_t comm_path_select_size;
-std::vector<char> cost_models;
-std::vector<char> symbol_path_select;
-std::vector<char> comm_path_select;
-std::vector<char> symbol_pad_cp;
-std::vector<char> symbol_pad_ncp1;
-std::vector<char> symbol_pad_ncp2;
-std::vector<int> symbol_len_pad_cp;
-std::vector<int> symbol_len_pad_ncp1;
-std::vector<int> symbol_len_pad_ncp2;
-std::vector<float> symbol_timer_pad_local_cp;
-std::vector<float> symbol_timer_pad_global_cp;
-std::vector<float> symbol_timer_pad_global_cp2;
-std::vector<float> symbol_timer_pad_local_pp;
-std::vector<float> symbol_timer_pad_global_pp;
-std::vector<float> symbol_timer_pad_local_vol;
-std::vector<float> symbol_timer_pad_global_vol;
+int track_synchronization,cost_model,path_decomposition;
+int include_barrier_time;
+int internal_tag,internal_tag1,internal_tag2;
+int internal_tag3,internal_tag4,internal_tag5;
+bool is_first_request,is_first_iter;
+size_t decomp_text_width,text_width,path_count,path_measure_count;
+char barrier_pad_send,barrier_pad_recv;
+double comp_start_time;
+// CommCost, SynchCost, CompCost,
+// CommTime, SynchTime, CompTime, CompKernelTime, ExecTime
+size_t num_cp_measures;
+// CommCost, SynchCost, CompCost,
+// IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, ExecTime
+size_t num_pp_measures;
+// CommCost, SynchCost, CompCost,
+// IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, ExecTime
+size_t num_vol_measures;
+size_t num_decomp_cp_measures;
+size_t num_decomp_pp_measures;
+size_t num_decomp_vol_measures;
+size_t cp_costs_size,pp_costs_size,vol_costs_size;
+std::string path_select,path_measure_select;
+std::vector<bool> path_decisions;
+std::vector<float> intercept_overhead,global_intercept_overhead;
+std::vector<float> cp_costs,max_pp_costs,vol_costs;
+std::vector<char> synch_pad_send,synch_pad_recv,eager_pad;
+std::vector<int> path_index,path_measure_index;
+std::vector<float> cp_costs_foreign;
 std::stack<std::string> symbol_stack;
 std::vector<std::string> symbol_order;
-std::vector<int> symbol_path_select_index;
-std::vector<float> intercept_overhead;
-std::vector<float> global_intercept_overhead;
-size_t num_critical_path_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime, CompTime, CompKernelTime, RunTime
-size_t num_per_process_measures;		// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
-size_t num_volume_measures;			// CommCost*, SynchCost*, IdleTime, CommTime, SynchTime, CompTime, CompKernelTime, RunTime
-size_t num_tracker_critical_path_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t num_tracker_per_process_measures;	// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t num_tracker_volume_measures;		// CommCost*, SynchCost*,           CommTime, SynchTime
-size_t critical_path_costs_size;
-size_t per_process_costs_size;
-size_t volume_costs_size;
-std::vector<float> critical_path_costs;
-std::vector<float> max_per_process_costs;
-std::vector<float> volume_costs;
-std::vector<char> synch_pad_send;
-std::vector<char> synch_pad_recv;
-std::vector<char> barrier_pad_send;
-std::vector<char> barrier_pad_recv;
-std::vector<float_int> info_sender;
-std::vector<float_int> info_receiver;
-std::vector<char> eager_pad;
-float comp_start_time;
-
-std::vector<std::pair<float*,int>> internal_comm_prop;
-std::vector<MPI_Request> internal_comm_prop_req;
-
-std::vector<int*> internal_timer_prop_int;
-std::vector<float*> internal_timer_prop_float;
-std::vector<float_int*> internal_timer_prop_float_int;
-std::vector<char*> internal_timer_prop_char;
-std::vector<MPI_Request> internal_timer_prop_req;
-
-std::vector<bool> decisions;
-std::map<std::string,std::vector<float>> save_info;
-std::vector<float> new_cs;
+std::map<comp_kernel_key,std::pair<int,float>> comp_kernel_info;
+std::map<comm_kernel_key,std::pair<int,float>> comm_kernel_info;
 
 void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
-  cp_symbol_class_count = 4;
-  pp_symbol_class_count = 4;
-  vol_symbol_class_count = 4;// should truly be 2, but set to 4 to conform to pp_symbol_class_count
-  mode_1_width = 25;
-  mode_2_width = 15;
-  internal_tag = 31133;
-  internal_tag1 = internal_tag+1;
-  internal_tag2 = internal_tag+2;
-  internal_tag3 = internal_tag+3;
-  internal_tag4 = internal_tag+4;
-  internal_tag5 = internal_tag+5;
-  is_first_iter = true;
+  decomp_text_width = 15; text_width = 15; is_first_iter = true;
+  internal_tag = 31133; internal_tag1 = internal_tag+1;
+  internal_tag2 = internal_tag+2; internal_tag3 = internal_tag+3;
+  internal_tag4 = internal_tag+4; internal_tag5 = internal_tag+5;
+  intercept_overhead.resize(3,0);
+  global_intercept_overhead.resize(3,0);
 
   if (std::getenv("CRITTER_TRACK_SYNCHRONIZATION") != NULL){
     track_synchronization = atoi(std::getenv("CRITTER_TRACK_SYNCHRONIZATION"));
+    assert(track_synchronization >= 0 && track_synchronization <= 1);
+  } else{ track_synchronization = 0; }
+  if (std::getenv("CRITTER_INCLUDE_BARRIER_TIME") != NULL){
+    include_barrier_time = atoi(std::getenv("CRITTER_INCLUDE_BARRIER_TIME"));
+    assert(include_barrier_time >= 0 && include_barrier_time <= 1);
+  } else{ include_barrier_time = 0; }
+  if (std::getenv("CRITTER_COST_MODEL") != NULL){
+    cost_model = atoi(std::getenv("CRITTER_COST_MODEL"));
+    assert(cost_model >= 0 && cost_model <= 1);
+  } else cost_model = 0;// BSP
+  if (std::getenv("CRITTER_PATH_DECOMPOSITION") != NULL){
+    path_decomposition = atoi(std::getenv("CRITTER_PATH_DECOMPOSITION"));
+    assert(path_decomposition >=0 && path_decomposition <= 2);
+  } else path_decomposition = 0;// Neither symbols nor MPI path breakdown
+  if (std::getenv("CRITTER_PATH_SELECT") != NULL){
+    path_select = std::getenv("CRITTER_PATH_SELECT");
+    assert(path_select.size() == 6);
+  } else path_select = "000000";
+  // SynchCost,CommCost,CompCost,CommTime,CompTime,ExecTime
+  if (std::getenv("CRITTER_PATH_MEASURE_SELECT") != NULL){
+    path_measure_select = std::getenv("CRITTER_PATH_MEASURE_SELECT");
+    if (path_decomposition<=1) assert(path_measure_select.size() == 4);
+    else if (path_decomposition==2) assert(path_measure_select.size() == 7);
   } else{
-    track_synchronization = 0;
-  }
-  if (std::getenv("CRITTER_MODEL_SELECT") != NULL){
-    _cost_models_ = std::getenv("CRITTER_MODEL_SELECT");
-  } else{
-    _cost_models_ = "11";
-  }
-  if (std::getenv("CRITTER_SYMBOL_PATH_SELECT") != NULL){
-    _symbol_path_select_ = std::getenv("CRITTER_SYMBOL_PATH_SELECT");
-  } else{
-    _symbol_path_select_ = "0000000000";
-  }
-  if (std::getenv("CRITTER_COMM_PATH_SELECT") != NULL){
-    _comm_path_select_ = std::getenv("CRITTER_COMM_PATH_SELECT");
-  } else{
-    _comm_path_select_ = "0000000000";
+    if (path_decomposition == 2){
+      // SynchCost,CommCost,CompCost,CommTime,SynchTime,CompTime,ExecTime
+      path_measure_select = "0000000";
+    } else if (path_decomposition == 1){
+      // SynchCost,CommCost,CommTime,SynchTime
+      path_measure_select = "0000";
+    } else{
+      path_measure_select = "0000";
+    }
   }
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
     std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
@@ -130,149 +96,140 @@ void allocate(MPI_Comm comm){
       assert(stream.good());
     }
   }
-  assert(_cost_models_.size()==2);
-  assert(_comm_path_select_.size()==10);
-  assert(_symbol_path_select_.size()==10);
 
-  cost_model_size=0; symbol_path_select_size=0; comm_path_select_size=0;
-  //TODO: Not a fan of these magic numbers '2' and '9'. Should utilize some error checking for strings that are not of proper length anyways.
-  for (auto i=0; i<2; i++){
-    if (_cost_models_[i] == '1'){ cost_model_size++; }
-    cost_models.push_back(_cost_models_[i]);
+  path_count=0;
+  for (auto i=0; i<path_select.size(); i++){
+    if (path_select[i] == '1'){ path_count++;
+                                path_index.push_back(i); }
   } 
-  for (auto i=0; i<10; i++){
-    if (_symbol_path_select_[i] == '1'){ symbol_path_select_size++; symbol_path_select_index.push_back(i);}
-    symbol_path_select.push_back(_symbol_path_select_[i]);
+  path_measure_count=0;
+  for (auto i=0; i<path_measure_select.size(); i++){
+    if (path_measure_select[i] == '1'){ path_measure_count++;
+                                        path_measure_index.push_back(i); }
   } 
-  for (auto i=0; i<10; i++){
-    if (_comm_path_select_[i] == '1'){ comm_path_select_size++; }
-    comm_path_select.push_back(_comm_path_select_[i]);
-  } 
+  path_decisions.resize(path_count);
+  if (track_synchronization){ synch_pad_send.resize(_world_size);
+                              synch_pad_recv.resize(_world_size); }
 
-  num_critical_path_measures 		= 6+2*cost_model_size;// Reason for '5' instead of '6' is because we are not interested in the critical-path idle time.
-  num_per_process_measures 		= 7+2*cost_model_size;
-  num_volume_measures 			= 7+2*cost_model_size;
-  num_tracker_critical_path_measures 	= 2+2*cost_model_size;
-  num_tracker_per_process_measures 	= 2+2*cost_model_size;
-  num_tracker_volume_measures 		= 2+2*cost_model_size;
+  // 1st term - number of timers
+  // 2nd term - number of costs
+  // Each of these measures a single critical path, with no decomposition
+  num_cp_measures = 5+3;
+  num_pp_measures = 6+3;
+  num_vol_measures = 6+3;
+  // These are the measures we attribute to each tracker/symbol
+  num_decomp_cp_measures = path_measure_count;
+  num_decomp_pp_measures = path_measure_select.size();
+  num_decomp_vol_measures = path_measure_select.size();
 
-  // The '3*comm_path_select_size' used below are used to track {computation cost, computation time, computational kernel time, idle time} along each of the 'comm_path_select_size' paths.
-  critical_path_costs_size            	= num_critical_path_measures+num_tracker_critical_path_measures*comm_path_select_size*list_size+4*comm_path_select_size;
-  per_process_costs_size              	= num_per_process_measures+num_tracker_per_process_measures*comm_path_select_size*list_size+4*comm_path_select_size;
-  volume_costs_size                   	= num_volume_measures+num_tracker_volume_measures*list_size;
+  // The '4*path_count' used below measure along each tracked path:
+  // {computation cost, idle time, computation time, computational kernel time}
+  cp_costs_size = num_cp_measures;
+  pp_costs_size = num_pp_measures;
+  vol_costs_size = num_vol_measures;
+  if (path_decomposition <= 1){
+    cp_costs_size += num_decomp_cp_measures*path_count*list_size;
+    cp_costs_size += 4*path_count;
+    pp_costs_size += num_decomp_pp_measures*path_count*list_size;
+    pp_costs_size += 4*path_count;
+    vol_costs_size += num_decomp_vol_measures*list_size;
+    cp_costs.resize(cp_costs_size);
+    cp_costs_foreign.resize(cp_costs_size);
+    max_pp_costs.resize(pp_costs_size);
+    vol_costs.resize(vol_costs_size);
 
-  synch_pad_send.resize(_world_size);
-  synch_pad_recv.resize(_world_size);
-  barrier_pad_send.resize(_world_size);
-  barrier_pad_recv.resize(_world_size);
-
-  decisions.resize(comm_path_select_size);
-  critical_path_costs.resize(critical_path_costs_size);
-
-  intercept_overhead.resize(3,0);
-  global_intercept_overhead.resize(3,0);
-
-  max_per_process_costs.resize(per_process_costs_size);
-  volume_costs.resize(volume_costs_size);
-  new_cs.resize(critical_path_costs_size);
-  // The reason 'symbol_pad_cp' and 'symbol_len_pad_cp' are a factor 'symbol_path_select_size' larger than the 'ncp*'
-  //   variants is because those variants are used solely for p2p, in which we simply transfer a process's path data, rather than reduce it using a special multi-root trick.
-  symbol_pad_cp.resize(symbol_path_select_size*max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp1.resize(max_timer_name_length*max_num_symbols);
-  symbol_pad_ncp2.resize(max_timer_name_length*max_num_symbols);
-  symbol_len_pad_cp.resize(symbol_path_select_size*max_num_symbols);
-  symbol_len_pad_ncp1.resize(max_num_symbols);
-  symbol_len_pad_ncp2.resize(max_num_symbols);
-  // Note: we use 'num_per_process_measures' rather than 'num_critical_path_measures' for specifying the
-  //   length of 'symbol_timer_pad_*_cp' because we want to track idle time contribution of each symbol along a path.
-  symbol_timer_pad_local_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_cp.resize(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_local_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_pp.resize((pp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_local_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
-  symbol_timer_pad_global_vol.resize((vol_symbol_class_count*num_volume_measures+1)*max_num_symbols,0.);
-  symbol_order.resize(max_num_symbols);
-  info_sender.resize(num_critical_path_measures);
-  info_receiver.resize(num_critical_path_measures);
-
-  int eager_msg_sizes[8];
-  MPI_Pack_size(2,MPI_CHAR,comm,&eager_msg_sizes[0]);
-  MPI_Pack_size(1,MPI_DOUBLE,comm,&eager_msg_sizes[1]);
-  MPI_Pack_size(num_critical_path_measures,MPI_DOUBLE_INT,comm,&eager_msg_sizes[2]);
-  MPI_Pack_size(critical_path_costs_size,MPI_DOUBLE,comm,&eager_msg_sizes[3]);
-  MPI_Pack_size(1,MPI_INT,comm,&eager_msg_sizes[4]);
-  MPI_Pack_size(max_num_symbols,MPI_INT,comm,&eager_msg_sizes[5]);
-  MPI_Pack_size(max_num_symbols*max_timer_name_length,MPI_CHAR,comm,&eager_msg_sizes[6]);
-  MPI_Pack_size(symbol_path_select_size*(cp_symbol_class_count*num_per_process_measures+1)*max_num_symbols,MPI_DOUBLE,comm,&eager_msg_sizes[7]);
-  int eager_pad_size = 8*MPI_BSEND_OVERHEAD;
-  for (int i=0; i<8; i++) { eager_pad_size += eager_msg_sizes[i]; }
-  eager_pad.resize(eager_pad_size);
+    int eager_msg_sizes[2];
+    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
+    MPI_Pack_size(cp_costs_size,MPI_FLOAT,comm,&eager_msg_sizes[1]);
+    int eager_pad_size = 2*MPI_BSEND_OVERHEAD;
+    for (int i=0; i<2; i++) { eager_pad_size += eager_msg_sizes[i]; }
+    assert(eager_pad_size <= eager_limit);
+    eager_pad.resize(eager_pad_size);
+  }
 }
 
 void reset(){
   if (std::getenv("CRITTER_MODE") != NULL){
-    internal::mode = atoi(std::getenv("CRITTER_MODE"));
-  } else{
-    internal::mode = 1;
-  }
+    mode = atoi(std::getenv("CRITTER_MODE"));
+    assert(mode >=0 && mode <=1);
+  } else mode = 1;
 
   for (auto i=0; i<list_size; i++){ list[i]->init(); }
-  save_info.clear();
-  memset(&critical_path_costs[0],0,sizeof(float)*critical_path_costs.size());
-  memset(&max_per_process_costs[0],0,sizeof(float)*max_per_process_costs.size());
-  memset(&volume_costs[0],0,sizeof(float)*volume_costs.size());
-  memset(&symbol_timer_pad_local_cp[0],0,sizeof(float)*symbol_timer_pad_local_cp.size());
-  memset(&symbol_timer_pad_local_pp[0],0,sizeof(float)*symbol_timer_pad_local_pp.size());
-  memset(&symbol_timer_pad_local_vol[0],0,sizeof(float)*symbol_timer_pad_local_vol.size());
+  memset(&cp_costs[0],0,sizeof(float)*cp_costs.size());
+  memset(&cp_costs_foreign[0],0,sizeof(float)*cp_costs.size());
+  memset(&max_pp_costs[0],0,sizeof(float)*max_pp_costs.size());
+  memset(&vol_costs[0],0,sizeof(float)*vol_costs.size());
   memset(&intercept_overhead[0],0,sizeof(float)*intercept_overhead.size());
-  internal::bsp_counter=0;
-
-  comp_kernel_info.clear();
-  comm_kernel_info.clear();
-  
-  is_first_request=true;
+  bsp_counter=0; is_first_request=true;
+  comp_kernel_info.clear(); comm_kernel_info.clear();
 }
 
-void open_symbol(const char* symbol, float curtime){
-  if (symbol_timers.find(symbol) == symbol_timers.end()){
-    symbol_timers[symbol] = symbol_tracker(symbol);
-    if (symbol_timers.size() < max_num_symbols) symbol_order[symbol_timers.size()-1] = std::string(symbol);
-    symbol_timers[symbol].start(curtime);
+void init_symbol(std::vector<std::string>& symbols){
+  if (path_decomposition != 2) return;
+  // We only want to initialize once, but do not know the number of symbols before this point.
+  size_t cp_symbol_select_size = 4*num_decomp_cp_measures+1;
+  size_t pp_symbol_select_size = 4*num_decomp_pp_measures+1;
+  size_t vol_symbol_select_size = 4*num_decomp_vol_measures+1;
+  cp_costs_size = num_cp_measures + cp_symbol_select_size*path_count*symbols.size();
+  pp_costs_size = num_pp_measures + pp_symbol_select_size*symbols.size();
+  vol_costs_size = num_vol_measures + vol_symbol_select_size*symbols.size();
+  cp_costs.resize(cp_costs_size);
+  cp_costs_foreign.resize(cp_costs_size);
+  max_pp_costs.resize(pp_costs_size);
+  vol_costs.resize(vol_costs_size);
+  if (eager_pad.size()==0){
+    int eager_msg_sizes[2];
+    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[0]);
+    MPI_Pack_size(cp_costs_size,MPI_FLOAT,MPI_COMM_WORLD,&eager_msg_sizes[1]);
+    int eager_pad_size = 2*MPI_BSEND_OVERHEAD;
+    for (int i=0; i<2; i++) { eager_pad_size += eager_msg_sizes[i]; }
+    assert(eager_pad_size <= eager_limit);
+    eager_pad.resize(eager_pad_size);
   }
-  else{
-    symbol_timers[symbol].start(curtime);
+
+  for (auto& it :symbols){
+    if (symbol_timers.find(it) == symbol_timers.end()){
+      symbol_timers[it] = symbol_tracker(it);
+      symbol_order.push_back(it);
+      decomp_text_width = std::max(decomp_text_width,it.size());
+    }
   }
 }
 
-void close_symbol(const char* symbol, float curtime){
-  if (symbol_timers.find(symbol) == symbol_timers.end()){ assert(0); }
-  else{
-    symbol_timers[symbol].stop(curtime);
-  }
+void open_symbol(const char* symbol, double curtime){
+  if (path_decomposition != 2) return;
+  // If symbol not found already, ignore the symbol.
+  // The new instructions are for user to specify tracked symbols apriori
+  if (symbol_timers.find(symbol) != symbol_timers.end()){
+    symbol_timers[symbol].start(curtime); }
 }
 
+void close_symbol(const char* symbol, double curtime){
+  if (path_decomposition != 2) return;
+  // If symbol not found already, ignore the symbol.
+  // The new instructions are for user to specify tracked symbols apriori
+  if (symbol_timers.find(symbol) != symbol_timers.end()){
+    symbol_timers[symbol].stop(curtime); }
+}
 
-void final_accumulate(MPI_Comm comm, float last_time){
+void final_accumulate(MPI_Comm comm, double last_time){
   assert(nonblocking_internal_info.size() == 0);
-  critical_path_costs[num_critical_path_measures-3]+=(last_time-computation_timer);	// update critical path computation time
-  critical_path_costs[num_critical_path_measures-1]+=(last_time-computation_timer);	// update critical path runtime
-  volume_costs[num_volume_measures-3]+=(last_time-computation_timer);			// update computation time volume
-  volume_costs[num_volume_measures-1]+=(last_time-computation_timer);			// update runtime volume
-  // update the computation time (i.e. time between last MPI synchronization point or comp kernel and this function invocation) along all paths decomposed by MPI communication routine
-  // TODO: Why don't I apply the same update to max_per_process_costs?
-  for (size_t i=0; i<comm_path_select_size; i++){ critical_path_costs[critical_path_costs_size-comm_path_select_size-1-i] += (last_time-computation_timer); }
+  auto last_comp_time = last_time-computation_timer;
+  cp_costs[num_cp_measures-3] += last_comp_time;
+  cp_costs[num_cp_measures-1] += last_comp_time;
+  vol_costs[num_vol_measures-3] += last_comp_time;
+  vol_costs[num_vol_measures-1] += last_comp_time;
+  if (path_decomposition==1){
+    for (size_t i=0; i<path_count; i++){
+      cp_costs[cp_costs_size-path_count-1-i] += last_comp_time; }
+  }
 }
 
-
-void clear(){
-  symbol_timers.clear();
-}
+void clear(){ symbol_timers.clear(); }
 
 void finalize(){
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
-    if (is_world_root){
-      stream.close();
-    }
+    if (is_world_root){ stream.close(); }
   }
 }
 
