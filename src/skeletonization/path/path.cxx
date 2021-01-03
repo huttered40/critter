@@ -174,7 +174,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
     vol_costs[0] += cost_alphabeta.first*1e6 + cost_alphabeta.second*1e3;
   }
 
-  //propagate_kernels(tracker);
+  propagate_kernels(tracker);
   computation_timer = MPI_Wtime();
 }
 
@@ -537,11 +537,11 @@ void path::propagate_kernels(blocking& tracker){
       void* temp_buf; int temp_size;
       MPI_Buffer_detach(&temp_buf,&temp_size);
     } else{
-      PMPI_Recv(&cp_costs_foreign[0], cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      PMPI_Recv(&cp_costs_foreign[0], cp_costs_foreign.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
     }
     if (tracker.partner2 != tracker.partner1){
-      PMPI_Recv(&cp_costs_foreign[0], cp_costs.size(), MPI_FLOAT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
+      PMPI_Recv(&cp_costs_foreign[0], cp_costs_foreign.size(), MPI_FLOAT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
     }
   }

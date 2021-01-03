@@ -98,7 +98,7 @@ void final_accumulate(MPI_Comm comm, double last_time){
 
 void reset(){
   memset(&cp_costs[0],0,sizeof(float)*cp_costs.size());
-  memset(&cp_costs_foreign[0],0,sizeof(float)*cp_costs.size());
+  memset(&cp_costs_foreign[0],0,sizeof(float)*cp_costs_foreign.size());
   memset(&max_pp_costs[0],0,sizeof(float)*max_pp_costs.size());
   memset(&vol_costs[0],0,sizeof(float)*vol_costs.size());
   active_kernels.clear();
