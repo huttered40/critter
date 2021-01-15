@@ -146,13 +146,14 @@ struct intermediate_stats{
 
 // ****************************************************************************************************************************************************
 extern std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
+extern bool global_schedule_decision;
 extern int tuning_delta,reset_distribution_mode;
 extern int comm_sample_aggregation_mode,comm_state_aggregation_mode;
 extern int comp_sample_aggregation_mode,comp_state_aggregation_mode;
 extern int sample_constraint_mode,schedule_kernels,update_analysis;
 extern int stop_criterion_mode,debug_iter_count;
 extern int comp_kernel_transfer_id,comm_kernel_transfer_id;
-extern int delay_state_update;
+extern int delay_state_update,collective_state_protocol;
 extern float kernel_time_limit,kernel_error_limit,kernel_percentage_limit;
 extern float* save_path_data;
 extern MPI_Request save_prop_req;

@@ -79,14 +79,14 @@ void record::set_kernel_statistics(){
     int kk_count = 0;
     int kk_total = 0;
     for (auto& it : comm_kernel_map){
-      if (active_kernels[it.second.val_index].num_schedules > 0) kk_total++;
+      if (it.second.is_active) kk_total++;
     }
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
       auto& skel_kernel_list = skeletonization::active_kernels;
       auto& skel_key_list = skeletonization::active_comm_kernel_keys;
-      if (kernel_list[it.second.val_index].num_schedules == 0) continue;
+      if (!it.second.is_active) continue;
       int skel_count = -1;
       if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
@@ -140,15 +140,14 @@ void record::set_kernel_statistics(){
     kk_count = 0;
     kk_total = 0;
     for (auto& it : comp_kernel_map){
-      if (active_kernels[it.second.val_index].num_schedules > 0) kk_total++;
+      if (it.second.is_active) kk_total++;
     }
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comp_kernel_keys;
       auto& skel_kernel_list = skeletonization::active_kernels;
       auto& skel_key_list = skeletonization::active_comp_kernel_keys;
-      if (kernel_list[it.second.val_index].num_schedules == 0) continue;
-      if (it.first.tag < 150) continue;// likely too many BLAS1/BLAS2 kernels to print. Just avoid.
+      if (!it.second.is_active) continue;
       int skel_count = -1;
       if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
         skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];

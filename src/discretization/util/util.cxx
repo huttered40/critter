@@ -11,11 +11,12 @@ namespace internal{
 namespace discretization{
 
 std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
+bool global_schedule_decision;
 int tuning_delta,reset_distribution_mode;
 int sample_constraint_mode,schedule_kernels,update_analysis;
 int stop_criterion_mode,debug_iter_count;
 int comp_kernel_transfer_id,comm_kernel_transfer_id;
-int delay_state_update;
+int delay_state_update,collective_state_protocol;
 int comm_sample_aggregation_mode,comm_state_aggregation_mode;
 int comp_sample_aggregation_mode,comp_state_aggregation_mode;
 float kernel_time_limit,kernel_error_limit,kernel_percentage_limit;
@@ -187,7 +188,9 @@ void kernel::clear_distribution(){
   this->global_steady_state = false;
   this->total_exec_time = 0;
   this->num_scheduled_units = 0;
+  this->num_non_scheduled_units = 0;
   this->num_schedules = 0;
+  this->num_non_schedules = 0;
   this->M1=0; this->M2=0;
 }
 
@@ -1257,7 +1260,7 @@ void allocate(MPI_Comm comm){
   }
   if (std::getenv("CRITTER_KERNEL_COUNT_LIMIT") != NULL){
     kernel_count_limit = atoi(std::getenv("CRITTER_KERNEL_COUNT_LIMIT"));
-    assert(kernel_count_limit >= 1);
+    assert(kernel_count_limit >= 0);
   } else{
     kernel_count_limit = 2;
   }
@@ -1321,6 +1324,12 @@ void allocate(MPI_Comm comm){
   } else{
     delay_state_update = 0;
   }
+  if (std::getenv("CRITTER_COLLECTIVE_STATE_PROTOCOL") != NULL){
+    collective_state_protocol = atof(std::getenv("CRITTER_COLLECTIVE_STATE_PROTOCOL"));
+    assert(collective_state_protocol >= 0 && collective_state_protocol <= 1);
+  } else{
+    collective_state_protocol = 1;
+  }
 
   comm_envelope_param = 0;
   comm_unit_param = 0;
@@ -1339,7 +1348,7 @@ void allocate(MPI_Comm comm){
 
   // 8 key members in 'comp_kernel' and 8 key members in 'comm_kernel'
   // +1 for each is the schedule count itself
-  cp_costs_size = num_cp_measures + 13;
+  cp_costs_size = num_cp_measures + 14;
   if (sample_constraint_mode == 2) cp_costs_size += 9*comp_kernel_select_count + 9*comm_kernel_select_count;
   pp_costs_size = num_pp_measures;
   vol_costs_size = num_vol_measures;
@@ -1472,9 +1481,11 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
 
   // This reset will no longer reset the kernel state, but will reset the schedule counters
   for (auto& it : comp_kernel_map){
+    it.second.is_active = false;
     active_kernels[it.second.val_index].reset();
   }
   for (auto& it : comm_kernel_map){
+    it.second.is_active = false;
     active_kernels[it.second.val_index].reset();
   }
 
@@ -1509,8 +1520,6 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
 
 void clear(int tag_count, int* distribution_tags){
 
-  comp_kernel_ref_map.clear();
-  comm_kernel_ref_map.clear();
   if (reset_distribution_mode==1){
     // I don't see any reason to clear the communicator map. In fact, doing so would be harmful
     // Actually, the batch_maps will be empty anyways, as per the loops in 'final_accumulate'.
@@ -1521,6 +1530,12 @@ void clear(int tag_count, int* distribution_tags){
     }
     for (auto& it : comm_kernel_map){
       active_kernels[it.second.val_index].clear_distribution();
+    }
+    for (auto& it : comp_kernel_ref_map){
+      it.second.clear_distribution();
+    }
+    for (auto& it : comm_kernel_ref_map){
+      it.second.clear_distribution();
     }
   }
   else{
@@ -1540,6 +1555,22 @@ void clear(int tag_count, int* distribution_tags){
         }
       }
     }
+    for (auto& it : comp_kernel_ref_map){
+      for (int i=0; i<tag_count; i++){
+        if (it.first.tag == distribution_tags[i]){
+          it.second.clear_distribution();
+          break;
+        }
+      }
+    }
+    for (auto& it : comm_kernel_ref_map){
+      for (int i=0; i<tag_count; i++){
+        if (it.first.tag == distribution_tags[i]){
+          it.second.clear_distribution();
+          break;
+        }
+      }
+    }
   }
 }
 
@@ -1547,11 +1578,30 @@ void reference_initiate(){
   kernel_error_limit=0;
   stop_criterion_mode = 1;
   kernel_percentage_limit=1;
+  // Save the existing distributions so that the reference variant doesn't erase or infect them
+  // Reset the distributions so that the reference doesn't take the autotuned distribution from previous configurations
+  //   if reset_kernel_distribution == 0
   for (auto& it : comp_kernel_map){
     comp_kernel_save_map[it.first] = active_kernels[it.second.val_index];
+    if (comp_kernel_ref_map.find(it.first) != comp_kernel_ref_map.end()){
+      active_kernels[it.second.val_index] = comp_kernel_ref_map[it.first];
+    } else{
+      active_kernels[it.second.val_index].reset();
+      active_kernels[it.second.val_index].clear_distribution();
+      active_kernels[it.second.val_index].num_non_schedules = 0;
+      active_kernels[it.second.val_index].num_non_scheduled_units = 0;
+    }
   }
   for (auto& it : comm_kernel_map){
     comm_kernel_save_map[it.first] = active_kernels[it.second.val_index];
+    if (comm_kernel_ref_map.find(it.first) != comm_kernel_ref_map.end()){
+      active_kernels[it.second.val_index] = comm_kernel_ref_map[it.first];
+    } else{
+      active_kernels[it.second.val_index].reset();
+      active_kernels[it.second.val_index].clear_distribution();
+      active_kernels[it.second.val_index].num_non_schedules = 0;
+      active_kernels[it.second.val_index].num_non_scheduled_units = 0;
+    }
   }
 }
 

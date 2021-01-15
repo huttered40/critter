@@ -540,7 +540,7 @@ void path::propagate_kernels(blocking& tracker){
       PMPI_Recv(&cp_costs_foreign[0], cp_costs_foreign.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
     }
-    if (tracker.partner2 != tracker.partner1){
+    if (tracker.partner2 != tracker.partner1 || tracker.tag==13 || tracker.tag==14){
       PMPI_Recv(&cp_costs_foreign[0], cp_costs_foreign.size(), MPI_FLOAT, tracker.partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
       update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
     }

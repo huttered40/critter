@@ -34,80 +34,85 @@ void _dscal_(const int n , const double a , double *x , const int incx){
 // BLAS 2
 void _dgbmv_(const int order, const int trans, const int m, const int n, const int kl, const int ku, const double alpha,
              const double *a, const int lda, const double *x, const int incx, const double beta, double *y, const int incy){
-  conditional_blas_engine(_BLAS_gbmv__id,track_blas2,std::make_tuple(m,n,kl,ku),std::make_tuple(m,n,kl,ku),IndexPack<0,1,2,3>{},
+  conditional_blas_engine(_BLAS_gbmv__id,track_blas2,std::make_tuple(m,n,kl,ku,trans*1000+(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(m,n,kl,ku,trans*1000+(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2,3,4>{},
                           &cblas_dgbmv,(CBLAS_ORDER)order,(CBLAS_TRANSPOSE)trans,m,n,kl,ku,alpha,a,lda,x,incx,beta,y,incy);
 }
 void _dgemv_(const int order, const int trans , const int m , const int n, const double alpha , const double *a , const int lda , const double *x, const int incx ,
              const double beta, double *y , const int incy ){
-  conditional_blas_engine(_BLAS_gemv__id,track_blas2,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_gemv__id,track_blas2,std::make_tuple(m,n,trans*1000+(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(m,n,trans*1000+(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2>{},
                           &cblas_dgemv,(CBLAS_ORDER)order,(CBLAS_TRANSPOSE)trans,m,n,alpha,a,lda,x,incx,beta,y,incy);
 }
 void _dger_(const int order, const int m , const int n , const double alpha , const double *x , const int incx ,
             const double *y , const int incy , double *a , const int lda){
-  conditional_blas_engine(_BLAS_ger__id,track_blas2,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_ger__id,track_blas2,std::make_tuple(m,n,(alpha!=0)),std::make_tuple(m,n,(alpha!=0)),IndexPack<0,1,2>{},
                           &cblas_dger,(CBLAS_ORDER)order,m,n,alpha,x,incx,y,incy,a,lda);
 }
 void _dsbmv_(const int Layout, const int uplo, const int n, const int k, const double alpha, const double *a,
              const int lda, const double *x, const int incx, const double beta, double *y, const int incy){
-  conditional_blas_engine(_BLAS_sbmv__id,track_blas2,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_sbmv__id,track_blas2,std::make_tuple(n,k,uplo,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(n,k,uplo,(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2,3>{},
                           &cblas_dsbmv,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,k,alpha,a,lda,x,incx,beta,y,incy);
 }
 void _dspmv_(const int Layout, const int uplo, const int n, const double alpha, const double *ap, const double *x,
              const int incx, const double beta, double *y, const int incy){
-  conditional_blas_engine(_BLAS_spmv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_spmv__id,track_blas2,std::make_tuple(n,uplo,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(n,uplo,(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2>{},
                           &cblas_dspmv,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,ap,x,incx,beta,y,incy);
 }
 void _dspr_(const int Layout, const int uplo, const int n, const double alpha, const double *x,
             const int incx, double *ap){
-  conditional_blas_engine(_BLAS_spr__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_spr__id,track_blas2,std::make_tuple(n,uplo,(alpha!=0)),std::make_tuple(n,uplo,(alpha!=0)),IndexPack<0,1,2>{},
                           &cblas_dspr,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,ap);
 }
 void _dspr2_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
              const double *y, const int incy, double *ap){
-  conditional_blas_engine(_BLAS_spr2__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_spr2__id,track_blas2,std::make_tuple(n,uplo,(alpha!=0)),std::make_tuple(n,uplo,(alpha!=0)),IndexPack<0,1,2>{},
                           &cblas_dspr2,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,y,incy,ap);
 }
 void _dsymv_(const int Layout, const int uplo, const int n, const double alpha, const double *a, const int lda,
             const double *x, const int incx, const double beta, double *y, const int incy){
-  conditional_blas_engine(_BLAS_symv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_symv__id,track_blas2,std::make_tuple(n,uplo,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(n,uplo,(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2>{},
                           &cblas_dsymv,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,a,lda,x,incx,beta,y,incy);
 }
 void _dsyr_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
             double *a, const int lda){
-  conditional_blas_engine(_BLAS_syr__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_syr__id,track_blas2,std::make_tuple(n,uplo,(alpha!=0)),std::make_tuple(n,uplo,(alpha!=0)),IndexPack<0,1,2>{},
                           &cblas_dsyr,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,a,lda);
 }
 void _dsyr2_(const int Layout, const int uplo, const int n, const double alpha, const double *x, const int incx,
              const double *y, const int incy, double *a, const int lda){
-  conditional_blas_engine(_BLAS_syr2__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_syr2__id,track_blas2,std::make_tuple(n,uplo,(alpha!=0)),std::make_tuple(n,uplo,(alpha!=0)),IndexPack<0,1,2>{},
                           &cblas_dsyr2,(CBLAS_ORDER)Layout,(CBLAS_UPLO)uplo,n,alpha,x,incx,y,incy,a,lda);
 }
 void _dtrsv_(const int order, const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
-  conditional_blas_engine(_BLAS_trsv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_trsv__id,track_blas2,std::make_tuple(n,uplo,trans,diag),std::make_tuple(n,uplo,trans,diag),IndexPack<0,1,2,3>{},
                           &cblas_dtrsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
 }
 void _dtrmv_(const int order, const int uplo , const int trans , const int diag , const int n , const double *a , const int lda , double *x, const int incx ){
-  conditional_blas_engine(_BLAS_trmv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_trmv__id,track_blas2,std::make_tuple(n,uplo,trans,diag),std::make_tuple(n,uplo,trans,diag),IndexPack<0,1,2,3>{},
                           &cblas_dtrmv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,a,lda,x,incx);
 }
 void _dtpsv_(const int order, const int uplo, const int trans, const int diag, const int n, const double *ap,
              double *x, const int incx){
-  conditional_blas_engine(_BLAS_tpsv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_tpsv__id,track_blas2,std::make_tuple(n,uplo,trans,diag),std::make_tuple(n,uplo,trans,diag),IndexPack<0,1,2,3>{},
                           &cblas_dtpsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,ap,x,incx);
 }
 void _dtpmv_(const int order, const int uplo, const int trans, const int diag, const int n, const double *ap,
              double *x, const int incx){
-  conditional_blas_engine(_BLAS_tpmv__id,track_blas2,std::make_tuple(n),std::make_tuple(n),IndexPack<0>{},
+  conditional_blas_engine(_BLAS_tpmv__id,track_blas2,std::make_tuple(n,uplo,trans,diag),std::make_tuple(n,uplo,trans,diag),IndexPack<0,1,2,3>{},
                           &cblas_dtpmv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,ap,x,incx);
 }
 void _dtbsv_(const int order, const int uplo, const int trans, const int diag, const int n, const int k,
              const double *a, const int lda, double *x, const int incx){
-  conditional_blas_engine(_BLAS_tbsv__id,track_blas2,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_tbsv__id,track_blas2,std::make_tuple(n,k,uplo,trans,diag),std::make_tuple(n,k,uplo,trans,diag),IndexPack<0,1,2,3,4>{},
                           &cblas_dtbsv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,k,a,lda,x,incx);
 }
 void _dtbmv_(const int order, const int uplo, const int trans, const int diag, const int n, const int k,
              const double *a, const int lda, double *x, const int incx){
-  conditional_blas_engine(_BLAS_tbmv__id,track_blas2,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_tbmv__id,track_blas2,std::make_tuple(n,k,uplo,trans,diag),std::make_tuple(n,k,uplo,trans,diag),IndexPack<0,1,2,3,4>{},
                           &cblas_dtbmv,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,(CBLAS_DIAG)diag,n,k,a,lda,x,incx);
 }
 
@@ -115,41 +120,45 @@ void _dtbmv_(const int order, const int uplo, const int trans, const int diag, c
 void _dgemm_(const int order, const int transa , const int transb ,
              const int m , const int n , const int k , const double alpha , const double *a ,
              const int lda , const double *b , const int ldb , const double beta , double *c , const int ldc){
-  conditional_blas_engine(_BLAS_gemm__id,track_blas3,std::make_tuple(m,n,k),std::make_tuple(m,n,k),IndexPack<0,1,2>{},
+  conditional_blas_engine(_BLAS_gemm__id,track_blas3,std::make_tuple(m,n,k,transa*1000+transb,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(m,n,k,transa*1000+transb,(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2,3,4>{},
                           &cblas_dgemm,(CBLAS_ORDER)order,(CBLAS_TRANSPOSE)transa,(CBLAS_TRANSPOSE)transb,m,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
 }
 void _dtrmm_(const int order, const int side , const int uplo , const int transa ,
              const int diag , const int m , const int n , const double alpha , const double *a ,
              const int lda , double *b , const int ldb){
-  conditional_blas_engine(_BLAS_trmm__id,track_blas3,std::make_tuple(m,n),std::make_tuple(m,n),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_trmm__id,track_blas3,std::make_tuple(m,n,side*1000+uplo,transa*1000+diag,(alpha!=0)),
+                          std::make_tuple(m,n,side*1000+uplo,transa*1000+diag,(alpha!=0)),IndexPack<0,1,2,3,4>{},
                           &cblas_dtrmm,(CBLAS_ORDER)order,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
 }
 void _dtrsm_(const int order, const int side , const int uplo , const int transa ,
              const int diag , const int m , const int n , const double alpha , const double *a ,
              const int lda , double *b , const int ldb){
   conditional_blas_engine(_BLAS_trsm__id,track_blas3,
-                          (CBLAS_SIDE)side==CblasLeft ? std::make_tuple(m,n) : std::make_tuple(n,m),
-                          std::make_tuple(m,n), IndexPack<0,1>{},
+                          (CBLAS_SIDE)side==CblasLeft ? std::make_tuple(m,n,side*1000+uplo,transa*1000+diag,(alpha!=0)) : std::make_tuple(n,m,side*1000+uplo,transa*1000+diag,(alpha!=0)),
+                          std::make_tuple(m,n,side*1000+uplo,transa*1000+diag,(alpha!=0)), IndexPack<0,1,2,3,4>{},
                           &cblas_dtrsm,(CBLAS_ORDER)order,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)transa,(CBLAS_DIAG)diag,m,n,alpha,a,lda,b,ldb);
 }
 void _dsyrk_(const int order, const int uplo , const int trans ,
              const int n , const int k , const double alpha , const double *a , const int lda ,
              const double beta , double *c , const int ldc){
-  conditional_blas_engine(_BLAS_syrk__id,track_blas3,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_syrk__id,track_blas3,std::make_tuple(n,k,uplo*1000+trans,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(n,k,uplo*1000+trans,(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2,3>{},
                           &cblas_dsyrk,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,beta,c,ldc);
 }
 void _dsyr2k_(const int order, const int uplo, const int trans, const int n, const int k, const double alpha,
               const double *a, const int lda, const double *b, const int ldb, const double beta, double *c,
               const int ldc){
-  conditional_blas_engine(_BLAS_syr2k__id,track_blas3,std::make_tuple(n,k),std::make_tuple(n,k),IndexPack<0,1>{},
+  conditional_blas_engine(_BLAS_syr2k__id,track_blas3,std::make_tuple(n,k,uplo*1000+trans,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(n,k,uplo*1000+trans,(alpha!=0)*2+(beta!=0)),IndexPack<0,1,2,3>{},
                           &cblas_dsyr2k,(CBLAS_ORDER)order,(CBLAS_UPLO)uplo,(CBLAS_TRANSPOSE)trans,n,k,alpha,a,lda,b,ldb,beta,c,ldc);
 }
 void _dsymm_(const int order, const int side, const int uplo, const int m, const int n, const double alpha,
              const double *a, const int lda, const double *b, const int ldb, const double beta, double *c,
              const int ldc){
   conditional_blas_engine(_BLAS_symm__id,track_blas3,
-                          (CBLAS_SIDE)side==CblasLeft ? std::make_tuple(m,n) : std::make_tuple(n,m),
-                          std::make_tuple(m,n), IndexPack<0,1>{},
+                          (CBLAS_SIDE)side==CblasLeft ? std::make_tuple(m,n,side*1000+uplo,(alpha!=0)*2+(beta!=0)) : std::make_tuple(n,m,side*1000+uplo,(alpha!=0)*2+(beta!=0)),
+                          std::make_tuple(m,n,side*1000+uplo,(alpha!=0)*2+(beta!=0)), IndexPack<0,1,2,3>{},
                           &cblas_dsymm,(CBLAS_ORDER)order,(CBLAS_SIDE)side,(CBLAS_UPLO)uplo,m,n,alpha,a,lda,b,ldb,beta,c,ldc);
 }
 
@@ -303,13 +312,13 @@ int _dgetrf_(int matrix_layout, int m , int n , double* a , int lda , int* ipiv)
 }
 int _dpotrf_(int matrix_layout, char uplo , int n , double* a , int lda){
   return conditional_lapack_engine(_LAPACK_potrf__id,track_lapack,
-                                   std::make_tuple(n), std::make_tuple(n),IndexPack<0>{},
+                                   std::make_tuple(n,uplo), std::make_tuple(n,uplo),IndexPack<0,1>{},
                                    &LAPACKE_dpotrf,std::make_tuple(matrix_layout,uplo,n,a,lda),IndexPack<0,1,2,3,4>{},
                                    std::make_tuple(a,n,n,lda,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 4.*n;}}));
 }
 int _dtrtri_(int matrix_layout, char uplo , char diag , int n , double* a , int lda){
   return conditional_lapack_engine(_LAPACK_trtri__id,track_lapack,
-                                   std::make_tuple(n), std::make_tuple(n),IndexPack<0>{},
+                                   std::make_tuple(n,uplo,diag), std::make_tuple(n,uplo,diag),IndexPack<0,1,2>{},
                                    &LAPACKE_dtrtri,std::make_tuple(matrix_layout,uplo,diag,n,a,lda),IndexPack<0,1,2,3,4,5>{},
                                    std::make_tuple(a,n,n,lda,1,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 4.*n;}}));
 }
@@ -329,7 +338,8 @@ int _dorgqr_(int matrix_layout, int m , int n , int k , double* a , int lda , co
 }
 int _dormqr_(int matrix_layout, char side , char trans , int m , int n , int k , const double * a , int lda , const double * tau , double * c , int ldc){
   return conditional_lapack_engine(_LAPACK_ormqr__id,track_lapack,
-                                   (side == 'L' ? std::make_tuple(m,n,k) : std::make_tuple(n,m,k)),std::make_tuple(m,n,k),IndexPack<0,1,2>{},
+                                   (side == 'L' ? std::make_tuple(m,n,k,side,trans) : std::make_tuple(n,m,k,side,trans)),
+                                   std::make_tuple(m,n,k,side,trans),IndexPack<0,1,2,3,4>{},
                                    &LAPACKE_dormqr,std::make_tuple(matrix_layout,side,trans,m,n,k,a,lda,tau,c,ldc),IndexPack<0,1,2,3,4,5,6,7,8,9,10>{},
                                    std::make_tuple(c,m,n,ldc,1,[](double* a, int m, int n, int lda){}),
                                    std::make_tuple((double*)a,(side=='L'?m:n),k,lda,0,[](double* a, int m, int n, int lda){for (int i=0; i<n; i++){a[i*lda+i] = 1.;}}),
