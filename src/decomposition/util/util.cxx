@@ -219,6 +219,8 @@ void final_accumulate(MPI_Comm comm, double last_time){
   cp_costs[num_cp_measures-1] += last_comp_time;
   vol_costs[num_vol_measures-3] += last_comp_time;
   vol_costs[num_vol_measures-1] += last_comp_time;
+  vol_costs[num_vol_measures-3] = std::min(vol_costs[num_vol_measures-3],cp_costs[num_cp_measures-3]);
+  vol_costs[num_vol_measures-1] = std::min(vol_costs[num_vol_measures-1],cp_costs[num_cp_measures-1]);
   if (path_decomposition==1){
     for (size_t i=0; i<path_count; i++){
       cp_costs[cp_costs_size-path_count-1-i] += last_comp_time; }

@@ -112,7 +112,7 @@ namespace internal{
 // These routines aim to achieve agnosticity to mechanism.
 
 void _init(int* argc, char*** argv){
-  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
   is_world_root = false;
   if (world_rank == 0){ is_world_root = true; }
   mode=0;
@@ -178,6 +178,11 @@ void _init(int* argc, char*** argv){
     assert(comp_kernel_select_count>=0);
   } else{
     comp_kernel_select_count = 0;
+  }
+  if (std::getenv("CRITTER_DEBUG_RANK") != NULL){
+    debug_rank = atof(std::getenv("CRITTER_DEBUG_RANK"));
+  } else{
+    debug_rank = 0;
   }
 
   _MPI_Barrier__id = 0;

@@ -251,6 +251,7 @@ int comp_kernel_counter;
 int comm_kernel_counter;
 int clear_counter;
 int communicator_count;
+int world_rank,debug_rank;
 volatile double computation_timer;
 std::vector<double> wall_timer;
 double _wall_time;

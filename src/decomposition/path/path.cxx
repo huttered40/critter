@@ -435,7 +435,7 @@ void path::complete_comm(blocking& tracker, int recv_source){
 
   vol_costs[num_vol_measures-9] += cost.second;
   vol_costs[num_vol_measures-8] += cost.first;
-  vol_costs[num_vol_measures-6] += tracker.barrier_time;
+  vol_costs[num_vol_measures-6] += tracker.barrier_time;// Note this will be a bit high, as it includes time for last process to enter
   vol_costs[num_vol_measures-5] += comm_time;
   vol_costs[num_vol_measures-4] += tracker.synch_time;
   vol_costs[num_vol_measures-1] += comm_time;
@@ -446,27 +446,24 @@ void path::complete_comm(blocking& tracker, int recv_source){
   // Note that this block of code below is left in solely for blocking communication to avoid over-counting the idle time
   // If per-process execution-time gets larger than execution-time along the execution-time critical path,
   //   subtract out the difference from idle time.
-  vol_costs[num_vol_measures-6] -= std::max((float)0.,vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1]);
+  auto path_diff = vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1];
+  if (include_barrier_time==0) path_diff += vol_costs[num_vol_measures-6];
+  vol_costs[num_vol_measures-6] -= std::max((float)0.,path_diff);
   if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
     // Special handling of excessively large idle time caused by suspected tool interference
     // Specifically, this interference is caused by not subtracting out the barrier time of the last process to enter the barrier (which ideally is 0).
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] -= std::max((float)0.,vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1]);
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] -= std::max((float)0.,vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1]);
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-6] -= std::max((float)0.,vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1]);
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-6] -= std::max((float)0.,vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1]);
+    if (include_barrier_time){
+      symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] -= std::max((float)0.,path_diff);
+      symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] -= std::max((float)0.,path_diff);
+      symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-6] -= std::max((float)0.,path_diff);
+      symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-6] -= std::max((float)0.,path_diff);
+    }
   }
 
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  vol_costs[num_vol_measures-5] = vol_costs[num_vol_measures-5] > cp_costs[num_cp_measures-5]
-                                          ? cp_costs[num_cp_measures-5] : vol_costs[num_vol_measures-5];
-  vol_costs[num_vol_measures-4] = vol_costs[num_vol_measures-4] > cp_costs[num_cp_measures-4]
-                                          ? cp_costs[num_cp_measures-4] : vol_costs[num_vol_measures-4];
-  vol_costs[num_vol_measures-3] = vol_costs[num_vol_measures-3] > cp_costs[num_cp_measures-3]
-                                          ? cp_costs[num_cp_measures-3] : vol_costs[num_vol_measures-3];
-  vol_costs[num_vol_measures-2] = vol_costs[num_vol_measures-2] > cp_costs[num_cp_measures-2]
-                                          ? cp_costs[num_cp_measures-2] : vol_costs[num_vol_measures-2];
-  vol_costs[num_vol_measures-1] = vol_costs[num_vol_measures-1] > cp_costs[num_cp_measures-1]
-                                          ? cp_costs[num_cp_measures-1] : vol_costs[num_vol_measures-1];
+  for (int i=1; i<=5; i++){
+    vol_costs[num_vol_measures-i] = std::min(vol_costs[num_vol_measures-i],cp_costs[num_cp_measures-i]);
+  }
 
   propagate(tracker);
 
@@ -644,16 +641,9 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   vol_costs[num_vol_measures-3] += comp_time;
   vol_costs[num_vol_measures-1] += comp_time+comm_time;
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  vol_costs[num_vol_measures-5] = vol_costs[num_vol_measures-5] > cp_costs[num_cp_measures-5]
-                                          ? cp_costs[num_cp_measures-5] : vol_costs[num_vol_measures-5];
-  vol_costs[num_vol_measures-4] = vol_costs[num_vol_measures-4] > cp_costs[num_cp_measures-4]
-                                          ? cp_costs[num_cp_measures-4] : vol_costs[num_vol_measures-4];
-  vol_costs[num_vol_measures-3] = vol_costs[num_vol_measures-3] > cp_costs[num_cp_measures-3]
-                                          ? cp_costs[num_cp_measures-3] : vol_costs[num_vol_measures-3];
-  vol_costs[num_vol_measures-2] = vol_costs[num_vol_measures-2] > cp_costs[num_cp_measures-2]
-                                          ? cp_costs[num_cp_measures-2] : vol_costs[num_vol_measures-2];
-  vol_costs[num_vol_measures-1] = vol_costs[num_vol_measures-1] > cp_costs[num_cp_measures-1]
-                                          ? cp_costs[num_cp_measures-1] : vol_costs[num_vol_measures-1];
+  for (int i=1; i<=5; i++){
+    vol_costs[num_vol_measures-i] = std::min(vol_costs[num_vol_measures-i],cp_costs[num_cp_measures-i]);
+  }
 
   // Decompose measurements along multiple paths by MPI routine.
   // Accumuate MPI routine-local measurements. The "my_..." members will never modify the accumulations, while the "cp_..." will first accumulate before path propagation.

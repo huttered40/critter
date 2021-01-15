@@ -106,6 +106,7 @@ extern int comp_kernel_counter;
 extern int comm_kernel_counter;
 extern int clear_counter;
 extern int communicator_count;
+extern int world_rank,debug_rank;
 extern volatile double computation_timer;
 extern std::vector<double> wall_timer;
 extern double _wall_time;
