@@ -85,5 +85,6 @@ See the lists below for an accurate depiction of our current support.
 | MPI_Probe                |   no       |
 
 ## Warnings
-3. `critter` cannot handle usage of `MPI_ANY_SOURCE`.
-4. `critter` cannot track libraries that use `MPI_THREAD_MULTIPLE`.
+1. `critter` cannot handle usage of `MPI_ANY_SOURCE`.
+2. `critter` cannot track libraries that use `MPI_THREAD_MULTIPLE`.
+3. `critter` does not track late receivers for point-to-point communication.
