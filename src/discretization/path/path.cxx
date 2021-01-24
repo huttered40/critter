@@ -188,7 +188,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_kernel_key, although it will be empty.
   comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-  memset(&cp_costs[4],0,14*sizeof(float));
+  memset(&cp_costs[4],0,14*sizeof(float)); cp_costs[6] = 1;
   if (tuning_delta > 1){// tuning_delta of 1 signifies that communication kernel scheduling is to be unconditional
     if (comm_kernel_map.find(key) != comm_kernel_map.end()){
       schedule_decision = should_schedule(comm_kernel_map[key])==1;
@@ -506,12 +506,12 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_kernel_key, although it will be empty.
   comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-  memset(&cp_costs[4],0,14*sizeof(float));
+  memset(&cp_costs[4],0,14*sizeof(float)); cp_costs[6] = 1;
   if (tuning_delta > 1){// tuning_delta of 1 signifies that communication kernel scheduling is to be unconditional
     if (comm_kernel_map.find(key) != comm_kernel_map.end()){
       schedule_decision = should_schedule(comm_kernel_map[key])==1;
       cp_costs[5] = (!schedule_decision ? 1 : 0);	// This logic must match that in 'initiate_comm(blocking&,...)'
-      cp_costs[6] = (!schedule_decision ? 0 : 1);	// This logic must match that in 'initiate_comm(blocking&,...)'
+      cp_costs[6] = (schedule_decision ? 1 : 0);	// This logic must match that in 'initiate_comm(blocking&,...)'
       if (!schedule_decision){
         // If this particular kernel is globally steady, meaning it has exhausted its state aggregation channels,
         //   then we can overwrite the '-1' with the sample mean of the globally-steady kernel
@@ -529,13 +529,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
     }
   }
 
-  // Leave early if p2p with itself. Blocking version will skip too.
-  if (rank == partner){
-    intercept_overhead[1] += MPI_Wtime() - overhead_start_time;
-    computation_timer = MPI_Wtime();
-    return schedule_decision;
-  }
-
+  // Note: I will not write special case for rank==partner
   if (sample_constraint_mode == 2){
     // Fill in -1 first because the number of distinct kernels might be less than 'comm_kernel_select_count',
     //   just to avoid confusion. A -1 tag clearly means that the kernel is void
@@ -608,6 +602,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
     }
   }
 
+  global_schedule_decision = schedule_decision;// 'global' as in global variable
   intercept_overhead[1] += MPI_Wtime() - overhead_start_time;
   computation_timer = MPI_Wtime();
   return schedule_decision;
@@ -628,13 +623,7 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
   int64_t nbytes = el_size * nelem;
   MPI_Comm_size(comm, &p);
 
-  // Leave early if p2p with itself. Blocking version will skip too.
-  int rank; MPI_Comm_rank(comm,&rank);
-  if (rank == partner){
-    computation_timer = MPI_Wtime();
-    return;
-  }
-
+  // Note: I will not write special case for rank==partner
   // These asserts are to prevent the situation in which my synthetic request_id and that of the MPI implementation collide
   assert(nonblocking_internal_info.find(*request) == nonblocking_internal_info.end());
   nonblocking_info msg_info(save_path_data,save_prop_req,true,is_sender,partner,comm,(float)nbytes,(float)p,user_tag,&tracker);
@@ -691,7 +680,7 @@ void path::complete_comm(nonblocking& tracker, float* path_data, MPI_Request* re
       } else{
         if (delay_state_update){
           // Receivers of any kind must transfer the sender's local state first. This then allows a quick jump from active to globally steady
-          if (tracker.partner1 == -1 || !tracker.is_sender) set_kernel_state(comm_kernel_map[key],path_data[4]);
+          if (tracker.partner1 == -1 || !tracker.is_sender) set_kernel_state(comm_kernel_map[key],path_data[4]==0);
           if (active_kernels[comm_kernel_map[key].val_index].steady_state){
             set_kernel_state_global(comm_kernel_map[key],false);
           } else{
@@ -724,6 +713,7 @@ void path::complete_comm(nonblocking& tracker, float* path_data, MPI_Request* re
                                           ? cp_costs[num_cp_measures-2] : vol_costs[num_vol_measures-2];
   vol_costs[num_vol_measures-1] = vol_costs[num_vol_measures-1] > cp_costs[num_cp_measures-1]
                                           ? cp_costs[num_cp_measures-1] : vol_costs[num_vol_measures-1];
+  if (!tracker.is_sender || tracker.partner1==-1) free(info_it->second.path_data);
   nonblocking_internal_info.erase(*request);
 }
 
@@ -739,37 +729,31 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
     ret = PMPI_Wait(request, status);
     auto save_comm_time = MPI_Wtime() - last_start_time;
     auto overhead_start_time = MPI_Wtime();
-    if (rank != info_it->second.partner){
-      // If receiver or collective, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
-        assert(info_it->second.path_data != nullptr);
-        PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-        free(info_it->second.path_data);
-      }
-      complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, save_comm_time);
-      intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
+    // If receiver or collective, complete the barrier and the path data propagation
+    if (!info_it->second.is_sender || info_it->second.partner==-1){
+      assert(info_it->second.path_data != nullptr);
+      PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
+      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
     }
+    complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, save_comm_time);
+    intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
   } else{
-    if (rank != info_it->second.partner){
-      auto overhead_start_time = MPI_Wtime();
-      // If receiver or collective, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
-        assert(info_it->second.path_data != nullptr);
-        PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-        free(info_it->second.path_data);
-        if (status != MPI_STATUS_IGNORE){
-          status->MPI_SOURCE = info_it->second.partner;
-          status->MPI_TAG = info_it->second.tag;
-        }
+    auto overhead_start_time = MPI_Wtime();
+    // If receiver or collective, complete the barrier and the path data propagation
+    if (!info_it->second.is_sender || info_it->second.partner==-1){
+      assert(info_it->second.path_data != nullptr);
+      PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
+      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+      if (status != MPI_STATUS_IGNORE){
+        status->MPI_SOURCE = info_it->second.partner;
+        status->MPI_TAG = info_it->second.tag;
       }
-      complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, 1000000.);
-      *request = MPI_REQUEST_NULL;
-      intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
     }
+    complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, 1000000.);
+    *request = MPI_REQUEST_NULL;
+    intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
   }
   computation_timer = MPI_Wtime();
   return ret;
@@ -798,37 +782,31 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     auto info_it = nonblocking_internal_info.find((array_of_requests)[*indx]);
     assert(info_it != nonblocking_internal_info.end());
     int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-    if (rank != info_it->second.partner){
-      // If receiver or collective, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
-        assert(info_it->second.path_data != nullptr);
-        PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-        free(info_it->second.path_data);
-      }
-      complete_comm(*info_it->second.track, info_it->second.path_data, &(array_of_requests)[*indx], comp_time, save_comm_time);
+    // If receiver or collective, complete the barrier and the path data propagation
+    if (!info_it->second.is_sender || info_it->second.partner==-1){
+      assert(info_it->second.path_data != nullptr);
+      PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
+      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
     }
+    complete_comm(*info_it->second.track, info_it->second.path_data, &(array_of_requests)[*indx], comp_time, save_comm_time);
   } else{
     overhead_start_time = MPI_Wtime();
     auto info_it = nonblocking_internal_info.find((array_of_requests)[last_skip]);
     assert(info_it != nonblocking_internal_info.end());
     int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-    if (rank != info_it->second.partner){
-      // If receiver or collective, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
-        assert(info_it->second.path_data != nullptr);
-        PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-        free(info_it->second.path_data);
-        if (status != MPI_STATUS_IGNORE){
-          status->MPI_SOURCE = info_it->second.partner;
-          status->MPI_TAG = info_it->second.tag;
-        }
+    // If receiver or collective, complete the barrier and the path data propagation
+    if (!info_it->second.is_sender || info_it->second.partner==-1){
+      assert(info_it->second.path_data != nullptr);
+      PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
+      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+      if (status != MPI_STATUS_IGNORE){
+        status->MPI_SOURCE = info_it->second.partner;
+        status->MPI_TAG = info_it->second.tag;
       }
-      complete_comm(*info_it->second.track, info_it->second.path_data, &(array_of_requests)[last_skip], comp_time, 1000000.);
     }
+    complete_comm(*info_it->second.track, info_it->second.path_data, &(array_of_requests)[last_skip], comp_time, 1000000.);
     (array_of_requests)[last_skip] = MPI_REQUEST_NULL;
   }
   intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
@@ -869,15 +847,14 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
           PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
           update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
           if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-          free(info_it->second.path_data);
           if (array_of_statuses != MPI_STATUSES_IGNORE){
             array_of_statuses[i].MPI_SOURCE = info_it->second.partner;
             array_of_statuses[i].MPI_TAG = info_it->second.tag;
           }
         }
-        complete_comm(*info_it->second.track, info_it->second.path_data, &pt[i], comp_time, (float)0.);
-        comp_time=0;
       }
+      complete_comm(*info_it->second.track, info_it->second.path_data, &pt[i], comp_time, (float)0.);
+      comp_time=0;
       array_of_requests[i] = MPI_REQUEST_NULL;
     }
   }
@@ -893,19 +870,16 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       auto info_it = nonblocking_internal_info.find(request);
       assert(info_it != nonblocking_internal_info.end());
       int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-      if (rank != info_it->second.partner){
-        // If receiver or collective, complete the barrier and the path data propagation
-        if (!info_it->second.is_sender || info_it->second.partner==-1){
-          assert(info_it->second.path_data != nullptr);
-          PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-          if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-          if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-          free(info_it->second.path_data);
-        }
-        complete_comm(*info_it->second.track, info_it->second.path_data, &pt[i], comp_time, waitall_comm_time);
-        // Although we have to exchange the path data for each request, we do not want to float-count the computation time nor the communicaion time
-        comp_time=0; waitall_comm_time=0;
+      // If receiver or collective, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
+        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
       }
+      complete_comm(*info_it->second.track, info_it->second.path_data, &pt[i], comp_time, waitall_comm_time);
+      // Although we have to exchange the path data for each request, we do not want to float-count the computation time nor the communicaion time
+      comp_time=0; waitall_comm_time=0;
     }
     intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
   }
@@ -920,23 +894,20 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       auto info_it = nonblocking_internal_info.find(pt[indx]);
       assert(info_it != nonblocking_internal_info.end());
       int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-      if (rank != info_it->second.partner){
-        // If receiver or collective, complete the barrier and the path data propagation
-        if (!info_it->second.is_sender || info_it->second.partner==-1){
-          assert(info_it->second.path_data != nullptr);
-          PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-          update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-          if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
-          free(info_it->second.path_data);
-          if (array_of_statuses != MPI_STATUSES_IGNORE){
-            array_of_statuses[indx].MPI_SOURCE = info_it->second.partner;
-            array_of_statuses[indx].MPI_TAG = info_it->second.tag;
-          }
+      // If receiver or collective, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
+        update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+        if (array_of_statuses != MPI_STATUSES_IGNORE){
+          array_of_statuses[indx].MPI_SOURCE = info_it->second.partner;
+          array_of_statuses[indx].MPI_TAG = info_it->second.tag;
         }
-        auto save_r = info_it->first;
-        complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, comm_time);
-        comp_time=0;
       }
+      auto save_r = info_it->first;
+      complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, comm_time);
+      comp_time=0;
       array_of_requests[indx] = MPI_REQUEST_NULL;
       true_count--;
       intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
