@@ -12,7 +12,7 @@ namespace discretization{
 
 std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
 bool global_schedule_decision;
-int tuning_delta,reset_distribution_mode;
+int tuning_delta,reset_distribution_mode,reset_state_mode;
 int sample_constraint_mode,schedule_kernels,update_analysis;
 int stop_criterion_mode,debug_iter_count;
 int comp_kernel_transfer_id,comm_kernel_transfer_id;
@@ -173,9 +173,13 @@ kernel& kernel::operator=(const kernel_propagate& _copy){
   return *this;
 }
 void kernel::reset(){
-  // No reason to reset distribution members ('M1','M2','steady_state','global_steady_state')
+  // No reason to reset distribution members ('M1','M2')
   // Do not reset the schedule_count members because those are needed to determine sample variance,
   //   which builds across schedules.
+  if (reset_state_mode){
+    this->steady_state = false;
+    this->global_steady_state = false;
+  }
   this->num_local_schedules=0;
   this->total_local_exec_time = 0;
   this->num_local_scheduled_units = 0;
@@ -1257,6 +1261,12 @@ void allocate(MPI_Comm comm){
     assert(reset_distribution_mode >=0 && reset_distribution_mode <=1);
   } else{
     reset_distribution_mode = 1;
+  }
+  if (std::getenv("CRITTER_RESET_KERNEL_STATE") != NULL){
+    reset_state_mode = atoi(std::getenv("CRITTER_RESET_KERNEL_STATE"));
+    assert(reset_state_mode >=0 && reset_state_mode <=1);
+  } else{
+    reset_state_mode = 1;
   }
   if (std::getenv("CRITTER_KERNEL_COUNT_LIMIT") != NULL){
     kernel_count_limit = atoi(std::getenv("CRITTER_KERNEL_COUNT_LIMIT"));

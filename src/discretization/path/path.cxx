@@ -287,10 +287,10 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   if (partner1 == -1){
-    MPI_Op op;
-    MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op);
-    PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], cp_costs.size(), MPI_FLOAT, op, tracker.comm);
-    MPI_Op_free(&op);
+    MPI_Op op_special;
+    MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op_special);
+    PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], cp_costs.size(), MPI_FLOAT, op_special, tracker.comm);
+    MPI_Op_free(&op_special);
     if (collective_state_protocol) schedule_decision = (cp_costs[6] == 0 ? false : true);
     else schedule_decision = (cp_costs[5] == 0 ? true : false);
     tracker.aggregate_comp_kernels = cp_costs[7]>0;

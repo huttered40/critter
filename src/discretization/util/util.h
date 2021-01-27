@@ -147,7 +147,7 @@ struct intermediate_stats{
 // ****************************************************************************************************************************************************
 extern std::ofstream stream,stream_comm_kernel,stream_comp_kernel,stream_tune,stream_reconstruct;
 extern bool global_schedule_decision;
-extern int tuning_delta,reset_distribution_mode;
+extern int tuning_delta,reset_distribution_mode,reset_state_mode;
 extern int comm_sample_aggregation_mode,comm_state_aggregation_mode;
 extern int comp_sample_aggregation_mode,comp_state_aggregation_mode;
 extern int sample_constraint_mode,schedule_kernels,update_analysis;
