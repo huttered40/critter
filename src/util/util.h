@@ -47,13 +47,12 @@ struct comm_kernel_key : public kernel_key{
   friend bool operator<(const comm_kernel_key& ref1, const comm_kernel_key& ref2);
 
   int tag;
-  int dim_sizes[2];// Allow up to 2 dimensions
-  int dim_strides[2];// Allow up to 2 dimensions
+  int dim_sizes[2];// Allow up to 2 explicit cartesian dimensions
+  int dim_strides[2];// Allow up to 2 explicit cartesian dimensions
   int partner_offset;
   int kernel_index;
   float msg_size;
 };
-
 
 // ****************************************************************************************************************************************************
 struct comp_kernel_key : public kernel_key{
@@ -91,10 +90,10 @@ struct kernel_key_id{
   kernel_key_id& operator=(const kernel_key_id& _copy);
 
   // Active just means its still being propogated. It acts as a switch betweeh steady_state arrays and active arrays
-  bool is_active;
-  bool is_updated;
-  int key_index;
-  int val_index;
+  bool is_active;		// No longer referenced
+  bool is_updated;		// No longer referenced
+  int key_index;		// Index into flat array
+  int val_index;		// Index into flat array
 };
 
 // ****************************************************************************************************************************************************
@@ -196,6 +195,7 @@ extern size_t
 	_LAPACK_tpmqrt__id;
 extern MPI_Datatype comm_kernel_key_type;
 extern MPI_Datatype comp_kernel_key_type;
+
 extern std::map<std::string,int> symbol_id_map;
 extern std::function<void(void)> symbol_function;
 extern int symbol_id_count;
