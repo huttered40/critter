@@ -28,8 +28,8 @@ namespace internal{
 // ****************************************************************************************************************************************************
 extern int comm_envelope_param;
 extern int comp_envelope_param;
-extern int comm_unit_param;
-extern int comp_unit_param;
+extern int comm_stat_range;
+extern int comp_stat_range;
 extern int comm_analysis_param;
 extern int comp_analysis_param;
 

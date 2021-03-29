@@ -1340,13 +1340,29 @@ void allocate(MPI_Comm comm){
   } else{
     collective_state_protocol = 1;
   }
-
   comm_envelope_param = 0;
-  comm_unit_param = 0;
+  comm_stat_range = 0;
   comm_analysis_param = 0;
   comp_envelope_param = 0;
-  comp_unit_param = 0;
+  comp_stat_range = 0;
   comp_analysis_param = 0;
+  if (std::getenv("CRITTER_COMM_ANALYSIS") != NULL){
+    comm_analysis_param = atof(std::getenv("CRITTER_COMM_ANALYSIS"));
+    assert(comm_analysis_param >= 0 && comm_analysis_param <= 1);
+  }
+  if (std::getenv("CRITTER_COMP_ANALYSIS") != NULL){
+    comp_analysis_param = atof(std::getenv("CRITTER_COMP_ANALYSIS"));
+    assert(comp_analysis_param >= 0 && comp_analysis_param <= 1);
+  }
+  if (std::getenv("CRITTER_COMM_STAT_RANGE") != NULL){
+    comm_stat_range = atof(std::getenv("CRITTER_COMM_STAT_RANGE"));
+    assert(comm_stat_range >= 0 && comm_stat_range <= 1);
+  }
+  if (std::getenv("CRITTER_COMP_STAT_RANGE") != NULL){
+    comp_stat_range = atof(std::getenv("CRITTER_COMP_STAT_RANGE"));
+    assert(comp_stat_range >= 0 && comp_stat_range <= 1);
+  }
+
   debug_iter_count = 1;
   // If user wants percentage-based stopping criterion, force knowledge of kernel frequency via skeletonization
   if (stop_criterion_mode==0) assert(sample_constraint_mode == 3);

@@ -48,8 +48,6 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
       symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-2] += last_symbol_time;
     }
   } 
-  generate_aggregate_channels(oldcomm,newcomm);
-  PMPI_Barrier(oldcomm);
   if (mode==1){
     computation_timer = MPI_Wtime();
     if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){

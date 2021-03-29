@@ -78,8 +78,8 @@ static float truncate(int v, int unit_param){
 // ****************************************************************************************************************************************************
 int comm_envelope_param;
 int comp_envelope_param;
-int comm_unit_param;
-int comp_unit_param;
+int comm_stat_range;
+int comp_stat_range;
 int comm_analysis_param;
 int comp_analysis_param;
 // ****************************************************************************************************************************************************
@@ -102,7 +102,7 @@ comm_kernel_key::comm_kernel_key(int _rank, int _kernel_index, int _tag, int _di
     this->partner_offset = -1;
   }
   // Unit (message-size) parameterization specification
-  this->msg_size = truncate(_msg_size,comm_unit_param);
+  this->msg_size = truncate(_msg_size,comm_stat_range);
   // Regardless of the specified envelope parameterization, non-p2p communication requires all processes to set partner_offset <- INT_MIN (-1 is not sufficient)
   if (_partner == -1){ this->partner_offset = INT_MIN; }
 }
@@ -167,12 +167,14 @@ bool operator<(const comm_kernel_key& ref1, const comm_kernel_key& ref2){
 comp_kernel_key::comp_kernel_key(int _kernel_index, int _tag, float _flops, int _param1, int _param2, int _param3, int _param4, int _param5){
   this->kernel_index = _kernel_index;
   this->tag = _tag;
-  this->param1 = truncate(_param1,comp_unit_param);
-  this->param2 = truncate(_param2,comp_unit_param);
-  this->param3 = truncate(_param3,comp_unit_param);
-  this->param4 = truncate(_param4,comp_unit_param);
-  this->param5 = truncate(_param5,comp_unit_param);
-  this->flops = truncate(_flops,comp_unit_param);
+  // Note: using comp_stat_range for all 5 params is ill-advised, because not all params are matrix-dimension parameters.
+  //       some are blas keys, etc.
+  this->param1 = truncate(_param1,comp_stat_range);
+  this->param2 = truncate(_param2,comp_stat_range);
+  this->param3 = truncate(_param3,comp_stat_range);
+  this->param4 = truncate(_param4,comp_stat_range);
+  this->param5 = truncate(_param5,comp_stat_range);
+  this->flops = truncate(_flops,comp_stat_range);
 }
 
 comp_kernel_key::comp_kernel_key(const comp_kernel_key& _copy){
