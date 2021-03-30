@@ -205,6 +205,18 @@ nonblocking _MPI_Ialltoallv("MPI_Ialltoallv",32,
               [](int64_t n, int p){
               return std::pair<float,float>(log2((float)p),log2((float)p)*n);}
                            );
+blocking _MPI_Comm_split("MPI_Comm_split",33, 
+                       [](int64_t n, int p){
+                       return std::pair<float,float>(1.,0.);},
+                       [](int64_t n, int p){
+                       return std::pair<float,float>(log2((float)p),0.);}
+                     );
+blocking _MPI_Comm_dup("MPI_Comm_dup",34, 
+                       [](int64_t n, int p){
+                       return std::pair<float,float>(1.,0.);},
+                       [](int64_t n, int p){
+                       return std::pair<float,float>(log2((float)p),0.);}
+                     );
 
 comm_tracker* list[list_size] = {
         &_MPI_Barrier,
@@ -239,7 +251,9 @@ comm_tracker* list[list_size] = {
         &_MPI_Iscatterv,
         &_MPI_Ireduce_scatter,
         &_MPI_Ialltoall,
-        &_MPI_Ialltoallv};
+        &_MPI_Ialltoallv,
+        &_MPI_Comm_split,
+        &_MPI_Comm_dup};
 
 void comm_tracker::init(){
   this->set_cost_pointers();

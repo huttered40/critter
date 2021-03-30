@@ -132,6 +132,8 @@ extern size_t
          _MPI_Sendrecv__id,
          _MPI_Sendrecv_replace__id,
          _MPI_Barrier__id,
+         _MPI_Comm_split__id,
+	 _MPI_Comm_dup__id,
          _MPI_Bcast__id,
          _MPI_Reduce__id,
          _MPI_Allreduce__id,

@@ -55,9 +55,11 @@ void clear(int mode, int tag_count, int* distribution_tags){
 void set_mode(int input_mode){
   if (input_mode != -1) { internal::mode = input_mode; }
   else{
-    if (std::getenv("CRITTER_MODE") != NULL){
+    if (internal::stack_id>0 && std::getenv("CRITTER_MODE") != NULL){
       internal::mode = atoi(std::getenv("CRITTER_MODE"));
       assert(internal::mode >=0 && internal::mode <=1);
+    } else if (internal::stack_id==0){
+      internal::mode = 0;
     } else{
       internal::mode = 1;
     }
@@ -219,6 +221,8 @@ void _init(int* argc, char*** argv){
   _MPI_Ireduce_scatter__id = 30;
   _MPI_Ialltoall__id = 31;
   _MPI_Ialltoallv__id = 32;
+  _MPI_Comm_split__id = 33;
+  _MPI_Comm_dup__id = 34;
 
   _BLAS_axpy__id = 100;
   _BLAS_scal__id = 101;
@@ -317,9 +321,9 @@ int comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   int ret = MPI_SUCCESS;
   if (mode){
     volatile auto curtime = MPI_Wtime();
-    bool schedule_decision = initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
+    bool schedule_decision = initiate_comm(_MPI_Comm_split__id,curtime, 0, MPI_CHAR, comm);
     ret = PMPI_Comm_split(comm,color,key,newcomm);
-    complete_comm(_MPI_Barrier__id);
+    complete_comm(_MPI_Comm_split__id);
   }
   else{
     ret = PMPI_Comm_split(comm,color,key,newcomm);
@@ -332,9 +336,9 @@ int comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
   int ret = MPI_SUCCESS;
   if (mode){
     volatile auto curtime = MPI_Wtime();
-    bool schedule_decision = initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
+    bool schedule_decision = initiate_comm(_MPI_Comm_dup__id,curtime, 0, MPI_CHAR, comm);
     ret = PMPI_Comm_dup(comm,newcomm);
-    complete_comm(_MPI_Barrier__id);
+    complete_comm(_MPI_Comm_dup__id);
   }
   else{
     ret = PMPI_Comm_dup(comm,newcomm);

@@ -134,7 +134,9 @@ extern blocking
          _MPI_Gatherv,
          _MPI_Allgatherv,
          _MPI_Scatterv,
-         _MPI_Alltoallv;
+         _MPI_Alltoallv,
+         _MPI_Comm_split,
+         _MPI_Comm_dup;
 extern nonblocking
          _MPI_Isend,
          _MPI_Irecv,
@@ -150,7 +152,7 @@ extern nonblocking
          _MPI_Ireduce_scatter,
          _MPI_Ialltoall,
          _MPI_Ialltoallv;
-constexpr auto list_size=33;
+constexpr auto list_size=35;
 extern comm_tracker* list[list_size];
 extern std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 
