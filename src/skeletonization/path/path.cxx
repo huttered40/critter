@@ -95,7 +95,10 @@ void path::complete_comp(double errtime, size_t id, float flop_count, int param1
 }
 
 bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
-                         bool is_sender, int partner1, int partner2){
+                         bool is_sender, int partner1, int user_tag1, int partner2, int user_tag2){
+  // Check for conflicting communication tag(s)
+  if (partner1 != -1) assert(!(user_tag1 >= internal_tag && user_tag1 <= internal_tag5));
+  if (partner2 != -1) assert(!(user_tag2 >= internal_tag && user_tag2 <= internal_tag5));
   assert(partner1 != MPI_ANY_SOURCE); if ((tracker.tag == 13) || (tracker.tag == 14)){ assert(partner2 != MPI_ANY_SOURCE); }
   tracker.comp_time = curtime - computation_timer;
   if (skeleton_type==0){
@@ -144,7 +147,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   else{ return true; }
 }
 
-void path::complete_comm(blocking& tracker, int recv_source){
+void path::complete_comm(blocking& tracker){
   volatile auto comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   std::pair<float,float> cost_alphabeta = tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
 
@@ -179,8 +182,9 @@ void path::complete_comm(blocking& tracker, int recv_source){
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, int user_tag, bool is_sender, int partner){
-
+bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner, int user_tag){
+  // Check for conflicting communication tag(s)
+  if (partner != -1) assert(!(user_tag >= internal_tag && user_tag <= internal_tag5));
   tracker.comp_time = curtime - computation_timer;
   assert(partner != MPI_ANY_SOURCE);
   // Save caller communication attributes into reference object for use in corresponding static method 'complete_comm'
@@ -234,7 +238,9 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
 
 // Called by both nonblocking p2p and nonblocking collectives
 void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
-                         MPI_Datatype t, MPI_Comm comm, MPI_Request* request, int user_tag, bool is_sender, int partner){
+                         MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner, int user_tag){
+  // Check for conflicting communication tag(s)
+  if (partner != -1) assert(!(user_tag >= internal_tag && user_tag <= internal_tag5));
   // Note: this function is invoked only when skeleton_type==0
   assert(skeleton_type == 0);
   MPI_Request barrier_req = MPI_REQUEST_NULL;// Only necessary for nonblocking receives

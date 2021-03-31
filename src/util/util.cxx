@@ -247,6 +247,7 @@ kernel_key_id& kernel_key_id::operator=(const kernel_key_id& _copy){
 
 int reset_matrix;
 int autotuning_debug;
+int save_wildcard_id;
 int bsp_counter;
 int reset_counter;
 int comp_kernel_counter;

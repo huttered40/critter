@@ -99,6 +99,7 @@ struct kernel_key_id{
 // ****************************************************************************************************************************************************
 extern int reset_matrix;
 extern int autotuning_debug;
+extern int save_wildcard_id;
 extern int bsp_counter;
 extern int reset_counter;
 extern int comp_kernel_counter;

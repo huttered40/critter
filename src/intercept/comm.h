@@ -90,8 +90,9 @@ int waitany(int count, MPI_Request array_of_requests[], int* indx, MPI_Status* s
 int waitsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
 int waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[]);
 int test(MPI_Request* request, int* flag, MPI_Status* status);
-int probe(int source, int tag, MPI_Comm comm, MPI_Status* status);
-int iprobe(int source, int tag, MPI_Comm comm, int* flag, MPI_Status* status);
+int testany(int count, MPI_Request array_of_requests[], int* indx, int* flag, MPI_Status* status);
+int testsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]);
+int testall(int count, MPI_Request array_of_requests[], int* flag, MPI_Status array_of_statuses[]);
 
 }
 }

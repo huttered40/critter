@@ -135,13 +135,16 @@
 #define MPI_Waitall(cnt, reqs, stats)\
     critter::internal::waitall(cnt,reqs,stats)
 
-#define MPI_Test(req,flag,st)\
+#define MPI_Test(req, flag, st)\
     critter::internal::test(req,flag,st)
 
-#define MPI_Probe(src,tag,cm,st)\
-    critter::internal::probe(src,tag,cm,st)
+#define MPI_Testany(cnt, reqs, indx, flag, st)\
+    critter::internal::testany(cnt,reqs,indx,flag,st)
 
-#define MPI_Iprobe(src,tag,cm,fl,st)\
-    critter::internal::iprobe(src,tag,cm,fl,st)
+#define MPI_Testsome(incnt, reqs, outcnt, indices, stats)\
+    critter::internal::testsome(incnt,reqs,outcnt,indices,stats)
+
+#define MPI_Testall(cnt, reqs, flag, stats)\
+    critter::internal::testall(cnt,reqs,flag,stats)
 
 #endif /*CRITTER_MPI_H_*/

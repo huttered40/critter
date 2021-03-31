@@ -582,11 +582,10 @@ int sendrecv(const void* sendbuf, int sendcount, MPI_Datatype sendtype, int dest
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(sendtag != internal_tag); assert(recvtag != internal_tag);
-    bool schedule_decision = initiate_comm(_MPI_Sendrecv__id,curtime, std::max(sendcount,recvcount), sendtype, comm, true, dest, source);
+    bool schedule_decision = initiate_comm(_MPI_Sendrecv__id,curtime, std::max(sendcount,recvcount), sendtype, comm, true, dest, sendtag, source, recvtag);
     if (schedule_decision) ret = PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount,
-                                               recvtype, source, recvtag, comm, status);
-    complete_comm(_MPI_Sendrecv__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
+                                               recvtype, (source==MPI_ANY_SOURCE ? save_wildcard_id : source), recvtag, comm, status);
+    complete_comm(_MPI_Sendrecv__id);
   }
   else{
     ret = PMPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, status);
@@ -599,10 +598,9 @@ int sendrecv_replace(void* buf, int count, MPI_Datatype datatype, int dest, int 
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(sendtag != internal_tag); assert(recvtag != internal_tag);
-    bool schedule_decision = initiate_comm(_MPI_Sendrecv_replace__id,curtime, count, datatype, comm, true, dest, source);
-    if (schedule_decision) ret = PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
-    complete_comm(_MPI_Sendrecv_replace__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
+    bool schedule_decision = initiate_comm(_MPI_Sendrecv_replace__id,curtime, count, datatype, comm, true, dest, sendtag, source, recvtag);
+    if (schedule_decision) ret = PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, (source==MPI_ANY_SOURCE ? save_wildcard_id : source), recvtag, comm, status);
+    complete_comm(_MPI_Sendrecv_replace__id);
    }
   else{
     ret = PMPI_Sendrecv_replace(buf, count, datatype, dest, sendtag, source, recvtag, comm, status);
@@ -614,8 +612,7 @@ int ssend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, 
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(tag != internal_tag);
-    bool schedule_decision = initiate_comm(_MPI_Ssend__id,curtime, count, datatype, comm, true, dest);
+    bool schedule_decision = initiate_comm(_MPI_Ssend__id,curtime, count, datatype, comm, true, dest, tag);
     if (schedule_decision) ret = PMPI_Ssend(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Ssend__id);
   }
@@ -629,8 +626,7 @@ int bsend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, 
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(tag != internal_tag);
-    bool schedule_decision = initiate_comm(_MPI_Bsend__id,curtime, count, datatype, comm, true, dest);
+    bool schedule_decision = initiate_comm(_MPI_Bsend__id,curtime, count, datatype, comm, true, dest, tag);
     if (schedule_decision) ret = PMPI_Bsend(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Bsend__id);
   }
@@ -644,8 +640,7 @@ int send(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, M
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(tag != internal_tag);
-    bool schedule_decision = initiate_comm(_MPI_Send__id,curtime, count, datatype, comm, true, dest);
+    bool schedule_decision = initiate_comm(_MPI_Send__id,curtime, count, datatype, comm, true, dest, tag);
     if (schedule_decision) ret = PMPI_Send(buf, count, datatype, dest, tag, comm);
     complete_comm(_MPI_Send__id);
   }
@@ -659,10 +654,9 @@ int recv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_C
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(tag != internal_tag);
-    bool schedule_decision = initiate_comm(_MPI_Recv__id,curtime, count, datatype, comm, false, source);
-    if (schedule_decision) ret = PMPI_Recv(buf, count, datatype, source, tag, comm, status);
-    complete_comm(_MPI_Recv__id,(source==MPI_ANY_SOURCE ? status->MPI_SOURCE : -1));
+    bool schedule_decision = initiate_comm(_MPI_Recv__id,curtime, count, datatype, comm, false, source, tag);
+    if (schedule_decision) ret = PMPI_Recv(buf, count, datatype, (source==MPI_ANY_SOURCE ? save_wildcard_id : source), tag, comm, status);
+    complete_comm(_MPI_Recv__id);
   }
   else{
     ret = PMPI_Recv(buf, count, datatype, source, tag, comm, status);
@@ -674,13 +668,12 @@ int isend(const void* buf, int count, MPI_Datatype datatype, int dest, int tag, 
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(tag != internal_tag);
-    bool schedule_decision = inspect_comm(_MPI_Isend__id, curtime, count, datatype, comm, tag, true, dest);
+    bool schedule_decision = inspect_comm(_MPI_Isend__id, curtime, count, datatype, comm, true, dest, tag);
     if (schedule_decision){
       volatile auto itime = MPI_Wtime();
       ret = PMPI_Isend(buf, count, datatype, dest, tag, comm, request);
       itime = MPI_Wtime()-itime;
-      initiate_comm(_MPI_Isend__id, itime, count, datatype, comm, request, tag, true, dest);
+      initiate_comm(_MPI_Isend__id, itime, count, datatype, comm, request, true, dest, tag);
     } else{
       *request = request_id++;
     }
@@ -695,13 +688,12 @@ int irecv(void* buf, int count, MPI_Datatype datatype, int source, int tag, MPI_
   int ret = MPI_SUCCESS;
   if (mode && track_p2p){
     volatile auto curtime = MPI_Wtime();
-    //assert(tag != internal_tag);
-    bool schedule_decision = inspect_comm(_MPI_Irecv__id, curtime, count, datatype, comm, tag, false, source);
+    bool schedule_decision = inspect_comm(_MPI_Irecv__id, curtime, count, datatype, comm, false, source, tag);
     if (schedule_decision){
       volatile auto itime = MPI_Wtime();
       ret = PMPI_Irecv(buf, count, datatype, source, tag, comm, request);
       itime = MPI_Wtime()-itime;
-      initiate_comm(_MPI_Irecv__id, itime, count, datatype, comm, request, tag, false, source);
+      initiate_comm(_MPI_Irecv__id, itime, count, datatype, comm, request, false, source, tag);
     } else{
       *request = request_id++;
     }
@@ -1030,18 +1022,51 @@ int waitall(int count, MPI_Request array_of_requests[], MPI_Status array_of_stat
 }
 
 int test(MPI_Request* request, int* flag, MPI_Status* status){
-  assert(0);//TODO
-  return 0;
+  int ret = MPI_SUCCESS;
+  if (mode && track_p2p){
+    volatile auto curtime = MPI_Wtime();
+    ret = complete_comm(curtime,request, status,1,flag);
+  }
+  else{
+    ret = PMPI_Test(request, flag, status);
+  }
+  return ret;
 }
 
-int probe(int source, int tag, MPI_Comm comm, MPI_Status* status){
-  assert(0);//TODO
-  return 0;
+int testany(int count, MPI_Request array_of_requests[], int* indx, int* flag, MPI_Status* status){
+  int ret = MPI_SUCCESS;
+  if (mode && track_p2p){
+    volatile auto curtime = MPI_Wtime();
+    ret = complete_comm(curtime, count, array_of_requests, indx, status,1,flag);
+  }
+  else{
+    ret = PMPI_Testany(count, array_of_requests, indx, flag, status);
+  }
+  return ret;
 }
 
-int iprobe(int source, int tag, MPI_Comm comm, int* flag, MPI_Status* status){
-  assert(0);//TODO
-  return 0;
+int testsome(int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[], MPI_Status array_of_statuses[]){
+  int ret = MPI_SUCCESS;
+  if (mode && track_p2p){
+    volatile auto curtime = MPI_Wtime();
+    ret = complete_comm(curtime, incount, array_of_requests, outcount, array_of_indices, array_of_statuses,1);
+  }
+  else{
+    ret = PMPI_Testsome(incount, array_of_requests, outcount, array_of_indices, array_of_statuses);
+  }
+  return ret;
+}
+
+int testall(int count, MPI_Request array_of_requests[], int* flag, MPI_Status array_of_statuses[]){
+  int ret = MPI_SUCCESS;
+  if (mode && track_p2p){
+    volatile auto curtime = MPI_Wtime();
+    ret = complete_comm(curtime,count,array_of_requests,array_of_statuses,1,flag);
+  }
+  else{
+    ret = PMPI_Testall(count, array_of_requests, flag, array_of_statuses);
+  }
+  return ret;
 }
 
 }
