@@ -5,7 +5,7 @@
 
 namespace critter{
 
-void init(std::vector<std::string>& symbols){
+void init(std::vector<std::string> symbols){
   internal::init_symbol(symbols);
 }
 
