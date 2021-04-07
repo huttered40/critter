@@ -81,10 +81,11 @@ See the lists below for an accurate depiction of our current support.
 | MPI_Irecv                |   yes      |
 | MPI_Sendrecv             |   yes      |
 | MPI_Sendrecv_replace     |   yes      |
-| MPI_Test                 |   no       |
-| MPI_Probe                |   no       |
+| MPI_Test                 |   yes      |
+| MPI_Testany              |   yes      |
+| MPI_Testsome             |   yes      |
+| MPI_Testall              |   yes      |
 
 ## Warnings
-1. `critter` cannot handle usage of `MPI_ANY_SOURCE`.
-2. `critter` cannot track libraries that use `MPI_THREAD_MULTIPLE`.
-3. `critter` does not track late receivers for point-to-point communication.
+1. `critter` cannot track libraries that use `MPI_THREAD_MULTIPLE`.
+2. `critter` does not track late receivers for point-to-point communication.
