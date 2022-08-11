@@ -1,7 +1,7 @@
 #include "record.h"
 #include "../util/util.h"
 #include "../../decomposition/util/util.h"
-#include "../../skeletonization/util/util.h"
+#include "../../skeleton/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
 
@@ -84,12 +84,12 @@ void record::set_kernel_statistics(){
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
-      auto& skel_kernel_list = skeletonization::active_kernels;
-      auto& skel_key_list = skeletonization::active_comm_kernel_keys;
+      auto& skel_kernel_list = skeleton::active_kernels;
+      auto& skel_key_list = skeleton::active_comm_kernel_keys;
       if (!it.second.is_active) continue;
       int skel_count = -1;
-      if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
-        skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
+      if (skeleton::comm_kernel_map.find(it.first) != skeleton::comm_kernel_map.end()){
+        skel_count = skel_kernel_list[skeleton::comm_kernel_map[it.first].val_index];
       }
       stream_comm_kernel << std::left << std::setw(mode_1_width) << comm_kernel_counter++;
       stream_comm_kernel << std::left << std::setw(mode_1_width) << clear_counter + (kk_count*1. / kk_total);
@@ -145,12 +145,12 @@ void record::set_kernel_statistics(){
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comp_kernel_keys;
-      auto& skel_kernel_list = skeletonization::active_kernels;
-      auto& skel_key_list = skeletonization::active_comp_kernel_keys;
+      auto& skel_kernel_list = skeleton::active_kernels;
+      auto& skel_key_list = skeleton::active_comp_kernel_keys;
       if (!it.second.is_active) continue;
       int skel_count = -1;
-      if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
-        skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
+      if (skeleton::comp_kernel_map.find(it.first) != skeleton::comp_kernel_map.end()){
+        skel_count = skel_kernel_list[skeleton::comp_kernel_map[it.first].val_index];
       }
       stream_comp_kernel << std::left << std::setw(mode_1_width) << comp_kernel_counter++;
       stream_comp_kernel << std::left << std::setw(mode_1_width) << clear_counter + (kk_count*1. / kk_total);
@@ -219,8 +219,8 @@ void record::set_kernel_statistics(){
         stream_kernel << std::endl;
 
         int skel_count = -1;
-        if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
-          skel_count = skeletonization::active_kernels[skeletonization::comm_kernel_map[it.first].val_index];
+        if (skeleton::comm_kernel_map.find(it.first) != skeleton::comm_kernel_map.end()){
+          skel_count = skeleton::active_kernels[skeleton::comm_kernel_map[it.first].val_index];
         }
         float decomp_time = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].M1;
         int decomp_num_schedules = comm_kernel_list[it.first][comm_kernel_list[it.first].size()-1].num_schedules;
@@ -291,8 +291,8 @@ void record::set_kernel_statistics(){
         stream_kernel << std::endl;
 
         int skel_count = -1;
-        if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
-          skel_count = skeletonization::active_kernels[skeletonization::comp_kernel_map[it.first].val_index];
+        if (skeleton::comp_kernel_map.find(it.first) != skeleton::comp_kernel_map.end()){
+          skel_count = skeleton::active_kernels[skeleton::comp_kernel_map[it.first].val_index];
         }
         float decomp_time = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].M1;
         int decomp_num_schedules = comp_kernel_list[it.first][comp_kernel_list[it.first].size()-1].num_schedules;
@@ -356,13 +356,13 @@ void record::set_tuning_statistics(){
     for (auto& it : comm_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comm_kernel_keys;
-      auto& skel_kernel_list = skeletonization::active_kernels;
-      auto& skel_key_list = skeletonization::active_comm_kernel_keys;
+      auto& skel_kernel_list = skeleton::active_kernels;
+      auto& skel_key_list = skeleton::active_comm_kernel_keys;
       // Don't bother printing if num_local_schedules == 0
       if (kernel_list[it.second.val_index].num_local_schedules == 0) continue;
       int skel_count = -1;
-      if (skeletonization::comm_kernel_map.find(it.first) != skeletonization::comm_kernel_map.end()){
-        skel_count = skel_kernel_list[skeletonization::comm_kernel_map[it.first].val_index];
+      if (skeleton::comm_kernel_map.find(it.first) != skeleton::comm_kernel_map.end()){
+        skel_count = skel_kernel_list[skeleton::comm_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
         float decomp_time = decomposition::comm_kernel_info[it.first].second / decomposition::comm_kernel_info[it.first].first;
@@ -400,13 +400,13 @@ void record::set_tuning_statistics(){
     for (auto& it : comp_kernel_map){
       auto& kernel_list = active_kernels;
       auto& key_list = active_comp_kernel_keys;
-      auto& skel_kernel_list = skeletonization::active_kernels;
-      auto& skel_key_list = skeletonization::active_comp_kernel_keys;
+      auto& skel_kernel_list = skeleton::active_kernels;
+      auto& skel_key_list = skeleton::active_comp_kernel_keys;
       // Don't bother printing if num_local_schedules == 0
       if (kernel_list[it.second.val_index].num_local_schedules == 0) continue;
       int skel_count = -1;
-      if (skeletonization::comp_kernel_map.find(it.first) != skeletonization::comp_kernel_map.end()){
-        skel_count = skel_kernel_list[skeletonization::comp_kernel_map[it.first].val_index];
+      if (skeleton::comp_kernel_map.find(it.first) != skeleton::comp_kernel_map.end()){
+        skel_count = skel_kernel_list[skeleton::comp_kernel_map[it.first].val_index];
       }
       if (world_rank==0) {
         float decomp_time = decomposition::comp_kernel_info[it.first].second / decomposition::comp_kernel_info[it.first].first;

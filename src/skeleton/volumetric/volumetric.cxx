@@ -4,7 +4,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 void volumetric::collect(MPI_Comm cm){}
 

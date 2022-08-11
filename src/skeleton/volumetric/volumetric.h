@@ -5,7 +5,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 class volumetric{
 public:

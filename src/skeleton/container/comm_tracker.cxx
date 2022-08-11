@@ -2,7 +2,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 blocking _MPI_Barrier("MPI_Barrier",0, 

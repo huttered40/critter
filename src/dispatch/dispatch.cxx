@@ -9,11 +9,11 @@
 #include "../discretization/volumetric/volumetric.h"
 #include "../discretization/path/path.h"
 #include "../discretization/record/record.h"
-#include "../skeletonization/container/comm_tracker.h"
-#include "../skeletonization/util/util.h"
-#include "../skeletonization/volumetric/volumetric.h"
-#include "../skeletonization/path/path.h"
-#include "../skeletonization/record/record.h"
+#include "../skeleton/container/comm_tracker.h"
+#include "../skeleton/util/util.h"
+#include "../skeleton/volumetric/volumetric.h"
+#include "../skeleton/path/path.h"
+#include "../skeleton/record/record.h"
 
 namespace critter{
 namespace internal{
@@ -27,7 +27,7 @@ void allocate(MPI_Comm comm){
       discretization::allocate(comm);
       break;
     case 2:
-      skeletonization::allocate(comm);
+      skeleton::allocate(comm);
       break;
   }
 }
@@ -41,7 +41,7 @@ void reset(bool schedule_kernels_override, bool force_steady_statistical_data_ov
       discretization::reset(schedule_kernels_override,force_steady_statistical_data_overide);
       break;
     case 2:
-      skeletonization::reset();
+      skeleton::reset();
       break;
   }
 }
@@ -55,7 +55,7 @@ void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
       discretization::path::exchange_communicators(oldcomm,newcomm);
       break;
     case 2:
-      skeletonization::path::exchange_communicators(oldcomm,newcomm);
+      skeleton::path::exchange_communicators(oldcomm,newcomm);
       break;
   }
 }
@@ -70,7 +70,7 @@ bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int p
       schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = skeleton::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
       break;
   }
   return schedule_decision;
@@ -85,7 +85,7 @@ void complete_comp(double errtime, size_t id, double flop_count,  int param1, in
       discretization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
     case 2:
-      skeletonization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      skeleton::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
       break;
   }
 }
@@ -101,7 +101,7 @@ bool initiate_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Dataty
       schedule_decision = discretization::path::initiate_comm(*(discretization::blocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner1,user_tag1,partner2,user_tag2);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::blocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner1,user_tag1,partner2,user_tag2);
+      schedule_decision = skeleton::path::initiate_comm(*(skeleton::blocking*)skeleton::list[id],curtime,nelem,t,cm,is_sender,partner1,user_tag1,partner2,user_tag2);
       break;
   }
   return schedule_decision;
@@ -118,7 +118,7 @@ bool inspect_comm(size_t id, volatile double curtime, int64_t nelem, MPI_Datatyp
       schedule_decision = discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],curtime,nelem,t,cm,is_sender,partner,user_tag);
       break;
     case 2:
-      schedule_decision = skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],curtime,nelem,t,cm,is_sender,partner,user_tag);
+      schedule_decision = skeleton::path::initiate_comm(*(skeleton::nonblocking*)skeleton::list[id],curtime,nelem,t,cm,is_sender,partner,user_tag);
       break;
   }
   return schedule_decision;
@@ -133,7 +133,7 @@ void initiate_comm(size_t id, volatile double itime, int64_t nelem, MPI_Datatype
       discretization::path::initiate_comm(*(discretization::nonblocking*)discretization::list[id],itime,nelem,t,cm,request,is_sender,partner,user_tag);
       break;
     case 2:
-      skeletonization::path::initiate_comm(*(skeletonization::nonblocking*)skeletonization::list[id],itime,nelem,t,cm,request,is_sender,partner,user_tag);
+      skeleton::path::initiate_comm(*(skeleton::nonblocking*)skeleton::list[id],itime,nelem,t,cm,request,is_sender,partner,user_tag);
       break;
   }
 }
@@ -147,7 +147,7 @@ void complete_comm(size_t id){
       discretization::path::complete_comm(*(discretization::blocking*)discretization::list[id]);
       break;
     case 2:
-      skeletonization::path::complete_comm(*(skeletonization::blocking*)skeletonization::list[id]);
+      skeleton::path::complete_comm(*(skeleton::blocking*)skeleton::list[id]);
       break;
   }
 }
@@ -159,7 +159,7 @@ int complete_comm(double curtime, MPI_Request* request, MPI_Status* status, int 
     case 1:
       return discretization::path::complete_comm(curtime,request,status);
     case 2:
-      return skeletonization::path::complete_comm(curtime,request,status);
+      return skeleton::path::complete_comm(curtime,request,status);
   }
 }
 
@@ -170,7 +170,7 @@ int complete_comm(double curtime, int count, MPI_Request array_of_requests[], in
     case 1:
       return discretization::path::complete_comm(curtime,count,array_of_requests,indx,status);
     case 2:
-      return skeletonization::path::complete_comm(curtime,count,array_of_requests,indx,status);
+      return skeleton::path::complete_comm(curtime,count,array_of_requests,indx,status);
   }
 }
 
@@ -181,7 +181,7 @@ int complete_comm(double curtime, int incount, MPI_Request array_of_requests[], 
     case 1:
       return discretization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
     case 2:
-      return skeletonization::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
+      return skeleton::path::complete_comm(curtime,incount,array_of_requests,outcount,array_of_indices,array_of_statuses);
   }
 }
 
@@ -192,7 +192,7 @@ int complete_comm(double curtime, int count, MPI_Request array_of_requests[], MP
     case 1:
       return discretization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
     case 2:
-      return skeletonization::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
+      return skeleton::path::complete_comm(curtime,count,array_of_requests,array_of_statuses);
   }
 }
 
@@ -208,11 +208,11 @@ void propagate(MPI_Comm comm){
       // Do nothing: final reduction is performed in 'discretization::final_accumulate'
       break;
     case 2:
-      if (skeletonization::skeleton_type==0){
-        skeletonization::_MPI_Barrier.comm = comm;
-        skeletonization::_MPI_Barrier.partner1 = -1;
-        skeletonization::_MPI_Barrier.partner2 = -1;
-        skeletonization::path::propagate_kernels(skeletonization::_MPI_Barrier);
+      if (skeleton::skeleton_type==0){
+        skeleton::_MPI_Barrier.comm = comm;
+        skeleton::_MPI_Barrier.partner1 = -1;
+        skeleton::_MPI_Barrier.partner2 = -1;
+        skeleton::path::propagate_kernels(skeleton::_MPI_Barrier);
       }
       break;
   }
@@ -227,7 +227,7 @@ void collect(MPI_Comm comm){
       discretization::volumetric::collect(comm);
       break;
     case 2:
-      skeletonization::volumetric::collect(comm);
+      skeleton::volumetric::collect(comm);
       break;
   }
 }
@@ -247,11 +247,11 @@ void final_accumulate(MPI_Comm comm, double last_time){
       }
       break;
     case 2:
-      skeletonization::final_accumulate(comm,last_time);
-      skeletonization::_MPI_Barrier.comm = comm;
-      skeletonization::_MPI_Barrier.partner1 = -1;
-      skeletonization::_MPI_Barrier.partner2 = -1;
-      skeletonization::path::propagate_kernels(skeletonization::_MPI_Barrier);
+      skeleton::final_accumulate(comm,last_time);
+      skeleton::_MPI_Barrier.comm = comm;
+      skeleton::_MPI_Barrier.partner1 = -1;
+      skeleton::_MPI_Barrier.partner2 = -1;
+      skeleton::path::propagate_kernels(skeleton::_MPI_Barrier);
       break;
   }
 }
@@ -301,7 +301,7 @@ void init_symbol(std::vector<std::string>& symbols){
       discretization::init_symbol(symbols);
       break;
     case 2:
-      skeletonization::init_symbol(symbols);
+      skeleton::init_symbol(symbols);
       break;
   }
 }
@@ -315,7 +315,7 @@ void open_symbol(const char* symbol, double curtime){
       discretization::open_symbol(symbol,curtime);
       break;
     case 2:
-      skeletonization::open_symbol(symbol,curtime);
+      skeleton::open_symbol(symbol,curtime);
       break;
   }
 }
@@ -329,7 +329,7 @@ void close_symbol(const char* symbol, double curtime){
       discretization::close_symbol(symbol,curtime);
       break;
     case 2:
-      skeletonization::close_symbol(symbol,curtime);
+      skeleton::close_symbol(symbol,curtime);
       break;
   }
 }
@@ -343,7 +343,7 @@ void clear(int tag_count, int* distribution_tags){
       discretization::clear(tag_count,distribution_tags);
       break;
     case 2:
-      skeletonization::clear();
+      skeleton::clear();
       break;
   }
 }
@@ -357,7 +357,7 @@ void _finalize(){
       discretization::finalize();
       break;
     case 2:
-      skeletonization::finalize();
+      skeleton::finalize();
       break;
   }
 }
@@ -372,7 +372,7 @@ void write_file(int variantID, int print_mode, double overhead_time){
       discretization::record::write_file(variantID,print_mode,overhead_time);
       break;
     case 2:
-      skeletonization::record::write_file(variantID,print_mode,overhead_time);
+      skeleton::record::write_file(variantID,print_mode,overhead_time);
       break;
   }
 }
@@ -386,7 +386,7 @@ void print(int variantID, int print_mode, double overhead_time){
       discretization::record::print(variantID,print_mode,overhead_time);
       break;
     case 2:
-      skeletonization::record::print(variantID,print_mode,overhead_time);
+      skeleton::record::print(variantID,print_mode,overhead_time);
       break;
   }
 }
@@ -398,7 +398,7 @@ int get_critical_path_costs(){
     case 1:
       return discretization::num_cp_measures;
     case 2:
-      return skeletonization::num_cp_measures;
+      return skeleton::num_cp_measures;
   }
   assert(-1);
   return -1;
@@ -412,7 +412,7 @@ void get_critical_path_costs(float* costs){
       std::memcpy(costs,&discretization::cp_costs[0],sizeof(float)*discretization::num_cp_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::cp_costs[0],sizeof(float)*skeletonization::num_cp_measures);
+      std::memcpy(costs,&skeleton::cp_costs[0],sizeof(float)*skeleton::num_cp_measures);
       break;
   }
   return;
@@ -424,7 +424,7 @@ int get_max_per_process_costs(){
     case 1:
       return discretization::num_pp_measures;
     case 2:
-      return skeletonization::num_pp_measures;
+      return skeleton::num_pp_measures;
   }
   assert(-1);
   return -1;
@@ -438,7 +438,7 @@ void get_max_per_process_costs(float* costs){
       std::memcpy(costs,&discretization::max_pp_costs[0],sizeof(float)*discretization::num_pp_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::max_pp_costs[0],sizeof(float)*skeletonization::num_pp_measures);
+      std::memcpy(costs,&skeleton::max_pp_costs[0],sizeof(float)*skeleton::num_pp_measures);
       break;
   }
   return;
@@ -450,7 +450,7 @@ int get_volumetric_costs(){
     case 1:
       return discretization::num_vol_measures;
     case 2:
-      return skeletonization::num_vol_measures;
+      return skeleton::num_vol_measures;
   }
   assert(-1);
   return -1;
@@ -464,7 +464,7 @@ void get_volumetric_costs(float* costs){
       std::memcpy(costs,&discretization::vol_costs[0],sizeof(float)*discretization::num_vol_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonization::vol_costs[0],sizeof(float)*skeletonization::num_vol_measures);
+      std::memcpy(costs,&skeleton::vol_costs[0],sizeof(float)*skeleton::num_vol_measures);
       break;
   }
   return;

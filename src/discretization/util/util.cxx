@@ -1,7 +1,7 @@
 #include <limits.h>
 
 #include "util.h"
-#include "../../skeletonization/util/util.h"
+#include "../../skeleton/util/util.h"
 #include "../../decomposition/util/util.h"
 #include "../container/comm_tracker.h"
 #include "../container/symbol_tracker.h"
@@ -580,8 +580,8 @@ bool is_key_skipable(const comp_kernel_key& key){
 int get_skel_count(const comm_kernel_key& key){
   assert(sample_constraint_mode==3);
   int skel_val = 1;
-  if (skeletonization::comm_kernel_map.find(key) != skeletonization::comm_kernel_map.end()){
-    skel_val = skeletonization::active_kernels[skeletonization::comm_kernel_map[key].val_index];
+  if (skeleton::comm_kernel_map.find(key) != skeleton::comm_kernel_map.end()){
+    skel_val = skeleton::active_kernels[skeleton::comm_kernel_map[key].val_index];
     skel_val = std::max(skel_val,1);
   }
   return skel_val;
@@ -589,8 +589,8 @@ int get_skel_count(const comm_kernel_key& key){
 int get_skel_count(const comp_kernel_key& key){
   assert(sample_constraint_mode==3);
   int skel_val = 1;
-  if (skeletonization::comp_kernel_map.find(key) != skeletonization::comp_kernel_map.end()){
-    skel_val = skeletonization::active_kernels[skeletonization::comp_kernel_map[key].val_index];
+  if (skeleton::comp_kernel_map.find(key) != skeleton::comp_kernel_map.end()){
+    skel_val = skeleton::active_kernels[skeleton::comp_kernel_map[key].val_index];
     skel_val = std::max(skel_val,1);
   }
   return skel_val;
@@ -1364,7 +1364,7 @@ void allocate(MPI_Comm comm){
   }
 
   debug_iter_count = 1;
-  // If user wants percentage-based stopping criterion, force knowledge of kernel frequency via skeletonization
+  // If user wants percentage-based stopping criterion, force knowledge of kernel frequency via skeleton
   if (stop_criterion_mode==0) assert(sample_constraint_mode == 3);
 
   // Communication kernel time, computation kernel time, computation time, execution time

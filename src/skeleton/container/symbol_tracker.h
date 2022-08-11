@@ -5,7 +5,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 // One instance for each unique symbol
 class symbol_tracker{

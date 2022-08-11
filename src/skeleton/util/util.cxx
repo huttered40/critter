@@ -6,7 +6,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 int skeleton_type;
 std::map<comm_kernel_key,kernel_key_id> comm_kernel_map;

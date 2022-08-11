@@ -5,7 +5,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 /* \brief encapsulation of the state of a MPI routine */
 class comm_tracker{

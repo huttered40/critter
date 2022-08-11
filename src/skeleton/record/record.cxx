@@ -6,7 +6,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 void record::write_file(int variantID, int print_mode, float overhead_time){}
 

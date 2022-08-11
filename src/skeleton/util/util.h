@@ -5,7 +5,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 // ****************************************************************************************************************************************************
 extern int skeleton_type;

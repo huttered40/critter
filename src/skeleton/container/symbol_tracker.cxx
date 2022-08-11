@@ -2,7 +2,7 @@
 
 namespace critter{
 namespace internal{
-namespace skeletonization{
+namespace skeleton{
 
 // Global namespace variable 'symbol_timers' must be defined here, rather than in src/util.cxx with the rest, to avoid circular dependence between this file and src/util.h
 std::unordered_map<std::string,symbol_tracker> symbol_timers;
