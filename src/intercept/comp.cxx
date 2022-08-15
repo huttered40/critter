@@ -3,7 +3,6 @@
 #include "../dispatch/dispatch.h"
 
 #ifdef MKL
-// Note: this MKL inclusion should be conditional on config.mk
 #include "mkl.h"
 //#include <mkl_cblas.h>
 #else
@@ -20,6 +19,10 @@
 
 namespace critter{
 namespace internal{
+
+/*
+	Interfaces for BLAS/LAPACK APIs for both C/Fortran
+*/
 
 // BLAS 1
 void _daxpy_(const int n , const double a , const double *x , const int incx , double *y , const int incy){
@@ -303,7 +306,7 @@ void __dsymm__(const char* side, const char* uplo, const int* m, const int* n, c
 }
 
 // **********************************************************************************************************************************
-// C interface
+// C LAPACK interface
 int _dgetrf_(int matrix_layout, int m , int n , double* a , int lda , int* ipiv){
   return conditional_lapack_engine(_LAPACK_getrf__id,track_lapack,
                                  (m>=n ? std::make_tuple(m,n) : std::make_pair(n,m)), std::make_tuple(m,n),IndexPack<0,1>{},
@@ -360,7 +363,7 @@ int _dtpmqrt_(int matrix_layout, char side , char trans , int m , int n , int k 
   return conditional_lapack_engine_tpmqrt_(&LAPACKE_dtpmqrt,matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
 }
 
-// FORTRAN interface
+// FORTRAN LAPACK interface -> just call the C interface.
 void __dgetrf__(const int* m , const int* n , double* a , const int* lda , int* ipiv, int* info){
   *info = _dgetrf_(LAPACK_COL_MAJOR,*m,*n,a,*lda,ipiv);
 }

@@ -60,32 +60,32 @@ void exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   }
 }
 
-bool initiate_comp(size_t id, volatile double curtime, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+bool initiate_comp(size_t id, volatile double curtime, double flop_count,  const std::vector<int>& parameters){//int param1, int param2, int param3, int param4, int param5){
   bool schedule_decision;
   switch (mechanism){
     case 0:
-      schedule_decision = decomposition::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = decomposition::path::initiate_comp(id,curtime,flop_count,parameters);//param1,param2,param3,param4,param5);
       break;
     case 1:
-      schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = discretization::path::initiate_comp(id,curtime,flop_count,parameters);//param1,param2,param3,param4,param5);
       break;
     case 2:
-      schedule_decision = skeleton::path::initiate_comp(id,curtime,flop_count,param1,param2,param3,param4,param5);
+      schedule_decision = skeleton::path::initiate_comp(id,curtime,flop_count,parameters);//param1,param2,param3,param4,param5);
       break;
   }
   return schedule_decision;
 }
 
-void complete_comp(double errtime, size_t id, double flop_count,  int param1, int param2, int param3, int param4, int param5){
+void complete_comp(double errtime, size_t id, double flop_count, const std::vector<int>& parameters){//int param1, int param2, int param3, int param4, int param5){
   switch (mechanism){
     case 0:
-      decomposition::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      decomposition::path::complete_comp(errtime,id,flop_count,parameters);//param1,param2,param3,param4,param5);
       break;
     case 1:
-      discretization::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      discretization::path::complete_comp(errtime,id,flop_count,parameters);//param1,param2,param3,param4,param5);
       break;
     case 2:
-      skeleton::path::complete_comp(errtime,id,flop_count,param1,param2,param3,param4,param5);
+      skeleton::path::complete_comp(errtime,id,flop_count,parameters);//param1,param2,param3,param4,param5);
       break;
   }
 }

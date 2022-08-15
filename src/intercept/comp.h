@@ -4,11 +4,14 @@
 namespace critter{
 namespace internal{
 
+/*
+	Interfaces for BLAS/LAPACK APIs for both C/Fortran
+*/
+
 // C interface
 // BLAS 1
 void _daxpy_(const int n , const double a , const double *x , const int incx , double *y , const int incy);
 void _dscal_(const int n , const double a , double *x , const int incx);
-
 // BLAS 2
 void _dgbmv_(const int order, const int trans, const int m, const int n, const int kl, const int ku, const double alpha,
              const double *a, const int lda, const double *x, const int incx, const double beta, double *y, const int incy);
@@ -42,7 +45,6 @@ void _dtbsv_(const int order, const int uplo, const int trans, const int diag, c
              const double *a, const int lda, double *x, const int incx);
 void _dtbmv_(const int order, const int uplo, const int trans, const int diag, const int n, const int k,
              const double *a, const int lda, double *x, const int incx);
-
 // BLAS 3
 void _dgemm_(const int order, const int transa , const int transb ,
              const int m , const int n , const int k , const double alpha , const double *a ,
@@ -67,7 +69,6 @@ void _dsymm_(const int order, const int side, const int uplo, const int m, const
 // BLAS 1
 void __daxpy__(const int* n , const double* a , const double *x , const int* incx , double *y , const int* incy);
 void __dscal__(const int* n , const double* a , double *x , const int* incx);
-
 // BLAS 2
 void __dgbmv__(const char* trans , const int* m , const int* n, const int* kl, const int* ku, const double* alpha ,
                const double *a , const int* lda , const double *x, const int* incx ,
@@ -103,7 +104,6 @@ void __dtbsv__(const char* uplo, const char* trans, const char* diag, const int*
                const double *a, const int* lda, double *x, const int* incx);
 void __dtbmv__(const char* uplo, const char* trans, const char* diag, const int* n, const int* k,
                const double *a, const int* lda, double *x, const int* incx);
-
 // BLAS 3
 void __dgemm__(const char* transa , const char* transb ,
                const int* m , const int* n , const int* k , const double* alpha , const double *a ,
@@ -123,7 +123,6 @@ void __dsyr2k__(const char* uplo, const char* trans, const int* n, const int* k,
 void __dsymm__(const char* side, const char* uplo, const int* m, const int* n, const double* alpha,
                const double *a, const int* lda, const double *b, const int* ldb, const double* beta, double *c,
                const int* ldc);
-
 // C interface
 int _dgetrf_(int matrix_layout, int m , int n , double* a , int lda , int* ipiv);
 int _dpotrf_(int matrix_layout, char uplo , int n , double* a , int lda);

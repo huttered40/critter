@@ -4,45 +4,57 @@
 namespace critter{
 namespace internal{
 
-template<size_t... indx>
+template<size_t... index>
 class IndexPack{};
 
 class reset_matrix_generator{
 public:
+  // Used to end recursion
   static void invoke(){}
 
+/*
+t: current input matrix to reset
+ts: remaining input matrices to reset
+*/
   template<typename TupleType, typename... TupleTypes>
   static void invoke(TupleType&& t, TupleTypes... ts){
-    auto matrix = std::get<0>(t);
+    auto data = std::get<0>(t);
     int m = std::get<1>(t);
     int n = std::get<2>(t);
     int lda = std::get<3>(t);
     auto reset_val = std::get<4>(t);
+    //TODO: Why use this? Is it overkill?
     for (int i=0; i<n; i++){
-      memset(matrix+i*lda,1,m*sizeof(decltype(*matrix)));
+      memset(data+i*lda,1,m*sizeof(decltype(*data)));
     }
-    std::get<5>(t)(matrix,m,n,lda);
+    // Invoke user-provided lambda to reset matrix
+    std::get<5>(t)(data,m,n,lda);
+    // Recursively reset next input matrix
     invoke(ts...);
   }
 };
 
-inline float flop_generator(int id, float p1=0, float p2=0, float p3=0, float p4=0, float p5=0){
+/*
+id: computational kernel ID
+params: input parameters
+*/
+inline float flop_generator(int id, const std::vector<int>& params){
   float flops=0;
   switch (id){
     case 100:
-      flops = 2.*p1;
+      flops = 2.; flops*=params[0];
       break;
     case 101:
-      flops = p1;
+      flops = params[0];
       break;
     case 120:
       flops = 2.*p1*p2 - (p1-p3-1)*(p1-p3) - (p2-p4-1)*(p2-p4);
       break;
     case 121:
-      flops = 2.*p1*p2;
+      flops = 2.; flops*=params[0]; flops*=params[1];
       break;
     case 122:
-      flops = 2.*p1*p2;
+      flops = 2.; flops*=params[0]; flops*=params[1];
       break;
     case 123:
       flops = p1*p1;
@@ -133,16 +145,23 @@ inline float flop_generator(int id, float p1=0, float p2=0, float p3=0, float p4
   return flops;
 }
 
+/*
+id: distint kernel ID
+guard: flag determining whether 'id' is to be intercepted and tracked
+...
+*/
 template<typename func_type, typename... t1_types, typename... t2_types, size_t... index_list, typename... arg_types>
 inline void conditional_blas_engine(int id, int guard, std::tuple<t1_types...>&& t1, std::tuple<t2_types...>&& t2,
                              IndexPack<index_list...>, func_type* func, arg_types... args){
   if (mode && guard){
+    // Track kernel before and after invoking kernel
     volatile auto curtime = MPI_Wtime();
-    float flops = flop_generator(id,std::get<index_list>(t1)...);
-    bool schedule_decision = initiate_comp(id,curtime,flops,std::get<index_list>(t2)...);
-    if (schedule_decision) func(args...);
-    complete_comp(0,id,flops,std::get<index_list>(t2)...);
+    float flops = flop_generator(id,{std::get<index_list>(t1)...});
+    bool schedule_decision = initiate_comp(id,curtime,flops,{std::get<index_list>(t2)...});
+    if (schedule_decision) func(args...);// No assert needed because BLAS API does not check input
+    complete_comp(0,id,flops,{std::get<index_list>(t2)...});
   } else{
+    // Just call the routine. No tracking
     func(args...);
   }
 }
@@ -152,21 +171,27 @@ inline int conditional_lapack_engine(int id, int guard, std::tuple<t1_types...>&
                               IndexPack<index_list1...>, func_type* func, std::tuple<arg_types...>&& args, IndexPack<index_list2...>,
                               TupleTypes&&... reset_lambdas){
   if (mode && guard){
+    // Track kernel before and after invoking kernel
     volatile auto curtime = MPI_Wtime();
-    float flops = flop_generator(id,std::get<index_list1>(t1)...);
+    float flops = flop_generator(id,{std::get<index_list1>(t1)...});
     double special_time=0;
-    bool schedule_decision = initiate_comp(id,curtime,flops,std::get<index_list1>(t2)...);
+    bool schedule_decision = initiate_comp(id,curtime,flops,{std::get<index_list1>(t2)...});
     if (schedule_decision){
       if ((mechanism == 0 && autotuning_debug==0) || (mechanism == 2)) assert(func(std::get<index_list2>(args)...)==0);
       else{
         special_time = MPI_Wtime();
         if (reset_matrix) { reset_matrix_generator::invoke(reset_lambdas...); }
         special_time = MPI_Wtime() - special_time;
+        // Assert placed to make sure that APIs don't immediately return (due to invalid input),
+        //   which skews the reported execution time.
         assert(func(std::get<index_list2>(args)...)==0);
       }
     }
     complete_comp(special_time,id,flops,std::get<index_list1>(t2)...);
   } else{
+    // Just call the routine. No tracking
+    // Assert placed to make sure that APIs don't immediately return (due to invalid input),
+    //   which skews the reported execution time.
     assert(func(std::get<index_list2>(args)...)==0);
   }
   return 0;// If not 0, an assert would be invoked

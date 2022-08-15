@@ -60,7 +60,7 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   }
 }
 
-bool path::initiate_comp(size_t id, volatile double curtime, float flop_count, int param1, int param2, int param3, int param4, int param5){
+bool path::initiate_comp(size_t id, volatile double curtime, float flop_count, const std::vector<int>& parameters){//int param1, int param2, int param3, int param4, int param5){
   // Always skip, and update statistics in 'complete_comp'
   auto save_comp_time = curtime - computation_timer;
   if (skeleton_type==0){
@@ -72,9 +72,9 @@ bool path::initiate_comp(size_t id, volatile double curtime, float flop_count, i
   else{ return true; }
 }
 
-void path::complete_comp(double errtime, size_t id, float flop_count, int param1, int param2, int param3, int param4, int param5){
+void path::complete_comp(double errtime, size_t id, float flop_count, const std::vector<int>& parameters){//int param1, int param2, int param3, int param4, int param5){
   volatile auto comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
-  comp_kernel_key key(active_kernels.size(),id,flop_count,param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
+  comp_kernel_key key(active_kernels.size(),id,flop_count,parameters);//param1,param2,param3,param4,param5);// '-1' argument is arbitrary, does not influence overloaded operators
   if (comp_kernel_map.find(key) == comp_kernel_map.end()){
     active_comp_kernel_keys.push_back(key);
     active_kernels.push_back(1);
