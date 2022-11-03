@@ -1,6 +1,6 @@
 #include "comm.h"
 #include "../util/util.h"
-#include "../discretization/util/util.h"
+#include "../accelerate/util/util.h"
 #include "../dispatch/dispatch.h"
 
 namespace critter{
@@ -127,8 +127,24 @@ void _init(int* argc, char*** argv){
   stack_id=0;
   delete_comm = 1;
   request_id = 100;
-  track_p2p = 1;
-  track_collective = 1;
+  if (std::getenv("CRITTER_TRACK_P2P") != NULL){
+    track_p2p = atoi(std::getenv("CRITTER_TRACK_P2P"));
+    assert(track_p2p >= 0 && track_p2p <= 1);
+  } else{
+    track_p2p = 1;
+  }
+  if (std::getenv("CRITTER_TRACK_COMM_OPS") != NULL){
+    track_comm_ops = atoi(std::getenv("CRITTER_TRACK_COMM_OPS"));
+    assert(track_comm_ops >= 0 && track_comm_ops <= 1);
+  } else{
+    track_comm_ops = 1;
+  }
+  if (std::getenv("CRITTER_TRACK_COLLECTIVE") != NULL){
+    track_collective = atoi(std::getenv("CRITTER_TRACK_COLLECTIVE"));
+    assert(track_collective >= 0 && track_collective <= 1);
+  } else{
+    track_collective = 1;
+  }
   if (std::getenv("CRITTER_AUTO") != NULL){
     auto_capture = atoi(std::getenv("CRITTER_AUTO"));
     assert(auto_capture >= 0 && auto_capture <= 1);
@@ -280,14 +296,12 @@ void _init(int* argc, char*** argv){
   PMPI_Type_create_struct(2,comm_kernel_key_internal_type_block_len,comm_kernel_key_internal_type_disp,comm_kernel_key_internal_type,&comm_kernel_key_type);
   PMPI_Type_commit(&comm_kernel_key_type);
 
-
   mechanism=0;
   allocate(MPI_COMM_WORLD);
   mechanism=1;
   allocate(MPI_COMM_WORLD);
   mechanism=2;
   allocate(MPI_COMM_WORLD);
-
   if (std::getenv("CRITTER_MECHANISM") != NULL){
     mechanism = atoi(std::getenv("CRITTER_MECHANISM"));
     assert(mechanism >=0 && mechanism <=2);
@@ -312,14 +326,14 @@ int init_thread(int* argc, char*** argv, int required, int* provided){
 }
 
 int finalize(){
-  if (auto_capture) stop();
-  internal::_finalize();
+  //if (auto_capture) stop();
+  //internal::_finalize();
   return PMPI_Finalize();
 }
 
 int comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   int ret = MPI_SUCCESS;
-  if (mode){
+  if (mode && track_comm_ops){
     volatile auto curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Comm_split__id,curtime, 0, MPI_CHAR, comm);
     ret = PMPI_Comm_split(comm,color,key,newcomm);
@@ -334,7 +348,7 @@ int comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
 
 int comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
   int ret = MPI_SUCCESS;
-  if (mode){
+  if (mode && track_comm_ops){
     volatile auto curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Comm_dup__id,curtime, 0, MPI_CHAR, comm);
     ret = PMPI_Comm_dup(comm,newcomm);
@@ -349,7 +363,7 @@ int comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
 
 int comm_free(MPI_Comm* comm){
   int ret = MPI_SUCCESS;
-  if (mode){
+  if (mode && track_comm_ops){
     if (delete_comm){
       ret = PMPI_Comm_free(comm);
     }
@@ -368,7 +382,7 @@ int get_count(MPI_Status* status, MPI_Datatype, int* count){
 
 int barrier(MPI_Comm comm){
   int ret = MPI_SUCCESS;
-  if (mode){
+  if (mode && track_collective){
     volatile auto curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Barrier__id,curtime, 0, MPI_CHAR, comm);
     if (schedule_decision) ret = PMPI_Barrier(comm);

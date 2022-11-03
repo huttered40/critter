@@ -119,6 +119,7 @@ extern size_t track_blas2;
 extern size_t track_blas3;
 extern size_t track_lapack;
 extern size_t track_collective;
+extern size_t track_comm_ops;
 extern size_t track_p2p;
 extern size_t eager_limit;
 extern size_t delete_comm;

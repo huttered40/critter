@@ -267,6 +267,7 @@ size_t track_blas2;
 size_t track_blas3;
 size_t track_lapack;
 size_t track_collective;
+size_t track_comm_ops;
 size_t track_p2p;
 size_t eager_limit;
 size_t delete_comm;
