@@ -192,9 +192,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.is_sender = is_sender;
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
-  //tracker.synch_time = 0.;// might get updated below
-  //tracker.barrier_time = 0.;// might get updated below
-
   if (partner1 == MPI_ANY_SOURCE){// only possible for 'MPI_Recv'
     MPI_Status st;
     PMPI_Probe(partner1,user_tag1,comm,&st);
@@ -230,8 +227,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   volatile auto init_time = MPI_Wtime();
-  propagate(tracker);// Removed "PMPI_Barrier(tracker.comm);"
-  //tracker.barrier_time = MPI_Wtime() - init_time;// Not perfectly accurate because includes time to propagate.
+  if (propagate_collective) propagate(tracker);
 
   // Do as much work as possible post-propagate and pre-barrier (which should be "dead" time that shouldn't affect correctness).
   // Update measurements that define the critical path for each metric.
@@ -239,11 +235,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size)
     : tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
   // Decompose measurements along multiple paths by MPI routine.
-  //*tracker.my_synch_time += tracker.synch_time;
   *tracker.my_msg_count += cost.first;
   *tracker.my_wrd_count += cost.second;
   for (size_t i=0; i<path_count; i++){
-    //*(tracker.cp_synch_time+i) += tracker.synch_time;
     *(tracker.cp_msg_count+i) += cost.first;
     *(tracker.cp_wrd_count+i) += cost.second;
   }
@@ -429,8 +423,7 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
 
   MPI_Request prop_req = MPI_REQUEST_NULL;
   float* path_data = nullptr;
-  propagate(tracker,path_data,&prop_req);
-
+  if (propagate_p2p) propagate(tracker,path_data,&prop_req);
   nonblocking_info msg_info(path_data,prop_req,is_sender,partner,comm,(float)nbytes,(float)p,&tracker);
   nonblocking_internal_info[*request] = msg_info;
 
@@ -474,7 +467,6 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.partner2 = -1;
   tracker.nbytes = info_it->second.nbytes;
   tracker.comm_size = info_it->second.comm_size;
-  //tracker.synch_time=0;
 
   int rank; MPI_Comm_rank(tracker.comm, &rank);
 /*
@@ -522,12 +514,10 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
 
   // Decompose measurements along multiple paths by MPI routine.
   // Accumuate MPI routine-local measurements. The "my_..." members will never modify the accumulations, while the "cp_..." will first accumulate before path propagation.
-  // Right: no synch-time for this routine. *tracker.my_synch_time += 0;
   *tracker.my_comm_time += comm_time;
   *tracker.my_msg_count += cost.first;
   *tracker.my_wrd_count += cost.second;
   for (size_t i=0; i<path_count; i++){
-    //*(tracker.cp_synch_time+i) += tracker.synch_time;
     *(tracker.cp_comm_time+i) += comm_time;
     *(tracker.cp_msg_count+i) += cost.first;
     *(tracker.cp_wrd_count+i) += cost.second;
@@ -590,9 +580,7 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
     // If receiver or collective, complete the barrier and the path data propagation
     if (!info_it->second.is_sender || info_it->second.partner==-1){
       assert(info_it->second.path_data != nullptr);
-      //MPI_Request req_array[] = {info_it->second.barrier_req, info_it->second.prop_req};
       MPI_Request req_array[] = {info_it->second.prop_req};
-      //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
       PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
       if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
       else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
@@ -631,18 +619,20 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   MPI_Request request = pt[*indx];
   auto info_it = nonblocking_internal_info.find(request);
   assert(info_it != nonblocking_internal_info.end());
-  int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-  if (rank != info_it->second.partner){
-    // If receiver, complete the barrier and the path data propagation
-    if (!info_it->second.is_sender || info_it->second.partner==-1){
-      assert(info_it->second.path_data != nullptr);
-      MPI_Request req_array[] = {info_it->second.prop_req};
-      //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
-      PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
-      if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-      else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-      if (info_it->second.path_data != nullptr) free(info_it->second.path_data);
-      if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = status->MPI_SOURCE; }
+  if (propagate_p2p){
+    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+    if (rank != info_it->second.partner){
+      // If receiver, complete the barrier and the path data propagation
+      if (!info_it->second.is_sender || info_it->second.partner==-1){
+        assert(info_it->second.path_data != nullptr);
+        MPI_Request req_array[] = {info_it->second.prop_req};
+        //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+        PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
+        if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        if (info_it->second.path_data != nullptr) free(info_it->second.path_data);
+        if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = status->MPI_SOURCE; }
+      }
     }
   }
   complete_comm(*info_it->second.track, &request, comp_time, waitany_comm_time);
@@ -679,18 +669,20 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
     MPI_Request request = pt[(array_of_indices)[i]];
     auto info_it = nonblocking_internal_info.find(request);
     assert(info_it != nonblocking_internal_info.end());
-    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-    if (rank != info_it->second.partner){
-      // If receiver, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
-        assert(info_it->second.path_data != nullptr);
-        MPI_Request req_array[] = {info_it->second.prop_req};
-        //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
-        PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
-        if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (info_it->second.path_data != nullptr) free(info_it->second.path_data);
-        if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+    if (propagate_p2p){
+      int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+      if (rank != info_it->second.partner){
+        // If receiver, complete the barrier and the path data propagation
+        if (!info_it->second.is_sender || info_it->second.partner==-1){
+          assert(info_it->second.path_data != nullptr);
+          MPI_Request req_array[] = {info_it->second.prop_req};
+          //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+          PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
+          if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          if (info_it->second.path_data != nullptr) free(info_it->second.path_data);
+          if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+        }
       }
     }
     complete_comm(*info_it->second.track, &request, waitsome_comp_time, waitsome_comm_time);
@@ -727,18 +719,20 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     MPI_Request request = pt[i];
     auto info_it = nonblocking_internal_info.find(request);
     assert(info_it != nonblocking_internal_info.end());
-    int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
-    if (rank != info_it->second.partner){
-      // If receiver, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
-        assert(info_it->second.path_data != nullptr);
-        MPI_Request req_array[] = {info_it->second.prop_req};
-        //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
-        PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
-        if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (info_it->second.path_data != nullptr) free(info_it->second.path_data);
-        if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+    if (propagate_p2p){
+      int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
+      if (rank != info_it->second.partner){
+        // If receiver, complete the barrier and the path data propagation
+        if (!info_it->second.is_sender || info_it->second.partner==-1){
+          assert(info_it->second.path_data != nullptr);
+          MPI_Request req_array[] = {info_it->second.prop_req};
+          //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
+          PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
+          if (path_decomposition <= 1) update_cp_decomp1(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          else if (path_decomposition == 2) update_cp_decomp2(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          if (info_it->second.path_data != nullptr) free(info_it->second.path_data);
+          if (info_it->second.partner == MPI_ANY_SOURCE) { info_it->second.track->partner1 = (array_of_statuses)[i].MPI_SOURCE; }
+        }
       }
     }
     complete_comm(*info_it->second.track, &request, waitall_comp_time, waitall_comm_time);
@@ -760,6 +754,7 @@ void path::propagate(blocking& tracker){
     if (path_decomposition <= 1 && path_count>0) MPI_Op_create((MPI_User_function*) propagate_cp_decomp1_op,0,&op);
     else if (path_decomposition == 2) MPI_Op_create((MPI_User_function*) propagate_cp_decomp2_op,0,&op);
     PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], cp_costs.size(), MPI_FLOAT, op, tracker.comm);
+    //PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], 5+51*5, MPI_FLOAT, MPI_MAX, tracker.comm);
     if (path_count>0 || path_decomposition >= 2) MPI_Op_free(&op);
 /*
       size_t active_size = tracker.comm_size;

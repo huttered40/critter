@@ -76,28 +76,22 @@ void symbol_tracker::stop(double save_time){
   assert(this->start_timer.size()>0);
   auto last_symbol_time = save_time-this->start_timer.top();
   // Add up exclusive time for most-recent symbol (the one about to be removed from top-of-stack).
-  for (auto i=0; i<path_count; i++){
-    for (auto j=0; j<path_measure_index.size(); j++){
-      if (path_measure_index[j] == path_measure_select.size()-1){
-        this->cp_exclusive_measure[i][j] += last_symbol_time;
-        this->cp_excl_measure[i][j] += last_symbol_time;
-      }
-    }
-  }
   this->pp_exclusive_measure[num_decomp_pp_measures-1] += last_symbol_time;
   this->pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
   *this->pp_numcalls += 1.; *this->vol_numcalls += 1.;
   for (auto i=0; i<num_decomp_pp_measures; i++){
     this->pp_exclusive_contributions[i] += this->pp_exclusive_measure[i];
   }
-  for (auto j=0; j<path_count; j++){
-    *this->cp_numcalls[j] += 1.;
-    for (auto i=0; i<num_decomp_cp_measures; i++){
-      this->cp_exclusive_contributions[j][i] += this->cp_exclusive_measure[j][i];
+  for (auto i=0; i<path_count; i++){
+    *this->cp_numcalls[i] += 1.;
+    for (auto j=0; j<path_measure_index.size(); j++){
+      if (path_measure_index[j] == path_measure_select.size()-1){
+        this->cp_exclusive_measure[i][j] += last_symbol_time;
+        this->cp_excl_measure[i][j] += last_symbol_time;
+      }
+      this->cp_exclusive_contributions[i][j] += this->cp_exclusive_measure[i][j];
     }
-  }
-  for (auto j=0; j<path_count; j++){
-    memset(this->cp_exclusive_measure[j],0,sizeof(float)*num_decomp_cp_measures);
+    memset(this->cp_exclusive_measure[i],0,sizeof(float)*num_decomp_cp_measures);
   }
   memset(this->pp_exclusive_measure,0,sizeof(float)*num_decomp_pp_measures);
   auto save_symbol = symbol_stack.top();
@@ -108,13 +102,11 @@ void symbol_tracker::stop(double save_time){
         symbol_timers[symbol_stack.top()].cp_exclusive_contributions[j][i] += this->cp_exclusive_contributions[j][i];
         this->cp_incl_measure[j][i] += this->cp_exclusive_contributions[j][i];
       }
+      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
     }
     for (auto i=0; i<num_decomp_pp_measures; i++){
       symbol_timers[symbol_stack.top()].pp_exclusive_contributions[i] += this->pp_exclusive_contributions[i];
       this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
-    }
-    for (auto j=0; j<path_count; j++){
-      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
     }
     memset(this->pp_exclusive_contributions,0,sizeof(float)*num_decomp_pp_measures);
   } else if (symbol_stack.size() == 0){
@@ -122,12 +114,10 @@ void symbol_tracker::stop(double save_time){
       for (auto i=0; i<num_decomp_cp_measures; i++){
         this->cp_incl_measure[j][i] += this->cp_exclusive_contributions[j][i];
       }
+      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
     }
     for (auto i=0; i<num_decomp_pp_measures; i++){
       this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
-    }
-    for (auto j=0; j<path_count; j++){
-      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
     }
     memset(this->pp_exclusive_contributions,0,sizeof(float)*num_decomp_pp_measures);
   }

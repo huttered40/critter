@@ -342,6 +342,9 @@ void record::print(int variantID, float overhead_time){
           float cp_total_exclusive = 0.;
           float pp_total_exclusive = 0.;
           float vol_total_exclusive = 0.;
+          float cp_total_invocations_exclusive = 0.;
+          float pp_total_invocations_exclusive = 0.;
+          float vol_total_invocations_exclusive = 0.;
           for (auto& it : sort_info){
             std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << it.first;
             std::cout << std::left << std::setw(text_width) << it.second[0];
@@ -356,11 +359,14 @@ void record::print(int variantID, float overhead_time){
             cp_total_exclusive += it.second[1];
             pp_total_exclusive += it.second[3];
             vol_total_exclusive += it.second[5];
+            cp_total_invocations_exclusive += it.second[0];
+            pp_total_invocations_exclusive += it.second[2];
+            vol_total_invocations_exclusive += it.second[4];
           }
           std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << "total";
-          std::cout << std::left << std::setw(text_width) << "";
-          std::cout << std::left << std::setw(text_width) << "";
-          std::cout << std::left << std::setw(text_width) << "";
+          std::cout << std::left << std::setw(text_width) << cp_total_invocations_exclusive;
+          std::cout << std::left << std::setw(text_width) << pp_total_invocations_exclusive;
+          std::cout << std::left << std::setw(text_width) << vol_total_invocations_exclusive;
           std::cout << std::left << std::setw(text_width) << cp_total_exclusive;
           std::cout << std::left << std::setw(text_width) << pp_total_exclusive;
           std::cout << std::left << std::setw(text_width) << vol_total_exclusive;

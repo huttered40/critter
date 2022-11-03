@@ -243,7 +243,6 @@ void final_accumulate(MPI_Comm comm, double last_time){
     for (size_t i=0; i<path_count; i++){
       cp_costs[cp_costs_size-1-i] += last_comp_time; }
   }
-  //TODO: why don't we do something similar to above if path_decomposition==2?
 }
 
 void clear(){ symbol_timers.clear(); }

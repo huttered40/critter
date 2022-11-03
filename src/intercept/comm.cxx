@@ -127,17 +127,23 @@ void _init(int* argc, char*** argv){
   stack_id=0;
   delete_comm = 1;
   request_id = 100;
+  if (std::getenv("CRITTER_PROPAGATE_P2P") != NULL){
+    propagate_p2p = atoi(std::getenv("CRITTER_PROPAGATE_P2P"));
+    assert(propagate_p2p >= 0 && propagate_p2p <= 1);
+  } else{
+    propagate_p2p = 1;
+  }
+  if (std::getenv("CRITTER_PROPAGATE_COLLECTIVE") != NULL){
+    propagate_collective = atoi(std::getenv("CRITTER_PROPAGATE_COLLECTIVE"));
+    assert(propagate_collective >= 0 && propagate_collective <= 1);
+  } else{
+    propagate_collective = 1;
+  }
   if (std::getenv("CRITTER_TRACK_P2P") != NULL){
     track_p2p = atoi(std::getenv("CRITTER_TRACK_P2P"));
     assert(track_p2p >= 0 && track_p2p <= 1);
   } else{
     track_p2p = 1;
-  }
-  if (std::getenv("CRITTER_TRACK_COMM_OPS") != NULL){
-    track_comm_ops = atoi(std::getenv("CRITTER_TRACK_COMM_OPS"));
-    assert(track_comm_ops >= 0 && track_comm_ops <= 1);
-  } else{
-    track_comm_ops = 1;
   }
   if (std::getenv("CRITTER_TRACK_COLLECTIVE") != NULL){
     track_collective = atoi(std::getenv("CRITTER_TRACK_COLLECTIVE"));
@@ -333,7 +339,7 @@ int finalize(){
 
 int comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
   int ret = MPI_SUCCESS;
-  if (mode && track_comm_ops){
+  if (mode && track_collective){
     volatile auto curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Comm_split__id,curtime, 0, MPI_CHAR, comm);
     ret = PMPI_Comm_split(comm,color,key,newcomm);
@@ -348,7 +354,7 @@ int comm_split(MPI_Comm comm, int color, int key, MPI_Comm* newcomm){
 
 int comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
   int ret = MPI_SUCCESS;
-  if (mode && track_comm_ops){
+  if (mode && track_collective){
     volatile auto curtime = MPI_Wtime();
     bool schedule_decision = initiate_comm(_MPI_Comm_dup__id,curtime, 0, MPI_CHAR, comm);
     ret = PMPI_Comm_dup(comm,newcomm);
@@ -363,7 +369,7 @@ int comm_dup(MPI_Comm comm, MPI_Comm* newcomm){
 
 int comm_free(MPI_Comm* comm){
   int ret = MPI_SUCCESS;
-  if (mode && track_comm_ops){
+  if (mode && track_collective){
     if (delete_comm){
       ret = PMPI_Comm_free(comm);
     }
