@@ -227,7 +227,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   volatile auto init_time = MPI_Wtime();
-  if (propagate_collective) propagate(tracker);
+  propagate(tracker);
 
   // Do as much work as possible post-propagate and pre-barrier (which should be "dead" time that shouldn't affect correctness).
   // Update measurements that define the critical path for each metric.
@@ -750,6 +750,7 @@ void path::propagate(blocking& tracker){
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
   // Exchange the tracked routine critical path data
   if (tracker.partner1 == -1){
+    if (propagate_collective==0) return;
     MPI_Op op = MPI_MAX;
     if (path_decomposition <= 1 && path_count>0) MPI_Op_create((MPI_User_function*) propagate_cp_decomp1_op,0,&op);
     else if (path_decomposition == 2) MPI_Op_create((MPI_User_function*) propagate_cp_decomp2_op,0,&op);
@@ -782,6 +783,8 @@ void path::propagate(blocking& tracker){
     PMPI_Barrier(tracker.comm);// necessary to track communication time accuracy (else some processes will leave early and wait).
 */
   } else{
+    if (propagate_p2p==0) return;
+    MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
     if (tracker.is_sender){
       PMPI_Bsend(&cp_costs[0], cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm);
     } else{
