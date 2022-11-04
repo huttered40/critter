@@ -8,6 +8,8 @@
 namespace critter{
 
 void init(std::vector<std::string> symbols);
+void start_timer(const char* timer_name);
+void stop_timer(const char* timer_name);
 void start(bool schedule_kernels_override = true, bool force_steady_statistical_data_overide = false);
 void stop();
 void record(int variantID=-1, int print_mode=1, double overhead_time=0.);

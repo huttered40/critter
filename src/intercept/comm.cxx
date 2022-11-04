@@ -1,4 +1,5 @@
 #include "comm.h"
+#include "symbol.h"
 #include "../util/util.h"
 #include "../accelerate/util/util.h"
 #include "../dispatch/dispatch.h"
@@ -7,6 +8,13 @@ namespace critter{
 
 void init(std::vector<std::string> symbols){
   internal::init_symbol(symbols);
+}
+
+void start_timer(const char* timer_name){
+  internal::symbol_start(timer_name);
+}
+void stop_timer(const char* timer_name){
+  internal::symbol_stop(timer_name);
 }
 
 void start(bool schedule_kernels_override, bool force_steady_statistical_data_overide){

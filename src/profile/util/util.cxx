@@ -28,7 +28,7 @@ size_t num_decomp_cp_measures;
 size_t num_decomp_pp_measures;
 size_t num_decomp_vol_measures;
 size_t cp_costs_size,pp_costs_size,vol_costs_size;
-size_t num_kernel_ds,exclusive_only;
+size_t num_kernel_ds,exclusive_only,max_num_tracked_kernels;
 std::string path_select,path_measure_select;
 std::vector<bool> path_decisions;
 std::vector<float> cp_costs,max_pp_costs,vol_costs;
@@ -47,7 +47,7 @@ void allocate(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
   // Set up print-statement details. These should ideally be user-specified.
-  decomp_text_width = 15; text_width = 15; is_first_iter = true;
+  decomp_text_width = 40; text_width = 15; is_first_iter = true;
   // Select arbitrary tag for internal point-to-point
   //   messages that will (hopefully) not conflict with user messages
   internal_tag = 31133; internal_tag1 = internal_tag+1;
@@ -112,7 +112,12 @@ void allocate(MPI_Comm comm){
   } else{
     num_kernel_ds = 4;
   }
-
+  // Specify whether to profile kernel exclusive time only or
+  //   both exclusive time and inclusive time.
+  // The benefit of the former is less communication overhead.
+  if (std::getenv("CRITTER_PROFILE_MAX_NUM_KERNELS") != NULL){
+    max_num_tracked_kernels = atoi(std::getenv("CRITTER_PROFILE_MAX_NUM_KERNELS"));
+  } else max_num_tracked_kernels = 10;
 
   path_count=0;
   for (auto i=0; i<path_select.size(); i++){
@@ -166,10 +171,23 @@ void allocate(MPI_Comm comm){
     cp_costs_foreign.resize(cp_costs_size);
     max_pp_costs.resize(pp_costs_size);
     vol_costs.resize(vol_costs_size);
-
+  } else if (path_decomposition == 2){
+    // We only want to initialize once, but do not know the number of symbols before this point.
+    size_t cp_symbol_select_size = num_kernel_ds*num_decomp_cp_measures+1;
+    size_t pp_symbol_select_size = num_kernel_ds*num_decomp_pp_measures+1;
+    size_t vol_symbol_select_size = num_kernel_ds*num_decomp_vol_measures+1;
+    cp_costs_size = num_cp_measures + cp_symbol_select_size*path_count*max_num_tracked_kernels;
+    pp_costs_size = num_pp_measures + pp_symbol_select_size*max_num_tracked_kernels;
+    vol_costs_size = num_vol_measures + vol_symbol_select_size*max_num_tracked_kernels;
+    cp_costs.resize(cp_costs_size);
+    cp_costs_foreign.resize(cp_costs_size);
+    max_pp_costs.resize(pp_costs_size);
+    vol_costs.resize(vol_costs_size);
+  }
+  if (eager_pad.size()==0){
     int eager_msg_sizes[2];
-    MPI_Pack_size(1,MPI_CHAR,comm,&eager_msg_sizes[0]);
-    MPI_Pack_size(cp_costs_size,MPI_FLOAT,comm,&eager_msg_sizes[1]);
+    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[0]);
+    MPI_Pack_size(cp_costs_size,MPI_FLOAT,MPI_COMM_WORLD,&eager_msg_sizes[1]);
     int eager_pad_size = 2*MPI_BSEND_OVERHEAD;
     for (int i=0; i<2; i++) { eager_pad_size += eager_msg_sizes[i]; }
     assert(eager_pad_size <= eager_limit);
@@ -195,27 +213,6 @@ void reset(){
 
 void init_symbol(std::vector<std::string>& symbols){
   if (path_decomposition != 2) return;
-  // We only want to initialize once, but do not know the number of symbols before this point.
-  size_t cp_symbol_select_size = num_kernel_ds*num_decomp_cp_measures+1;
-  size_t pp_symbol_select_size = num_kernel_ds*num_decomp_pp_measures+1;
-  size_t vol_symbol_select_size = num_kernel_ds*num_decomp_vol_measures+1;
-  cp_costs_size = num_cp_measures + cp_symbol_select_size*path_count*symbols.size();
-  pp_costs_size = num_pp_measures + pp_symbol_select_size*symbols.size();
-  vol_costs_size = num_vol_measures + vol_symbol_select_size*symbols.size();
-  cp_costs.resize(cp_costs_size);
-  cp_costs_foreign.resize(cp_costs_size);
-  max_pp_costs.resize(pp_costs_size);
-  vol_costs.resize(vol_costs_size);
-  if (eager_pad.size()==0){
-    int eager_msg_sizes[2];
-    MPI_Pack_size(1,MPI_CHAR,MPI_COMM_WORLD,&eager_msg_sizes[0]);
-    MPI_Pack_size(cp_costs_size,MPI_FLOAT,MPI_COMM_WORLD,&eager_msg_sizes[1]);
-    int eager_pad_size = 2*MPI_BSEND_OVERHEAD;
-    for (int i=0; i<2; i++) { eager_pad_size += eager_msg_sizes[i]; }
-    assert(eager_pad_size <= eager_limit);
-    eager_pad.resize(eager_pad_size);
-  }
-
   for (auto& it :symbols){
     if (symbol_timers.find(it) == symbol_timers.end()){
       symbol_timers[it] = symbol_tracker(it);
@@ -229,8 +226,12 @@ void open_symbol(const char* symbol, double curtime){
   if (path_decomposition != 2) return;
   // If symbol not found already, ignore the symbol.
   // The new instructions are for user to specify tracked symbols apriori
-  if (symbol_timers.find(symbol) != symbol_timers.end()){
-    symbol_timers[symbol].start(curtime); }
+  if (symbol_timers.find(symbol) == symbol_timers.end() && symbol_timers.size() < max_num_tracked_kernels){
+    symbol_timers[symbol] = symbol_tracker(symbol);
+    symbol_order.push_back(symbol);
+    //decomp_text_width = std::max(decomp_text_width,symbol.size());
+  }
+  if (symbol_timers.find(symbol) != symbol_timers.end()) symbol_timers[symbol].start(curtime);
 }
 
 void close_symbol(const char* symbol, double curtime){
