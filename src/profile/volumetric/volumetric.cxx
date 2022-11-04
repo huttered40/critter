@@ -48,8 +48,7 @@ void volumetric::collect(MPI_Comm cm){
     }
   }
   else if (path_decomposition == 2 && path_count>0){
-    //TODO: Use of 4 below is skeptical. It was 3 before. Should it have been 4?
-    size_t path_select_offset = 4*num_decomp_pp_measures+1;
+    size_t path_select_offset = num_kernel_ds*num_decomp_pp_measures+1;
     for (size_t i=0; i<path_index.size(); i++){
       size_t z = path_index[i];
       if (rank == buffer[z].second){

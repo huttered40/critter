@@ -16,10 +16,9 @@ symbol_tracker::symbol_tracker(std::string name_){
   this->cp_incl_measure.resize(path_count,nullptr);
   this->cp_excl_measure.resize(path_count,nullptr);
 
-  //TODO: Can likely reduce from magic number of '4' to '3'
-  size_t cp_path_select_offset = 4*num_decomp_cp_measures+1;
-  size_t pp_path_select_offset = 4*num_decomp_pp_measures+1;
-  size_t vol_path_select_offset = 4*num_decomp_vol_measures+1;
+  size_t cp_path_select_offset = num_kernel_ds*num_decomp_cp_measures+1;
+  size_t pp_path_select_offset = num_kernel_ds*num_decomp_pp_measures+1;
+  size_t vol_path_select_offset = num_kernel_ds*num_decomp_vol_measures+1;
   size_t cp_offset = num_cp_measures;
   cp_offset += (symbol_timers.size()-1)*path_count*cp_path_select_offset;
   size_t pp_offset = num_pp_measures;
@@ -28,21 +27,21 @@ symbol_tracker::symbol_tracker(std::string name_){
   vol_offset += (symbol_timers.size()-1)*vol_path_select_offset;
 
   this->pp_numcalls = &max_pp_costs[pp_offset];
-  this->pp_incl_measure = &max_pp_costs[pp_offset+1];
-  this->pp_excl_measure = &max_pp_costs[pp_offset+num_decomp_pp_measures+1];
-  this->pp_exclusive_contributions = &max_pp_costs[pp_offset+2*num_decomp_pp_measures+1];
-  this->pp_exclusive_measure = &max_pp_costs[pp_offset+3*num_decomp_pp_measures+1];
+  this->pp_excl_measure = &max_pp_costs[pp_offset+1];
+  this->pp_incl_measure = exclusive_only==1 ? &scratch_pad : &max_pp_costs[pp_offset+num_decomp_pp_measures+1];
+  this->pp_exclusive_contributions = exclusive_only==1 ? &scratch_pad : &max_pp_costs[pp_offset+2*num_decomp_pp_measures+1];
+  this->pp_exclusive_measure = exclusive_only==1 ? &scratch_pad : &max_pp_costs[pp_offset+3*num_decomp_pp_measures+1];
 
   this->vol_numcalls = &vol_costs[vol_offset];
-  this->vol_incl_measure = &vol_costs[vol_offset+1];
-  this->vol_excl_measure = &vol_costs[vol_offset+num_decomp_vol_measures+1];
+  this->vol_excl_measure = &vol_costs[vol_offset+1];
+  this->vol_incl_measure = exclusive_only==1 ? &scratch_pad : &vol_costs[vol_offset+num_decomp_vol_measures+1];
 
   for (auto i=0; i<path_count; i++){
     this->cp_numcalls[i] = &cp_costs[cp_offset+cp_path_select_offset*i];
-    this->cp_incl_measure[i] = &cp_costs[cp_offset+1+cp_path_select_offset*i];
-    this->cp_excl_measure[i] = &cp_costs[cp_offset+num_decomp_cp_measures+1+cp_path_select_offset*i];
-    this->cp_exclusive_contributions[i] = &cp_costs[cp_offset+2*num_decomp_cp_measures+1+cp_path_select_offset*i];
-    this->cp_exclusive_measure[i] = &cp_costs[cp_offset+3*num_decomp_cp_measures+1+cp_path_select_offset*i];
+    this->cp_excl_measure[i] = &cp_costs[cp_offset+1+cp_path_select_offset*i];
+    this->cp_incl_measure[i] = exclusive_only==1 ? &scratch_pad : &cp_costs[cp_offset+num_decomp_cp_measures+1+cp_path_select_offset*i];
+    this->cp_exclusive_contributions[i] = exclusive_only==1 ? &scratch_pad : &cp_costs[cp_offset+2*num_decomp_cp_measures+1+cp_path_select_offset*i];
+    this->cp_exclusive_measure[i] = exclusive_only==1 ? &scratch_pad : &cp_costs[cp_offset+3*num_decomp_cp_measures+1+cp_path_select_offset*i];
   }
   // memset not necessary because these members point into global arrays
 }
@@ -96,30 +95,33 @@ void symbol_tracker::stop(double save_time){
   memset(this->pp_exclusive_measure,0,sizeof(float)*num_decomp_pp_measures);
   auto save_symbol = symbol_stack.top();
   this->start_timer.pop(); symbol_stack.pop();
-  if (symbol_stack.size() > 0 && (save_symbol != symbol_stack.top())){
-    for (auto j=0; j<path_count; j++){
-      for (auto i=0; i<num_decomp_cp_measures; i++){
-        symbol_timers[symbol_stack.top()].cp_exclusive_contributions[j][i] += this->cp_exclusive_contributions[j][i];
-        this->cp_incl_measure[j][i] += this->cp_exclusive_contributions[j][i];
+
+  if (exclusive_only == 0){
+    if (symbol_stack.size() > 0 && (save_symbol != symbol_stack.top())){
+      for (auto j=0; j<path_count; j++){
+	for (auto i=0; i<num_decomp_cp_measures; i++){
+	  symbol_timers[symbol_stack.top()].cp_exclusive_contributions[j][i] += this->cp_exclusive_contributions[j][i];
+	  this->cp_incl_measure[j][i] += this->cp_exclusive_contributions[j][i];
+	}
+	memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
       }
-      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
-    }
-    for (auto i=0; i<num_decomp_pp_measures; i++){
-      symbol_timers[symbol_stack.top()].pp_exclusive_contributions[i] += this->pp_exclusive_contributions[i];
-      this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
-    }
-    memset(this->pp_exclusive_contributions,0,sizeof(float)*num_decomp_pp_measures);
-  } else if (symbol_stack.size() == 0){
-    for (auto j=0; j<path_count; j++){
-      for (auto i=0; i<num_decomp_cp_measures; i++){
-        this->cp_incl_measure[j][i] += this->cp_exclusive_contributions[j][i];
+      for (auto i=0; i<num_decomp_pp_measures; i++){
+	symbol_timers[symbol_stack.top()].pp_exclusive_contributions[i] += this->pp_exclusive_contributions[i];
+	this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
       }
-      memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
+      memset(this->pp_exclusive_contributions,0,sizeof(float)*num_decomp_pp_measures);
+    } else if (symbol_stack.size() == 0){
+      for (auto j=0; j<path_count; j++){
+	for (auto i=0; i<num_decomp_cp_measures; i++){
+	  this->cp_incl_measure[j][i] += this->cp_exclusive_contributions[j][i];
+	}
+	memset(this->cp_exclusive_contributions[j],0,sizeof(float)*num_decomp_cp_measures);
+      }
+      for (auto i=0; i<num_decomp_pp_measures; i++){
+	this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
+      }
+      memset(this->pp_exclusive_contributions,0,sizeof(float)*num_decomp_pp_measures);
     }
-    for (auto i=0; i<num_decomp_pp_measures; i++){
-      this->pp_incl_measure[i] += this->pp_exclusive_contributions[i];
-    }
-    memset(this->pp_exclusive_contributions,0,sizeof(float)*num_decomp_pp_measures);
   }
   auto last_comp_time = save_time - computation_timer;
   cp_costs[num_cp_measures-1] += last_comp_time;

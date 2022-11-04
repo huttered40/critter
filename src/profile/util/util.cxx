@@ -28,6 +28,7 @@ size_t num_decomp_cp_measures;
 size_t num_decomp_pp_measures;
 size_t num_decomp_vol_measures;
 size_t cp_costs_size,pp_costs_size,vol_costs_size;
+size_t num_kernel_ds,exclusive_only;
 std::string path_select,path_measure_select;
 std::vector<bool> path_decisions;
 std::vector<float> cp_costs,max_pp_costs,vol_costs;
@@ -99,6 +100,19 @@ void allocate(MPI_Comm comm){
       assert(stream.good());
     }
   }
+  // Specify whether to profile kernel exclusive time only or
+  //   both exclusive time and inclusive time.
+  // The benefit of the former is less communication overhead.
+  if (std::getenv("CRITTER_PROFILE_EXCLUSIVE_TIME_ONLY") != NULL){
+    exclusive_only = atoi(std::getenv("CRITTER_PROFILE_EXCLUSIVE_TIME_ONLY"));
+    assert(exclusive_only >=0 && exclusive_only <= 2);
+  } else exclusive_only = 0;
+  if (exclusive_only == 1){
+    num_kernel_ds = 1;
+  } else{
+    num_kernel_ds = 4;
+  }
+
 
   path_count=0;
   for (auto i=0; i<path_select.size(); i++){
@@ -182,10 +196,9 @@ void reset(){
 void init_symbol(std::vector<std::string>& symbols){
   if (path_decomposition != 2) return;
   // We only want to initialize once, but do not know the number of symbols before this point.
-  //TODO: magic constant '4' might be changed to '3' if we remove cp_excl_measure as redundant.
-  size_t cp_symbol_select_size = 4*num_decomp_cp_measures+1;
-  size_t pp_symbol_select_size = 4*num_decomp_pp_measures+1;
-  size_t vol_symbol_select_size = 4*num_decomp_vol_measures+1;
+  size_t cp_symbol_select_size = num_kernel_ds*num_decomp_cp_measures+1;
+  size_t pp_symbol_select_size = num_kernel_ds*num_decomp_pp_measures+1;
+  size_t vol_symbol_select_size = num_kernel_ds*num_decomp_vol_measures+1;
   cp_costs_size = num_cp_measures + cp_symbol_select_size*path_count*symbols.size();
   pp_costs_size = num_pp_measures + pp_symbol_select_size*symbols.size();
   vol_costs_size = num_vol_measures + vol_symbol_select_size*symbols.size();

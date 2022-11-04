@@ -223,60 +223,60 @@ void record::print(int variantID, float overhead_time){
       std::cout << "\n\n";
 
       if (path_decomposition == 1){
-      for (auto i=0; i<path_index.size(); i++){
-        if (path_index[i]==0){
-          std::cout << std::left << std::setw(decomp_text_width+1) << "CommCost:";
-        } else if (path_index[i]==1){
-          std::cout << std::left << std::setw(decomp_text_width+1) << "SynchCost:";
-        } else if (path_index[i]==2){
-          std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost:";
-        } else if (path_index[i]==3){
-          std::cout << std::left << std::setw(decomp_text_width+1) << "CommTime:";
-        } else if (path_index[i]==4){
-          std::cout << std::left << std::setw(decomp_text_width+1) << "ExecTime:";
-        }
-        std::cout << std::left << std::setw(text_width) << "MeasureType";
-        std::cout << std::left << std::setw(text_width) << "CompCost";
-        std::cout << std::left << std::setw(text_width) << "CommCost";
-        std::cout << std::left << std::setw(text_width) << "SynchCost";
-        std::cout << std::left << std::setw(text_width) << "CommTime";
-        std::cout << "\n";
-        std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost";
-        std::cout << std::left << std::setw(text_width) << "path";
-        std::cout << std::left << std::setw(text_width) << cp_costs[cp_costs_size-1*path_count+i];//CompCost
-        save_info.clear();
-        for (int j=0; j<list_size; j++){
-          list[j]->set_cp_costs(save_info,i);
-        }
-        for (auto& it : save_info){
-          std::cout << "\n";
-          std::cout << std::left << std::setw(decomp_text_width+1) << it.first;
-          std::cout << std::left << std::setw(text_width) << "path";
-          std::cout << std::left << std::setw(text_width) << 0.0;
-          // Print out {CommCost,SynchCost,CommTime}
-          for (size_t j=0; j<3; j++){
-            std::cout << std::left << std::setw(text_width) << it.second[j];
-          }
-        }
-        std::cout << "\n";
-        std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost";
-        std::cout << std::left << std::setw(text_width) << "per-process";
-        std::cout << std::left << std::setw(text_width) << max_pp_costs[num_pp_measures+(i+1)*(num_decomp_pp_measures*list_size+2)-2];
-        save_info.clear();
-        for (int j=0; j<list_size; j++){
-          list[j]->set_pp_costs(save_info,i);
-        }
-        for (auto& it : save_info){
-          std::cout << "\n";
-          std::cout << std::left << std::setw(decomp_text_width+1) << it.first;
-          std::cout << std::left << std::setw(text_width) << "per-process";
-          std::cout << std::left << std::setw(text_width) << 0.0;
-          std::cout << std::left << std::setw(text_width) << it.second[0];
-          std::cout << std::left << std::setw(text_width) << it.second[1];
-          std::cout << std::left << std::setw(text_width) << it.second[2];
-        }
-        std::cout << "\n\n";
-      }
+	for (auto i=0; i<path_index.size(); i++){
+	  if (path_index[i]==0){
+	    std::cout << std::left << std::setw(decomp_text_width+1) << "CommCost:";
+	  } else if (path_index[i]==1){
+	    std::cout << std::left << std::setw(decomp_text_width+1) << "SynchCost:";
+	  } else if (path_index[i]==2){
+	    std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost:";
+	  } else if (path_index[i]==3){
+	    std::cout << std::left << std::setw(decomp_text_width+1) << "CommTime:";
+	  } else if (path_index[i]==4){
+	    std::cout << std::left << std::setw(decomp_text_width+1) << "ExecTime:";
+	  }
+	  std::cout << std::left << std::setw(text_width) << "MeasureType";
+	  std::cout << std::left << std::setw(text_width) << "CompCost";
+	  std::cout << std::left << std::setw(text_width) << "CommCost";
+	  std::cout << std::left << std::setw(text_width) << "SynchCost";
+	  std::cout << std::left << std::setw(text_width) << "CommTime";
+	  std::cout << "\n";
+	  std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost";
+	  std::cout << std::left << std::setw(text_width) << "path";
+	  std::cout << std::left << std::setw(text_width) << cp_costs[cp_costs_size-1*path_count+i];//CompCost
+	  save_info.clear();
+	  for (int j=0; j<list_size; j++){
+	    list[j]->set_cp_costs(save_info,i);
+	  }
+	  for (auto& it : save_info){
+	    std::cout << "\n";
+	    std::cout << std::left << std::setw(decomp_text_width+1) << it.first;
+	    std::cout << std::left << std::setw(text_width) << "path";
+	    std::cout << std::left << std::setw(text_width) << 0.0;
+	    // Print out {CommCost,SynchCost,CommTime}
+	    for (size_t j=0; j<3; j++){
+	      std::cout << std::left << std::setw(text_width) << it.second[j];
+	    }
+	  }
+	  std::cout << "\n";
+	  std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost";
+	  std::cout << std::left << std::setw(text_width) << "per-process";
+	  std::cout << std::left << std::setw(text_width) << max_pp_costs[num_pp_measures+(i+1)*(num_decomp_pp_measures*list_size+2)-2];
+	  save_info.clear();
+	  for (int j=0; j<list_size; j++){
+	    list[j]->set_pp_costs(save_info,i);
+	  }
+	  for (auto& it : save_info){
+	    std::cout << "\n";
+	    std::cout << std::left << std::setw(decomp_text_width+1) << it.first;
+	    std::cout << std::left << std::setw(text_width) << "per-process";
+	    std::cout << std::left << std::setw(text_width) << 0.0;
+	    std::cout << std::left << std::setw(text_width) << it.second[0];
+	    std::cout << std::left << std::setw(text_width) << it.second[1];
+	    std::cout << std::left << std::setw(text_width) << it.second[2];
+	  }
+	  std::cout << "\n\n";
+	}
       }
       if (path_decomposition <= 1){
         save_info.clear();
@@ -310,7 +310,7 @@ void record::print(int variantID, float overhead_time){
             if (it.second.start_timer.size() != 0) { std::cout << "Symbol " << it.first << " is not handled properly\n"; assert(it.second.start_timer.size() == 0); }
               sort_info[j++] = std::make_pair(it.second.name,
                                               std::array<float,6>{it.second.cp_numcalls[z][0],
-                                                                  it.second.cp_excl_measure[z][i],	//TODO: why not replace with cp_exclusive_measures
+                                                                  it.second.cp_excl_measure[z][i],
                                                                   *it.second.pp_numcalls,
                                                                   it.second.pp_excl_measure[path_measure_index[i]],
                                                                   *it.second.vol_numcalls,
@@ -375,70 +375,72 @@ void record::print(int variantID, float overhead_time){
           std::cout << std::left << std::setw(text_width) << 100.*vol_total_exclusive/vol_ref;
           std::cout << "\n";
 
-          // Reset symbol timers and sort
-          sort_info.clear(); sort_info.resize(symbol_timers.size());
-          j=0;
-          for (auto& it : symbol_timers){
-            assert(it.second.start_timer.size() == 0);
-            sort_info[j++] = std::make_pair(it.second.name,
-                                            std::array<float,6>{it.second.cp_numcalls[z][0],
-                                                                it.second.cp_incl_measure[z][i],
-                                                                *it.second.pp_numcalls,
-                                                                it.second.pp_incl_measure[path_measure_index[i]],
-                                                                *it.second.vol_numcalls,
-                                                                it.second.vol_incl_measure[path_measure_index[i]]});
-          }
-          std::sort(sort_info.begin(),sort_info.end(),
-                    [](std::pair<std::string,std::array<float,6>>& vec1,
-                       std::pair<std::string,std::array<float,6>>& vec2){
-                    return vec1.second[1] > vec2.second[1];});
-          cp_ref = cp_costs[path_measure_index[i]];
-          pp_ref = max_pp_costs[path_measure_index[i]];
-          vol_ref = vol_costs[path_measure_index[i]];
+          if (exclusive_only == 0){
+	    // Reset symbol timers and sort
+	    sort_info.clear(); sort_info.resize(symbol_timers.size());
+	    j=0;
+	    for (auto& it : symbol_timers){
+	      assert(it.second.start_timer.size() == 0);
+	      sort_info[j++] = std::make_pair(it.second.name,
+					      std::array<float,6>{it.second.cp_numcalls[z][0],
+								  it.second.cp_incl_measure[z][i],
+								  *it.second.pp_numcalls,
+								  it.second.pp_incl_measure[path_measure_index[i]],
+								  *it.second.vol_numcalls,
+								  it.second.vol_incl_measure[path_measure_index[i]]});
+	    }
+	    std::sort(sort_info.begin(),sort_info.end(),
+		      [](std::pair<std::string,std::array<float,6>>& vec1,
+			 std::pair<std::string,std::array<float,6>>& vec2){
+		      return vec1.second[1] > vec2.second[1];});
+	    cp_ref = cp_costs[path_measure_index[i]];
+	    pp_ref = max_pp_costs[path_measure_index[i]];
+	    vol_ref = vol_costs[path_measure_index[i]];
 
-          // Inclusive
-          std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << get_measure_title(path_measure_index[i]);
-          std::cout << std::left << std::setw(text_width) << "cp-#calls";
-          std::cout << std::left << std::setw(text_width) << "pp-#calls";
-          std::cout << std::left << std::setw(text_width) << "vol-#calls";
-          if (i>=3) std::cout << std::left << std::setw(text_width) << "cp-incl (s)";
-          else std::cout << std::left << std::setw(text_width) << "cp-incl";
-          if (i>=3) std::cout << std::left << std::setw(text_width) << "pp-incl (s)";
-          else std::cout << std::left << std::setw(text_width) << "pp-incl";
-          if (i>=3) std::cout << std::left << std::setw(text_width) << "vol-incl (s)";
-          else std::cout << std::left << std::setw(text_width) << "vol-incl";
-          std::cout << std::left << std::setw(text_width) << "cp-incl (%)";
-          std::cout << std::left << std::setw(text_width) << "pp-incl (%)";
-          std::cout << std::left << std::setw(text_width) << "vol-incl (%)";
-          float cp_total_inclusive = 0.;
-          float pp_total_inclusive = 0.;
-          float vol_total_inclusive = 0.;
-          for (auto& it : sort_info){
-            std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << it.first;
-            std::cout << std::left << std::setw(text_width) << it.second[0];
-            std::cout << std::left << std::setw(text_width) << it.second[2];
-            std::cout << std::left << std::setw(text_width) << it.second[4];
-            std::cout << std::left << std::setw(text_width) << it.second[1];
-            std::cout << std::left << std::setw(text_width) << it.second[3];
-            std::cout << std::left << std::setw(text_width) << it.second[5];
-            std::cout << std::left << std::setw(text_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
-            std::cout << std::left << std::setw(text_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
-            std::cout << std::left << std::setw(text_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
-            cp_total_inclusive = std::max(it.second[1],cp_total_inclusive);
-            pp_total_inclusive = std::max(it.second[3],pp_total_inclusive);
-            vol_total_inclusive = std::max(it.second[5],vol_total_inclusive);
+	    // Inclusive
+	    std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << get_measure_title(path_measure_index[i]);
+	    std::cout << std::left << std::setw(text_width) << "cp-#calls";
+	    std::cout << std::left << std::setw(text_width) << "pp-#calls";
+	    std::cout << std::left << std::setw(text_width) << "vol-#calls";
+	    if (i>=3) std::cout << std::left << std::setw(text_width) << "cp-incl (s)";
+	    else std::cout << std::left << std::setw(text_width) << "cp-incl";
+	    if (i>=3) std::cout << std::left << std::setw(text_width) << "pp-incl (s)";
+	    else std::cout << std::left << std::setw(text_width) << "pp-incl";
+	    if (i>=3) std::cout << std::left << std::setw(text_width) << "vol-incl (s)";
+	    else std::cout << std::left << std::setw(text_width) << "vol-incl";
+	    std::cout << std::left << std::setw(text_width) << "cp-incl (%)";
+	    std::cout << std::left << std::setw(text_width) << "pp-incl (%)";
+	    std::cout << std::left << std::setw(text_width) << "vol-incl (%)";
+	    float cp_total_inclusive = 0.;
+	    float pp_total_inclusive = 0.;
+	    float vol_total_inclusive = 0.;
+	    for (auto& it : sort_info){
+	      std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << it.first;
+	      std::cout << std::left << std::setw(text_width) << it.second[0];
+	      std::cout << std::left << std::setw(text_width) << it.second[2];
+	      std::cout << std::left << std::setw(text_width) << it.second[4];
+	      std::cout << std::left << std::setw(text_width) << it.second[1];
+	      std::cout << std::left << std::setw(text_width) << it.second[3];
+	      std::cout << std::left << std::setw(text_width) << it.second[5];
+	      std::cout << std::left << std::setw(text_width) << std::setprecision(4) << 100.*it.second[1]/cp_ref;
+	      std::cout << std::left << std::setw(text_width) << std::setprecision(4) << 100.*it.second[3]/pp_ref;
+	      std::cout << std::left << std::setw(text_width) << std::setprecision(4) << 100.*it.second[5]/vol_ref;
+	      cp_total_inclusive = std::max(it.second[1],cp_total_inclusive);
+	      pp_total_inclusive = std::max(it.second[3],pp_total_inclusive);
+	      vol_total_inclusive = std::max(it.second[5],vol_total_inclusive);
+	    }
+	    std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << "total";
+	    std::cout << std::left << std::setw(text_width) << "";
+	    std::cout << std::left << std::setw(text_width) << "";
+	    std::cout << std::left << std::setw(text_width) << "";
+	    std::cout << std::left << std::setw(text_width) << cp_total_inclusive;
+	    std::cout << std::left << std::setw(text_width) << pp_total_inclusive;
+	    std::cout << std::left << std::setw(text_width) << vol_total_inclusive;
+	    std::cout << std::left << std::setw(text_width) << 100.*cp_total_inclusive/cp_ref;
+	    std::cout << std::left << std::setw(text_width) << 100.*pp_total_inclusive/pp_ref;
+	    std::cout << std::left << std::setw(text_width) << 100.*vol_total_inclusive/vol_ref;
+	    std::cout << "\n";
           }
-          std::cout << "\n" << std::left << std::setw(decomp_text_width+1) << "total";
-          std::cout << std::left << std::setw(text_width) << "";
-          std::cout << std::left << std::setw(text_width) << "";
-          std::cout << std::left << std::setw(text_width) << "";
-          std::cout << std::left << std::setw(text_width) << cp_total_inclusive;
-          std::cout << std::left << std::setw(text_width) << pp_total_inclusive;
-          std::cout << std::left << std::setw(text_width) << vol_total_inclusive;
-          std::cout << std::left << std::setw(text_width) << 100.*cp_total_inclusive/cp_ref;
-          std::cout << std::left << std::setw(text_width) << 100.*pp_total_inclusive/pp_ref;
-          std::cout << std::left << std::setw(text_width) << 100.*vol_total_inclusive/vol_ref;
-          std::cout << "\n";
         }
       }
     }

@@ -27,6 +27,7 @@ extern size_t num_decomp_cp_measures;
 extern size_t num_decomp_pp_measures;
 extern size_t num_decomp_vol_measures;
 extern size_t cp_costs_size,pp_costs_size,vol_costs_size;
+extern size_t num_kernel_ds,exclusive_only;
 extern std::string path_select,path_measure_select;
 extern std::vector<bool> path_decisions;
 extern std::vector<float> cp_costs,max_pp_costs,vol_costs;

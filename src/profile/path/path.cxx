@@ -226,7 +226,6 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
   }
 
-  volatile auto init_time = MPI_Wtime();
   propagate(tracker);
 
   // Do as much work as possible post-propagate and pre-barrier (which should be "dead" time that shouldn't affect correctness).
@@ -272,7 +271,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
 
   // To accurately measure communication time of a collective, must re-"synchronize" (blocking barrier, not synchronous).
   //   The need for this ensuing barrier has been validated by empirical studies.
-  if (tracker.partner1 != -1) PMPI_Barrier(tracker.comm);
+  if (tracker.partner1 == -1) PMPI_Barrier(tracker.comm);
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
   return true;
@@ -302,6 +301,7 @@ void path::complete_comm(blocking& tracker){
 */
 
   // Decompose measurements along multiple paths by MPI routine.
+  *tracker.my_comm_time += comm_time;
   for (size_t i=0; i<path_count; i++){
     *(tracker.cp_comm_time+i) += comm_time;
   }
