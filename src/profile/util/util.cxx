@@ -142,7 +142,7 @@ void allocate(MPI_Comm comm){
   num_decomp_cp_measures = path_measure_count;
   num_decomp_pp_measures = path_measure_select.size();
   num_decomp_vol_measures = path_measure_select.size();
-  if (path_decomposition == 1){
+  if (path_decomposition <= 1){
     num_decomp_pp_measures -= 2;// Only need to track {CommCost,SynchCost,CommTime} per MPI routine
     num_decomp_vol_measures -= 2;// Only need to track {CommCost,SynchCost,CommTime} per MPI routine
   }

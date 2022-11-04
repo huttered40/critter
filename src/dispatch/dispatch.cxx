@@ -348,20 +348,6 @@ void clear(int tag_count, int* distribution_tags){
   }
 }
 
-void _finalize(){
-  switch (mechanism){
-    case 0:
-      profile::finalize();
-      break;
-    case 1:
-      accelerate::finalize();
-      break;
-    case 2:
-      skeletonize::finalize();
-      break;
-  }
-}
-
 void write_file(int variantID, int print_mode, double overhead_time){
   if (std::getenv("CRITTER_VIZ_FILE") == NULL) return;
   switch (mechanism){

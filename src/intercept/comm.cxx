@@ -151,8 +151,8 @@ void _init(int* argc, char*** argv){
   } else{
     track_collective = 1;
   }
-  if (std::getenv("CRITTER_AUTO") != NULL){
-    auto_capture = atoi(std::getenv("CRITTER_AUTO"));
+  if (std::getenv("CRITTER_AUTO_PROFILE") != NULL){
+    auto_capture = atoi(std::getenv("CRITTER_AUTO_PROFILE"));
     assert(auto_capture >= 0 && auto_capture <= 1);
   } else{
     auto_capture = 0;
@@ -332,8 +332,8 @@ int init_thread(int* argc, char*** argv, int required, int* provided){
 }
 
 int finalize(){
-  //if (auto_capture) stop();
-  //internal::_finalize();
+  if (auto_capture) { stop(); record(-1,3); }
+  //TODO: call finalize on each mechanism?
   return PMPI_Finalize();
 }
 
