@@ -19,6 +19,7 @@ public:
     int lda = std::get<3>(t);
     auto reset_val = std::get<4>(t);
     for (int i=0; i<n; i++){
+      //memset(matrix+i*lda,0,m*sizeof(decltype(*matrix)));
       memset(matrix+i*lda,1,m*sizeof(decltype(*matrix)));
     }
     std::get<5>(t)(matrix,m,n,lda);
@@ -157,9 +158,11 @@ inline int conditional_lapack_engine(int id, int guard, std::tuple<t1_types...>&
     double special_time=0;
     bool schedule_decision = initiate_comp(id,curtime,flops,std::get<index_list1>(t2)...);
     if (schedule_decision){
-      if ((mechanism == 0 && autotuning_debug==0) || (mechanism == 2)) assert(func(std::get<index_list2>(args)...)==0);
+      if (mechanism == 2) func(std::get<index_list2>(args)...);
+      else if (mechanism == 0 && autotuning_debug==0) assert(func(std::get<index_list2>(args)...)==0);
       else{
         special_time = MPI_Wtime();
+        assert(reset_matrix);// temp
         if (reset_matrix) { reset_matrix_generator::invoke(reset_lambdas...); }
         special_time = MPI_Wtime() - special_time;
         assert(func(std::get<index_list2>(args)...)==0);
@@ -181,7 +184,8 @@ int conditional_lapack_engine_tpqrt_(func_type* func, int matrix_layout, int m ,
     double special_time=0;
     bool schedule_decision = initiate_comp(_LAPACK_tpqrt__id,curtime,flops,m,n,l,nb);
     if (schedule_decision){
-      if ((mechanism == 0 && autotuning_debug==0) || (mechanism == 2)) assert(func(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
+      if (mechanism == 2) func(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt);
+      else if (mechanism == 0 && autotuning_debug==0) assert(func(matrix_layout,m,n,l,nb,a,lda,b,ldb,t,ldt)==0);
       else{
         special_time = MPI_Wtime();
         for (int i=0; i<n; i++){
@@ -215,7 +219,8 @@ int conditional_lapack_engine_tpmqrt_(func_type* func, int matrix_layout, char s
     double special_time=0;
     bool schedule_decision = initiate_comp(_LAPACK_tpmqrt__id,curtime,flops,m,n,k,l,nb);
     if (schedule_decision){
-      if ((mechanism == 0 && autotuning_debug==0) || (mechanism == 2)) assert(func(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
+      if (mechanism == 2) func(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb);
+      else if (mechanism == 0 && autotuning_debug==0) assert(func(matrix_layout,side,trans,m,n,k,l,nb,v,ldv,t,ldt,a,lda,b,ldb)==0);
       else{
         special_time = MPI_Wtime();
         T* v_temp = (T*)v;

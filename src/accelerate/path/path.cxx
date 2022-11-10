@@ -7,21 +7,24 @@ namespace critter{
 namespace internal{
 namespace accelerate{
 
-static void update_frequency(float* in, float* inout, size_t len){
+static void update_kernel_count(float* in, float* inout, size_t len){
   assert(len == cp_costs_size);	// this assert prevents user from obtaining wrong output if MPI implementation cuts up the message.
-  if (in[num_cp_measures-1] > inout[num_cp_measures-1]){
-    std::memcpy(inout+18,in+18,(len-18)*sizeof(float));
+  // Depending on which process has larger execution time, update the rest of the path profile (floats aux_info_size+)
+  if (in[0] > inout[0]){
+    std::memcpy(inout+aux_info_size,in+aux_info_size,(len-aux_info_size)*sizeof(float));
   }
-  for (auto i=0; i<18; i++) inout[i] = std::max(in[i],inout[i]);
+  for (auto i=0; i<aux_info_size; i++) inout[i] = std::max(in[i],inout[i]);
 }
 static void propagate_cp_op(float* in, float* inout, int* len, MPI_Datatype* dtype){
-  update_frequency(in,inout,static_cast<size_t>(*len));
+  update_kernel_count(in,inout,static_cast<size_t>(*len));
 }
 
+//TODO: Only called if kernel_execution_count_mode==2. What does that mean?
 static void kernel_update(float* read_ptr){
   // Leave the un-updated kernels alone, just use the per-process count
   // Lets have all processes update, even the root, so that they leave this routine (and subsequently leave the interception) at approximately the same time.
   for (auto i=0; i<comp_kernel_select_count; i++){
+    //TODO: Why the 9? I guess it is 9 floats, all necessary to uniquely identify a computational kernel.
     auto offset = i*9;
     if (read_ptr[offset] == -1) break;
     comp_kernel_key id(-1,(int)read_ptr[offset],read_ptr[offset+7],
@@ -30,6 +33,7 @@ static void kernel_update(float* read_ptr){
     // Don't bother adding new kernels unseen by the current processor.
     // Kernels un-updated will use per-process count as an approximation
     if (comp_kernel_map.find(id) != comp_kernel_map.end()){
+      //TODO: 'num_local_schedules' along critical-path? or along a processor's execution path?
       active_kernels[comp_kernel_map[id].val_index].num_local_schedules = read_ptr[offset+8];
     }
   }
@@ -51,13 +55,9 @@ void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   auto save_comp_time = MPI_Wtime() - computation_timer;
-  if (mode==1){
-    cp_costs[num_cp_measures-1] += save_comp_time;
-    cp_costs[num_cp_measures-3] += save_comp_time;
-    vol_costs[num_vol_measures-1] += save_comp_time;
-    vol_costs[num_vol_measures-3] += save_comp_time;
-  }
+  if (mode==1){ cp_costs[0] += save_comp_time; }
 
+  //TODO: Cool concept, but we likely don't need to do this anymore. Just too costly.
   generate_aggregate_channels(oldcomm,newcomm);
   PMPI_Barrier(oldcomm);
   if (mode==1){
@@ -69,10 +69,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, float flop_count, i
   // Save and accumulate the computation time between last communication routine as both execution-time and computation time
   //   into both the execution-time critical path data structures and the per-process data structures.
   auto save_comp_time = curtime - computation_timer;
-  cp_costs[num_cp_measures-1] += save_comp_time;
-  cp_costs[num_cp_measures-3] += save_comp_time;
-  vol_costs[num_vol_measures-1] += save_comp_time;
-  vol_costs[num_vol_measures-3] += save_comp_time;
+  cp_costs[0] += save_comp_time;
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
@@ -89,7 +86,7 @@ bool path::initiate_comp(size_t id, volatile double curtime, float flop_count, i
   }
   intercept_overhead[0] += MPI_Wtime() - overhead_start_time;
 
-  // start compunication timer for computation routine
+  // start timer for computation routine
   global_schedule_decision = schedule_decision;// 'global' as in global variable
   comp_start_time = MPI_Wtime();
   return schedule_decision;
@@ -112,31 +109,29 @@ void path::complete_comp(double errtime, size_t id, float flop_count, int param1
       active_kernels.emplace_back();
       comp_kernel_map[key] = kernel_key_id(true,active_comp_kernel_keys.size()-1,active_kernels.size()-1,false);
     } else{
+      //TODO: Any difference between should_schedule member function and is_active member variable?
       if (global_schedule_decision) comp_kernel_map[key].is_active = true;
     }
     // For debugging sanity, if the autotuner shut off execution of this kernel, then have debugger use only existing mean
     if (autotuning_debug == 1 && comp_kernel_save_map.find(key) != comp_kernel_save_map.end() && should_schedule(comp_kernel_save_map[key]) == 0){
       comp_time = get_estimate(comp_kernel_map[key],comp_analysis_param,flop_count);
     } else{
+      //TODO: What is comp_analysis_param? What if comp_time is bad (kernel wasn't scheduled)?
+      // Note: a kernel's stats and its state are not equivalent.
       update_kernel_stats(comp_kernel_map[key],comp_analysis_param,comp_time,flop_count);
       // Note: 'get_estimate' must be called before setting the updated kernel state. If kernel was not scheduled, comp_time set below overwrites 'comp_time'
       if (should_schedule(comp_kernel_map[key]) == 0){
         comp_time = get_estimate(comp_kernel_map[key],comp_analysis_param,flop_count);
       } else{
         bool _is_steady = steady_test(key,comp_kernel_map[key],comp_analysis_param);
+        //TODO: What is difference between set_kernel_state and set_kernel_state_global? (particularly for a global variable?)
         set_kernel_state(comp_kernel_map[key],!_is_steady);
-        if (comp_state_aggregation_mode==0 || sample_constraint_mode==-1) set_kernel_state_global(comp_kernel_map[key],!_is_steady);
+        if (propagate_kernel_execution_state==0 || kernel_execution_count_mode==-1) set_kernel_state_global(comp_kernel_map[key],!_is_steady);
       }
     }
   }
 
-  cp_costs[num_cp_measures-1] += comp_time;
-  cp_costs[num_cp_measures-2] += comp_time;
-  cp_costs[num_cp_measures-3] += comp_time;
-  vol_costs[num_vol_measures-1] += comp_time;
-  vol_costs[num_vol_measures-2] += comp_time;
-  vol_costs[num_vol_measures-3] += comp_time;
-
+  cp_costs[0] += comp_time;
   intercept_overhead[0] += MPI_Wtime() - overhead_start_time;
   computation_timer = MPI_Wtime();
 }
@@ -151,10 +146,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
   volatile auto overhead_start_time = MPI_Wtime();
-  cp_costs[num_cp_measures-1] += tracker.comp_time;
-  cp_costs[num_cp_measures-3] += tracker.comp_time;
-  vol_costs[num_vol_measures-1] += tracker.comp_time;
-  vol_costs[num_vol_measures-3] += tracker.comp_time;
+  cp_costs[0] += tracker.comp_time;
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
@@ -172,8 +164,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   tracker.is_sender = is_sender;
   tracker.partner1 = partner1;
   tracker.partner2 = partner2 != -1 ? partner2 : partner1;// Useful in propagation
-  tracker.synch_time = 0.;// might get updated below
-  tracker.barrier_time = 0.;// might get updated below
+  //TODO: What do these three help with?
   tracker.should_propagate = false;
   tracker.aggregate_comp_kernels=false;
   tracker.aggregate_comm_kernels=false;
@@ -190,76 +181,77 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
   // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_kernel_key, although it will be empty.
+  for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
+    comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
+    comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
+  }
+  // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
+  //   create an entry in comm_kernel_key, although it will be empty.
   comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-  memset(&cp_costs[4],0,14*sizeof(float)); cp_costs[6] = 1;
+  memset(&cp_costs[1],0,(aux_info_size-1)*sizeof(float)); cp_costs[3] = 1;
   if (tuning_delta > 1){// tuning_delta of 1 signifies that communication kernel scheduling is to be unconditional
     if (comm_kernel_map.find(key) != comm_kernel_map.end()){
+      // should_schedule(...) is equivalent to asking whether a kernel is globally steady.
+      // Globally-steady (communication) kernels don't require synchronization to ask whether to invoke.
+      // However, communication is still necessary to propagate approximate execution time (which limits speedups).
       schedule_decision = should_schedule(comm_kernel_map[key])==1;
-      cp_costs[5] = (!schedule_decision ? 1 : 0);// set to 1 if kernel is globally steady.
-      cp_costs[6] = (schedule_decision ? 1 : 0);// set to 0 if kernel is globally steady.
+      cp_costs[2] = (!schedule_decision ? 1 : 0);// set to 1 if kernel is globally steady.
+      cp_costs[3] = (schedule_decision ? 1 : 0);// set to 0 if kernel is globally steady.
       if (!schedule_decision){
         // If this particular kernel is globally steady, meaning it has exhausted its state aggregation channels,
         //   then we can overwrite the '-1' with the sample mean of the globally-steady kernel
-        cp_costs[4] = active_kernels[comm_kernel_map[key].val_index].steady_state;
-        cp_costs[9] = active_kernels[comm_kernel_map[key].val_index].hash_id;
-        cp_costs[10] = active_kernels[comm_kernel_map[key].val_index].num_schedules;
-        cp_costs[11] = active_kernels[comm_kernel_map[key].val_index].num_local_schedules;
-        cp_costs[12] = active_kernels[comm_kernel_map[key].val_index].num_scheduled_units;
-        cp_costs[13] = active_kernels[comm_kernel_map[key].val_index].num_local_scheduled_units;
-        cp_costs[14] = active_kernels[comm_kernel_map[key].val_index].M1;
-        cp_costs[15] = active_kernels[comm_kernel_map[key].val_index].M2;
-        cp_costs[16] = active_kernels[comm_kernel_map[key].val_index].total_exec_time;
-        cp_costs[17] = active_kernels[comm_kernel_map[key].val_index].total_local_exec_time;
+        cp_costs[1] = active_kernels[comm_kernel_map[key].val_index].steady_state;
       }
     }
   }
-
   // Use pathsets, not batches, to check if kernel can leverage an aggregation. Such a kernel must be locally steady (i.e.
   //   from its own schedules, its steady), and must be able to aggregate across the channel associated with 'tracker.comm'
-  if ((tracker.partner1 == -1) && (comp_state_aggregation_mode>0)){
+  if ((tracker.partner1 == -1) && (propagate_kernel_execution_state>0)){
     for (auto& it : comp_kernel_map){
       if (!((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1))) continue;
       // Any global communicator can fast-track a communication kernel to being in global steady state. No need to match up hashes (that would only be necessary for sample aggregation)
       if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
         tracker.save_comp_key.push_back(it.first);
-        cp_costs[7]++;
+        cp_costs[4]++;
       }
       else{
         if (active_kernels[it.second.val_index].registered_channels.find(comm_channel_map[tracker.comm]) != active_kernels[it.second.val_index].registered_channels.end()) continue;
         // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
         if (aggregate_channel_map.find(active_kernels[it.second.val_index].hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
         tracker.save_comp_key.push_back(it.first);
-        cp_costs[7]++;
+        cp_costs[4]++;
       }
     }
   }
-  if ((tracker.partner1 == -1) && (comm_state_aggregation_mode>0)){
+  if ((tracker.partner1 == -1) && (propagate_kernel_execution_state>0)){
     for (auto& it : comm_kernel_map){
       if (!((active_kernels[it.second.val_index].steady_state==1) && (should_schedule(it.second)==1))) continue;
       if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
         tracker.save_comm_key.push_back(it.first);
-        cp_costs[8]++;
+        cp_costs[5]++;
       }
       else{
         if (active_kernels[it.second.val_index].registered_channels.find(comm_channel_map[tracker.comm]) != active_kernels[it.second.val_index].registered_channels.end()) continue;
         // TODO: Not exactly sure whether to use global_hash_id below or local_hash_id
         if (aggregate_channel_map.find(active_kernels[it.second.val_index].hash_id ^ aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag) == aggregate_channel_map.end()) continue;
         tracker.save_comm_key.push_back(it.first);
-        cp_costs[8]++;
+        cp_costs[5]++;
       }
     }
   }
 
-  if (sample_constraint_mode == 2){
+  //TODO: Is there a way to avoid this explicit copy? We want to leverage the order of the arrays, right?
+  //TODO: This would never be practical if the number of distinct kernels is > 10 or 20.
+  if (kernel_execution_count_mode == 2){
     // Fill in -1 first because the number of distinct kernels might be less than 'comm_kernel_select_count',
     //   just to avoid confusion. A -1 tag clearly means that the kernel is void
-    memset(&cp_costs[18],-1,sizeof(float)*(cp_costs.size()-18));
+    memset(&cp_costs[aux_info_size],-1,sizeof(float)*(cp_costs.size()-aux_info_size));
     // Iterate over first 'comp_kernel_select_count' keys
     int count=0;
     for (auto it : comp_kernel_map){
       if (comp_kernel_select_count==0) break;
       if (active_kernels[it.second.val_index].num_local_schedules == 0) break;
-      auto offset = 18+9*count;
+      auto offset = aux_info_size+9*count;
       cp_costs[offset] = it.first.tag;
       cp_costs[offset+1] = it.first.param1;
       cp_costs[offset+2] = it.first.param2;
@@ -275,7 +267,7 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     for (auto it : comm_kernel_map){
       if (comm_kernel_select_count==0) break;
       if (active_kernels[it.second.val_index].num_local_schedules == 0) break;
-      auto offset = 18+9*comp_kernel_select_count+count*9;
+      auto offset = aux_info_size+9*comp_kernel_select_count+count*9;
       cp_costs[offset] = it.first.tag;
       cp_costs[offset+1] = it.first.dim_sizes[0];
       cp_costs[offset+2] = it.first.dim_sizes[1];
@@ -290,33 +282,17 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   }
 
   if (partner1 == -1){
-    MPI_Op op_special;
-    MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op_special);
+    MPI_Op op_special = MPI_MAX;
+    if (kernel_execution_count_mode == 2) MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op_special);
     PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], cp_costs.size(), MPI_FLOAT, op_special, tracker.comm);
-    MPI_Op_free(&op_special);
-    if (collective_state_protocol) schedule_decision = (cp_costs[6] == 0 ? false : true);
-    else schedule_decision = (cp_costs[5] == 0 ? true : false);
-    tracker.aggregate_comp_kernels = cp_costs[7]>0;
-    tracker.aggregate_comm_kernels = cp_costs[8]>0;
-    tracker.should_propagate = cp_costs[7]>0 || cp_costs[8]>0;
+    if (kernel_execution_count_mode == 2) MPI_Op_free(&op_special);
+    if (collective_state_protocol) schedule_decision = (cp_costs[3] == 0 ? false : true);
+    else schedule_decision = (cp_costs[2] == 0 ? true : false);
+    tracker.aggregate_comp_kernels = cp_costs[4]>0;
+    tracker.aggregate_comm_kernels = cp_costs[5]>0;
+    tracker.should_propagate = cp_costs[4]>0 || cp_costs[5]>0;
     if (comm_kernel_map.find(key) != comm_kernel_map.end()){
       if (!schedule_decision){
-        if (should_schedule(comm_kernel_map[key])){
-          if (comm_kernel_transfer_id == 1){
-            // Enter here if a process's local comm kernel is not globally steady, yet its found that at least one of the processors in its communicator is.
-            // Completely swap out its kernel statistics for the elements reduced. Note that I am avoiding an extra broadcast, thus the reduced members might
-            //   each be from different processors. Likely though, just one is globally steady.
-            active_kernels[comm_kernel_map[key].val_index].hash_id = cp_costs[9];
-            active_kernels[comm_kernel_map[key].val_index].num_schedules = cp_costs[10];
-            active_kernels[comm_kernel_map[key].val_index].num_local_schedules = cp_costs[11];
-            active_kernels[comm_kernel_map[key].val_index].num_scheduled_units = cp_costs[12];
-            active_kernels[comm_kernel_map[key].val_index].num_local_scheduled_units = cp_costs[13];
-            active_kernels[comm_kernel_map[key].val_index].M1 = cp_costs[14];
-            active_kernels[comm_kernel_map[key].val_index].M2 = cp_costs[15];
-            active_kernels[comm_kernel_map[key].val_index].total_exec_time = cp_costs[16];
-            active_kernels[comm_kernel_map[key].val_index].total_local_exec_time  = cp_costs[17];
-          }
-        }
         set_kernel_state(comm_kernel_map[key],false);
         set_kernel_state_global(comm_kernel_map[key],false);
       }
@@ -339,9 +315,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       PMPI_Recv(&cp_costs_foreign[0], cp_costs_foreign.size(), MPI_FLOAT, partner2, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
     }
     if (has_received){
-      schedule_decision = (cp_costs_foreign[5] == 0);
-      update_frequency(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
-      if (tracker.tag >= 13 && tracker.tag <= 14) schedule_decision = (cp_costs[5] == 0);
+      schedule_decision = (cp_costs_foreign[2] == 0);
+      update_kernel_count(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
+      if (tracker.tag >= 13 && tracker.tag <= 14) schedule_decision = (cp_costs[2] == 0);
       if (comm_kernel_map.find(key) != comm_kernel_map.end()){
         if (!schedule_decision){
           set_kernel_state(comm_kernel_map[key],false);
@@ -351,8 +327,8 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     }
   }
   // Only Receivers always update their kernel maps
-  if (sample_constraint_mode == 2){
-    if (!(tracker.partner1 != -1 && tracker.is_sender && tracker.partner2 == tracker.partner1)) kernel_update(&cp_costs_foreign[18]);
+  if (kernel_execution_count_mode == 2){
+    if (!(tracker.partner1 != -1 && tracker.is_sender && tracker.partner2 == tracker.partner1)) kernel_update(&cp_costs_foreign[aux_info_size]);
   }
 
   global_schedule_decision = schedule_decision;// 'global' as in global variable
@@ -407,8 +383,8 @@ void path::complete_comm(blocking& tracker){
         if (tracker.partner1 == -1){
           bool _is_steady = steady_test(key,comm_kernel_map[key],comm_analysis_param);
           set_kernel_state(comm_kernel_map[key],!_is_steady);
-          if (sample_constraint_mode == -1) set_kernel_state_global(comm_kernel_map[key],!_is_steady);// Force global state to steady.
-          if (comm_state_aggregation_mode == 0) { set_kernel_state_global(comm_kernel_map[key],!_is_steady); }
+          if (kernel_execution_count_mode == -1) set_kernel_state_global(comm_kernel_map[key],!_is_steady);// Force global state to steady.
+          if (propagate_kernel_execution_state == 0) { set_kernel_state_global(comm_kernel_map[key],!_is_steady); }
         } else{
           // If p2p (most notably senders) must delay update, we must check whether the kernel has already been set to local steady state
           if (delay_state_update){
@@ -421,7 +397,7 @@ void path::complete_comm(blocking& tracker){
           } else{
             bool _is_steady = steady_test(key,comm_kernel_map[key],comm_analysis_param);
             set_kernel_state(comm_kernel_map[key],!_is_steady);
-            if (sample_constraint_mode == -1) set_kernel_state_global(comm_kernel_map[key],!_is_steady);// Force global state to steady.
+            if (kernel_execution_count_mode == -1) set_kernel_state_global(comm_kernel_map[key],!_is_steady);// Force global state to steady.
             set_kernel_state_global(comm_kernel_map[key],!_is_steady);
           }
         }
@@ -429,28 +405,14 @@ void path::complete_comm(blocking& tracker){
     }
   }
 
-  cp_costs[num_cp_measures-1] += comm_time;
-  cp_costs[num_cp_measures-4] += comm_time;
-  vol_costs[num_vol_measures-1] += comm_time;
-  vol_costs[num_vol_measures-4] += comm_time;
-
-  //vol_costs[num_vol_measures-4] -= std::max(0.,vol_costs[num_vol_measures-1]-cp_costs[num_cp_measures-1]);
-  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  vol_costs[num_vol_measures-4] = vol_costs[num_vol_measures-4] > cp_costs[num_cp_measures-4]
-                                          ? cp_costs[num_cp_measures-4] : vol_costs[num_vol_measures-4];
-  vol_costs[num_vol_measures-3] = vol_costs[num_vol_measures-3] > cp_costs[num_cp_measures-3]
-                                          ? cp_costs[num_cp_measures-3] : vol_costs[num_vol_measures-3];
-  vol_costs[num_vol_measures-2] = vol_costs[num_vol_measures-2] > cp_costs[num_cp_measures-2]
-                                          ? cp_costs[num_cp_measures-2] : vol_costs[num_vol_measures-2];
-  vol_costs[num_vol_measures-1] = vol_costs[num_vol_measures-1] > cp_costs[num_cp_measures-1]
-                                          ? cp_costs[num_cp_measures-1] : vol_costs[num_vol_measures-1];
+  cp_costs[0] += comm_time;
   // Propogate critical paths for all processes in communicator based on what each process has seen up until now (not including this communication)
   if (tracker.should_propagate && tracker.partner1 == -1){
     bool is_world_communication = (tracker.comm == MPI_COMM_WORLD) && (tracker.partner1 == -1);
     if ((rank == tracker.partner1) && (rank == tracker.partner2)) { ; }
     else{
-      if (tracker.aggregate_comm_kernels) comm_state_aggregation(tracker);
-      if (tracker.aggregate_comp_kernels) comp_state_aggregation(tracker);
+      //if (tracker.aggregate_comm_kernels) comm_state_aggregation(tracker);
+      //if (tracker.aggregate_comp_kernels) comp_state_aggregation(tracker);
     }
   }
 
@@ -472,10 +434,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   //   into both the execution-time critical path data structures and the per-process data structures.
   tracker.comp_time = curtime - computation_timer;
   assert(partner != MPI_ANY_SOURCE);
-  cp_costs[num_cp_measures-1] += tracker.comp_time;
-  cp_costs[num_cp_measures-3] += tracker.comp_time;
-  vol_costs[num_vol_measures-1] += tracker.comp_time;
-  vol_costs[num_vol_measures-3] += tracker.comp_time;
+  cp_costs[0] += tracker.comp_time;
   // Special exit if no kernels are to be scheduled -- the goal is to track the total overhead time (no comp/comm kernels), which should
   //   be attained with timers outside of critter.
   if (schedule_kernels==0){ return false; }
@@ -494,8 +453,6 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   tracker.is_sender = is_sender;
   tracker.partner1 = partner;
   tracker.partner2 = partner;
-  tracker.synch_time = 0.;// might get updated below
-  tracker.barrier_time = 0.;// might get updated below
   tracker.should_propagate = false;
   tracker.aggregate_comp_kernels=false;
   tracker.aggregate_comm_kernels=false;
@@ -511,47 +468,38 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
   // Below, the idea is that key doesn't exist in comm_kernel_map iff the key hasn't been seen before. If the key has been seen, we automatically
   //   create an entry in comm_kernel_key, although it will be empty.
   comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-  memset(&cp_costs[4],0,14*sizeof(float)); cp_costs[6] = 1;
+  memset(&cp_costs[1],0,(aux_info_size-1)*sizeof(float)); cp_costs[3] = 1;
   if (tuning_delta > 1){// tuning_delta of 1 signifies that communication kernel scheduling is to be unconditional
     if (comm_kernel_map.find(key) != comm_kernel_map.end()){
       schedule_decision = should_schedule(comm_kernel_map[key])==1;
-      cp_costs[5] = (!schedule_decision ? 1 : 0);	// This logic must match that in 'initiate_comm(blocking&,...)'
-      cp_costs[6] = (schedule_decision ? 1 : 0);	// This logic must match that in 'initiate_comm(blocking&,...)'
+      cp_costs[2] = (!schedule_decision ? 1 : 0);	// This logic must match that in 'initiate_comm(blocking&,...)'
+      cp_costs[3] = (schedule_decision ? 1 : 0);	// This logic must match that in 'initiate_comm(blocking&,...)'
       if (!schedule_decision){
         // If this particular kernel is globally steady, meaning it has exhausted its state aggregation channels,
         //   then we can overwrite the '-1' with the sample mean of the globally-steady kernel
-        cp_costs[4] = active_kernels[comm_kernel_map[key].val_index].steady_state;
-        cp_costs[9] = active_kernels[comm_kernel_map[key].val_index].hash_id;
-        cp_costs[10] = active_kernels[comm_kernel_map[key].val_index].num_schedules;
-        cp_costs[11] = active_kernels[comm_kernel_map[key].val_index].num_local_schedules;
-        cp_costs[12] = active_kernels[comm_kernel_map[key].val_index].num_scheduled_units;
-        cp_costs[13] = active_kernels[comm_kernel_map[key].val_index].num_local_scheduled_units;
-        cp_costs[14] = active_kernels[comm_kernel_map[key].val_index].M1;
-        cp_costs[15] = active_kernels[comm_kernel_map[key].val_index].M2;
-        cp_costs[16] = active_kernels[comm_kernel_map[key].val_index].total_exec_time;
-        cp_costs[17] = active_kernels[comm_kernel_map[key].val_index].total_local_exec_time;
+        cp_costs[1] = active_kernels[comm_kernel_map[key].val_index].steady_state;
       }
     }
   }
 
   // Note: I will not write special case for rank==partner
-  if (sample_constraint_mode == 2){
+  if (kernel_execution_count_mode == 2){
     // Fill in -1 first because the number of distinct kernels might be less than 'comm_kernel_select_count',
     //   just to avoid confusion. A -1 tag clearly means that the kernel is void
-    memset(&cp_costs[18],-1,sizeof(float)*(cp_costs.size()-18));
+    memset(&cp_costs[aux_info_size],-1,sizeof(float)*(cp_costs.size()-aux_info_size));
     // Iterate over first 'comp_kernel_select_count' keys
     int count=0;
     for (auto it : comp_kernel_map){
       if (comp_kernel_select_count==0) break;
       if (active_kernels[it.second.val_index].num_local_schedules == 0) break;
-      auto offset = 18+9*count;
+      auto offset = aux_info_size+9*count;
       cp_costs[offset] = it.first.tag;
       cp_costs[offset+1] = it.first.param1;
       cp_costs[offset+2] = it.first.param2;
       cp_costs[offset+3] = it.first.param3;
       cp_costs[offset+4] = it.first.param4;
       cp_costs[offset+5] = it.first.param5;
-      cp_costs[offset+6] = it.first.kernel_index;
+      cp_costs[offset+aux_info_size] = it.first.kernel_index;
       cp_costs[offset+7] = it.first.flops;
       cp_costs[offset+8] = active_kernels[it.second.val_index].num_local_schedules;
       count++; if (count==comp_kernel_select_count) break;
@@ -560,7 +508,7 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
     for (auto it : comm_kernel_map){
       if (comm_kernel_select_count==0) break;
       if (active_kernels[it.second.val_index].num_local_schedules == 0) break;
-      auto offset = 18+9*comp_kernel_select_count+count*9;
+      auto offset = aux_info_size+9*comp_kernel_select_count+count*9;
       cp_costs[offset] = it.first.tag;
       cp_costs[offset+1] = it.first.dim_sizes[0];
       cp_costs[offset+2] = it.first.dim_sizes[1];
@@ -578,8 +526,8 @@ bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t 
     assert(delay_state_update);
     save_path_data = (float*)malloc(cp_costs_size*sizeof(float));
     std::memcpy(save_path_data,&cp_costs[0],cp_costs_size*sizeof(float));
-    MPI_Op op;
-    MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op);
+    MPI_Op op = MPI_MAX;
+    if (kernel_execution_count_mode == 2)MPI_Op_create((MPI_User_function*) propagate_cp_op,0,&op);
     PMPI_Iallreduce(MPI_IN_PLACE, save_path_data, cp_costs_size, MPI_FLOAT, op, tracker.comm, &save_prop_req);
     //MPI_Op_free(&op);
   }
@@ -620,10 +568,7 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
   if (partner != -1) assert(!(user_tag >= internal_tag && user_tag <= internal_tag5));
   // Deal with computational cost at the beginning, but don't synchronize to find computation-critical path-path yet or that will screw up calculation of overlap!
   tracker.comp_time = itime;
-  cp_costs[num_cp_measures-3] += tracker.comp_time;
-  cp_costs[num_cp_measures-1] += tracker.comp_time;
-  vol_costs[num_vol_measures-3] += tracker.comp_time;
-  vol_costs[num_vol_measures-1] += tracker.comp_time;
+  cp_costs[0] += tracker.comp_time;
 
   int el_size,p;
   MPI_Type_size(t, &el_size);
@@ -648,7 +593,6 @@ void path::complete_comm(nonblocking& tracker, float* path_data, MPI_Request* re
   tracker.partner2 = -1;
   tracker.nbytes = info_it->second.nbytes;
   tracker.comm_size = info_it->second.comm_size;
-  tracker.synch_time=0;
 
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   // Right now, I need to check schedule_decision and replace 'comm_time' with the predicted time, if necessary.
@@ -697,29 +641,15 @@ void path::complete_comm(nonblocking& tracker, float* path_data, MPI_Request* re
         } else{
           bool is_steady = steady_test(key,comm_kernel_map[key],comm_analysis_param);
           set_kernel_state(comm_kernel_map[key],!is_steady);
-          if (sample_constraint_mode == -1) set_kernel_state_global(comm_kernel_map[key],!is_steady);// Force global state to steady.
+          if (kernel_execution_count_mode == -1) set_kernel_state_global(comm_kernel_map[key],!is_steady);// Force global state to steady.
           set_kernel_state_global(comm_kernel_map[key],!is_steady);
         }
       }
     }
   }
 
-  cp_costs[num_cp_measures-4] += comm_time;			// update critical path communication time
-  cp_costs[num_cp_measures-3] += comp_time;			// update critical path runtime
-  cp_costs[num_cp_measures-1] += comp_time+comm_time;		// update critical path runtime
+  cp_costs[0] += comp_time+comm_time;		// update critical path runtime
 
-  vol_costs[num_vol_measures-4] += comm_time;				// update local communication time
-  vol_costs[num_vol_measures-3] += comp_time;				// update local runtime
-  vol_costs[num_vol_measures-1] += comp_time+comm_time;			// update local runtime
-  // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
-  vol_costs[num_vol_measures-4] = vol_costs[num_vol_measures-4] > cp_costs[num_cp_measures-4]
-                                          ? cp_costs[num_cp_measures-4] : vol_costs[num_vol_measures-4];
-  vol_costs[num_vol_measures-3] = vol_costs[num_vol_measures-3] > cp_costs[num_cp_measures-3]
-                                          ? cp_costs[num_cp_measures-3] : vol_costs[num_vol_measures-3];
-  vol_costs[num_vol_measures-2] = vol_costs[num_vol_measures-2] > cp_costs[num_cp_measures-2]
-                                          ? cp_costs[num_cp_measures-2] : vol_costs[num_vol_measures-2];
-  vol_costs[num_vol_measures-1] = vol_costs[num_vol_measures-1] > cp_costs[num_cp_measures-1]
-                                          ? cp_costs[num_cp_measures-1] : vol_costs[num_vol_measures-1];
   if (!tracker.is_sender || tracker.partner1==-1) free(info_it->second.path_data);
   nonblocking_internal_info.erase(*request);
 }
@@ -740,8 +670,8 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
     if (!info_it->second.is_sender || info_it->second.partner==-1){
       assert(info_it->second.path_data != nullptr);
       PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+      if (info_it->second.partner != -1) update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
     }
     complete_comm(*info_it->second.track, info_it->second.path_data, &save_r, comp_time, save_comm_time);
     intercept_overhead[2] += MPI_Wtime() - overhead_start_time;
@@ -751,8 +681,8 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
     if (!info_it->second.is_sender || info_it->second.partner==-1){
       assert(info_it->second.path_data != nullptr);
       PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+      if (info_it->second.partner != -1) update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
       if (status != MPI_STATUS_IGNORE){
         status->MPI_SOURCE = info_it->second.partner;
         status->MPI_TAG = info_it->second.tag;
@@ -793,8 +723,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     if (!info_it->second.is_sender || info_it->second.partner==-1){
       assert(info_it->second.path_data != nullptr);
       PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+      if (info_it->second.partner != -1) update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
     }
     complete_comm(*info_it->second.track, info_it->second.path_data, &(array_of_requests)[*indx], comp_time, save_comm_time);
   } else{
@@ -806,8 +736,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     if (!info_it->second.is_sender || info_it->second.partner==-1){
       assert(info_it->second.path_data != nullptr);
       PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-      if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-      if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+      if (info_it->second.partner != -1) update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+      if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
       if (status != MPI_STATUS_IGNORE){
         status->MPI_SOURCE = info_it->second.partner;
         status->MPI_TAG = info_it->second.tag;
@@ -852,8 +782,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
         if (!info_it->second.is_sender || info_it->second.partner==-1){
           assert(info_it->second.path_data != nullptr);
           PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-          update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-          if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+          update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+          if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
           if (array_of_statuses != MPI_STATUSES_IGNORE){
             array_of_statuses[i].MPI_SOURCE = info_it->second.partner;
             array_of_statuses[i].MPI_TAG = info_it->second.tag;
@@ -881,8 +811,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       if (!info_it->second.is_sender || info_it->second.partner==-1){
         assert(info_it->second.path_data != nullptr);
         PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-        if (info_it->second.partner != -1) update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+        if (info_it->second.partner != -1) update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
       }
       complete_comm(*info_it->second.track, info_it->second.path_data, &pt[i], comp_time, waitall_comm_time);
       // Although we have to exchange the path data for each request, we do not want to float-count the computation time nor the communicaion time
@@ -905,8 +835,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       if (!info_it->second.is_sender || info_it->second.partner==-1){
         assert(info_it->second.path_data != nullptr);
         PMPI_Wait(&info_it->second.prop_req, MPI_STATUS_IGNORE);
-        update_frequency(info_it->second.path_data,&cp_costs[0],cp_costs_size);
-        if (sample_constraint_mode == 2) kernel_update(&info_it->second.path_data[18]);
+        update_kernel_count(info_it->second.path_data,&cp_costs[0],cp_costs_size);
+        if (kernel_execution_count_mode == 2) kernel_update(&info_it->second.path_data[aux_info_size]);
         if (array_of_statuses != MPI_STATUSES_IGNORE){
           array_of_statuses[indx].MPI_SOURCE = info_it->second.partner;
           array_of_statuses[indx].MPI_TAG = info_it->second.tag;
@@ -925,6 +855,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
 void path::comp_state_aggregation(blocking& tracker){
   int size; MPI_Comm_size(tracker.comm,&size);
   int rank; MPI_Comm_rank(tracker.comm,&rank);
@@ -1009,15 +940,7 @@ void path::comp_state_aggregation(blocking& tracker){
   for (auto i=0; i<tracker.save_comp_key.size(); i++){
     auto& key = tracker.save_comp_key[i];
     if (comp_kernel_map.find(key) != comp_kernel_map.end()){
-      if (comp_kernel_transfer_id==0){
-        active_kernels[comp_kernel_map[key].val_index].hash_id = foreign_active_kernels[i].hash_id;
-      }
-      else if (comp_kernel_transfer_id==1){
-        auto save_kernel = active_kernels[comp_kernel_map[key].val_index];
-        active_kernels[comp_kernel_map[key].val_index] = foreign_active_kernels[i];
-        active_kernels[comp_kernel_map[key].val_index].num_non_schedules = save_kernel.num_non_schedules;
-        active_kernels[comp_kernel_map[key].val_index].num_non_scheduled_units = save_kernel.num_non_scheduled_units;
-      }
+      active_kernels[comp_kernel_map[key].val_index].hash_id = foreign_active_kernels[i].hash_id;
     } else{
       // Add new entry.
       active_comp_kernel_keys.push_back(key);
@@ -1025,9 +948,9 @@ void path::comp_state_aggregation(blocking& tracker){
       comp_kernel_map[key] = kernel_key_id(true,active_comp_kernel_keys.size()-1,active_kernels.size()-1,false);
     }
     set_kernel_state(comp_kernel_map[key],false);
-    if (comp_state_aggregation_mode==1){
+    if (propagate_kernel_execution_state==1){
       set_kernel_state_global(comp_kernel_map[key],false);
-    } else if (comp_state_aggregation_mode==2){
+    } else if (propagate_kernel_execution_state==2){
       if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
         active_kernels[comp_kernel_map[key].val_index].hash_id = aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
         active_kernels[comp_kernel_map[key].val_index].registered_channels.clear();
@@ -1125,22 +1048,8 @@ void path::comm_state_aggregation(blocking& tracker){
   PMPI_Bcast(&size_array[0],2,MPI_INT,0,tracker.comm);
   if (rank != 0){
     tracker.save_comm_key.resize(size_array[0]);
-    foreign_active_kernels.resize(size_array[1]);
-  }
-  PMPI_Bcast(&tracker.save_comm_key[0],size_array[0],comm_kernel_key_type,0,tracker.comm);
-  PMPI_Bcast(&foreign_active_kernels[0],size_array[1],kernel_type,0,tracker.comm);
-  for (auto i=0; i<tracker.save_comm_key.size(); i++){
-    auto& key = tracker.save_comm_key[i];
     if (comm_kernel_map.find(key) != comm_kernel_map.end()){
-      if (comm_kernel_transfer_id==0){
-        active_kernels[comm_kernel_map[key].val_index].hash_id = foreign_active_kernels[i].hash_id;
-      }
-      else if (comm_kernel_transfer_id==1){
-        auto save_kernel = active_kernels[comm_kernel_map[key].val_index];
-        active_kernels[comm_kernel_map[key].val_index] = foreign_active_kernels[i];
-        active_kernels[comm_kernel_map[key].val_index].num_non_schedules = save_kernel.num_non_schedules;
-        active_kernels[comm_kernel_map[key].val_index].num_non_scheduled_units = save_kernel.num_non_scheduled_units;
-      }
+      active_kernels[comm_kernel_map[key].val_index].hash_id = foreign_active_kernels[i].hash_id;
     } else{
       // Add new entry.
       active_comm_kernel_keys.push_back(key);
@@ -1148,9 +1057,9 @@ void path::comm_state_aggregation(blocking& tracker){
       comm_kernel_map[key] = kernel_key_id(true,active_comm_kernel_keys.size()-1,active_kernels.size()-1,false);
     }
     set_kernel_state(comm_kernel_map[key],false);
-    if (comm_state_aggregation_mode==1){
+    if (propagate_kernel_execution_state==1){
       set_kernel_state_global(comm_kernel_map[key],false);
-    } else if (comm_state_aggregation_mode==2){
+    } else if (propagate_kernel_execution_state==2){
       if (aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->is_final){
         active_kernels[comm_kernel_map[key].val_index].hash_id = aggregate_channel_map[comm_channel_map[tracker.comm]->global_hash_tag]->global_hash_tag;
         active_kernels[comm_kernel_map[key].val_index].registered_channels.clear();
@@ -1170,6 +1079,7 @@ void path::comm_state_aggregation(blocking& tracker){
   }
   tracker.save_comm_key.clear();
 }
+*/
 
 }
 }

@@ -239,12 +239,14 @@ void final_accumulate(MPI_Comm comm, double last_time){
       break;
     case 1:
       accelerate::final_accumulate(comm,last_time);
+/*
       if (accelerate::_MPI_Barrier.aggregate_comp_kernels){
         accelerate::path::comp_state_aggregation(accelerate::_MPI_Barrier);
       }
       if (accelerate::_MPI_Barrier.aggregate_comm_kernels){
         accelerate::path::comm_state_aggregation(accelerate::_MPI_Barrier);
       }
+*/
       break;
     case 2:
       skeletonize::final_accumulate(comm,last_time);
@@ -271,18 +273,7 @@ void set_reference_values(){
 void save_reference_values(){
   switch (mechanism){
     case 0:
-      accelerate::cp_costs_ref[0] = profile::cp_costs[profile::num_cp_measures-5];
-      accelerate::cp_costs_ref[1] = profile::cp_costs[profile::num_cp_measures-3];
-      accelerate::cp_costs_ref[2] = profile::cp_costs[profile::num_cp_measures-2];
-      accelerate::cp_costs_ref[3] = profile::cp_costs[profile::num_cp_measures-1];
-      accelerate::max_pp_costs_ref[0] = profile::max_pp_costs[profile::num_pp_measures-5];
-      accelerate::max_pp_costs_ref[1] = profile::max_pp_costs[profile::num_pp_measures-3];
-      accelerate::max_pp_costs_ref[2] = profile::max_pp_costs[profile::num_pp_measures-2];
-      accelerate::max_pp_costs_ref[3] = profile::max_pp_costs[profile::num_pp_measures-1];
-      accelerate::vol_costs_ref[0] = profile::vol_costs[profile::num_vol_measures-5];
-      accelerate::vol_costs_ref[1] = profile::vol_costs[profile::num_vol_measures-3];
-      accelerate::vol_costs_ref[2] = profile::vol_costs[profile::num_vol_measures-2];
-      accelerate::vol_costs_ref[3] = profile::vol_costs[profile::num_vol_measures-1];
+      accelerate::cp_costs_ref[0] = profile::cp_costs[0];
       break;
     case 1:
       accelerate::reference_transfer();
@@ -408,9 +399,9 @@ int get_max_per_process_costs(){
     case 0:
       return profile::num_pp_measures;
     case 1:
-      return accelerate::num_pp_measures;
+      return -1;
     case 2:
-      return skeletonize::num_pp_measures;
+      return -1;
   }
   assert(-1);
   return -1;
@@ -421,10 +412,8 @@ void get_max_per_process_costs(float* costs){
       std::memcpy(costs,&profile::max_pp_costs[0],sizeof(float)*profile::num_pp_measures);
       break;
     case 1:
-      std::memcpy(costs,&accelerate::max_pp_costs[0],sizeof(float)*accelerate::num_pp_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonize::max_pp_costs[0],sizeof(float)*skeletonize::num_pp_measures);
       break;
   }
   return;
@@ -434,9 +423,9 @@ int get_volumetric_costs(){
     case 0:
       return profile::num_vol_measures;
     case 1:
-      return accelerate::num_vol_measures;
+      return -1;
     case 2:
-      return skeletonize::num_vol_measures;
+      return -1;
   }
   assert(-1);
   return -1;
@@ -447,10 +436,8 @@ void get_volumetric_costs(float* costs){
       std::memcpy(costs,&profile::vol_costs[0],sizeof(float)*profile::num_vol_measures);
       break;
     case 1:
-      std::memcpy(costs,&accelerate::vol_costs[0],sizeof(float)*accelerate::num_vol_measures);
       break;
     case 2:
-      std::memcpy(costs,&skeletonize::vol_costs[0],sizeof(float)*skeletonize::num_vol_measures);
       break;
   }
   return;

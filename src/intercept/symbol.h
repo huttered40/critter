@@ -5,7 +5,7 @@
 
 namespace critter{
 
-//void symbol_invoke(const char* symbol, float flops=0, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
+void symbol_invoke(const char* symbol, float flops=0, int param1=-1, int param2=-1, int param3=-1, int param4=-1, int param5=-1);
 
 namespace internal{
 

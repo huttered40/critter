@@ -22,10 +22,6 @@ class comm_tracker{
     double comp_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
     volatile double start_time;
-    /* \brief time when start() was last called, set to -1.0 initially and after stop() */
-    volatile double synch_time;
-    /* \brief save barrier time across start_synch */
-    volatile double barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm comm;
     /* \brief partner with which start() was last called */

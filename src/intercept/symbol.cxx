@@ -4,7 +4,6 @@
 
 namespace critter{
 
-/*
 void symbol_invoke(const char* symbol, float flops, int param1, int param2, int param3, int param4, int param5){
   if (internal::mode){
     volatile auto curtime = MPI_Wtime();
@@ -20,7 +19,6 @@ void symbol_invoke(const char* symbol, float flops, int param1, int param2, int 
     internal::symbol_function();
   }
 }
-*/
 
 namespace internal{
 
