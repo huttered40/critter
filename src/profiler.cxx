@@ -1,134 +1,8 @@
-#include "path.h"
-#include "../container/symbol_tracker.h"
-#include "../../accelerate/util/util.h"
-#include "../util/util.h"
-#include "../../util/util.h"
+#include "profiler.h"
+#include "container/kernel_tracker.h"
+#include "util.h"
 
-namespace critter{
 namespace internal{
-namespace profile{
-
-void path::exchange_communicators(MPI_Comm oldcomm, MPI_Comm newcomm){
-  assert(0); return;
-  // Accumulate the computation time between last communication routine
-  //   as both execution-time and computation time into both
-  //   the execution-time critical path data structures and the
-  //   per-process data structures.
-  volatile auto curtime = MPI_Wtime();
-  auto save_comp_time = curtime - computation_timer;
-  if (mode==1){
-    cp_costs[num_cp_measures-1] += save_comp_time;
-    vol_costs[num_vol_measures-1] += save_comp_time;
-    if (path_decomposition == 1){
-      for (size_t i=0; i<path_count; i++){
-        cp_costs[cp_costs_size-path_count-1-i] += save_comp_time; }
-    }
-    if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-      // Get the current symbol's execution-time since last
-      //   communication routine or its inception.
-      // Accumulate as both execution-time and computation time
-      //   into both the execution-time critical path data structures
-      //     and the per-process data structures.
-      auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
-      for (auto i=0; i<path_count; i++){
-        for (auto j=0; j<path_measure_index.size(); j++){
-          if (path_measure_index[j] == path_measure_select.size()-1){
-            symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += last_symbol_time;
-            symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += last_symbol_time;
-          }
-        }
-      }
-      symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += last_symbol_time;
-      symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
-    }
-  }
-  if (mode==1){
-    computation_timer = MPI_Wtime();
-    if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-      symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
-  }
-}
-
-bool path::initiate_comp(size_t id, volatile double curtime, float flop_count,
-                         int param1, int param2, int param3, int param4, int param5){
-  auto save_comp_time = curtime - computation_timer;
-  // Update {CompTime, ExecTime}
-  cp_costs[num_cp_measures-1] += save_comp_time;
-  vol_costs[num_vol_measures-1] += save_comp_time;
-  if (path_decomposition == 1){
-    for (size_t i=0; i<path_count; i++){
-      cp_costs[cp_costs_size-1-i] += save_comp_time; }
-  }
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    // Get the current symbol's execution-time since last
-    //   communication routine or its inception.
-    // Accumulate as both execution-time and computation time
-    //   into both the execution-time critical path data structures
-    //     and the per-process data structures.
-    auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += last_symbol_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += last_symbol_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
-  }
-
-  // start compunication timer for compunication routine
-  comp_start_time = MPI_Wtime();
-  return true;
-}
-
-void path::complete_comp(double errtime, size_t id, float flop_count,
-                         int param1, int param2, int param3, int param4, int param5){
-  volatile auto comp_time = MPI_Wtime() - comp_start_time - errtime;	// complete computation time
-/*
-  // Save kernel information
-  if (autotuning_debug == 1){
-    comp_kernel_key key(-1,id,flop_count,param1,param2,param3,param4,param5);
-    if (comp_kernel_info.find(key) == comp_kernel_info.end()){
-      comp_kernel_info[key] = std::make_pair(1,comp_time);
-    } else{
-      comp_kernel_info[key].first++;
-      comp_kernel_info[key].second += comp_time;
-    }
-  }
-*/
-  // Decompose measurements along multiple paths by symbol
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-3){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += flop_count;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += flop_count;
-        } else if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += comp_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += comp_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-3] += flop_count;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-3] += flop_count;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += comp_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += comp_time;
-  }
-  cp_costs[num_cp_measures-3] += flop_count;
-  cp_costs[num_cp_measures-1] += comp_time;
-  if (path_decomposition == 1){
-    for (size_t i=0; i<path_count; i++){ cp_costs[cp_costs_size-1-i] += comp_time; }
-    for (size_t i=0; i<path_count; i++){ cp_costs[cp_costs_size-path_count-1-i] += flop_count; }
-  }
-  vol_costs[num_vol_measures-3] += flop_count;
-  vol_costs[num_vol_measures-1] += comp_time;
-
-  computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
-}
 
 static void update_cp_decomp1(float* in, float* inout, size_t len){
   assert(len == cp_costs_size);	// this assert prevents user from obtaining wrong output if MPI implementation cuts up the message.
@@ -164,7 +38,6 @@ static void update_cp_decomp2(float* in, float* inout, size_t len){
   }
 }
 
-
 static void propagate_cp_decomp1_op(float* in, float* inout, int* len, MPI_Datatype* dtype){
   update_cp_decomp1(in,inout,static_cast<size_t>(*len));
 }
@@ -172,7 +45,63 @@ static void propagate_cp_decomp2_op(float* in, float* inout, int* len, MPI_Datat
   update_cp_decomp2(in,inout,static_cast<size_t>(*len));
 }
 
-bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
+static void update_timers(volatile double curtime, int index1, int index2){
+  for (auto i=0; i<path_count; i++){
+    for (auto j=0; j<path_measure_index.size(); j++){
+      if (path_measure_index[j] == index1){
+        timers[timer_stack.top()].cp_exclusive_measure[i][j] += curtime;
+        timers[timer_stack.top()].cp_excl_measure[i][j] += curtime;
+      }
+    }
+  }
+  timers[timer_stack.top()].pp_exclusive_measure[index2] += curtime;
+  timers[timer_stack.top()].pp_excl_measure[index2] += curtime;
+}
+
+bool profiler::initiate_comp(volatile double curtime, float flop_count){
+  auto save_comp_time = curtime - computation_timer;
+  // Update {CompTime, ExecTime}
+  cp_costs[num_cp_measures-1] += save_comp_time;
+  cp_costs[num_cp_measures-3] += flop_count;
+  vol_costs[num_vol_measures-1] += save_comp_time;
+  vol_costs[num_vol_measures-3] += flop_count;
+  if (path_decomposition == 1){
+    for (size_t i=0; i<path_count; i++){ cp_costs[cp_costs_size-1-i] += save_comp_time; }
+    for (size_t i=0; i<path_count; i++){ cp_costs[cp_costs_size-path_count-1-i] += flop_count; }
+  }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    // Get the current symbol's execution-time since last
+    //   communication routine or its inception.
+    // Accumulate as both execution-time and computation time
+    //   into both the execution-time critical path data structures
+    //     and the per-process data structures.
+    update_timers(curtime - timers[timer_stack.top()].start_timer.top(), path_measure_select.size()-1, num_decomp_pp_measures-1);
+    update_timers(flop_count, path_measure_select.size()-3, num_decomp_pp_measures-3);
+  }
+
+  // start compunication timer for compunication routine
+  comp_start_time = MPI_Wtime();
+  return execute_kernels==1 ? true : false;
+}
+
+void profiler::complete_comp(){
+  volatile auto comp_time = MPI_Wtime() - comp_start_time;
+  // Decompose measurements along multiple paths by symbol
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(comp_time, path_measure_select.size()-1, num_decomp_pp_measures-1);
+  }
+  cp_costs[num_cp_measures-1] += comp_time;
+  if (path_decomposition == 1){
+    for (size_t i=0; i<path_count; i++){ cp_costs[cp_costs_size-1-i] += comp_time; }
+  }
+  vol_costs[num_vol_measures-1] += comp_time;
+
+  computation_timer = MPI_Wtime();
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
+}
+
+bool profiler::initiate_comm(blocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm,
                             bool is_sender, int partner1, int user_tag1, int partner2, int user_tag2){
   // Check for conflicting communication tag(s)
   if (partner1 != -1) assert(!(user_tag1 >= internal_tag && user_tag1 <= internal_tag5));
@@ -212,21 +141,13 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
       cp_costs[cp_costs_size-1-i] += tracker.comp_time;
     }
   }
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += last_symbol_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += last_symbol_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(curtime - timers[timer_stack.top()].start_timer.top(), path_measure_select.size()-1, num_decomp_pp_measures-1);
   }
-
-  propagate(tracker);
+  if (propagate_within_timer){
+    if ((propagate_collective==1 && tracker.partner1==-1) ||
+        (propagate_p2p==1 && tracker.partner1!=-1)) propagate(tracker);
+  }
 
   // Do as much work as possible post-propagate and pre-barrier (which should be "dead" time that shouldn't affect correctness).
   // Update measurements that define the critical path for each metric.
@@ -241,23 +162,9 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
     *(tracker.cp_wrd_count+i) += cost.second;
   }
   // Decompose measurements along multiple paths by symbol
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    for (auto i=0; i<path_count; i++){
-      // update all communication-related measures for the top symbol in stack
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == 0){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += cost.second;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += cost.second;
-        } else if (path_measure_index[j] == 1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += cost.second;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += cost.second;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[0] += cost.second;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[0] += cost.second;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[1] += cost.first;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[1] += cost.first;
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(cost.first, 0,0);
+    update_timers(cost.second, 1,1);
   }
 
   cp_costs[num_cp_measures-5] += cost.second;
@@ -274,31 +181,12 @@ bool path::initiate_comm(blocking& tracker, volatile double curtime, int64_t nel
   if (tracker.partner1 == -1) PMPI_Barrier(tracker.comm);
   // start communication timer for communication routine
   tracker.start_time = MPI_Wtime();
-  return true;
+  return (execute_kernels==1 || nbytes<=execute_kernels_max_message_size) ? true : false;
 }
 
-void path::complete_comm(blocking& tracker){
+void profiler::complete_comm(blocking& tracker){
   volatile auto comm_time = MPI_Wtime() - tracker.start_time;	// complete communication time
   int rank; MPI_Comm_rank(tracker.comm, &rank);
-
-/*
-  // Save kernel information
-  if (autotuning_debug == 1){
-    assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
-    int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
-    for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
-      comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
-      comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
-    }
-    comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    if (comm_kernel_info.find(key) == comm_kernel_info.end()){
-      comm_kernel_info[key] = std::make_pair(1,comm_time);
-    } else{
-      comm_kernel_info[key].first++;
-      comm_kernel_info[key].second += comm_time;
-    }
-  }
-*/
 
   // Decompose measurements along multiple paths by MPI routine.
   *tracker.my_comm_time += comm_time;
@@ -307,23 +195,9 @@ void path::complete_comm(blocking& tracker){
   }
 
   // Decompose measurements along multiple paths by symbol
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    for (auto i=0; i<path_count; i++){
-      // update all communication-related measures for the top symbol in stack
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-2){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += comm_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += comm_time;
-        } else if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += comm_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += comm_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-2] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-2] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += comm_time;
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(comm_time, path_measure_select.size()-2, num_decomp_pp_measures-2);
+    update_timers(comm_time, path_measure_select.size()-1, num_decomp_pp_measures-1);
   }
 
   // Update measurements that define the critical path for each metric.
@@ -339,6 +213,8 @@ void path::complete_comm(blocking& tracker){
   //vol_costs[num_vol_measures-65] -= std::max((float)0.,path_diff);
 
 /* Commented out for performance reasons. Often not necessary anyways.
+  assert(cp_costs[num_cp_measures-2] >= vol_costs[num_vol_measures-2]);
+  assert(cp_costs[num_cp_measures-1] >= vol_costs[num_vol_measures-1]);
   // Due to granularity of timing, if a per-process measure ever gets more expensive than a critical path measure, we set the per-process measure to the cp measure
   for (int i=1; i<=5; i++){
     vol_costs[num_vol_measures-i] = std::min(vol_costs[num_vol_measures-i],cp_costs[num_cp_measures-i]);
@@ -347,41 +223,33 @@ void path::complete_comm(blocking& tracker){
 
   // Prepare to leave interception and re-enter user code by restarting computation timers.
   computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-bool path::initiate_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner, int user_tag){
+bool profiler::inspect_comm(nonblocking& tracker, volatile double curtime, int64_t nelem, MPI_Datatype t, MPI_Comm comm, bool is_sender, int partner, int user_tag){
   // Check for conflicting communication tag(s)
   if (partner != -1) assert(!(user_tag >= internal_tag && user_tag <= internal_tag5));
   tracker.comp_time = curtime - computation_timer;
   cp_costs[num_cp_measures-1] += tracker.comp_time;
   vol_costs[num_vol_measures-1] += tracker.comp_time;
+  int word_size,np; MPI_Type_size(t, &word_size);
+  int64_t nbytes = word_size * nelem;
   if (path_decomposition == 1){
     for (size_t i=0; i<path_count; i++){
       cp_costs[cp_costs_size-1-i] += tracker.comp_time;
     }
   }
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    auto last_symbol_time = curtime - symbol_timers[symbol_stack.top()].start_timer.top();
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += last_symbol_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += last_symbol_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(curtime - timers[timer_stack.top()].start_timer.top(), path_measure_select.size()-1, num_decomp_pp_measures-1);
   }
   // Note: routine below will be called immediately afterward.
-  return true;
+  return (execute_kernels==1 || nbytes<=execute_kernels_max_message_size) ? true : false;
 }
 
 // Called by both nonblocking p2p and nonblocking collectives
-void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
+void profiler::initiate_comm(nonblocking& tracker, volatile double itime, int64_t nelem,
                          MPI_Datatype t, MPI_Comm comm, MPI_Request* request, bool is_sender, int partner, int user_tag){
   // Check for conflicting communication tag(s)
   if (partner != -1) assert(!(user_tag >= internal_tag && user_tag <= internal_tag5));
@@ -394,18 +262,8 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
      cp_costs[cp_costs_size-1-i] += tracker.comp_time;
     }
   }
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    auto last_symbol_time = itime;
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += last_symbol_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += last_symbol_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += last_symbol_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += last_symbol_time;
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(itime, path_measure_select.size()-1, num_decomp_pp_measures-1);
   }
 
   int rank; MPI_Comm_rank(comm,&rank); 
@@ -423,18 +281,21 @@ void path::initiate_comm(nonblocking& tracker, volatile double itime, int64_t ne
 
   MPI_Request prop_req = MPI_REQUEST_NULL;
   float* path_data = nullptr;
-  if (propagate_p2p) propagate(tracker,path_data,&prop_req);
+  if (propagate_within_timer){
+    if ((propagate_collective==1 && tracker.partner1==-1) ||
+        (propagate_p2p==1 && tracker.partner1!=-1)) propagate(tracker,path_data,&prop_req);
+  }
   nonblocking_info msg_info(path_data,prop_req,is_sender,partner,comm,(float)nbytes,(float)p,&tracker);
   nonblocking_internal_info[*request] = msg_info;
 
   void* temp_buf; int temp_size;
   MPI_Buffer_detach(&temp_buf,&temp_size);
   computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
 }
 
-void path::complete_comm(double comp_time){
+void profiler::complete_comm(double comp_time){
   cp_costs[num_cp_measures-1] += comp_time;
   if (path_decomposition == 1){
     for (size_t i=0; i<path_count; i++){
@@ -443,21 +304,12 @@ void path::complete_comm(double comp_time){
   }
   vol_costs[num_vol_measures-1] += comp_time;
   // Decompose measurements along multiple paths by symbol
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += comp_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += comp_time;
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += comp_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += comp_time;
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(comp_time, path_measure_select.size()-1, num_decomp_pp_measures-1);
   }
 }
 
-void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
+void profiler::complete_comm(nonblocking& tracker, MPI_Request* request, double comp_time, double comm_time){
   auto info_it = nonblocking_internal_info.find(*request);
   assert(info_it != nonblocking_internal_info.end());
 
@@ -469,24 +321,6 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   tracker.comm_size = info_it->second.comm_size;
 
   int rank; MPI_Comm_rank(tracker.comm, &rank);
-/*
-  if (autotuning_debug == 1){
-    assert(comm_channel_map.find(tracker.comm) != comm_channel_map.end());
-    int comm_sizes[2]={0,0}; int comm_strides[2]={0,0};
-    for (auto i=0; i<comm_channel_map[tracker.comm]->id.size(); i++){
-      comm_sizes[i]=comm_channel_map[tracker.comm]->id[i].first;
-      comm_strides[i]=comm_channel_map[tracker.comm]->id[i].second;
-    }
-    comm_kernel_key key(rank,-1,tracker.tag,comm_sizes,comm_strides,tracker.nbytes,tracker.partner1);
-    if (comm_kernel_info.find(key) == comm_kernel_info.end()){
-      comm_kernel_info[key] = std::make_pair(1,comm_time);
-    } else{
-      comm_kernel_info[key].first++;
-      comm_kernel_info[key].second += comm_time;
-    }
-  }
-*/
-
   std::pair<float,float> cost = cost_model == 0 ?
     tracker.cost_func_bsp(tracker.nbytes, tracker.comm_size)
     : tracker.cost_func_alphabeta(tracker.nbytes, tracker.comm_size);
@@ -524,42 +358,21 @@ void path::complete_comm(nonblocking& tracker, MPI_Request* request, double comp
   }
 
   // Decompose measurements along multiple paths by symbol
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    for (auto i=0; i<path_count; i++){
-      for (auto j=0; j<path_measure_index.size(); j++){
-        if (path_measure_index[j] == 0){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += cost.second;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += cost.second;
-        } else if (path_measure_index[j] == 1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += cost.first;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += cost.first;
-        } else if (path_measure_index[j] == path_measure_select.size()-2){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += comm_time;
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += comm_time;
-        } else if (path_measure_index[j] == path_measure_select.size()-1){
-          symbol_timers[symbol_stack.top()].cp_exclusive_measure[i][j] += (comp_time+comm_time);
-          symbol_timers[symbol_stack.top()].cp_excl_measure[i][j] += (comp_time+comm_time);
-        }
-      }
-    }
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[0] += cost.second;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[1] += cost.first;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[0] += cost.second;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[1] += cost.first;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-2] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_exclusive_measure[num_decomp_pp_measures-1] += (comp_time+comm_time);
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-2] += comm_time;
-    symbol_timers[symbol_stack.top()].pp_excl_measure[num_decomp_pp_measures-1] += (comp_time+comm_time);
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    update_timers(cost.second, 0,0);
+    update_timers(cost.first, 1,1);
+    update_timers(comm_time, path_measure_select.size()-2,num_decomp_pp_measures-2);
+    update_timers(comp_time+comm_time, path_measure_select.size()-1,num_decomp_pp_measures-1);
   }
-
   nonblocking_internal_info.erase(*request);
 }
 
-int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status, int is_test, int* flag){
+int profiler::complete_comm(double curtime, MPI_Request* request, MPI_Status* status, int is_test, int* flag){
   auto comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
   auto info_it = nonblocking_internal_info.find(*request);
-  assert(info_it != nonblocking_internal_info.end());
+  if (execute_kernels == 1 && info_it != nonblocking_internal_info.end()) assert(0);
+  if (execute_kernels == 0) return ret;// Assume that the message was not sent/received
   MPI_Request save_request = info_it->first;
   volatile auto last_start_time = MPI_Wtime();
   if (is_test == 0) ret = PMPI_Wait(request, status);
@@ -569,8 +382,8 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
       auto save_comm_time = MPI_Wtime() - last_start_time;
       complete_comm(save_comm_time+comp_time);
       computation_timer = MPI_Wtime();
-      if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-        symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+      if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+        timers[timer_stack.top()].start_timer.top() = computation_timer; }
       return ret;
     }
   }
@@ -578,7 +391,8 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
   int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
   if (rank != info_it->second.partner){
     // If receiver or collective, complete the barrier and the path data propagation
-    if (!info_it->second.is_sender || info_it->second.partner==-1){
+    // Assume that if receiver's request isn't null, then sender's request isn't null either
+    if ((info_it->second.prop_req!=MPI_REQUEST_NULL) && (!info_it->second.is_sender || info_it->second.partner==-1)){
       assert(info_it->second.path_data != nullptr);
       MPI_Request req_array[] = {info_it->second.prop_req};
       PMPI_Wait(&req_array[0], MPI_STATUS_IGNORE);
@@ -590,12 +404,12 @@ int path::complete_comm(double curtime, MPI_Request* request, MPI_Status* status
   }
   complete_comm(*info_it->second.track, &save_request, comp_time, save_comm_time);
   computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
   return ret;
 }
 
-int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status, int is_test, int* flag){
+int profiler::complete_comm(double curtime, int count, MPI_Request array_of_requests[], int* indx, MPI_Status* status, int is_test, int* flag){
 
   auto comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
@@ -610,8 +424,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       auto save_comm_time = MPI_Wtime() - last_start_time;
       complete_comm(save_comm_time+comp_time);
       computation_timer = MPI_Wtime();
-      if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-        symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+      if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+        timers[timer_stack.top()].start_timer.top() = computation_timer; }
       return ret;
     }
   }
@@ -623,7 +437,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
     if (rank != info_it->second.partner){
       // If receiver, complete the barrier and the path data propagation
-      if (!info_it->second.is_sender || info_it->second.partner==-1){
+      if ((info_it->second.prop_req!=MPI_REQUEST_NULL) && (!info_it->second.is_sender || info_it->second.partner==-1)){
         assert(info_it->second.path_data != nullptr);
         MPI_Request req_array[] = {info_it->second.prop_req};
         //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
@@ -637,12 +451,12 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
   }
   complete_comm(*info_it->second.track, &request, comp_time, waitany_comm_time);
   computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
   return ret;
 }
 
-int path::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
+int profiler::complete_comm(double curtime, int incount, MPI_Request array_of_requests[], int* outcount, int array_of_indices[],
                         MPI_Status array_of_statuses[], int is_test){
 
   auto waitsome_comp_time = curtime - computation_timer;
@@ -659,8 +473,8 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
       auto save_comm_time = MPI_Wtime() - last_start_time;
       complete_comm(save_comm_time+waitsome_comp_time);
       computation_timer = MPI_Wtime();
-      if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-        symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+      if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+        timers[timer_stack.top()].start_timer.top() = computation_timer; }
       return ret;
     }
   }
@@ -673,7 +487,7 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
       int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
       if (rank != info_it->second.partner){
         // If receiver, complete the barrier and the path data propagation
-        if (!info_it->second.is_sender || info_it->second.partner==-1){
+        if ((info_it->second.prop_req!=MPI_REQUEST_NULL) && (!info_it->second.is_sender || info_it->second.partner==-1)){
           assert(info_it->second.path_data != nullptr);
           MPI_Request req_array[] = {info_it->second.prop_req};
           //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
@@ -689,12 +503,12 @@ int path::complete_comm(double curtime, int incount, MPI_Request array_of_reques
     waitsome_comp_time=0; waitsome_comm_time=0; is_first_request=false;
   }
   computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
   return ret;
 }
 
-int path::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[], int is_test, int* flag){
+int profiler::complete_comm(double curtime, int count, MPI_Request array_of_requests[], MPI_Status array_of_statuses[], int is_test, int* flag){
   auto waitall_comp_time = curtime - computation_timer;
   int ret = MPI_SUCCESS;
   is_first_request=true;
@@ -709,8 +523,8 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       auto save_comm_time = MPI_Wtime() - last_start_time;
       complete_comm(save_comm_time+waitall_comp_time);
       computation_timer = MPI_Wtime();
-      if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-        symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+      if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+        timers[timer_stack.top()].start_timer.top() = computation_timer; }
       return ret;
     }
   }
@@ -723,7 +537,7 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
       int rank; MPI_Comm_rank(info_it->second.track->comm,&rank);
       if (rank != info_it->second.partner){
         // If receiver, complete the barrier and the path data propagation
-        if (!info_it->second.is_sender || info_it->second.partner==-1){
+        if ((info_it->second.prop_req!=MPI_REQUEST_NULL) && (!info_it->second.is_sender || info_it->second.partner==-1)){
           assert(info_it->second.path_data != nullptr);
           MPI_Request req_array[] = {info_it->second.prop_req};
           //PMPI_Waitall(2, &req_array[0], MPI_STATUSES_IGNORE);
@@ -740,50 +554,23 @@ int path::complete_comm(double curtime, int count, MPI_Request array_of_requests
     waitall_comp_time=0; waitall_comm_time=0; is_first_request=false;
   }
   computation_timer = MPI_Wtime();
-  if (path_decomposition == 2 && path_count>0 && symbol_stack.size()>0){
-    symbol_timers[symbol_stack.top()].start_timer.top() = computation_timer; }
+  if (path_decomposition == 2 && path_count>0 && timer_stack.size()>0){
+    timers[timer_stack.top()].start_timer.top() = computation_timer; }
   return ret;
 }
 
-void path::propagate(blocking& tracker){
+void profiler::propagate(blocking& tracker){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if ((rank == tracker.partner1) && (rank == tracker.partner2)) { return; } 
   // Exchange the tracked routine critical path data
   if (tracker.partner1 == -1){
-    if (propagate_collective==0) return;
     MPI_Op op = MPI_MAX;
     if (path_decomposition <= 1 && path_count>0) MPI_Op_create((MPI_User_function*) propagate_cp_decomp1_op,0,&op);
     else if (path_decomposition == 2) MPI_Op_create((MPI_User_function*) propagate_cp_decomp2_op,0,&op);
     PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], cp_costs.size(), MPI_FLOAT, op, tracker.comm);
-    //PMPI_Allreduce(MPI_IN_PLACE, &cp_costs[0], 5+51*5, MPI_FLOAT, MPI_MAX, tracker.comm);
     if (path_count>0 || path_decomposition >= 2) MPI_Op_free(&op);
-/*
-      size_t active_size = tracker.comm_size;
-      size_t active_rank = rank;
-      size_t active_mult = 1;
-      while (active_size>1){
-	if (active_rank % 2 == 1){
-          MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
-	  int partner = (active_rank-1)*active_mult;
-          PMPI_Bsend(&cp_costs[0], cp_costs.size(), MPI_FLOAT, partner, internal_tag2, tracker.comm);
-          void* temp_buf; int temp_size;
-          MPI_Buffer_detach(&temp_buf,&temp_size);
-	  break;
-	}
-	else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
-	  int partner = (active_rank+1)*active_mult;
-          PMPI_Recv(&cp_costs_foreign[0], cp_costs.size(), MPI_FLOAT, partner, internal_tag2, tracker.comm, MPI_STATUS_IGNORE);
-          if (path_decomposition <= 1) update_cp_decomp1(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
-          else if (path_decomposition == 2) update_cp_decomp2(&cp_costs_foreign[0],&cp_costs[0],cp_costs_size);
-	}
-	active_size = active_size/2 + active_size%2;
-	active_rank /= 2;
-	active_mult *= 2;
-      }
-    PMPI_Barrier(tracker.comm);// necessary to track communication time accuracy (else some processes will leave early and wait).
-*/
+    PMPI_Barrier(tracker.comm);// necessary to track communication time accuracy (as some processes may leave early and wait).
   } else{
-    if (propagate_p2p==0) return;
     MPI_Buffer_attach(&eager_pad[0],eager_pad.size());
     if (tracker.is_sender){
       PMPI_Bsend(&cp_costs[0], cp_costs.size(), MPI_FLOAT, tracker.partner1, internal_tag2, tracker.comm);
@@ -800,7 +587,7 @@ void path::propagate(blocking& tracker){
   }
 }
 
-void path::propagate(nonblocking& tracker, float*& path_data, MPI_Request* prop_req){
+void profiler::propagate(nonblocking& tracker, float*& path_data, MPI_Request* prop_req){
   int rank; MPI_Comm_rank(tracker.comm,&rank);
   if (rank == tracker.partner1) { return; } 
   // Exchange the tracked routine critical path data
@@ -824,6 +611,4 @@ void path::propagate(nonblocking& tracker, float*& path_data, MPI_Request* prop_
   }
 }
 
-}
-}
 }

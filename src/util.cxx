@@ -1,12 +1,32 @@
-#include <limits.h>
-
 #include "util.h"
-#include "../container/comm_tracker.h"
-#include "../container/symbol_tracker.h"
+#include "container/comm_tracker.h"
+#include "container/kernel_tracker.h"
 
-namespace critter{
 namespace internal{
-namespace profile{
+
+int save_wildcard_id;
+int bsp_counter;
+int propagate_within_timer;
+int world_rank,debug_rank,debug;
+volatile double computation_timer;
+std::vector<double> wall_timer;
+double _wall_time;
+size_t auto_capture;
+bool is_world_root;
+size_t mode,stack_id;
+std::vector<float> scratch_pad;
+size_t profile_blas1;
+size_t profile_blas2;
+size_t profile_blas3;
+size_t profile_lapack;
+size_t profile_collective;
+size_t profile_p2p;
+size_t propagate_collective;
+size_t propagate_p2p;
+size_t execute_kernels;
+size_t execute_kernels_max_message_size;
+size_t eager_limit;
+int request_id;
 
 std::ofstream stream;
 int cost_model,path_decomposition;
@@ -35,14 +55,10 @@ std::vector<float> cp_costs,max_pp_costs,vol_costs;
 std::vector<float> cp_costs_foreign;
 std::vector<char> eager_pad;
 std::vector<int> path_index,path_measure_index;
-std::stack<std::string> symbol_stack;
-std::vector<std::string> symbol_order;
-//std::vector<float> intercept_overhead,global_intercept_overhead;
-//TODO: Below: try to remove if unecessary. But note used in discretization::
-std::map<comp_kernel_key,std::pair<int,float>> comp_kernel_info;
-std::map<comm_kernel_key,std::pair<int,float>> comm_kernel_info;
+std::stack<std::string> timer_stack;
+std::stack<bool> propagate_within_timer_stack;
 
-void allocate(MPI_Comm comm){
+void initialize(MPI_Comm comm){
   // Allocate is always invoked when MPI_Init* is intercepted.
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
@@ -53,8 +69,6 @@ void allocate(MPI_Comm comm){
   internal_tag = 31133; internal_tag1 = internal_tag+1;
   internal_tag2 = internal_tag+2; internal_tag3 = internal_tag+3;
   internal_tag4 = internal_tag+4; internal_tag5 = internal_tag+5;
-  //intercept_overhead.resize(3,0);
-  //global_intercept_overhead.resize(3,0);
 
   // Two cost-model options: alpha-beta (1) and BSP (0)
   if (std::getenv("CRITTER_COST_MODEL") != NULL){
@@ -131,6 +145,7 @@ void allocate(MPI_Comm comm){
                                          path_measure_index.push_back(i); } }
   } 
   path_decisions.resize(path_count);// Used in internal reductions of path profiles
+  scratch_pad.resize(100);	// necessary to avoid overwriting past bounds of global variable in kernel_tracker
 
   // 1st term - number of timers
   // 2nd term - number of costs
@@ -206,46 +221,48 @@ void reset(){
   memset(&cp_costs_foreign[0],0,sizeof(float)*cp_costs.size());
   memset(&max_pp_costs[0],0,sizeof(float)*max_pp_costs.size());
   memset(&vol_costs[0],0,sizeof(float)*vol_costs.size());
-  //memset(&intercept_overhead[0],0,sizeof(float)*intercept_overhead.size());
   bsp_counter=0; is_first_request=true;
-  //comp_kernel_info.clear(); comm_kernel_info.clear();
 }
 
-void init_symbol(std::vector<std::string>& symbols){
-  if (path_decomposition != 2) return;
-  for (auto& it :symbols){
-    if (symbol_timers.find(it) == symbol_timers.end()){
-      symbol_timers[it] = symbol_tracker(it);
-      symbol_order.push_back(it);
-      decomp_text_width = std::max(decomp_text_width,it.size());
-    }
+void register_timer(const char* timer_name){
+  assert(path_decomposition == 2);
+  //std::string try_this = timer_name;
+  if (timers.find(timer_name) == timers.end()){
+  //if (timers.find(try_this) == timers.end() && timers.size() < max_num_tracked_kernels){
+    timers[timer_name] = kernel_tracker(timer_name);
+    //timers[try_this] = kernel_tracker(try_this);
   }
 }
 
-void open_symbol(const char* symbol, double curtime){
-  if (path_decomposition != 2) return;
-  // If symbol not found already, ignore the symbol.
-  // The new instructions are for user to specify tracked symbols apriori
-  if (symbol_timers.find(symbol) == symbol_timers.end() && symbol_timers.size() < max_num_tracked_kernels){
-    symbol_timers[symbol] = symbol_tracker(symbol);
-    symbol_order.push_back(symbol);
-    //decomp_text_width = std::max(decomp_text_width,symbol.size());
+void __start_timer__(const char* timer_name, double curtime, bool propagate_within, MPI_Comm cm){
+  assert(path_decomposition == 2);
+  // If timer_name not found already, ignore the timer.
+  // The new instructions are for user to specify tracked kernels apriori
+  if (timers.find(timer_name) == timers.end() && timers.size() < max_num_tracked_kernels){
+    timers[timer_name] = kernel_tracker(timer_name);
   }
-  if (symbol_timers.find(symbol) != symbol_timers.end()) symbol_timers[symbol].start(curtime);
+  if (timers.find(timer_name) != timers.end()) {
+    //NOTE: If propagate_within_timer=1, critical path information will not be propagated
+    //      If propagate_within_timer==1, this cannot be overwritten by timers invoked within the call stack,
+    //        so state must be saved internally.
+    propagate_within_timer = propagate_within && (propagate_within_timer_stack.size()==0 ? true : propagate_within_timer_stack.top());
+    propagate_within_timer_stack.push(propagate_within_timer);
+    timers[timer_name].start(curtime);
+  }
 }
 
-void close_symbol(const char* symbol, double curtime){
-  if (path_decomposition != 2) return;
-  // If symbol not found already, ignore the symbol.
-  // The new instructions are for user to specify tracked symbols apriori
-  if (symbol_timers.find(symbol) != symbol_timers.end()){
-    symbol_timers[symbol].stop(curtime); }
+void __stop_timer__(const char* timer_name, double curtime, MPI_Comm cm){
+  assert(path_decomposition == 2);
+  // If timer_name not found already, ignore the timer.
+  // The new instructions are for user to specify tracked timers apriori
+  if (timers.find(timer_name) != timers.end()){
+    timers[timer_name].stop(curtime);
+    if (propagate_within_timer_stack.size()>0) propagate_within_timer_stack.pop();
+    propagate_within_timer = (propagate_within_timer_stack.size()==0 ? true : propagate_within_timer_stack.top());
+  }
 }
 
-// Corner case: measure the time between last kernel/communication-routine
-//   interception.
-void final_accumulate(MPI_Comm comm, double last_time){
-  assert(nonblocking_internal_info.size() == 0);
+void update_time(double last_time){
   auto last_comp_time = last_time-computation_timer;
   // Update ExecTime.
   cp_costs[num_cp_measures-1] += last_comp_time;
@@ -259,7 +276,94 @@ void final_accumulate(MPI_Comm comm, double last_time){
   }
 }
 
-void clear(){ symbol_timers.clear(); }
+void collect_volumetric_statistics(MPI_Comm cm){
+  if (mode==0) return;
+  assert(nonblocking_internal_info.size() == 0);
+  // First compute per-process max
+  int rank; MPI_Comm_rank(cm,&rank);
+  float_int buffer[num_pp_measures];
+  for (size_t i=0; i<num_pp_measures; i++){
+    max_pp_costs[i] = vol_costs[i];
+    buffer[i].first = vol_costs[i];
+    buffer[i].second = rank;
+  }
+  PMPI_Allreduce(MPI_IN_PLACE, &max_pp_costs[0], num_pp_measures, MPI_FLOAT, MPI_MAX, cm);
+  PMPI_Allreduce(MPI_IN_PLACE, &buffer[0], num_pp_measures, MPI_FLOAT_INT, MPI_MAXLOC, cm);
+  if (path_decomposition == 2){
+    // First 'num_pp_measures' will be overwritten by the same data
+    std::memcpy(&vol_costs[num_vol_measures], &max_pp_costs[num_pp_measures], (max_pp_costs.size()-num_pp_measures)*sizeof(float));
+  }
+  if (path_decomposition == 1 && path_count>0){
+    size_t save=0;
+    for (size_t i=0; i<path_index.size(); i++){
+      size_t z = path_index[i];
+      // If I am the processor that incurs the largest per-process time along any one path, then
+      //   save the data and communicate it via reduction.
+      if (rank == buffer[z].second){
+        for (size_t j=0; j<num_decomp_pp_measures*list_size; j++){
+          // The magic number 2 is for tracking the CompCost and ExecutionTime along each path
+          max_pp_costs[num_pp_measures+save*(num_decomp_pp_measures*list_size+2)+j] = vol_costs[num_vol_measures+j];
+        }
+        // Set the two final measurements
+        max_pp_costs[num_pp_measures+(save+1)*(num_decomp_pp_measures*list_size+2)-2] = vol_costs[num_vol_measures-3];// CompCost
+        max_pp_costs[num_pp_measures+(save+1)*(num_decomp_pp_measures*list_size+2)-1] = vol_costs[num_vol_measures-1];// ExecTime
+      }
+      else{
+        for (size_t j=0; j<num_decomp_pp_measures*list_size+2; j++){
+          max_pp_costs[num_pp_measures+save*(num_decomp_pp_measures*list_size+2)+j] = 0.;
+        }
+      }
+      PMPI_Allreduce(MPI_IN_PLACE, &max_pp_costs[num_pp_measures+save*(num_decomp_pp_measures*list_size+2)], num_decomp_pp_measures*list_size+2, MPI_FLOAT, MPI_MAX, cm);
+      save++;
+    }
+  }
+  else if (path_decomposition == 2 && path_count>0){
+    size_t path_select_offset = num_kernel_ds*num_decomp_pp_measures+1;
+    for (size_t i=0; i<path_index.size(); i++){
+      size_t z = path_index[i];
+      if (rank == buffer[z].second){
+        for (size_t j=0; j<timers.size(); j++){
+          std::memcpy(&max_pp_costs[num_pp_measures+j*path_select_offset*path_count+i*path_select_offset],
+                      &vol_costs[num_pp_measures+j*path_select_offset*path_count+i*path_select_offset],
+                      path_select_offset*sizeof(float));
+        }
+      }
+      else{
+        for (size_t j=0; j<timers.size(); j++){
+          std::memset(&max_pp_costs[num_pp_measures+j*path_select_offset*path_count+i*path_select_offset],
+                      (float)0., path_select_offset*sizeof(float));
+        }
+      }
+    }
+    PMPI_Allreduce(MPI_IN_PLACE, &max_pp_costs[0], (max_pp_costs.size()-num_pp_measures), MPI_FLOAT, MPI_MAX, cm);
+  }
+  // Now compute volumetric average
+  int world_size; MPI_Comm_size(MPI_COMM_WORLD,&world_size);
+  PMPI_Allreduce(MPI_IN_PLACE, &vol_costs[0], vol_costs.size(), MPI_FLOAT, MPI_SUM, cm);
+  for (int i=0; i<vol_costs.size(); i++){ vol_costs[i] /= world_size; }
+/*
+  int world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&world_rank);
+  if (mode && symbol_path_select_size>0){
+    size_t active_size = world_size;
+    size_t active_rank = world_rank;
+    size_t active_mult = 1;
+    while (active_size>1){
+      if (active_rank % 2 == 1){
+        int partner = (active_rank-1)*active_mult;
+        PMPI_Send(...)
+        break;
+      }
+      else if ((active_rank % 2 == 0) && (active_rank < (active_size-1))){
+        int partner = (active_rank+1)*active_mult;
+        PMPI_Recv(...)
+      }
+      active_size = active_size/2 + active_size%2;
+      active_rank /= 2;
+      active_mult *= 2;
+    }
+  }
+*/
+}
 
 void finalize(){
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
@@ -267,6 +371,4 @@ void finalize(){
   }
 }
 
-}
-}
 }

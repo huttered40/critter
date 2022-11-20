@@ -1,11 +1,13 @@
-#ifndef CRITTER__ACCELERATE__CONTAINER__COMM_TRACKER_H_
-#define CRITTER__ACCELERATE__CONTAINER__COMM_TRACKER_H_
+#ifndef CRITTER__CONTAINER__COMM_TRACKER_H_
+#define CRITTER__CONTAINER__COMM_TRACKER_H_
 
-#include "../../util/util.h"
+#include <mpi.h>
+#include <unordered_map>
+#include <map>
+#include <vector>
+#include <functional>
 
-namespace critter{
 namespace internal{
-namespace accelerate{
 
 /* \brief encapsulation of the state of a MPI routine */
 class comm_tracker{
@@ -14,6 +16,22 @@ class comm_tracker{
     std::string name;
     /* \brief integer tag of MPI routine */
     int tag;
+    /* \brief local duration of synchronization time */
+    float* my_synch_time;
+    /* \brief local duration of communication time */
+    float* my_comm_time;
+    /* \brief local comm cost in #messages */
+    float* my_msg_count;
+    /* \brief local comm cost in #words */
+    float* my_wrd_count;
+    /* \brief duration of synchronization time along a critical path */
+    float* cp_synch_time;
+    /* \brief duration of communication time along a critical path */
+    float* cp_comm_time;
+    /* \brief comm cost in #messages along a critical path */
+    float* cp_msg_count;
+    /* \brief comm cost in #words along a critical path */
+    float* cp_wrd_count;
     /* \brief function for cost model of MPI routine in bsp cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
     std::function< std::pair<float,float>(int64_t,int) > cost_func_bsp;
     /* \brief function for cost model of MPI routine in alpha-beta cost model, takes (msg_size_in_bytes, number_processors) and returns (latency_cost, bandwidth_cost) */
@@ -22,6 +40,10 @@ class comm_tracker{
     double comp_time;
     /* \brief time when start() was last called, set to -1.0 initially and after stop() */
     volatile double start_time;
+    /* \brief time when start() was last called, set to -1.0 initially and after stop() */
+    volatile double synch_time;
+    /* \brief save barrier time across start_synch */
+    volatile double barrier_time;
     /* \brief cm with which start() was last called */
     MPI_Comm comm;
     /* \brief partner with which start() was last called */
@@ -34,15 +56,18 @@ class comm_tracker{
     int comm_size;
     /* \brief is_sender bool with which start() was last called */
     bool is_sender;
-    bool should_propagate;
-    bool aggregate_comp_kernels;
-    bool aggregate_comm_kernels;
-    std::vector<comm_kernel_key> save_comm_key;
-    std::vector<comp_kernel_key> save_comp_key;
     /** \brief initialization of state called by construtors */
     void init();
     /** */
-    void set_header();
+    void set_header(std::map<std::string,std::vector<float>>& save_info);
+    /** */
+    void set_cp_costs(std::map<std::string,std::vector<float>>& save_info, size_t idx);
+    /** */
+    void set_pp_costs(std::map<std::string,std::vector<float>>& save_info, size_t idx);
+    /** */
+    void set_vol_costs(std::map<std::string,std::vector<float>>& save_info);
+    /** \brief sets data members to point into global arrays */
+    void set_cost_pointers();
 };
 
 class blocking : public comm_tracker{
@@ -85,29 +110,27 @@ public:
 
 struct nonblocking_info{
   nonblocking_info(){}
-  nonblocking_info(float* _path_data, MPI_Request _prop_req, bool _is_active,
+  nonblocking_info(float* _path_data, MPI_Request _prop_req,
                    bool _is_sender, int _partner, MPI_Comm _comm, float _nbytes,
-                   float _comm_size, int _tag, nonblocking* _track){
+                   float _comm_size, nonblocking* _track){
     this->path_data = _path_data;
+    //this->barrier_req = _barrier_req;
     this->prop_req = _prop_req;
-    this->is_active = _is_active;
     this->is_sender = _is_sender;
     this->partner = _partner;
     this->comm = _comm;
     this->nbytes = _nbytes;
     this->comm_size = _comm_size;
-    this->tag = _tag;
     this->track = _track;
   }
   float* path_data;
+  //MPI_Request barrier_req;
   MPI_Request prop_req;
-  bool is_active;
   bool is_sender;
   int partner;
   MPI_Comm comm;
   float nbytes;
   float comm_size;
-  int tag;
   nonblocking* track;
 };
 
@@ -153,7 +176,5 @@ extern comm_tracker* list[list_size];
 extern std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 
 }
-}
-}
 
-#endif /*CRITTER__ACCELERATE__CONTAINER__COMM_TRACKER_H_*/
+#endif /*CRITTER__CONTAINER__COMM_TRACKER_H_*/

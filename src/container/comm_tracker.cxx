@@ -1,9 +1,7 @@
 #include "comm_tracker.h"
-#include "../util/util.h"
+#include "../util.h"
 
-namespace critter{
 namespace internal{
-namespace profile{
 
 std::map<MPI_Request,nonblocking_info> nonblocking_internal_info;
 
@@ -265,12 +263,12 @@ void comm_tracker::init(){
 }
 
 void comm_tracker::set_cost_pointers(){
-  this->my_wrd_count = &scratch_pad;
-  this->my_msg_count = &scratch_pad;
-  this->my_comm_time = &scratch_pad;
-  this->cp_wrd_count = &scratch_pad;
-  this->cp_msg_count = &scratch_pad;
-  this->cp_comm_time = &scratch_pad;
+  this->my_wrd_count = &scratch_pad[0];
+  this->my_msg_count = &scratch_pad[0];
+  this->my_comm_time = &scratch_pad[0];
+  this->cp_wrd_count = &scratch_pad[0];
+  this->cp_msg_count = &scratch_pad[0];
+  this->cp_comm_time = &scratch_pad[0];
   if (path_decomposition<=1){
     size_t vol_costs_idx = num_vol_measures+this->tag*num_decomp_vol_measures;
     this->my_wrd_count = &vol_costs[vol_costs_idx];
@@ -373,6 +371,4 @@ nonblocking::nonblocking(nonblocking const& t){
   this->is_sender = t.is_sender;
 }
 
-}
-}
 }
