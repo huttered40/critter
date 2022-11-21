@@ -258,7 +258,7 @@ void print(int variantID){
   if ((path_decomposition==2) && (path_count>0) && (timers.size()>0)){
     if (is_world_root){
       for (auto z=0; z<path_count; z++){
-        std::cout << "***********************************************************************************************************************";
+        std::cout << "***********************************************************************************************************************\n";
         std::vector<std::pair<std::string,std::array<float,6>>> sort_info(timers.size());
         for (int i=path_measure_index.size()-1; i>=0; i--){
           sort_info.clear(); sort_info.resize(timers.size());

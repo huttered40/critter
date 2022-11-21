@@ -145,7 +145,7 @@ void initialize(MPI_Comm comm){
                                          path_measure_index.push_back(i); } }
   } 
   path_decisions.resize(path_count);// Used in internal reductions of path profiles
-  scratch_pad.resize(100);	// necessary to avoid overwriting past bounds of global variable in kernel_tracker
+  scratch_pad.resize(100);	// necessary (100 perhaps overkill) to avoid overwriting past bounds of global variable in kernel_tracker
 
   // 1st term - number of timers
   // 2nd term - number of costs
@@ -226,16 +226,12 @@ void reset(){
 
 void register_timer(const char* timer_name){
   assert(path_decomposition == 2);
-  //std::string try_this = timer_name;
   if (timers.find(timer_name) == timers.end()){
-  //if (timers.find(try_this) == timers.end() && timers.size() < max_num_tracked_kernels){
     timers[timer_name] = kernel_tracker(timer_name);
-    //timers[try_this] = kernel_tracker(try_this);
   }
 }
 
-void __start_timer__(const char* timer_name, double curtime, bool propagate_within, MPI_Comm cm){
-  assert(path_decomposition == 2);
+void __start_timer__(const char* timer_name, double curtime, bool propagate_within){
   // If timer_name not found already, ignore the timer.
   // The new instructions are for user to specify tracked kernels apriori
   if (timers.find(timer_name) == timers.end() && timers.size() < max_num_tracked_kernels){
@@ -251,8 +247,7 @@ void __start_timer__(const char* timer_name, double curtime, bool propagate_with
   }
 }
 
-void __stop_timer__(const char* timer_name, double curtime, MPI_Comm cm){
-  assert(path_decomposition == 2);
+void __stop_timer__(const char* timer_name, double curtime){
   // If timer_name not found already, ignore the timer.
   // The new instructions are for user to specify tracked timers apriori
   if (timers.find(timer_name) != timers.end()){

@@ -91,8 +91,8 @@ void kernel_tracker::stop(double save_time){
   }
   memset(this->pp_exclusive_measure,0,sizeof(float)*num_decomp_pp_measures);
   auto save_symbol = timer_stack.top();
-  this->start_timer.pop(); timer_stack.pop();
-
+  this->start_timer.pop();
+  timer_stack.pop();
   if (exclusive_only == 0){
     if (timer_stack.size() > 0 && (save_symbol != timer_stack.top())){
       for (auto j=0; j<path_count; j++){

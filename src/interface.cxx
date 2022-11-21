@@ -172,14 +172,14 @@ void critter_start_timer(const char* timer_name, bool propagate_within, MPI_Comm
       internal::_MPI_Barrier.partner2 = -1;
       internal::profiler::propagate(internal::_MPI_Barrier);
     }
-    internal::__start_timer__(timer_name,save_time,propagate_within,cm);
+    internal::__start_timer__(timer_name,save_time,propagate_within);
   }
 }
 
 void critter_stop_timer(const char* timer_name, MPI_Comm cm){
   if (internal::mode==1 && internal::path_decomposition==2){
     volatile auto save_time = MPI_Wtime();
-    internal::__stop_timer__(timer_name,save_time,cm);
+    internal::__stop_timer__(timer_name,save_time);
     if (cm != MPI_COMM_NULL){
       //NOTE: Don't need to call update_time(save_time) here because stop_timer(...) has already been called.
       internal::_MPI_Barrier.comm = cm;
