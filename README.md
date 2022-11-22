@@ -19,7 +19,18 @@ See the lists below for an accurate depiction of our current support.
 ## Build and use instructions
 Modify compiler and flags in `config/config.mk` (MPI installation and C++11 are required). Run `make` in the main directory to generate the library files `./lib/libcritter.a`. Include `critter.h` in all files that use MPI in your application (i.e. replace `include mpi.h`), and link to `./lib/libcritter.a`. Shared library `./lib/libcritter.so` is currently not generated.
 
-`critter` provides a few routines to the user: `critter::init(std::vector<std::string>&)`,`critter::start()`, `critter::stop()`, and `critter::record()`. `critter::start()`, `critter::stop()` create the window within which all MPI routines and computation kernels are intercepted and profiled. The window-creation routines are not strictly needed, as one can set the environment variable `CRITTER_AUTO_PROFILE=1` to enable `critter` to start profiling immediately following invocation `MPI_Init` or `MPI_Init_thread` and ending with invocation of `MPI_Finalize`. Use `critter::record()` to print `critter`'s analysis. Use `critter::init(std::vector<std::string>&)` to specify the user-defined kernels (see above for use of CRITTER_START(symbol) and CRITTER_STOP(symbol)) to be intercepted. See the other environment variables below for all customization options.
+`critter` provides the following C routines to the user:
+1. `void critter_register_timer(const char* timer_name)`: register a user-defined timer for a kernel with name *timer_name* to fix ordering of intercepted kernels (each of which must be associated with a distinct name). If processes start and stop timers in more than one ordering, all intercepted and profiled kernels must register their timers using this routine
+2. `void critter_start_timer(const char* timer_name, bool propagate_within = true, MPI_Comm cm = MPI_COMM_NULL)`: start timer for a kernel with name *timer_name*. Optionally, specify whether critical path information should be propagated within this kernel and/or whether to synchronize and propagate critical path information at the start of the kernel
+3. `void critter_stop_timer(const char* timer_name, MPI_Comm cm = MPI_COMM_NULL)`: stop timer for a kernel with name *timer_name*. Optionally, specify whether to synchronize and propagate critical path information at the end of the kernel
+4. `int critter_get_critical_path_costs()`: get the size of the critical path information (so that *critter_get_critical_path_costs(...)* can be invoked properly)
+5. `void critter_get_critical_path_costs(float* costs)`: set critical path information to passed buffer *costs*
+6. `void critter_start(MPI_Comm cm=MPI_COMM_WORLD)`: initiates the window within which all MPI routines and computation kernels are intercepted and profiled
+7. `void critter_stop(MPI_Comm cm=MPI_COMM_WORLD)`: closes the window within which all MPI routines and computation kernels are intercepted and profiled
+8. `void critter_record(int variantID=-1)`: print critter's analysis
+
+Note that one can set the environment variable `CRITTER_AUTO_PROFILE=1` to enable *critter* to start profiling immediately following invocation `MPI_Init` or `MPI_Init_thread` and ending with invocation of `MPI_Finalize` (and thus avoid explicitly calling `critter_start(...)` and `critter_stop(...)`).
+See the other environment variables below for all customization options.
 
 ## Environment variables
 |     Env variable        |   description   |   default value   |    
@@ -33,8 +44,12 @@ Modify compiler and flags in `config/config.mk` (MPI installation and C++11 are 
 | CRITTER_PATH_MEASURE_SELECT | Specify which metrics to profile along each critical path (via a 5-digit string according to the following order:  Synchronization cost, Communication cost, Computation cost, Communication time, Execution time); as an example, specify 00010 to measure the communication time attributed to each MPI routine, or specify 00001 to measure the execution time attributed to each user-defined kernel | 00000 |
 | CRITTER_PROFILE_EXCLUSIVE_TIME_ONLY | Specify whether to profile each kernel's exclusive time (1) and additionally inclusive time (0) | 0 |
 | CRITTER_PROFILE_MAX_NUM_KERNELS | Specify maximum number of user-defined kernels to intercept, profile, and propagate during program runtime | 20 |
+| CRITTER_PROFILE_P2P | Specify whether to profile point-to-point communications invoked during program runtime | 1 |
+| CRITTER_PROFILE_COLLECTIVE | Specify whether to profile collective communications invoked during program runtime | 1 |
 | CRITTER_PROPAGATE_P2P | Specify whether to propagate critical-path profiles during interception of point-to-point communications invoked during program runtime | 1 |
 | CRITTER_PROPAGATE_COLLECTIVE | Specify whether to propagate critical-path profiles during interception of collective communications invoked during program runtime | 1 |
+| CRITTER_EXECUTE_KERNELS | Specify whether to execute *intercepted* communication routines invoked during program runtime (subject to a maximum message size CRITTER_EXECUTE_KERNELS_MAX_MESSAGE_SIZE) | 1 |
+| CRITTER_EXECUTE_KERNELS_MAX_MESSAGE_SIZE | Specify the maximum message size of an intercepted communication routine that should not be avoided if CRITTER_EXECUTE_KERNELS=1 | 1 |
 
 ## Current support (most of MPI-1, including non-blocking collectives)
 |     MPI routine         |   profiled   |   
