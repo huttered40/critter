@@ -1,6 +1,10 @@
 include config.mk
 
-all: lib/libcritter.a
+all: lib/libcritter.a lib/libcritter.so
+
+static: lib/libcritter.a
+
+shared: lib/libcritter.so
 
 test: lib/libcritter.a
 
@@ -23,8 +27,24 @@ lib/libcritter.a:\
 					obj/container_kernel_tracker.o\
 					obj/profiler.o
 
-lib/libcritter.so: obj/critter.o
-	gcc -shared -o lib/libcritter.so obj util.o obj/critter.o
+lib/libcritter.so:\
+		obj/interface.o\
+		obj/util.o\
+		obj/intercept_comp.o\
+		obj/intercept_comm.o\
+		obj/record.o\
+		obj/container_comm_tracker.o\
+		obj/container_kernel_tracker.o\
+		obj/profiler.o
+	$(CXX) -shared -o lib/libcritter.so\
+					obj/interface.o\
+					obj/util.o\
+					obj/intercept_comp.o\
+					obj/intercept_comm.o\
+					obj/record.o\
+					obj/container_comm_tracker.o\
+					obj/container_kernel_tracker.o\
+					obj/profiler.o
 
 obj/interface.o: src/interface.cxx
 	$(CXX) src/interface.cxx -c -o obj/interface.o $(CXXFLAGS)
