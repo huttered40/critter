@@ -328,7 +328,7 @@ void comm_tracker::set_pp_costs(std::map<std::string,std::vector<float>>& save_i
   // This branch ensures that we produce data only for the MPI routines actually called over the course of the program
   if ((*this->my_comm_time != 0 && path_decomposition<=1 && path_count>0)){
     std::vector<float> vec(num_decomp_pp_measures);
-    // I believe this is setting {CommCost,SynchCost,CommTime}
+    // This is setting {CommCost,SynchCost,CommTime}
     // Magic number '2' accounts for saving {CompCost,ExecTime} for each tracked path.
     vec[0] = max_pp_costs[num_pp_measures+idx*(num_decomp_pp_measures*list_size+2)+this->tag*num_decomp_pp_measures];
     vec[1] = max_pp_costs[num_pp_measures+idx*(num_decomp_pp_measures*list_size+2)+this->tag*num_decomp_pp_measures+1];

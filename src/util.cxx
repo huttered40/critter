@@ -52,6 +52,7 @@ size_t num_kernel_ds,exclusive_only,max_num_tracked_kernels;
 std::string path_select,path_measure_select;
 std::vector<bool> path_decisions;
 std::vector<float> cp_costs,max_pp_costs,vol_costs;
+std::vector<float> cp_costs_v2,max_pp_costs_v2;//Track costs along specific path or max incurred by any one process
 std::vector<float> cp_costs_foreign;
 std::vector<char> eager_pad;
 std::vector<int> path_index,path_measure_index;
@@ -63,7 +64,7 @@ void initialize(MPI_Comm comm){
   int _world_size; MPI_Comm_size(MPI_COMM_WORLD,&_world_size);
   int _world_rank; MPI_Comm_rank(MPI_COMM_WORLD,&_world_rank);
   // Set up print-statement details. These should ideally be user-specified.
-  decomp_text_width = 40; text_width = 15; is_first_iter = true;
+  decomp_text_width = 40; text_width = 30; is_first_iter = true;
   // Select arbitrary tag for internal point-to-point
   //   messages that will (hopefully) not conflict with user messages
   internal_tag = 31133; internal_tag1 = internal_tag+1;
@@ -108,7 +109,13 @@ void initialize(MPI_Comm comm){
   // Specify file-name prefix
   if (std::getenv("CRITTER_VIZ_FILE") != NULL){
     std::string stream_name = std::getenv("CRITTER_VIZ_FILE");
-    stream_name += "_decomposition.txt";
+    stream_name += "_analysis.txt";
+    if (is_world_root){
+      stream.open(stream_name.c_str(),std::ofstream::out);
+      assert(stream.good());
+    }
+  } else{
+    std::string stream_name = "critter_analysis.txt";
     if (is_world_root){
       stream.open(stream_name.c_str(),std::ofstream::out);
       assert(stream.good());
@@ -186,6 +193,8 @@ void initialize(MPI_Comm comm){
     cp_costs_foreign.resize(cp_costs_size);
     max_pp_costs.resize(pp_costs_size);
     vol_costs.resize(vol_costs_size);
+    cp_costs_v2.resize(3);
+    max_pp_costs_v2.resize(3);
   } else if (path_decomposition == 2){
     // We only want to initialize once, but do not know the number of symbols before this point.
     size_t cp_symbol_select_size = num_kernel_ds*num_decomp_cp_measures+1;
@@ -361,9 +370,7 @@ void collect_volumetric_statistics(MPI_Comm cm){
 }
 
 void finalize(){
-  if (std::getenv("CRITTER_VIZ_FILE") != NULL){
-    if (is_world_root){ stream.close(); }
-  }
+  if (is_world_root){ stream.close(); }
 }
 
 }

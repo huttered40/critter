@@ -42,15 +42,15 @@ std::string get_measure_title(size_t idx){
 }
 
 void print_cost_model_tracker_header(){
-  std::cout << std::left << std::setw(text_width) << "CommCost";
-  std::cout << std::left << std::setw(text_width) << "SynchCost";
+  std::cout << std::left << std::setw(text_width) << "CommunicationCost";
+  std::cout << std::left << std::setw(text_width) << "SynchronizationCost";
   std::cout << std::left << std::setw(text_width) << "CommTime";
 }
 
 void print_cost_model_header(){
-  std::cout << std::left << std::setw(text_width) << "CommCost";
-  std::cout << std::left << std::setw(text_width) << "SynchCost";
-  std::cout << std::left << std::setw(text_width) << "CompCost";
+  std::cout << std::left << std::setw(text_width) << "CommunicationCost";
+  std::cout << std::left << std::setw(text_width) << "SynchronizationCost";
+  std::cout << std::left << std::setw(text_width) << "ComputationCost";
   std::cout << std::left << std::setw(text_width) << "CommTime";
   std::cout << std::left << std::setw(text_width) << "ExecTime";
   std::cout << "\n";
@@ -64,9 +64,9 @@ void print_header(size_t num_inputs, std::map<std::string,std::vector<float>>& s
     }
     stream << "Input";
   }
-  stream << "\tCommCost\tSynchCost\tCompCost\tCommunicationTime\tExecTime";// critical path
-  stream << "\tCommCost\tSynchCost\tCompCost\tCommunicationTime\tExecTime";// per-process
-  stream << "\tCommCost\tSynchCost\tCompCost\tCommunicationTime\tExecTime";// vol
+  stream << "\tCommunicationCost\tSynchronizationCost\tComputationCost\tCommunicationTime\tExecTime";// critical path
+  stream << "\tCommunicationCost\tSynchronizationCost\tComputationCost\tCommunicationTime\tExecTime";// per-process
+  stream << "\tCommunicationCost\tSynchronizationCost\tComputationCost\tCommunicationTime\tExecTime";// vol
   for (auto i=0; i<num_decomp_cp_measures*path_count+num_decomp_pp_measures*path_count+num_decomp_vol_measures;i++){
     for (auto& it : save_info){
      stream << "\t" << it.first;
@@ -77,6 +77,7 @@ void print_header(size_t num_inputs, std::map<std::string,std::vector<float>>& s
 void write_file(int variantID){
   auto np=0; MPI_Comm_size(MPI_COMM_WORLD,&np);
   if (is_world_root){
+/*
     std::map<std::string,std::vector<float>> save_info;
     auto inputs = parse_file_string();
     for (int i=0; i<list_size; i++){
@@ -108,6 +109,7 @@ void write_file(int variantID){
       }
     }
     save_info.clear();
+*/
 /*
     size_t breakdown_idx=0;
     for (auto i=0; i<comm_path_select.size(); i++){	// no idle time
@@ -185,47 +187,57 @@ void print(int variantID){
     if (path_decomposition == 1){
       for (auto i=0; i<path_index.size(); i++){
 	if (path_index[i]==0){
-	  std::cout << std::left << std::setw(decomp_text_width+1) << "CommCost:";
+	  std::cout << std::left << std::setw(decomp_text_width+1) << "CommunicationCost:";
 	} else if (path_index[i]==1){
-	  std::cout << std::left << std::setw(decomp_text_width+1) << "SynchCost:";
+	  std::cout << std::left << std::setw(decomp_text_width+1) << "SynchronizationCost:";
 	} else if (path_index[i]==2){
-	  std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost:";
+	  std::cout << std::left << std::setw(decomp_text_width+1) << "ComputationCost:";
 	} else if (path_index[i]==3){
 	  std::cout << std::left << std::setw(decomp_text_width+1) << "CommTime:";
 	} else if (path_index[i]==4){
 	  std::cout << std::left << std::setw(decomp_text_width+1) << "ExecTime:";
 	}
 	std::cout << std::left << std::setw(text_width) << "MeasureType";
-	std::cout << std::left << std::setw(text_width) << "CompCost";
-	std::cout << std::left << std::setw(text_width) << "CommCost";
-	std::cout << std::left << std::setw(text_width) << "SynchCost";
+	std::cout << std::left << std::setw(text_width) << "ComputationCost";
+	std::cout << std::left << std::setw(text_width) << "CommunicationCost";
+	std::cout << std::left << std::setw(text_width) << "SynchronizationCost";
 	std::cout << std::left << std::setw(text_width) << "CommTime";
 	std::cout << "\n";
-	std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost";
+	std::cout << std::left << std::setw(decomp_text_width+1) << "ComputationCost";
 	std::cout << std::left << std::setw(text_width) << "path";
-	std::cout << std::left << std::setw(text_width) << cp_costs[cp_costs_size-1*path_count+i];//CompCost
+	std::cout << std::left << std::setw(text_width) << cp_costs[cp_costs_size-2*path_count+i];//ComputationCost
 	save_info.clear();
 	for (int j=0; j<list_size; j++){
 	  list[j]->set_cp_costs(save_info,i);
 	}
+        float save_comm_time = 0.;
+        float save_comm_cost = 0.;
+        float save_synch_cost = 0.;
 	for (auto& it : save_info){
 	  std::cout << "\n";
 	  std::cout << std::left << std::setw(decomp_text_width+1) << it.first;
 	  std::cout << std::left << std::setw(text_width) << "path";
 	  std::cout << std::left << std::setw(text_width) << 0.0;
-	  // Print out {CommCost,SynchCost,CommTime}
+	  // Print out {CommunicationCost,SynchronizationCost,CommTime}
 	  for (size_t j=0; j<3; j++){
 	    std::cout << std::left << std::setw(text_width) << it.second[j];
+            if (j==0) save_comm_cost += it.second[j];
+            else if (j==1) save_synch_cost += it.second[j];
+            else if (j==2) save_comm_time += it.second[j];
 	  }
 	}
-	std::cout << "\n";
-	std::cout << std::left << std::setw(decomp_text_width+1) << "CompCost";
+        cp_costs_v2[0] = save_synch_cost; cp_costs_v2[1] = save_comm_cost; cp_costs_v2[2] = cp_costs[cp_costs_size-2*path_count+i];
+        std::cout << "\n";
+	std::cout << std::left << std::setw(decomp_text_width+1) << "ComputationCost";
 	std::cout << std::left << std::setw(text_width) << "per-process";
 	std::cout << std::left << std::setw(text_width) << max_pp_costs[num_pp_measures+(i+1)*(num_decomp_pp_measures*list_size+2)-2];
 	save_info.clear();
 	for (int j=0; j<list_size; j++){
 	  list[j]->set_pp_costs(save_info,i);
 	}
+        save_comm_time = 0.;
+        save_comm_cost = 0.;
+        save_synch_cost = 0.;
 	for (auto& it : save_info){
 	  std::cout << "\n";
 	  std::cout << std::left << std::setw(decomp_text_width+1) << it.first;
@@ -234,7 +246,11 @@ void print(int variantID){
 	  std::cout << std::left << std::setw(text_width) << it.second[0];
 	  std::cout << std::left << std::setw(text_width) << it.second[1];
 	  std::cout << std::left << std::setw(text_width) << it.second[2];
+          save_comm_cost += it.second[0];
+          save_synch_cost += it.second[1];
+          save_comm_time += it.second[2];
 	}
+        max_pp_costs_v2[0] = save_synch_cost; max_pp_costs_v2[1] = save_comm_cost; max_pp_costs_v2[2] = max_pp_costs[num_pp_measures+(i+1)*(num_decomp_pp_measures*list_size+2)-2];
 	std::cout << "\n\n";
       }
     }

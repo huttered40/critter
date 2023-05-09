@@ -74,6 +74,7 @@ extern size_t num_kernel_ds,exclusive_only,max_num_tracked_kernels;
 extern std::string path_select,path_measure_select;
 extern std::vector<bool> path_decisions;
 extern std::vector<float> cp_costs,max_pp_costs,vol_costs;
+extern std::vector<float> cp_costs_v2,max_pp_costs_v2;
 extern std::vector<float> cp_costs_foreign;
 extern std::vector<char> eager_pad;
 extern std::vector<int> path_index,path_measure_index;

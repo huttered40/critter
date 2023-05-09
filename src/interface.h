@@ -24,13 +24,21 @@ void critter_stop_timer(const char* timer_name, MPI_Comm cm = MPI_COMM_NULL);
 int critter_get_critical_path_costs();
 /* get_critical_path_costs: returns critical-path costs (dependent on mechanism) */
 void critter_get_critical_path_costs(float* costs);
-/* get_critical_path_costs: returns number of max-per-process costs (dependent on mechanism) */
+/* get_costs_along_critical_path: returns number of cost metrics tracked along critical-path */
+int critter_get_costs_along_critical_path();
+/* get_costs_along_critical_path: returns critical-path costs (dependent on mechanism) */
+void critter_get_costs_along_critical_path(float* costs);
+/* get_max_per_process_costs: returns number of max-per-process costs (dependent on mechanism) */
 int critter_get_max_per_process_costs();
-/* get_critical_path_costs: returns max-per-process costs (dependent on mechanism) */
+/* get_max_per_process_costs: returns max-per-process costs (dependent on mechanism) */
 void critter_get_max_per_process_costs(float* costs);
-/* get_critical_path_costs: returns number of volumetric costs (dependent on mechanism) */
+/* get_max_costs_per_process: returns number of max-per-process costs (dependent on mechanism) */
+int critter_get_max_costs_per_process();
+/* get_max_costs_per_process: returns max-per-process costs (dependent on mechanism) */
+void critter_get_max_costs_per_process(float* costs);
+/* get_max_per_process_costs: returns number of volumetric costs (dependent on mechanism) */
 int critter_get_volumetric_costs();
-/* get_critical_path_costs: returns volumetric costs (dependent on mechanism) */
+/* get_max_per_process_costs: returns volumetric costs (dependent on mechanism) */
 void critter_get_volumetric_costs(float* costs);
 
 // Auxiliary routines

@@ -196,11 +196,23 @@ int critter_get_critical_path_costs(){
 void critter_get_critical_path_costs(float* costs){
   std::memcpy(costs,&internal::cp_costs[0],sizeof(float)*internal::num_cp_measures);
 }
+int critter_get_costs_along_critical_path(){
+  return internal::cp_costs_v2.size();//Synchronization,Communication,Computation
+}
+void critter_get_costs_along_critical_path(float* costs){
+  std::memcpy(costs,&internal::cp_costs_v2[0],sizeof(float)*internal::cp_costs_v2.size());
+}
 int critter_get_max_per_process_costs(){
   return internal::num_pp_measures;
 }
 void critter_get_max_per_process_costs(float* costs){
   std::memcpy(costs,&internal::max_pp_costs[0],sizeof(float)*internal::num_pp_measures);
+}
+int critter_get_max_costs_per_process(){
+  return internal::max_pp_costs_v2.size();//Synchronization,Communication,Computation
+}
+void critter_get_max_costs_per_process(float* costs){
+  std::memcpy(costs,&internal::max_pp_costs[0],sizeof(float)*internal::max_pp_costs_v2.size());
 }
 int critter_get_volumetric_costs(){
   return internal::num_vol_measures;
